@@ -1,0 +1,16 @@
+{
+  "run_id": "smoke-3da7dab24d67",
+  "created_at": "2026-09-17T08:20:56.339102+00:00",
+  "trace_name": "smoke-test-no-llm",
+  "mode": "mock",
+  "llm_calls": 0,
+  "llm_tokens_spent": 0,
+  "sdk_version": "4.15.4",
+  "status": "verified",
+  "trace_id": "94f6c84a62741ad90bdb80226b8129ca",
+  "observations_verified": [
+    "local-python-step",
+    "smoke-test-no-llm"
+  ],
+  "trace_url": "http://localhost:3000/project/cmu4eytkr0006o707cn1hr42k/traces/94f6c84a62741ad90bdb80226b8129ca"
+}

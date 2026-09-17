@@ -1,0 +1,29 @@
+[
+  {
+    "image": "docker.langfuse.com/langfuse/langfuse:4",
+    "digest": "sha256:06c0eaaef81035e06a9f6ed5fe343e187c1dde970b722c9a20269612742e4f68"
+  },
+  {
+    "image": "docker.langfuse.com/langfuse/langfuse-worker:4",
+    "digest": "sha256:f1a9806779c4e5ca9414d2f5337405aed4516fa4b830cfe676f2fd887cc4ceae"
+  },
+  {
+    "image": "docker.io/clickhouse/clickhouse-server:25.12",
+    "digest": "sha256:8a790dd3468db22b1d4e7b18a176f378ff5ff6053b9c48dd4ea1fa71a24c5ba6"
+  },
+  {
+    "image": "cgr.dev/chainguard/minio:latest",
+    "digest": "sha256:29bbe439d3a3c41afac869973c08a70b1a7e7e6a3822015a110bf53df7e3e66c",
+    "pull_reference": "cgr.dev/chainguard/minio:latest",
+    "pull_policy": "missing",
+    "note": "Digest pull returned HTTP 403; tag pull succeeded and matched the recorded digest. Local container passed its health check."
+  },
+  {
+    "image": "docker.io/redis:7",
+    "digest": "sha256:71da9275c5f3fcb97d0fa0c8c5b36cc995327265420f17a04bfd544f458059f7"
+  },
+  {
+    "image": "docker.io/postgres:17",
+    "digest": "sha256:67f41722b7a8cbdb868a44a4995c846eddfdc2973bccb291ce937dce88ad5675"
+  }
+]

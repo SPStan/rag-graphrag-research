@@ -1,0 +1,23 @@
+.env
+.env.*
+!.env.example
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.cache/
+data/raw/
+indexes/
+storage/
+results/raw/
+*.log
+
+# Local MLflow state and artifacts; publish reviewed result exports instead.
+mlflow.db
+mlflow.db-*
+mlruns/
+mlartifacts/
+*.sqlite
+*.sqlite3
+*.sqlite-wal
+*.sqlite-shm
