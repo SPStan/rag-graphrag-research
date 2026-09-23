@@ -10,7 +10,8 @@ import numpy as np
 from scripts.answer_parser import extract_reader_answer
 from scripts.run_dense import (EMBED_CACHE_SCHEMA_VERSION, EMBED_TEXT_VERSION,
                                EMBED_TRUNCATE, ROOT, build_reader_messages, corpus_fingerprint,
-                               embed_corpus, normalize_rows, run, top_k, validate_processed_data,
+                               embed_corpus, normalize_rows, require_completed_generation, run,
+                               top_k, validate_processed_data,
                                DEMO_USER, PROMPT_SOURCE_COMMIT)
 
 
@@ -86,6 +87,13 @@ class DenseRetrievalTests(unittest.TestCase):
         self.assertEqual(extract_reader_answer("No marker"), ("", "missing_answer_marker"))
         self.assertEqual(extract_reader_answer("Answer: Paris\nAnswer: London"),
                          ("", "ambiguous_answer_marker"))
+
+    def test_generation_must_report_completion_before_run_can_finish(self):
+        require_completed_generation({"done": True, "done_reason": "stop"}, "q1")
+        with self.assertRaisesRegex(RuntimeError, "did not report a completed response"):
+            require_completed_generation({"done": False, "done_reason": "length"}, "q1")
+        with self.assertRaisesRegex(RuntimeError, "did not report a completed response"):
+            require_completed_generation({"done": True}, "q1")
 
     def test_embedding_cache_records_and_checks_no_truncation_policy(self):
         corpus = [{"id": "p1", "title": "A", "text": "first"},

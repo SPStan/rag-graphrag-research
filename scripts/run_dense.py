@@ -92,6 +92,15 @@ def post_json(session, endpoint, payload, timeout=300):
     return response.json()
 
 
+def require_completed_generation(generation, question_id):
+    """Reject a partial Ollama response so the run manifest cannot say completed."""
+    if generation.get("done") is not True or not generation.get("done_reason"):
+        raise RuntimeError(
+            f"Ollama generation for {question_id} did not report a completed response "
+            "(expected done=true and a non-empty done_reason)"
+        )
+
+
 def model_info(session, model_name):
     response = session.get(f"{OLLAMA_URL}/api/tags", timeout=30)
     response.raise_for_status()
@@ -436,6 +445,7 @@ def run(dataset="musique", limit=10, top_n=5, generation_model=GEN_MODEL):
                 }
                 output.write(json.dumps(row, ensure_ascii=False) + "\n")
                 output.flush()
+                require_completed_generation(generation, query["id"])
                 print(f"[{position}/{len(queries)}] {query['id']}: {row['answer']}")
         temporary.replace(output_path)
         manifest["status"] = "completed"
