@@ -20,6 +20,55 @@ def read_json(path):
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def object_value(value):
+    if isinstance(value, str):
+        return json.loads(value)
+    return value
+
+
+def verify_langfuse_trace(observations, payload):
+    by_name = {}
+    for observation in observations:
+        by_name.setdefault(observation.name, []).append(observation)
+    expected_names = {"dense-rag-run", "question", "query-embedding", "retrieval", "generation"}
+    if not expected_names.issubset(by_name):
+        raise RuntimeError("Langfuse trace is missing expected observation types")
+    root = by_name["dense-rag-run"][0]
+    metadata = object_value(root.metadata) or {}
+    if metadata.get("run_id") != payload["run_id"]:
+        raise RuntimeError("Langfuse root trace does not contain the expected run_id")
+    if object_value(root.input) is None or object_value(root.output) is None:
+        raise RuntimeError("Langfuse root trace is missing its inputs or outputs")
+    if len(by_name["question"]) != len(payload["questions"]):
+        raise RuntimeError("Langfuse question observation count does not match the saved run")
+    if any(object_value(observation.input) is None or object_value(observation.output) is None
+           for observation in by_name["generation"]):
+        raise RuntimeError("Langfuse generation observations are missing inputs or outputs")
+    retrieval_count = 0
+    for observation in by_name["retrieval"]:
+        output = object_value(observation.output) or {}
+        documents = output.get("documents", [])
+        if not documents or any(not doc.get("text") for doc in documents):
+            raise RuntimeError("Langfuse retrieval observation is missing full passage text")
+        retrieval_count += len(documents)
+    expected_retrieval_count = sum(len(item["retrieved_passages"]) for item in payload["questions"])
+    if retrieval_count != expected_retrieval_count:
+        raise RuntimeError("Langfuse retrieval passage count does not match the saved run")
+    generation_usage = {}
+    for observation in by_name["generation"]:
+        usage = object_value(observation.usage_details) or {}
+        for key in ("input", "output"):
+            if key in usage:
+                generation_usage[key] = generation_usage.get(key, 0) + usage[key]
+    for key, row_field in (("input", "prompt_tokens"), ("output", "completion_tokens")):
+        values = [row.get(row_field) for row in payload["rows"]]
+        if all(isinstance(value, int) and not isinstance(value, bool) for value in values):
+            if generation_usage.get(key) != sum(values):
+                raise RuntimeError("Langfuse generation token usage does not match the saved JSONL")
+    return {"observation_names": sorted(by_name), "retrieved_passages": retrieval_count,
+            "generation_usage": generation_usage}
+
+
 def prepare_payload(run_path, metrics_path, manifest_path, corpus_path):
     rows = [json.loads(line) for line in run_path.read_text(encoding="utf-8").splitlines()
             if line.strip()]
@@ -218,10 +267,13 @@ def export_langfuse(payload, base_dir=ROOT):
         deadline = time.monotonic() + 45
         expected = {"dense-rag-run", "question", "query-embedding", "retrieval", "generation"}
         while time.monotonic() < deadline:
-            observations = client.api.observations.get_many(trace_id=trace_id, limit=100)
+            observations = client.api.observations.get_many(
+                trace_id=trace_id, limit=100, fields="core,basic,io,metadata,usage,trace_context"
+            )
             names = {observation.name for observation in observations.data}
             if expected.issubset(names):
-                return {"trace_id": trace_id, "observation_names": sorted(names),
+                verification = verify_langfuse_trace(observations.data, payload)
+                return {"trace_id": trace_id, **verification,
                         "trace_url": client.get_trace_url(trace_id=trace_id)}
             time.sleep(2)
         raise RuntimeError("Langfuse trace did not expose the expected observations within 45 seconds")
@@ -230,6 +282,11 @@ def export_langfuse(payload, base_dir=ROOT):
 
 
 def main():
+    # MLflow prints run links containing emoji; Windows PowerShell may use a
+    # legacy code page that cannot encode them.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("run", type=Path, help="completed Dense RAG JSONL")
     parser.add_argument("--metrics", type=Path, help="metrics JSON; defaults next to run")

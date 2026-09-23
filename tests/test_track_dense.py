@@ -2,8 +2,9 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from types import SimpleNamespace
 
-from scripts.track_dense import prepare_payload
+from scripts.track_dense import prepare_payload, verify_langfuse_trace
 
 
 class DenseTrackingPayloadTests(unittest.TestCase):
@@ -49,6 +50,28 @@ class DenseTrackingPayloadTests(unittest.TestCase):
                                      encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "completed runs"):
                 prepare_payload(run_path, metrics_path, manifest_path, corpus_path)
+
+    def test_langfuse_verification_checks_run_id_full_text_and_known_usage(self):
+        payload = {"run_id": "one", "rows": [{"prompt_tokens": 10,
+                                                "completion_tokens": 3}],
+                   "questions": [{"retrieved_passages": [{"text": "passage"}]}]}
+        observations = [
+            SimpleNamespace(name="dense-rag-run", metadata={"run_id": "one"},
+                            input={"run_id": "one"}, output={"metrics": {}}),
+            SimpleNamespace(name="question", input={"question_id": "q1"},
+                            output={"answer": "Paris"}),
+            SimpleNamespace(name="query-embedding"),
+            SimpleNamespace(name="retrieval", output={"documents": [{"text": "passage"}]}),
+            SimpleNamespace(name="generation", input={"question": "Who?"},
+                            output={"answer": "Paris"},
+                            usage_details={"input": 10, "output": 3}),
+        ]
+        result = verify_langfuse_trace(observations, payload)
+        self.assertEqual(result["retrieved_passages"], 1)
+        self.assertEqual(result["generation_usage"], {"input": 10, "output": 3})
+        observations[0].metadata = {"run_id": "other"}
+        with self.assertRaisesRegex(RuntimeError, "run_id"):
+            verify_langfuse_trace(observations, payload)
 
 
 if __name__ == "__main__":
