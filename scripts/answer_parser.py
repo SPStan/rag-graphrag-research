@@ -4,8 +4,10 @@ import re
 
 
 def extract_reader_answer(raw_response):
-    """Extract the final explicit Answer marker, even when it follows inline text."""
+    """Extract one explicit final-answer marker; refuse ambiguous outputs."""
     matches = re.findall(r"(?i)\bAnswer:\s*(.*?)(?:\r?\n|$)", raw_response)
-    if not matches or not matches[-1].strip():
+    if len(matches) > 1:
+        return "", "ambiguous_answer_marker"
+    if not matches or not matches[0].strip():
         return "", "missing_answer_marker"
-    return matches[-1].strip(), "ok"
+    return matches[0].strip(), "ok"

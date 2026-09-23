@@ -10,7 +10,8 @@ import numpy as np
 from scripts.answer_parser import extract_reader_answer
 from scripts.run_dense import (EMBED_CACHE_SCHEMA_VERSION, EMBED_TEXT_VERSION,
                                EMBED_TRUNCATE, ROOT, build_reader_messages, corpus_fingerprint,
-                               embed_corpus, normalize_rows, top_k, validate_processed_data)
+                               embed_corpus, normalize_rows, run, top_k, validate_processed_data,
+                               DEMO_USER, PROMPT_SOURCE_COMMIT)
 
 
 class FakeEmbeddingResponse:
@@ -64,9 +65,18 @@ class DenseRetrievalTests(unittest.TestCase):
         self.assertEqual([message["role"] for message in messages],
                          ["system", "user", "assistant", "user"])
         self.assertIn("Question: Who is the person?", messages[-1]["content"])
+        self.assertTrue(messages[-1]["content"].endswith("Thought: "))
+        self.assertTrue(messages[1]["content"].endswith("Thought: "))
         self.assertIn("The person is Alice.", messages[-1]["content"])
         self.assertIn("This is another passage.", messages[-1]["content"])
         self.assertNotIn("Alice Smith", messages[-1]["content"])
+        self.assertEqual(PROMPT_SOURCE_COMMIT, "1438aba3fc44ff10573e5a5e1e7cc3c7f9794aff")
+        self.assertIn("Distributed by Buena Vista Pictures Distribution", DEMO_USER)
+        self.assertNotIn("\n\nWikipedia Title:", DEMO_USER)
+
+    def test_hipporag_musique_reader_refuses_unvalidated_hotpotqa_template(self):
+        with self.assertRaisesRegex(ValueError, "validated only for MuSiQue"):
+            run("hotpotqa")
 
     def test_answer_extraction_requires_explicit_answer_marker(self):
         self.assertEqual(extract_reader_answer("Thought: Some reasoning.\nAnswer: Paris."),
@@ -74,6 +84,8 @@ class DenseRetrievalTests(unittest.TestCase):
         self.assertEqual(extract_reader_answer("Some reasoning. Answer: Paris."),
                          ("Paris.", "ok"))
         self.assertEqual(extract_reader_answer("No marker"), ("", "missing_answer_marker"))
+        self.assertEqual(extract_reader_answer("Answer: Paris\nAnswer: London"),
+                         ("", "ambiguous_answer_marker"))
 
     def test_embedding_cache_records_and_checks_no_truncation_policy(self):
         corpus = [{"id": "p1", "title": "A", "text": "first"},

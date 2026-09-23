@@ -2,6 +2,7 @@
 
 import argparse
 from collections import Counter
+import hashlib
 import json
 from pathlib import Path
 import re
@@ -15,7 +16,7 @@ except ModuleNotFoundError:  # Direct execution puts the scripts directory on sy
 
 
 ROOT = Path(__file__).resolve().parents[1]
-METRIC_VERSION = "hipporag2-squad-normalization-answer-marker-v2"
+METRIC_VERSION = "hipporag2-squad-normalization-answer-marker-v3"
 PUNCTUATION = str.maketrans("", "", string.punctuation)
 
 
@@ -74,6 +75,26 @@ def read_jsonl(path):
     return rows
 
 
+def validate_manifest_file(run_path, rows, manifest):
+    """Bind a result file to its completed run manifest and expected ID plan."""
+    if manifest.get("status") != "completed":
+        raise ValueError("Run manifest status must be completed")
+    run_ids = {row.get("run_id") for row in rows}
+    if manifest.get("run_id") not in run_ids or len(run_ids) != 1:
+        raise ValueError("Run manifest does not match the JSONL run_id")
+    datasets = {row.get("dataset") for row in rows}
+    if manifest.get("dataset") is not None and datasets != {manifest.get("dataset")}:
+        raise ValueError("Run manifest does not match the JSONL dataset")
+    expected_hash = manifest.get("results_sha256")
+    actual_hash = hashlib.sha256(run_path.read_bytes()).hexdigest()
+    if not expected_hash or actual_hash != expected_hash:
+        raise ValueError("Run JSONL does not match the results hash in its manifest")
+    expected_ids = manifest.get("expected_question_ids")
+    if not isinstance(expected_ids, list) or not expected_ids:
+        raise ValueError("Run manifest must contain expected_question_ids")
+    return expected_ids
+
+
 def evaluate(rows, labels, expected_ids=None, manifest=None):
     run_ids = {row.get("run_id") for row in rows}
     datasets = {row.get("dataset") for row in rows}
@@ -81,8 +102,11 @@ def evaluate(rows, labels, expected_ids=None, manifest=None):
         raise ValueError("Run rows must share one non-empty run_id")
     if len(datasets) != 1 or None in datasets:
         raise ValueError("Run rows must share one dataset")
-    if manifest is not None and manifest.get("run_id") != next(iter(run_ids)):
-        raise ValueError("Run manifest does not match the JSONL run_id")
+    if manifest is not None:
+        if manifest.get("status") != "completed":
+            raise ValueError("Run manifest status must be completed")
+        if manifest.get("run_id") != next(iter(run_ids)):
+            raise ValueError("Run manifest does not match the JSONL run_id")
 
     by_id = {label["id"]: label for label in labels}
     if len(by_id) != len(labels):
@@ -92,6 +116,13 @@ def evaluate(rows, labels, expected_ids=None, manifest=None):
         raise ValueError("Run rows contain missing or duplicate question IDs")
 
     embedded_expected = [row.get("planned_question_ids") for row in rows]
+    if manifest is not None:
+        manifest_ids = manifest.get("expected_question_ids")
+        if not isinstance(manifest_ids, list) or not manifest_ids:
+            raise ValueError("Run manifest must contain expected_question_ids")
+        if expected_ids is not None and expected_ids != manifest_ids:
+            raise ValueError("Explicit expected IDs do not match the run manifest")
+        expected_ids = manifest_ids
     if expected_ids is None:
         if any(ids is None for ids in embedded_expected):
             raise ValueError("Expected question IDs are required for legacy runs")
@@ -100,11 +131,15 @@ def evaluate(rows, labels, expected_ids=None, manifest=None):
         expected_ids = embedded_expected[0]
     if not expected_ids or row_ids != expected_ids:
         raise ValueError("Run question IDs do not exactly match the expected ordered IDs")
+    if any(ids is not None and ids != expected_ids for ids in embedded_expected):
+        raise ValueError("Run rows disagree with manifest expected question IDs")
 
     config_fields = ("top_k", "embedding_model", "generation_model",
                      "reader_prompt_version", "generation_options")
     first = rows[0]
     for field in config_fields:
+        if first.get(field) in (None, "", {}):
+            raise ValueError(f"Run is missing required {field}")
         value = json.dumps(first.get(field), sort_keys=True, ensure_ascii=False)
         if any(json.dumps(row.get(field), sort_keys=True, ensure_ascii=False) != value
                for row in rows[1:]):
@@ -112,9 +147,28 @@ def evaluate(rows, labels, expected_ids=None, manifest=None):
     top_k = first.get("top_k")
     if not isinstance(top_k, int) or top_k <= 0:
         raise ValueError("Run needs a positive top_k")
+    options = first.get("generation_options")
+    required_options = ("temperature", "num_predict", "num_ctx")
+    prompt_version = re.search(r"-v(\d+)$", str(first["reader_prompt_version"]))
+    if prompt_version and int(prompt_version.group(1)) >= 3:
+        required_options += ("seed",)
+    if not isinstance(options, dict) or not all(key in options for key in required_options):
+        raise ValueError(f"Run generation_options must include {', '.join(required_options)}")
 
     per_question = []
     for row in rows:
+        if "answer" not in row or not isinstance(row.get("answer"), str):
+            raise ValueError("Each row must contain an answer string, including for failed answers")
+        if "answer_extraction_status" not in row:
+            raise ValueError("Each row must record answer_extraction_status")
+        if "done_reason" not in row or row.get("done_reason") is None:
+            raise ValueError("Each row must record a non-empty done_reason")
+        if row.get("done") is False:
+            raise ValueError("Run contains an incomplete generation response")
+        if prompt_version and int(prompt_version.group(1)) >= 3 and row.get("done") is not True:
+            raise ValueError("Reader v3 rows must record done=true")
+        if not isinstance(row.get("retrieved"), list):
+            raise ValueError("Each row must contain a retrieved passage list")
         qid = row["question_id"]
         if qid not in by_id:
             raise ValueError(f"No gold label found for question {qid}")
@@ -226,6 +280,11 @@ def main():
         manifest_path = run_path.with_suffix(".manifest.json")
         manifest = (json.loads(manifest_path.read_text(encoding="utf-8"))
                     if manifest_path.exists() else None)
+        if manifest is not None:
+            manifest_ids = validate_manifest_file(run_path, rows, manifest)
+            if expected_ids is not None and expected_ids != manifest_ids:
+                raise ValueError("Expected view does not match the run manifest")
+            expected_ids = manifest_ids
         result = evaluate(rows, json.loads(labels_path.read_text(encoding="utf-8")),
                           expected_ids, manifest)
         output_path = args.output or run_path.with_suffix(".metrics.json")

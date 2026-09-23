@@ -24,8 +24,8 @@ ROOT = Path(__file__).resolve().parents[1]
 OLLAMA_URL = "http://localhost:11434"
 EMBED_MODEL = "bge-m3"
 GEN_MODEL = "qwen2.5:3b"
-READER_PROMPT_VERSION = "hipporag2-musique-one-shot-v2"
-# Adapted from OSU-NLP-Group/HippoRAG's rag_qa_musique.py (MIT).
+READER_PROMPT_VERSION = "hipporag2-musique-one-shot-v5"
+# Adapted from OSU-NLP-Group/HippoRAG's rag_qa_musique.py (MIT), pinned below.
 # Keep this fixed demonstration independent of the benchmark questions and labels.
 READER_SYSTEM = (
     'As an advanced reading comprehension assistant, your task is to analyze text passages and '
@@ -34,23 +34,25 @@ READER_SYSTEM = (
     'Conclude with "Answer: " to present a concise, definitive response, devoid of additional elaborations.'
 )
 DEMO_USER = (
-    "Wikipedia Title: The Last Horse\nThe Last Horse (Spanish:El último caballo) is a 1950 Spanish comedy film directed by Edgar Neville starring Fernando Fernán Gómez.\n\n"
-    "Wikipedia Title: Southampton\nThe University of Southampton, which was founded in 1862 and received its Royal Charter as a university in 1952, has over 22,000 students. The university is ranked in the top 100 research universities in the world in the Academic Ranking of World Universities 2010. In 2010, the THES - QS World University Rankings positioned the University of Southampton in the top 80 universities in the world.\nThe university considers itself one of the top 5 research universities in the UK.\nThe university has a global reputation for research into engineering sciences, oceanography, chemistry, cancer sciences, sound and vibration research, computer science and electronics, optoelectronics and textile conservation at the Textile Conservation Centre (which is due to close in October 2009.) It is also home to the National Oceanography Centre, Southampton (NOCS), the focus of Natural Environment Research Council-funded marine research.\n\n"
-    "Wikipedia Title: Stanton Township, Champaign County, Illinois\nStanton Township is a township in Champaign County, Illinois, USA. As of the 2010 census, its population was 505 and it contained 202 housing units.\n\n"
-    "Wikipedia Title: Neville A. Stanton\nNeville A. Stanton is a British Professor of Human Factors and Ergonomics at the University of Southampton. Prof Stanton is a Chartered Engineer (C.Eng), Chartered Psychologist (C.Psychol) and Chartered Ergonomist (C.ErgHF). He has written and edited over a forty books and over three hundered peer-reviewed journal papers on applications of the subject.\nStanton is a Fellow of the British Psychological Society, a Fellow of The Institute of Ergonomics and Human Factors and a member of the Institution of Engineering and Technology. He has been published in academic journals including \"Nature\". He has also helped organisations design new human-machine interfaces, such as the Adaptive Cruise Control system for Jaguar Cars.\n\n"
-    "Wikipedia Title: Finding Nemo\nFinding Nemo Theatrical release poster Directed by Andrew Stanton Produced by Graham Walters Screenplay by Andrew Stanton Bob Peterson David Reynolds Story by Andrew Stanton Starring Albert Brooks Ellen DeGeneres Alexander Gould Willem Dafoe Music by Thomas Newman Cinematography Sharon Calahan Jeremy Lasky Edited by David Ian Salter Production company Walt Disney Pictures Pixar Animation Studios Distributed by Buena Vista Pictures Release date May 30, 2003 (2003 - 05 - 30) Running time 100 minutes Country United States Language English Budget $$94 million Box office $$940.3 million\n\n"
-    "Question: When was Neville A. Stanton's employer founded?\nThought:"
+    "Wikipedia Title: The Last Horse\nThe Last Horse (Spanish:El último caballo) is a 1950 Spanish comedy film directed by Edgar Neville starring Fernando Fernán Gómez.\n"
+    "Wikipedia Title: Southampton\nThe University of Southampton, which was founded in 1862 and received its Royal Charter as a university in 1952, has over 22,000 students. The university is ranked in the top 100 research universities in the world in the Academic Ranking of World Universities 2010. In 2010, the THES - QS World University Rankings positioned the University of Southampton in the top 80 universities in the world.\nThe university considers itself one of the top 5 research universities in the UK.\nThe university has a global reputation for research into engineering sciences, oceanography, chemistry, cancer sciences, sound and vibration research, computer science and electronics, optoelectronics and textile conservation at the Textile Conservation Centre (which is due to close in October 2009.) It is also home to the National Oceanography Centre, Southampton (NOCS), the focus of Natural Environment Research Council-funded marine research.\n"
+    "Wikipedia Title: Stanton Township, Champaign County, Illinois\nStanton Township is a township in Champaign County, Illinois, USA. As of the 2010 census, its population was 505 and it contained 202 housing units.\n"
+    "Wikipedia Title: Neville A. Stanton\nNeville A. Stanton is a British Professor of Human Factors and Ergonomics at the University of Southampton. Prof Stanton is a Chartered Engineer (C.Eng), Chartered Psychologist (C.Psychol) and Chartered Ergonomist (C.ErgHF). He has written and edited over a forty books and over three hundered peer-reviewed journal papers on applications of the subject.\nStanton is a Fellow of the British Psychological Society, a Fellow of The Institute of Ergonomics and Human Factors and a member of the Institution of Engineering and Technology. He has been published in academic journals including \"Nature\". He has also helped organisations design new human-machine interfaces, such as the Adaptive Cruise Control system for Jaguar Cars.\n"
+    "Wikipedia Title: Finding Nemo\nFinding Nemo Theatrical release poster Directed by Andrew Stanton Produced by Graham Walters Screenplay by Andrew Stanton Bob Peterson David Reynolds Story by Andrew Stanton Starring Albert Brooks Ellen DeGeneres Alexander Gould Willem Dafoe Music by Thomas Newman Cinematography Sharon Calahan Jeremy Lasky Edited by David Ian Salter Production company Walt Disney Pictures Pixar Animation Studios Distributed by Buena Vista Pictures Distribution Release date May 30, 2003 (2003 - 05 - 30) Running time 100 minutes Country United States Language English Budget $$94 million Box office $$940.3 million"
+    "\n\nQuestion: When was Neville A. Stanton's employer founded?\nThought: "
 )
 DEMO_ASSISTANT = (
     "The employer of Neville A. Stanton is University of Southampton. The University of Southampton "
     "was founded in 1862. So the answer is: 1862.\nAnswer: 1862."
 )
+PROMPT_SOURCE_COMMIT = "1438aba3fc44ff10573e5a5e1e7cc3c7f9794aff"
+PROMPT_SOURCE_PATH = "src/hipporag/prompts/templates/rag_qa_musique.py"
 PROMPT_SOURCE = (
-    "https://github.com/OSU-NLP-Group/HippoRAG/blob/main/"
-    "src/hipporag/prompts/templates/rag_qa_musique.py"
+    f"https://github.com/OSU-NLP-Group/HippoRAG/blob/{PROMPT_SOURCE_COMMIT}/"
+    f"{PROMPT_SOURCE_PATH}"
 )
 BATCH_SIZE = 32
-GENERATION_OPTIONS = {"temperature": 0, "num_predict": 512, "num_ctx": 4096}
+GENERATION_OPTIONS = {"temperature": 0, "seed": 42, "num_predict": 512, "num_ctx": 4096}
 EMBED_TEXT_VERSION = "title-newline-text-v1"
 EMBED_TRUNCATE = False
 EMBED_CACHE_SCHEMA_VERSION = 2
@@ -254,11 +256,13 @@ def build_reader_messages(question, passages):
         {"role": "system", "content": READER_SYSTEM},
         {"role": "user", "content": DEMO_USER},
         {"role": "assistant", "content": DEMO_ASSISTANT},
-        {"role": "user", "content": f"{context}\n\nQuestion: {question}\nThought:"},
+        {"role": "user", "content": f"{context}\n\nQuestion: {question}\nThought: "},
     ]
 
 
 def run(dataset="musique", limit=10, top_n=5, generation_model=GEN_MODEL):
+    if dataset != "musique":
+        raise ValueError("The pinned HippoRAG one-shot reader is validated only for MuSiQue")
     data_dir = ROOT / "data" / "processed" / dataset
     queries_path = data_dir / "queries.json"
     corpus_path = data_dir / "corpus.json"
@@ -322,6 +326,8 @@ def run(dataset="musique", limit=10, top_n=5, generation_model=GEN_MODEL):
             "options": GENERATION_OPTIONS,
             "reader_prompt_version": READER_PROMPT_VERSION,
             "reader_prompt_source": PROMPT_SOURCE,
+            "reader_prompt_source_commit": PROMPT_SOURCE_COMMIT,
+            "reader_prompt_source_path": PROMPT_SOURCE_PATH,
             "reader_template_sha256": prompt_template_sha256,
         },
         "retrieval": {"method": "cosine", "top_k": top_n},
@@ -395,6 +401,7 @@ def run(dataset="musique", limit=10, top_n=5, generation_model=GEN_MODEL):
                     "reader_prompt_version": READER_PROMPT_VERSION,
                     "generation_options": GENERATION_OPTIONS,
                     "reader_prompt_source": PROMPT_SOURCE,
+                    "reader_prompt_source_commit": PROMPT_SOURCE_COMMIT,
                     "reader_prompt_sha256": prompt_sha256,
                     "top_k": top_n,
                     "retrieved": [
@@ -425,6 +432,7 @@ def run(dataset="musique", limit=10, top_n=5, generation_model=GEN_MODEL):
                         if generation.get("eval_count") and generation.get("eval_duration") else None
                     ),
                     "done_reason": generation.get("done_reason"),
+                    "done": generation.get("done"),
                 }
                 output.write(json.dumps(row, ensure_ascii=False) + "\n")
                 output.flush()
@@ -453,7 +461,8 @@ def run(dataset="musique", limit=10, top_n=5, generation_model=GEN_MODEL):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--dataset", choices=("musique", "hotpotqa"), default="musique")
+    parser.add_argument("--dataset", choices=("musique",), default="musique",
+                        help="HippoRAG one-shot reader currently validated for MuSiQue only")
     parser.add_argument("--limit", type=int, default=10,
                         help="number of initial fixed-ID questions (1-20)")
     parser.add_argument("--top-k", type=int, default=5)
