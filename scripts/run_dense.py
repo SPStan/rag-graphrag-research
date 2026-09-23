@@ -4,7 +4,9 @@ import argparse
 from datetime import datetime, timezone
 import hashlib
 import json
+import platform
 from pathlib import Path
+import subprocess
 import sys
 import time
 import uuid
@@ -48,6 +50,10 @@ PROMPT_SOURCE = (
     "src/hipporag/prompts/templates/rag_qa_musique.py"
 )
 BATCH_SIZE = 32
+GENERATION_OPTIONS = {"temperature": 0, "num_predict": 512, "num_ctx": 4096}
+EMBED_TEXT_VERSION = "title-newline-text-v1"
+EMBED_TRUNCATE = False
+EMBED_CACHE_SCHEMA_VERSION = 2
 
 
 def normalize_rows(vectors):
@@ -104,20 +110,83 @@ def corpus_fingerprint(corpus):
     return hashlib.sha256(content).hexdigest()
 
 
+def sha256_file(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def write_json_atomic(path, payload):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(path.suffix + ".part")
+    temporary.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+                         encoding="utf-8", newline="\n")
+    temporary.replace(path)
+
+
+def git_snapshot():
+    try:
+        commit = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT, check=True,
+                                capture_output=True, text=True).stdout.strip()
+        dirty = bool(subprocess.run(["git", "status", "--porcelain"], cwd=ROOT, check=True,
+                                    capture_output=True, text=True).stdout.strip())
+    except (OSError, subprocess.CalledProcessError):
+        commit, dirty = None, None
+    source_files = ("scripts/run_dense.py", "scripts/evaluate_dense.py", "scripts/answer_parser.py")
+    return {
+        "commit": commit,
+        "working_tree_dirty": dirty,
+        "source_sha256": {name: sha256_file(ROOT / name) for name in source_files
+                          if (ROOT / name).is_file()},
+    }
+
+
+def validate_processed_data(dataset, data_dir, queries, corpus):
+    report_path = ROOT / "results" / "data" / "subsamples.json"
+    ids_path = ROOT / "data" / "ids" / f"{dataset}_s500.json"
+    report = read_json(report_path)
+    ids_manifest = read_json(ids_path)
+    dataset_report = report["datasets"][dataset]
+    actual_hashes = {}
+    for filename in ("queries.json", "corpus.json"):
+        actual_hashes[filename] = sha256_file(data_dir / filename)
+        expected = dataset_report["output_sha256"].get(filename)
+        if actual_hashes[filename] != expected:
+            raise ValueError(f"Processed {filename} does not match the pinned subsample report")
+    query_ids = [row["id"] for row in queries]
+    corpus_ids = [row["id"] for row in corpus]
+    if query_ids != ids_manifest["question_ids"]:
+        raise ValueError("Processed question IDs do not match the pinned IDs manifest")
+    if corpus_ids != ids_manifest["passage_ids"]:
+        raise ValueError("Processed passage IDs do not match the pinned IDs manifest")
+    return {
+        "report_sha256": sha256_file(report_path),
+        "ids_manifest_sha256": sha256_file(ids_path),
+        "source_revision": ids_manifest["source_revision"],
+        "output_sha256": actual_hashes,
+    }
+
+
 def embed_corpus(session, corpus, cache_path, fingerprint, model_digest):
     ids = [row["id"] for row in corpus]
     if cache_path.exists():
-        with np.load(cache_path, allow_pickle=False) as saved:
-            saved_ids = saved["ids"].astype(str).tolist()
-            saved_fingerprint = str(saved["fingerprint"].item())
-            saved_model = str(saved["model"].item())
-            saved_digest = str(saved["model_digest"].item())
-            vectors = saved["vectors"]
-        if (saved_ids == ids and saved_fingerprint == fingerprint and saved_model == EMBED_MODEL
-                and saved_digest == model_digest):
-            if vectors.ndim == 2 and vectors.shape[0] == len(corpus):
-                print(f"Embeddings cache: {cache_path.relative_to(ROOT)} ({vectors.shape[0]} passages)")
-                return vectors, 0.0
+        try:
+            with np.load(cache_path, allow_pickle=False) as saved:
+                saved_ids = saved["ids"].astype(str).tolist()
+                saved_fingerprint = str(saved["fingerprint"].item())
+                saved_model = str(saved["model"].item())
+                saved_digest = str(saved["model_digest"].item())
+                saved_schema = int(saved["cache_schema"].item()) if "cache_schema" in saved else None
+                saved_text_version = str(saved["text_version"].item()) if "text_version" in saved else None
+                saved_truncate = bool(saved["truncate"].item()) if "truncate" in saved else None
+                vectors = saved["vectors"]
+            if (saved_ids == ids and saved_fingerprint == fingerprint and saved_model == EMBED_MODEL
+                    and saved_digest == model_digest and saved_schema == EMBED_CACHE_SCHEMA_VERSION
+                    and saved_text_version == EMBED_TEXT_VERSION and saved_truncate is EMBED_TRUNCATE):
+                if (vectors.ndim == 2 and vectors.shape[0] == len(corpus)
+                        and np.all(np.isfinite(vectors)) and np.all(np.linalg.norm(vectors, axis=1) > 0)):
+                    print(f"Embeddings cache: {cache_path.relative_to(ROOT)} ({vectors.shape[0]} passages)")
+                    return vectors, 0.0
+        except (OSError, ValueError, KeyError):
+            pass
         print("Embeddings cache is stale; rebuilding it.")
 
     document_texts = [f"{row['title']}\n{row['text']}" for row in corpus]
@@ -125,7 +194,9 @@ def embed_corpus(session, corpus, cache_path, fingerprint, model_digest):
     started = time.perf_counter()
     for offset in range(0, len(document_texts), BATCH_SIZE):
         batch = document_texts[offset:offset + BATCH_SIZE]
-        result = post_json(session, "/api/embed", {"model": EMBED_MODEL, "input": batch})
+        result = post_json(session, "/api/embed", {
+            "model": EMBED_MODEL, "input": batch, "truncate": EMBED_TRUNCATE
+        })
         vectors = result.get("embeddings")
         if not isinstance(vectors, list) or len(vectors) != len(batch):
             raise RuntimeError(f"Ollama returned an unexpected embedding batch at offset {offset}")
@@ -136,12 +207,16 @@ def embed_corpus(session, corpus, cache_path, fingerprint, model_digest):
     matrix = np.asarray(all_vectors, dtype=np.float32)
     if matrix.ndim != 2 or matrix.shape[0] != len(corpus):
         raise RuntimeError("Ollama returned an invalid corpus embedding matrix")
+    normalize_rows(matrix)
     cache_path.parent.mkdir(parents=True, exist_ok=True)
     temporary = cache_path.with_suffix(".npz.part")
     with temporary.open("wb") as stream:
         np.savez_compressed(stream, ids=np.asarray(ids), vectors=matrix,
                             fingerprint=np.asarray(fingerprint), model=np.asarray(EMBED_MODEL),
-                            model_digest=np.asarray(model_digest))
+                            model_digest=np.asarray(model_digest),
+                            cache_schema=np.asarray(EMBED_CACHE_SCHEMA_VERSION),
+                            text_version=np.asarray(EMBED_TEXT_VERSION),
+                            truncate=np.asarray(EMBED_TRUNCATE))
     temporary.replace(cache_path)
     print(f"Embedded passages: {len(corpus)}/{len(corpus)}")
     return matrix, elapsed
@@ -162,93 +237,173 @@ def build_reader_messages(question, passages):
 
 def run(dataset="musique", limit=10, top_n=5, generation_model=GEN_MODEL):
     data_dir = ROOT / "data" / "processed" / dataset
-    queries = read_json(data_dir / "queries.json")
-    corpus = read_json(data_dir / "corpus.json")
+    queries_path = data_dir / "queries.json"
+    corpus_path = data_dir / "corpus.json"
+    queries = read_json(queries_path)
+    corpus = read_json(corpus_path)
+    data_provenance = validate_processed_data(dataset, data_dir, queries, corpus)
     if not 1 <= limit <= 20:
         raise ValueError("Pilot limit must be between 1 and 20; larger runs need a reviewed protocol")
+    if not isinstance(top_n, int) or top_n <= 0:
+        raise ValueError("top-k must be a positive integer")
+    if len(queries) < limit:
+        raise ValueError(f"Requested {limit} questions but only {len(queries)} are available")
     queries = queries[:limit]
     planned_question_ids = [query["id"] for query in queries]
+    if len(set(planned_question_ids)) != len(planned_question_ids):
+        raise ValueError("Selected query IDs contain duplicates")
     fingerprint = corpus_fingerprint(corpus)
-    cache_path = ROOT / "indexes" / "dense" / f"{dataset}-{EMBED_MODEL}.npz"
-    session = requests.Session()
-    embedding_info = model_info(session, EMBED_MODEL)
-    generation_info = model_info(session, generation_model)
-    print(f"Dataset: {dataset}; questions: {len(queries)}; corpus passages: {len(corpus)}")
-    print(f"Embedding model: {embedding_info['name']} ({embedding_info['digest']})")
-    print(f"Generator: {generation_info['name']} ({generation_info['digest']}); "
-          f"prompt: {READER_PROMPT_VERSION}; top-k: {top_n}")
-    document_vectors, embedding_seconds = embed_corpus(
-        session, corpus, cache_path, fingerprint, embedding_info["digest"]
-    )
-
-    run_id = str(uuid.uuid4())
+    cache_path = ROOT / "indexes" / "dense" / f"{dataset}-{EMBED_MODEL}-notrunc-v2.npz"
     output_dir = ROOT / "results" / "raw"
     output_dir.mkdir(parents=True, exist_ok=True)
+    run_id = str(uuid.uuid4())
+    started_run = datetime.now(timezone.utc).isoformat()
     output_path = output_dir / f"dense-{dataset}-{run_id}.jsonl"
     temporary = output_path.with_suffix(".jsonl.part")
-    started_run = datetime.now(timezone.utc).isoformat()
-    with temporary.open("w", encoding="utf-8", newline="\n") as output:
-        for position, query in enumerate(queries, start=1):
-            query_result = post_json(session, "/api/embed", {
-                "model": EMBED_MODEL, "input": query["question"]
-            })
-            query_vectors = query_result.get("embeddings")
-            if not isinstance(query_vectors, list) or len(query_vectors) != 1:
-                raise RuntimeError(f"Ollama returned an invalid query embedding for {query['id']}")
-            ranked = top_k(query_vectors[0], document_vectors, top_n)
-            passages = [corpus[index] for index, _score in ranked]
-            messages = build_reader_messages(query["question"], passages)
-            prompt_sha256 = hashlib.sha256(
-                json.dumps(messages, ensure_ascii=False, sort_keys=True,
-                           separators=(",", ":")).encode("utf-8")
-            ).hexdigest()
-            generation = post_json(session, "/api/chat", {
-                "model": generation_model,
-                "messages": messages,
-                "stream": False,
-                "options": {"temperature": 0, "num_predict": 512, "num_ctx": 4096},
-            })
-            raw_answer = generation.get("message", {}).get("content", "")
-            answer, answer_status = extract_reader_answer(raw_answer)
-            row = {
-                "schema_version": 1,
-                "run_id": run_id,
-                "started_at": started_run,
-                "mode": "local-poc",
-                "dataset": dataset,
-                "question_id": query["id"],
-                "planned_question_ids": planned_question_ids,
-                "question": query["question"],
-                "embedding_model": embedding_info,
-                "generation_model": generation_info,
-                "reader_prompt_version": READER_PROMPT_VERSION,
-                "generation_options": {"temperature": 0, "num_predict": 512, "num_ctx": 4096},
-                "reader_prompt_source": PROMPT_SOURCE,
-                "reader_prompt_sha256": prompt_sha256,
-                "top_k": top_n,
-                "retrieved": [
-                    {"id": passage["id"], "score": score}
-                    for passage, (_index, score) in zip(passages, ranked)
-                ],
-                "answer": answer,
-                "answer_extraction_status": answer_status,
-                "raw_answer": raw_answer,
-                "prompt_tokens": generation.get("prompt_eval_count"),
-                "completion_tokens": generation.get("eval_count"),
-                "generation_seconds": generation.get("total_duration", 0) / 1_000_000_000,
-                "generation_tokens_per_second": (
-                    generation["eval_count"] * 1_000_000_000 / generation["eval_duration"]
-                    if generation.get("eval_count") and generation.get("eval_duration") else None
-                ),
-                "done_reason": generation.get("done_reason"),
-            }
-            output.write(json.dumps(row, ensure_ascii=False) + "\n")
-            output.flush()
-            print(f"[{position}/{len(queries)}] {query['id']}: {row['answer']}")
-    temporary.replace(output_path)
-    print(f"Corpus embedding seconds: {embedding_seconds:.2f}")
-    print(f"Run ID: {run_id}")
-    print(f"Results: {output_path.relative_to(ROOT)}")
+    manifest_path = output_path.with_suffix(".manifest.json")
+    prompt_template_sha256 = hashlib.sha256(
+        json.dumps([READER_SYSTEM, DEMO_USER, DEMO_ASSISTANT], ensure_ascii=False,
+                   separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    manifest = {
+        "schema_version": 1,
+        "run_id": run_id,
+        "status": "starting",
+        "mode": "local-poc",
+        "dataset": dataset,
+        "started_at": started_run,
+        "expected_question_ids": planned_question_ids,
+        "inputs": {
+            "queries_sha256": sha256_file(queries_path),
+            "corpus_sha256": sha256_file(corpus_path),
+            "corpus_fingerprint": fingerprint,
+            **data_provenance,
+        },
+        "code": git_snapshot(),
+        "runtime": {
+            "python": platform.python_version(),
+            "platform": platform.platform(),
+            "numpy": np.__version__,
+            "requests": requests.__version__,
+        },
+        "embedding": {
+            "requested_model": EMBED_MODEL,
+            "text_version": EMBED_TEXT_VERSION,
+            "truncate": EMBED_TRUNCATE,
+            "batch_size": BATCH_SIZE,
+            "cache_schema": EMBED_CACHE_SCHEMA_VERSION,
+            "cache_file": cache_path.relative_to(ROOT).as_posix(),
+        },
+        "generation": {
+            "requested_model": generation_model,
+            "options": GENERATION_OPTIONS,
+            "reader_prompt_version": READER_PROMPT_VERSION,
+            "reader_prompt_source": PROMPT_SOURCE,
+            "reader_template_sha256": prompt_template_sha256,
+        },
+        "retrieval": {"method": "cosine", "top_k": top_n},
+        "results_file": output_path.name,
+    }
+    write_json_atomic(manifest_path, manifest)
+    session = requests.Session()
+    try:
+        version_response = session.get(f"{OLLAMA_URL}/api/version", timeout=30)
+        version_response.raise_for_status()
+        embedding_info = model_info(session, EMBED_MODEL)
+        generation_info = model_info(session, generation_model)
+        manifest["ollama_version"] = version_response.json().get("version")
+        manifest["embedding"]["model"] = embedding_info
+        manifest["generation"]["model"] = generation_info
+        manifest["status"] = "running"
+        write_json_atomic(manifest_path, manifest)
+
+        print(f"Dataset: {dataset}; questions: {len(queries)}; corpus passages: {len(corpus)}")
+        print(f"Embedding model: {embedding_info['name']} ({embedding_info['digest']})")
+        print(f"Generator: {generation_info['name']} ({generation_info['digest']}); "
+              f"prompt: {READER_PROMPT_VERSION}; top-k: {top_n}")
+        document_vectors, embedding_seconds = embed_corpus(
+            session, corpus, cache_path, fingerprint, embedding_info["digest"]
+        )
+        manifest["index_embedding_seconds_this_run"] = embedding_seconds
+
+        with temporary.open("w", encoding="utf-8", newline="\n") as output:
+            for position, query in enumerate(queries, start=1):
+                query_result = post_json(session, "/api/embed", {
+                    "model": EMBED_MODEL, "input": query["question"], "truncate": EMBED_TRUNCATE
+                })
+                query_vectors = query_result.get("embeddings")
+                if not isinstance(query_vectors, list) or len(query_vectors) != 1:
+                    raise RuntimeError(f"Ollama returned an invalid query embedding for {query['id']}")
+                ranked = top_k(query_vectors[0], document_vectors, top_n)
+                passages = [corpus[index] for index, _score in ranked]
+                messages = build_reader_messages(query["question"], passages)
+                prompt_sha256 = hashlib.sha256(
+                    json.dumps(messages, ensure_ascii=False, sort_keys=True,
+                               separators=(",", ":")).encode("utf-8")
+                ).hexdigest()
+                generation = post_json(session, "/api/chat", {
+                    "model": generation_model,
+                    "messages": messages,
+                    "stream": False,
+                    "options": GENERATION_OPTIONS,
+                })
+                raw_answer = generation.get("message", {}).get("content", "")
+                answer, answer_status = extract_reader_answer(raw_answer)
+                row = {
+                    "schema_version": 1,
+                    "run_id": run_id,
+                    "started_at": started_run,
+                    "mode": "local-poc",
+                    "dataset": dataset,
+                    "question_id": query["id"],
+                    "planned_question_ids": planned_question_ids,
+                    "question": query["question"],
+                    "embedding_model": embedding_info,
+                    "generation_model": generation_info,
+                    "reader_prompt_version": READER_PROMPT_VERSION,
+                    "generation_options": GENERATION_OPTIONS,
+                    "reader_prompt_source": PROMPT_SOURCE,
+                    "reader_prompt_sha256": prompt_sha256,
+                    "top_k": top_n,
+                    "retrieved": [
+                        {"id": passage["id"], "score": score}
+                        for passage, (_index, score) in zip(passages, ranked)
+                    ],
+                    "answer": answer,
+                    "answer_extraction_status": answer_status,
+                    "raw_answer": raw_answer,
+                    "prompt_tokens": generation.get("prompt_eval_count"),
+                    "completion_tokens": generation.get("eval_count"),
+                    "generation_seconds": (
+                        generation["total_duration"] / 1_000_000_000
+                        if generation.get("total_duration") is not None else None
+                    ),
+                    "generation_tokens_per_second": (
+                        generation["eval_count"] * 1_000_000_000 / generation["eval_duration"]
+                        if generation.get("eval_count") and generation.get("eval_duration") else None
+                    ),
+                    "done_reason": generation.get("done_reason"),
+                }
+                output.write(json.dumps(row, ensure_ascii=False) + "\n")
+                output.flush()
+                print(f"[{position}/{len(queries)}] {query['id']}: {row['answer']}")
+        temporary.replace(output_path)
+        manifest["status"] = "completed"
+        manifest["completed_at"] = datetime.now(timezone.utc).isoformat()
+        manifest["results_sha256"] = sha256_file(output_path)
+        write_json_atomic(manifest_path, manifest)
+        print(f"Corpus embedding seconds: {embedding_seconds:.2f}")
+        print(f"Run ID: {run_id}")
+        print(f"Results: {output_path.relative_to(ROOT)}")
+        print(f"Manifest: {manifest_path.relative_to(ROOT)}")
+    except Exception as exc:
+        manifest["status"] = "failed"
+        manifest["completed_at"] = datetime.now(timezone.utc).isoformat()
+        manifest["error"] = {"type": type(exc).__name__, "message": str(exc)}
+        if temporary.exists():
+            manifest["partial_results_file"] = temporary.name
+        write_json_atomic(manifest_path, manifest)
+        raise
 
 
 def main():
