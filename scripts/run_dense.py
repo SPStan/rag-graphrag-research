@@ -5,13 +5,17 @@ from datetime import datetime, timezone
 import hashlib
 import json
 from pathlib import Path
-import re
 import sys
 import time
 import uuid
 
 import numpy as np
 import requests
+
+try:
+    from scripts.answer_parser import extract_reader_answer
+except ModuleNotFoundError:  # Direct execution puts the scripts directory on sys.path.
+    from answer_parser import extract_reader_answer
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -158,14 +162,6 @@ def build_reader_messages(question, passages):
         {"role": "assistant", "content": DEMO_ASSISTANT},
         {"role": "user", "content": f"{context}\n\nQuestion: {question}\nThought:"},
     ]
-
-
-def extract_reader_answer(raw_response):
-    """Extract the last explicit Answer line; preserve raw text separately."""
-    matches = re.findall(r"(?im)^\s*Answer:\s*(.*?)\s*$", raw_response)
-    if not matches or not matches[-1].strip():
-        return "", "missing_answer_marker"
-    return matches[-1].strip(), "ok"
 
 
 def run(dataset="musique", limit=10, top_n=5, generation_model=GEN_MODEL):

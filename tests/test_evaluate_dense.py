@@ -82,6 +82,18 @@ class DenseEvaluationTests(unittest.TestCase):
             evaluate([row], labels)
         self.assertEqual(evaluate([row], labels, ["q1"])["questions_evaluated"], 1)
 
+    def test_evaluation_recovers_inline_answer_marker_from_saved_raw_response(self):
+        row = {"run_id": "one", "dataset": "musique", "mode": "local-poc",
+               "question_id": "q1", "planned_question_ids": ["q1"], "answer": "",
+               "answer_extraction_status": "missing_answer_marker",
+               "raw_answer": "Reasoning ends here. Answer: Paris.", "top_k": 5,
+               "retrieved": [{"id": "p1"}], "embedding_model": {}, "generation_model": {},
+               "reader_prompt_version": "test", "generation_options": {}}
+        labels = [{"id": "q1", "answer": "Paris", "supporting_ids": ["p1"]}]
+        result = evaluate([row], labels)
+        self.assertEqual(result["em"], 1.0)
+        self.assertEqual(result["per_question"][0]["answer_extraction_status"], "ok")
+
 
 if __name__ == "__main__":
     unittest.main()

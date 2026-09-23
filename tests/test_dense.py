@@ -2,8 +2,8 @@ import unittest
 
 import numpy as np
 
-from scripts.run_dense import (build_reader_messages, extract_reader_answer,
-                               normalize_rows, top_k)
+from scripts.answer_parser import extract_reader_answer
+from scripts.run_dense import build_reader_messages, normalize_rows, top_k
 
 
 class DenseRetrievalTests(unittest.TestCase):
@@ -43,6 +43,8 @@ class DenseRetrievalTests(unittest.TestCase):
 
     def test_answer_extraction_requires_explicit_answer_marker(self):
         self.assertEqual(extract_reader_answer("Thought: Some reasoning.\nAnswer: Paris."),
+                         ("Paris.", "ok"))
+        self.assertEqual(extract_reader_answer("Some reasoning. Answer: Paris."),
                          ("Paris.", "ok"))
         self.assertEqual(extract_reader_answer("No marker"), ("", "missing_answer_marker"))
 

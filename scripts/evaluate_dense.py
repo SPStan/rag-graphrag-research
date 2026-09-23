@@ -8,9 +8,14 @@ import re
 import string
 import sys
 
+try:
+    from scripts.answer_parser import extract_reader_answer
+except ModuleNotFoundError:  # Direct execution puts the scripts directory on sys.path.
+    from answer_parser import extract_reader_answer
+
 
 ROOT = Path(__file__).resolve().parents[1]
-METRIC_VERSION = "hipporag2-squad-normalization-v1"
+METRIC_VERSION = "hipporag2-squad-normalization-answer-marker-v2"
 PUNCTUATION = str.maketrans("", "", string.punctuation)
 
 
@@ -113,11 +118,16 @@ def evaluate(rows, labels, expected_ids=None):
             raise ValueError(f"No gold label found for question {qid}")
         label = by_id[qid]
         references = [label["answer"], *label.get("answer_aliases", [])]
-        scores = answer_scores(row.get("answer", ""), references)
+        prediction = row.get("answer", "")
+        extraction_status = row.get("answer_extraction_status")
+        if extraction_status == "missing_answer_marker" and isinstance(row.get("raw_answer"), str):
+            prediction, extraction_status = extract_reader_answer(row["raw_answer"])
+        scores = answer_scores(prediction, references)
         supporting = label.get("supporting_ids", [])
         retrieved = [passage["id"] for passage in row.get("retrieved", [])]
         per_question.append({
             "question_id": qid,
+            "answer_extraction_status": extraction_status,
             "em": scores["em"],
             "f1": scores["f1"],
             "recall_at_k": recall_at_k(retrieved, supporting, top_k),
