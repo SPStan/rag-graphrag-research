@@ -22,7 +22,7 @@ ROOT = Path(__file__).resolve().parents[1]
 OLLAMA_URL = "http://localhost:11434"
 EMBED_MODEL = "bge-m3"
 GEN_MODEL = "qwen2.5:3b"
-READER_PROMPT_VERSION = "hipporag2-musique-one-shot-v1"
+READER_PROMPT_VERSION = "hipporag2-musique-one-shot-v2"
 # Adapted from OSU-NLP-Group/HippoRAG's rag_qa_musique.py (MIT).
 # Keep this fixed demonstration independent of the benchmark questions and labels.
 READER_SYSTEM = (
@@ -32,15 +32,11 @@ READER_SYSTEM = (
     'Conclude with "Answer: " to present a concise, definitive response, devoid of additional elaborations.'
 )
 DEMO_USER = (
-    "Wikipedia Title: The Last Horse\nThe Last Horse (Spanish:El último caballo) is a 1950 Spanish "
-    "comedy film directed by Edgar Neville starring Fernando Fernán Gómez.\n\n"
-    "Wikipedia Title: Southampton\nThe University of Southampton, which was founded in 1862 and "
-    "received its Royal Charter as a university in 1952, has over 22,000 students.\n\n"
-    "Wikipedia Title: Stanton Township, Champaign County, Illinois\nStanton Township is a township "
-    "in Champaign County, Illinois, USA.\n\n"
-    "Wikipedia Title: Neville A. Stanton\nNeville A. Stanton is a British Professor of Human Factors "
-    "and Ergonomics at the University of Southampton.\n\n"
-    "Wikipedia Title: Finding Nemo\nFinding Nemo is a 2003 film directed by Andrew Stanton.\n\n"
+    "Wikipedia Title: The Last Horse\nThe Last Horse (Spanish:El último caballo) is a 1950 Spanish comedy film directed by Edgar Neville starring Fernando Fernán Gómez.\n\n"
+    "Wikipedia Title: Southampton\nThe University of Southampton, which was founded in 1862 and received its Royal Charter as a university in 1952, has over 22,000 students. The university is ranked in the top 100 research universities in the world in the Academic Ranking of World Universities 2010. In 2010, the THES - QS World University Rankings positioned the University of Southampton in the top 80 universities in the world.\nThe university considers itself one of the top 5 research universities in the UK.\nThe university has a global reputation for research into engineering sciences, oceanography, chemistry, cancer sciences, sound and vibration research, computer science and electronics, optoelectronics and textile conservation at the Textile Conservation Centre (which is due to close in October 2009.) It is also home to the National Oceanography Centre, Southampton (NOCS), the focus of Natural Environment Research Council-funded marine research.\n\n"
+    "Wikipedia Title: Stanton Township, Champaign County, Illinois\nStanton Township is a township in Champaign County, Illinois, USA. As of the 2010 census, its population was 505 and it contained 202 housing units.\n\n"
+    "Wikipedia Title: Neville A. Stanton\nNeville A. Stanton is a British Professor of Human Factors and Ergonomics at the University of Southampton. Prof Stanton is a Chartered Engineer (C.Eng), Chartered Psychologist (C.Psychol) and Chartered Ergonomist (C.ErgHF). He has written and edited over a forty books and over three hundered peer-reviewed journal papers on applications of the subject.\nStanton is a Fellow of the British Psychological Society, a Fellow of The Institute of Ergonomics and Human Factors and a member of the Institution of Engineering and Technology. He has been published in academic journals including \"Nature\". He has also helped organisations design new human-machine interfaces, such as the Adaptive Cruise Control system for Jaguar Cars.\n\n"
+    "Wikipedia Title: Finding Nemo\nFinding Nemo Theatrical release poster Directed by Andrew Stanton Produced by Graham Walters Screenplay by Andrew Stanton Bob Peterson David Reynolds Story by Andrew Stanton Starring Albert Brooks Ellen DeGeneres Alexander Gould Willem Dafoe Music by Thomas Newman Cinematography Sharon Calahan Jeremy Lasky Edited by David Ian Salter Production company Walt Disney Pictures Pixar Animation Studios Distributed by Buena Vista Pictures Release date May 30, 2003 (2003 - 05 - 30) Running time 100 minutes Country United States Language English Budget $$94 million Box office $$940.3 million\n\n"
     "Question: When was Neville A. Stanton's employer founded?\nThought:"
 )
 DEMO_ASSISTANT = (
@@ -210,7 +206,7 @@ def run(dataset="musique", limit=10, top_n=5, generation_model=GEN_MODEL):
                 "model": generation_model,
                 "messages": messages,
                 "stream": False,
-                "options": {"temperature": 0, "num_predict": 256, "num_ctx": 4096},
+                "options": {"temperature": 0, "num_predict": 512, "num_ctx": 4096},
             })
             raw_answer = generation.get("message", {}).get("content", "")
             answer, answer_status = extract_reader_answer(raw_answer)
@@ -226,7 +222,7 @@ def run(dataset="musique", limit=10, top_n=5, generation_model=GEN_MODEL):
                 "embedding_model": embedding_info,
                 "generation_model": generation_info,
                 "reader_prompt_version": READER_PROMPT_VERSION,
-                "generation_options": {"temperature": 0, "num_predict": 256, "num_ctx": 4096},
+                "generation_options": {"temperature": 0, "num_predict": 512, "num_ctx": 4096},
                 "reader_prompt_source": PROMPT_SOURCE,
                 "reader_prompt_sha256": prompt_sha256,
                 "top_k": top_n,
