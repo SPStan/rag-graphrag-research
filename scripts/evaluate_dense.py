@@ -217,6 +217,7 @@ def evaluate(rows, labels, expected_ids=None, manifest=None):
         # Older manifests only stored the embedding build duration.
         old_seconds = (manifest or {}).get("index_embedding_seconds_this_run")
         index_usage = {"build_seconds_this_run": old_seconds}
+    cache_build = index_usage.get("cache_build_provenance") or {}
     return {
         "schema_version": 1,
         "metric_version": METRIC_VERSION,
@@ -236,6 +237,10 @@ def evaluate(rows, labels, expected_ids=None, manifest=None):
             "index_embedding_api_total_duration_ns": index_usage.get("api_total_duration_ns"),
             "index_embedding_build_seconds": index_usage.get("build_seconds_this_run"),
             "index_embedding_cache_read_seconds": index_usage.get("cache_read_seconds"),
+            "index_embedding_original_build_run_id": cache_build.get("build_run_id"),
+            "index_embedding_original_build_seconds": cache_build.get("build_seconds"),
+            "index_embedding_original_prompt_tokens": cache_build.get("embedding_prompt_tokens"),
+            "index_embedding_original_api_total_duration_ns": cache_build.get("api_total_duration_ns"),
             "query_embedding_prompt_tokens": known_sum("query_embedding_prompt_tokens"),
             "query_embedding_client_seconds": known_sum("query_embedding_client_seconds"),
             "retrieval_seconds": known_sum("retrieval_seconds"),

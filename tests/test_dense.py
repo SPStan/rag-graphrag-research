@@ -10,8 +10,8 @@ import numpy as np
 from scripts.answer_parser import extract_reader_answer
 from scripts.run_dense import (EMBED_CACHE_SCHEMA_VERSION, EMBED_TEXT_VERSION,
                                EMBED_TRUNCATE, ROOT, build_reader_messages, corpus_fingerprint,
-                               embed_corpus, normalize_rows, require_completed_generation, run,
-                               top_k, validate_processed_data,
+                               embed_corpus, normalize_rows, recover_cache_build_provenance,
+                               require_completed_generation, run, top_k, validate_processed_data,
                                DEMO_USER, PROMPT_SOURCE_COMMIT)
 
 
@@ -102,11 +102,14 @@ class DenseRetrievalTests(unittest.TestCase):
             cache = Path(temp) / "cache.npz"
             first_session = FakeEmbeddingSession()
             first_vectors, first_stats = embed_corpus(
-                first_session, corpus, cache, corpus_fingerprint(corpus), "digest"
+                first_session, corpus, cache, corpus_fingerprint(corpus), "digest",
+                dataset="test", build_run_id="cache-test-run",
             )
             self.assertEqual(first_vectors.shape, (2, 2))
             self.assertFalse(first_stats["cache_hit"])
             self.assertIsNone(first_stats["embedding_prompt_tokens"])
+            self.assertEqual(first_stats["cache_build_provenance"]["build_run_id"],
+                             "cache-test-run")
             self.assertTrue(all(payload["truncate"] is EMBED_TRUNCATE
                                 for payload in first_session.payloads))
             with np.load(cache, allow_pickle=False) as saved:
@@ -123,7 +126,46 @@ class DenseRetrievalTests(unittest.TestCase):
             )
             self.assertTrue(cached_stats["cache_hit"])
             self.assertIsNone(cached_stats["embedding_prompt_tokens"])
+            self.assertEqual(cached_stats["cache_build_provenance"]["build_run_id"],
+                             "cache-test-run")
             np.testing.assert_array_equal(cached_vectors, first_vectors)
+
+    def test_historical_cache_provenance_requires_completed_hash_verified_run(self):
+        fingerprint = "corpus-fingerprint"
+        digest = "embedding-model-digest"
+        run_id = "historical-run"
+        with tempfile.TemporaryDirectory(prefix="dense-provenance-test-") as temp:
+            root = Path(temp)
+            cache = root / "indexes" / "dense" / "cache.npz"
+            cache.parent.mkdir(parents=True)
+            cache.write_bytes(b"cache bytes")
+            raw_dir = root / "results" / "raw"
+            raw_dir.mkdir(parents=True)
+            result_name = "dense-musique-historical-run.jsonl"
+            result_path = raw_dir / result_name
+            result_bytes = b'{"run_id":"historical-run"}\n'
+            result_path.write_bytes(result_bytes)
+            manifest = {
+                "run_id": run_id, "status": "completed", "dataset": "musique",
+                "results_file": result_name,
+                "results_sha256": hashlib.sha256(result_bytes).hexdigest(),
+                "inputs": {"corpus_fingerprint": fingerprint},
+                "embedding": {
+                    "cache_file": "indexes/dense/cache.npz", "text_version": EMBED_TEXT_VERSION,
+                    "truncate": EMBED_TRUNCATE, "cache_schema": EMBED_CACHE_SCHEMA_VERSION,
+                    "model": {"digest": digest},
+                },
+                "index_embedding_seconds_this_run": 78.764,
+            }
+            manifest_path = raw_dir / "dense-musique-historical-run.manifest.json"
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            with patch("scripts.run_dense.ROOT", root):
+                provenance = recover_cache_build_provenance(cache, fingerprint, digest)
+                self.assertEqual(provenance["build_run_id"], run_id)
+                self.assertEqual(provenance["build_seconds"], 78.764)
+                self.assertIsNone(provenance["embedding_prompt_tokens"])
+                result_path.write_bytes(b"changed results")
+                self.assertIsNone(recover_cache_build_provenance(cache, fingerprint, digest))
 
     def test_processed_data_must_match_pinned_hashes_and_id_manifests(self):
         queries = [{"id": "q1", "question": "Question?"}]

@@ -125,6 +125,86 @@ def sha256_file(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def cache_provenance_path(cache_path):
+    return cache_path.with_suffix(".provenance.json")
+
+
+def recover_cache_build_provenance(cache_path, fingerprint, model_digest):
+    """Recover build cost only from a completed, hash-verified historical run."""
+    cache_relative = cache_path.relative_to(ROOT).as_posix()
+    for manifest_path in (ROOT / "results" / "raw").glob("dense-*.manifest.json"):
+        try:
+            manifest = read_json(manifest_path)
+            embedding = manifest.get("embedding", {})
+            model = embedding.get("model", {})
+            if (manifest.get("status") != "completed"
+                    or embedding.get("cache_file") != cache_relative
+                    or manifest.get("inputs", {}).get("corpus_fingerprint") != fingerprint
+                    or model.get("digest") != model_digest
+                    or embedding.get("text_version") != EMBED_TEXT_VERSION
+                    or embedding.get("truncate") is not EMBED_TRUNCATE
+                    or embedding.get("cache_schema") != EMBED_CACHE_SCHEMA_VERSION):
+                continue
+            result_path = manifest_path.parent / manifest["results_file"]
+            if sha256_file(result_path) != manifest.get("results_sha256"):
+                continue
+            old_index = manifest.get("index_embedding") or {}
+            build_seconds = old_index.get(
+                "build_seconds_this_run", manifest.get("index_embedding_seconds_this_run")
+            )
+            if not isinstance(build_seconds, (int, float)) or build_seconds <= 0:
+                continue
+            return {
+                "schema_version": 1,
+                "provenance_kind": "reconciled_historical_manifest",
+                "dataset": manifest.get("dataset"),
+                "build_run_id": manifest.get("run_id"),
+                "build_seconds": build_seconds,
+                "embedding_prompt_tokens": old_index.get("embedding_prompt_tokens"),
+                "api_total_duration_ns": old_index.get("api_total_duration_ns"),
+                "api_load_duration_ns": old_index.get("api_load_duration_ns"),
+                "source_manifest": manifest_path.relative_to(ROOT).as_posix(),
+                "source_manifest_sha256": sha256_file(manifest_path),
+                "source_results_sha256": manifest.get("results_sha256"),
+                "corpus_fingerprint": fingerprint,
+                "model_digest": model_digest,
+                "text_version": EMBED_TEXT_VERSION,
+                "truncate": EMBED_TRUNCATE,
+                "cache_schema": EMBED_CACHE_SCHEMA_VERSION,
+                "cache_file": cache_relative,
+                "cache_sha256_at_registration": sha256_file(cache_path),
+                "usage_note": "Historical build token/API usage is unknown when absent from the source manifest.",
+            }
+        except (OSError, ValueError, KeyError, TypeError):
+            continue
+    return None
+
+
+def get_cache_build_provenance(cache_path, fingerprint, model_digest):
+    sidecar = cache_provenance_path(cache_path)
+    cache_sha = sha256_file(cache_path)
+    try:
+        provenance = read_json(sidecar)
+        matches = (
+            provenance.get("schema_version") == 1
+            and provenance.get("cache_file") == cache_path.relative_to(ROOT).as_posix()
+            and provenance.get("cache_sha256_at_registration") == cache_sha
+            and provenance.get("corpus_fingerprint") == fingerprint
+            and provenance.get("model_digest") == model_digest
+            and provenance.get("text_version") == EMBED_TEXT_VERSION
+            and provenance.get("truncate") is EMBED_TRUNCATE
+            and provenance.get("cache_schema") == EMBED_CACHE_SCHEMA_VERSION
+        )
+        if matches:
+            return provenance
+    except (OSError, ValueError, KeyError, TypeError):
+        pass
+    provenance = recover_cache_build_provenance(cache_path, fingerprint, model_digest)
+    if provenance is not None:
+        write_json_atomic(sidecar, provenance)
+    return provenance
+
+
 def write_json_atomic(path, payload):
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(path.suffix + ".part")
@@ -176,7 +256,8 @@ def validate_processed_data(dataset, data_dir, queries, corpus):
     }
 
 
-def embed_corpus(session, corpus, cache_path, fingerprint, model_digest):
+def embed_corpus(session, corpus, cache_path, fingerprint, model_digest,
+                 dataset=None, build_run_id=None):
     ids = [row["id"] for row in corpus]
     if cache_path.exists():
         cache_started = time.perf_counter()
@@ -196,6 +277,11 @@ def embed_corpus(session, corpus, cache_path, fingerprint, model_digest):
                 if (vectors.ndim == 2 and vectors.shape[0] == len(corpus)
                         and np.all(np.isfinite(vectors)) and np.all(np.linalg.norm(vectors, axis=1) > 0)):
                     print(f"Embeddings cache: {cache_path.relative_to(ROOT)} ({vectors.shape[0]} passages)")
+                    build_provenance = get_cache_build_provenance(
+                        cache_path, fingerprint, model_digest
+                    )
+                    if build_provenance is None:
+                        print("Original embedding build cost is unknown for this cache.")
                     return vectors, {
                         "cache_hit": True,
                         "cache_read_seconds": time.perf_counter() - cache_started,
@@ -204,6 +290,7 @@ def embed_corpus(session, corpus, cache_path, fingerprint, model_digest):
                         "embedding_prompt_tokens": None,
                         "api_total_duration_ns": None,
                         "api_load_duration_ns": None,
+                        "cache_build_provenance": build_provenance,
                     }
         except (OSError, ValueError, KeyError):
             pass
@@ -245,7 +332,7 @@ def embed_corpus(session, corpus, cache_path, fingerprint, model_digest):
         values = [item.get(key) for item in batch_results]
         return sum(values) if values and all(value is not None for value in values) else None
 
-    return matrix, {
+    index_stats = {
         "cache_hit": False,
         "cache_read_seconds": 0.0,
         "build_seconds_this_run": elapsed,
@@ -254,6 +341,27 @@ def embed_corpus(session, corpus, cache_path, fingerprint, model_digest):
         "api_total_duration_ns": sum_if_complete("total_duration"),
         "api_load_duration_ns": sum_if_complete("load_duration"),
     }
+    build_provenance = {
+        "schema_version": 1,
+        "provenance_kind": "built_this_run",
+        "dataset": dataset,
+        "build_run_id": build_run_id,
+        "build_seconds": elapsed,
+        "embedding_prompt_tokens": index_stats["embedding_prompt_tokens"],
+        "api_total_duration_ns": index_stats["api_total_duration_ns"],
+        "api_load_duration_ns": index_stats["api_load_duration_ns"],
+        "corpus_fingerprint": fingerprint,
+        "model_digest": model_digest,
+        "text_version": EMBED_TEXT_VERSION,
+        "truncate": EMBED_TRUNCATE,
+        "cache_schema": EMBED_CACHE_SCHEMA_VERSION,
+        "cache_file": cache_path.relative_to(ROOT).as_posix(),
+        "cache_sha256_at_registration": sha256_file(cache_path),
+        "usage_note": "Null token or API duration fields mean the embedding response did not report them.",
+    }
+    write_json_atomic(cache_provenance_path(cache_path), build_provenance)
+    index_stats["cache_build_provenance"] = build_provenance
+    return matrix, index_stats
 
 
 def build_reader_messages(question, passages):
@@ -360,7 +468,8 @@ def run(dataset="musique", limit=10, top_n=5, generation_model=GEN_MODEL):
         print(f"Generator: {generation_info['name']} ({generation_info['digest']}); "
               f"prompt: {READER_PROMPT_VERSION}; top-k: {top_n}")
         document_vectors, index_embedding = embed_corpus(
-            session, corpus, cache_path, fingerprint, embedding_info["digest"]
+            session, corpus, cache_path, fingerprint, embedding_info["digest"],
+            dataset=dataset, build_run_id=run_id,
         )
         manifest["index_embedding"] = index_embedding
         write_json_atomic(manifest_path, manifest)

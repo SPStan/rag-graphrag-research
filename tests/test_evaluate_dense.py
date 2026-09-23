@@ -108,7 +108,11 @@ class DenseEvaluationTests(unittest.TestCase):
         label = {"id": "q1", "answer": "Paris", "supporting_ids": ["p1"]}
         manifest = valid_manifest(index_embedding={
             "embedding_prompt_tokens": 100, "build_seconds_this_run": 10.0,
-            "cache_read_seconds": None})
+            "cache_read_seconds": None,
+            "cache_build_provenance": {
+                "build_run_id": "index-build-1", "build_seconds": 78.764,
+                "embedding_prompt_tokens": None, "api_total_duration_ns": None,
+            }})
         result = evaluate([row], [label], manifest=manifest)
         self.assertEqual(result["generation_stopped_normally"], 1)
         self.assertEqual(result["usage"]["index_embedding_prompt_tokens"], 100)
@@ -116,6 +120,11 @@ class DenseEvaluationTests(unittest.TestCase):
         self.assertEqual(result["usage"]["generation_completion_tokens"], 3)
         self.assertEqual(result["usage"]["retrieval_seconds"], 0.01)
         self.assertIsNone(result["usage"]["index_embedding_cache_read_seconds"])
+        self.assertEqual(result["usage"]["index_embedding_original_build_run_id"],
+                         "index-build-1")
+        self.assertEqual(result["usage"]["index_embedding_original_build_seconds"], 78.764)
+        self.assertIsNone(result["usage"]["index_embedding_original_prompt_tokens"])
+        self.assertIsNone(result["usage"]["index_embedding_original_api_total_duration_ns"])
         with self.assertRaisesRegex(ValueError, "does not match"):
             evaluate([row], [label], manifest=valid_manifest(run_id="other"))
 
