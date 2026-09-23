@@ -5,7 +5,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from data.make_subsample import build_subset, canonical_key, passage_id, write_stable
+from data.make_subsample import build_subset, build_views, canonical_key, passage_id, write_stable
 from scripts.download_data import verify
 
 
@@ -38,6 +38,13 @@ class SubsampleTests(unittest.TestCase):
             self.assertTrue(set(label["supporting_ids"]) <= set(ids["passage_ids"]))
         self.assertEqual(stats["supporting_passages"], 4)
         self.assertEqual(ids["views"]["debug10"], ids["question_ids"][:10])
+
+    def test_holdout_view_uses_last_hundred_and_is_disjoint_from_development_views(self):
+        selected_ids = [f"q{i}" for i in range(500)]
+        views = build_views(selected_ids)
+        self.assertEqual(views["holdout100"], selected_ids[400:500])
+        for name in ("debug10", "debug20", "baseline100", "pilot200"):
+            self.assertFalse(set(views["holdout100"]) & set(views[name]))
 
     def test_same_title_is_not_enough(self):
         questions, corpus = fixture()

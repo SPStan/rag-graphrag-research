@@ -61,6 +61,16 @@ def supporting_keys(dataset, question):
             for title in sorted(titles)]
 
 
+def build_views(selected_ids):
+    """Build development prefixes and a disjoint holdout for the pinned S500 sample."""
+    count = len(selected_ids)
+    views = {name: selected_ids[:min(size, count)] for name, size in
+             (("debug10", 10), ("debug20", 20), ("baseline100", 100), ("pilot200", 200))}
+    if count >= 500:
+        views["holdout100"] = selected_ids[-100:]
+    return views
+
+
 def build_subset(dataset, questions, corpus, count=500, corpus_size=5500, seed=42):
     if count <= 0 or count > len(questions) or corpus_size <= 0:
         raise ValueError("Invalid question count or corpus size")
@@ -108,8 +118,7 @@ def build_subset(dataset, questions, corpus, count=500, corpus_size=5500, seed=4
         "selection": "random.Random(seed).sample(sorted(question_ids), count)",
         "passage_identity": "sha256 of JSON [title,text] after whitespace normalization",
         "question_ids": selected_ids, "passage_ids": corpus_ids,
-        "views": {name: selected_ids[:min(size, count)] for name, size in
-                  (("debug10", 10), ("debug20", 20), ("baseline100", 100), ("pilot200", 200))},
+        "views": build_views(selected_ids),
     }
     stats = {"source_questions": len(questions), "source_passages": len(corpus),
              "unique_source_passages": len(documents), "canonical_duplicates_removed": len(corpus) - len(documents),

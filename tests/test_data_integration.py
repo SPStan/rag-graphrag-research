@@ -30,10 +30,14 @@ class RealDataTests(unittest.TestCase):
                 saved = json.loads((ROOT / f"data/ids/{dataset}_s500.json").read_text(encoding="utf-8"))
                 self.assertEqual(ids["question_ids"], saved["question_ids"])
                 self.assertEqual(ids["passage_ids"], saved["passage_ids"])
+                self.assertEqual(ids["views"], saved["views"])
                 self.assertEqual(len(queries), 500)
                 self.assertEqual(len(corpus), 5500)
                 for view, size in (("debug10", 10), ("debug20", 20), ("baseline100", 100), ("pilot200", 200)):
                     self.assertEqual(saved["views"][view], saved["question_ids"][:size])
+                self.assertEqual(saved["views"]["holdout100"], saved["question_ids"][-100:])
+                self.assertFalse(set(saved["views"]["holdout100"]) &
+                                 set(saved["views"]["pilot200"]))
                 self.assertEqual({row["id"] for row in queries}, {row["id"] for row in labels})
                 for row in labels:
                     self.assertTrue(set(row["supporting_ids"]) <= set(saved["passage_ids"]))
