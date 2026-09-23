@@ -74,13 +74,15 @@ def read_jsonl(path):
     return rows
 
 
-def evaluate(rows, labels, expected_ids=None):
+def evaluate(rows, labels, expected_ids=None, manifest=None):
     run_ids = {row.get("run_id") for row in rows}
     datasets = {row.get("dataset") for row in rows}
     if len(run_ids) != 1 or None in run_ids:
         raise ValueError("Run rows must share one non-empty run_id")
     if len(datasets) != 1 or None in datasets:
         raise ValueError("Run rows must share one dataset")
+    if manifest is not None and manifest.get("run_id") != next(iter(run_ids)):
+        raise ValueError("Run manifest does not match the JSONL run_id")
 
     by_id = {label["id"]: label for label in labels}
     if len(by_id) != len(labels):
@@ -133,10 +135,34 @@ def evaluate(rows, labels, expected_ids=None):
             "recall_at_k": recall_at_k(retrieved, supporting, top_k),
             "supporting_passages": len(set(supporting)),
             "supporting_passages_retrieved": len(set(retrieved) & set(supporting)),
+            "done_reason": row.get("done_reason"),
+            "prompt_tokens": row.get("prompt_tokens"),
+            "completion_tokens": row.get("completion_tokens"),
+            "query_embedding_prompt_tokens": row.get("query_embedding_prompt_tokens"),
+            "query_embedding_client_seconds": row.get("query_embedding_client_seconds"),
+            "retrieval_seconds": row.get("retrieval_seconds"),
+            "generation_wall_seconds": row.get("generation_wall_seconds"),
+            "question_end_to_end_seconds": row.get("question_end_to_end_seconds"),
         })
 
     count = len(per_question)
     mean = lambda key: sum(row[key] for row in per_question) / count
+    def known_sum(key):
+        values = [row.get(key) for row in rows]
+        if not all(isinstance(value, (int, float)) and not isinstance(value, bool)
+                   for value in values):
+            return None
+        return sum(values)
+
+    def known_mean(key):
+        total = known_sum(key)
+        return total / count if total is not None else None
+
+    index_usage = (manifest or {}).get("index_embedding", {})
+    if not index_usage:
+        # Older manifests only stored the embedding build duration.
+        old_seconds = (manifest or {}).get("index_embedding_seconds_this_run")
+        index_usage = {"build_seconds_this_run": old_seconds}
     return {
         "schema_version": 1,
         "metric_version": METRIC_VERSION,
@@ -150,6 +176,23 @@ def evaluate(rows, labels, expected_ids=None):
         "em": mean("em"),
         "token_f1": mean("f1"),
         "recall_at_k": mean("recall_at_k"),
+        "generation_stopped_normally": sum(row.get("done_reason") == "stop" for row in rows),
+        "usage": {
+            "index_embedding_prompt_tokens": index_usage.get("embedding_prompt_tokens"),
+            "index_embedding_api_total_duration_ns": index_usage.get("api_total_duration_ns"),
+            "index_embedding_build_seconds": index_usage.get("build_seconds_this_run"),
+            "index_embedding_cache_read_seconds": index_usage.get("cache_read_seconds"),
+            "query_embedding_prompt_tokens": known_sum("query_embedding_prompt_tokens"),
+            "query_embedding_client_seconds": known_sum("query_embedding_client_seconds"),
+            "retrieval_seconds": known_sum("retrieval_seconds"),
+            "generation_prompt_tokens": known_sum("prompt_tokens"),
+            "generation_completion_tokens": known_sum("completion_tokens"),
+            "generation_wall_seconds": known_sum("generation_wall_seconds"),
+            "generation_server_seconds": known_sum("generation_seconds"),
+            "question_end_to_end_seconds": known_sum("question_end_to_end_seconds"),
+            "mean_generation_tokens_per_second": known_mean("generation_tokens_per_second"),
+            "note": "Index embedding usage is in the run manifest; null means unavailable, not zero.",
+        },
         "per_question": per_question,
     }
 
@@ -180,7 +223,11 @@ def main():
                 expected_ids = manifest["question_ids"]
             else:
                 expected_ids = manifest["views"][args.expected_view]
-        result = evaluate(rows, json.loads(labels_path.read_text(encoding="utf-8")), expected_ids)
+        manifest_path = run_path.with_suffix(".manifest.json")
+        manifest = (json.loads(manifest_path.read_text(encoding="utf-8"))
+                    if manifest_path.exists() else None)
+        result = evaluate(rows, json.loads(labels_path.read_text(encoding="utf-8")),
+                          expected_ids, manifest)
         output_path = args.output or run_path.with_suffix(".metrics.json")
         if not output_path.is_absolute():
             output_path = ROOT / output_path

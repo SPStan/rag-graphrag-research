@@ -168,6 +168,7 @@ def validate_processed_data(dataset, data_dir, queries, corpus):
 def embed_corpus(session, corpus, cache_path, fingerprint, model_digest):
     ids = [row["id"] for row in corpus]
     if cache_path.exists():
+        cache_started = time.perf_counter()
         try:
             with np.load(cache_path, allow_pickle=False) as saved:
                 saved_ids = saved["ids"].astype(str).tolist()
@@ -184,13 +185,22 @@ def embed_corpus(session, corpus, cache_path, fingerprint, model_digest):
                 if (vectors.ndim == 2 and vectors.shape[0] == len(corpus)
                         and np.all(np.isfinite(vectors)) and np.all(np.linalg.norm(vectors, axis=1) > 0)):
                     print(f"Embeddings cache: {cache_path.relative_to(ROOT)} ({vectors.shape[0]} passages)")
-                    return vectors, 0.0
+                    return vectors, {
+                        "cache_hit": True,
+                        "cache_read_seconds": time.perf_counter() - cache_started,
+                        "build_seconds_this_run": None,
+                        "api_batches": 0,
+                        "embedding_prompt_tokens": None,
+                        "api_total_duration_ns": None,
+                        "api_load_duration_ns": None,
+                    }
         except (OSError, ValueError, KeyError):
             pass
         print("Embeddings cache is stale; rebuilding it.")
 
     document_texts = [f"{row['title']}\n{row['text']}" for row in corpus]
     all_vectors = []
+    batch_results = []
     started = time.perf_counter()
     for offset in range(0, len(document_texts), BATCH_SIZE):
         batch = document_texts[offset:offset + BATCH_SIZE]
@@ -201,6 +211,7 @@ def embed_corpus(session, corpus, cache_path, fingerprint, model_digest):
         if not isinstance(vectors, list) or len(vectors) != len(batch):
             raise RuntimeError(f"Ollama returned an unexpected embedding batch at offset {offset}")
         all_vectors.extend(vectors)
+        batch_results.append(result)
         done = min(offset + len(batch), len(document_texts))
         print(f"Embedded passages: {done}/{len(document_texts)}", end="\r", flush=True)
     elapsed = time.perf_counter() - started
@@ -219,7 +230,19 @@ def embed_corpus(session, corpus, cache_path, fingerprint, model_digest):
                             truncate=np.asarray(EMBED_TRUNCATE))
     temporary.replace(cache_path)
     print(f"Embedded passages: {len(corpus)}/{len(corpus)}")
-    return matrix, elapsed
+    def sum_if_complete(key):
+        values = [item.get(key) for item in batch_results]
+        return sum(values) if values and all(value is not None for value in values) else None
+
+    return matrix, {
+        "cache_hit": False,
+        "cache_read_seconds": 0.0,
+        "build_seconds_this_run": elapsed,
+        "api_batches": len(batch_results),
+        "embedding_prompt_tokens": sum_if_complete("prompt_eval_count"),
+        "api_total_duration_ns": sum_if_complete("total_duration"),
+        "api_load_duration_ns": sum_if_complete("load_duration"),
+    }
 
 
 def build_reader_messages(question, passages):
@@ -321,34 +344,43 @@ def run(dataset="musique", limit=10, top_n=5, generation_model=GEN_MODEL):
         print(f"Embedding model: {embedding_info['name']} ({embedding_info['digest']})")
         print(f"Generator: {generation_info['name']} ({generation_info['digest']}); "
               f"prompt: {READER_PROMPT_VERSION}; top-k: {top_n}")
-        document_vectors, embedding_seconds = embed_corpus(
+        document_vectors, index_embedding = embed_corpus(
             session, corpus, cache_path, fingerprint, embedding_info["digest"]
         )
-        manifest["index_embedding_seconds_this_run"] = embedding_seconds
+        manifest["index_embedding"] = index_embedding
+        write_json_atomic(manifest_path, manifest)
 
         with temporary.open("w", encoding="utf-8", newline="\n") as output:
             for position, query in enumerate(queries, start=1):
+                question_started = time.perf_counter()
+                query_embed_started = time.perf_counter()
                 query_result = post_json(session, "/api/embed", {
                     "model": EMBED_MODEL, "input": query["question"], "truncate": EMBED_TRUNCATE
                 })
+                query_embed_client_seconds = time.perf_counter() - query_embed_started
                 query_vectors = query_result.get("embeddings")
                 if not isinstance(query_vectors, list) or len(query_vectors) != 1:
                     raise RuntimeError(f"Ollama returned an invalid query embedding for {query['id']}")
+                retrieval_started = time.perf_counter()
                 ranked = top_k(query_vectors[0], document_vectors, top_n)
                 passages = [corpus[index] for index, _score in ranked]
+                retrieval_seconds = time.perf_counter() - retrieval_started
                 messages = build_reader_messages(query["question"], passages)
                 prompt_sha256 = hashlib.sha256(
                     json.dumps(messages, ensure_ascii=False, sort_keys=True,
                                separators=(",", ":")).encode("utf-8")
                 ).hexdigest()
+                generation_started = time.perf_counter()
                 generation = post_json(session, "/api/chat", {
                     "model": generation_model,
                     "messages": messages,
                     "stream": False,
                     "options": GENERATION_OPTIONS,
                 })
+                generation_wall_seconds = time.perf_counter() - generation_started
                 raw_answer = generation.get("message", {}).get("content", "")
                 answer, answer_status = extract_reader_answer(raw_answer)
+                question_end_to_end_seconds = time.perf_counter() - question_started
                 row = {
                     "schema_version": 1,
                     "run_id": run_id,
@@ -374,6 +406,16 @@ def run(dataset="musique", limit=10, top_n=5, generation_model=GEN_MODEL):
                     "raw_answer": raw_answer,
                     "prompt_tokens": generation.get("prompt_eval_count"),
                     "completion_tokens": generation.get("eval_count"),
+                    "query_embedding_prompt_tokens": query_result.get("prompt_eval_count"),
+                    "query_embedding_total_duration_ns": query_result.get("total_duration"),
+                    "query_embedding_load_duration_ns": query_result.get("load_duration"),
+                    "query_embedding_client_seconds": query_embed_client_seconds,
+                    "retrieval_seconds": retrieval_seconds,
+                    "generation_wall_seconds": generation_wall_seconds,
+                    "question_end_to_end_seconds": question_end_to_end_seconds,
+                    "generation_total_duration_ns": generation.get("total_duration"),
+                    "generation_load_duration_ns": generation.get("load_duration"),
+                    "generation_eval_duration_ns": generation.get("eval_duration"),
                     "generation_seconds": (
                         generation["total_duration"] / 1_000_000_000
                         if generation.get("total_duration") is not None else None
@@ -392,7 +434,10 @@ def run(dataset="musique", limit=10, top_n=5, generation_model=GEN_MODEL):
         manifest["completed_at"] = datetime.now(timezone.utc).isoformat()
         manifest["results_sha256"] = sha256_file(output_path)
         write_json_atomic(manifest_path, manifest)
-        print(f"Corpus embedding seconds: {embedding_seconds:.2f}")
+        if index_embedding["build_seconds_this_run"] is not None:
+            print(f"Corpus embedding seconds: {index_embedding['build_seconds_this_run']:.2f}")
+        else:
+            print(f"Embeddings cache read seconds: {index_embedding['cache_read_seconds']:.4f}")
         print(f"Run ID: {run_id}")
         print(f"Results: {output_path.relative_to(ROOT)}")
         print(f"Manifest: {manifest_path.relative_to(ROOT)}")

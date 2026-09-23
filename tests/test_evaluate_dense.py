@@ -94,6 +94,32 @@ class DenseEvaluationTests(unittest.TestCase):
         self.assertEqual(result["em"], 1.0)
         self.assertEqual(result["per_question"][0]["answer_extraction_status"], "ok")
 
+    def test_evaluation_reports_phase_usage_and_unknown_index_usage_as_null(self):
+        row = {"run_id": "one", "dataset": "musique", "question_id": "q1",
+               "planned_question_ids": ["q1"], "answer": "Paris", "top_k": 5,
+               "retrieved": [{"id": "p1"}], "embedding_model": {},
+               "generation_model": {}, "reader_prompt_version": "test",
+               "generation_options": {}, "done_reason": "stop",
+               "prompt_tokens": 12, "completion_tokens": 3,
+               "query_embedding_prompt_tokens": 4,
+               "query_embedding_client_seconds": 0.2,
+               "retrieval_seconds": 0.01, "generation_wall_seconds": 0.4,
+               "generation_seconds": 0.35, "question_end_to_end_seconds": 0.7,
+               "generation_tokens_per_second": 8.0}
+        label = {"id": "q1", "answer": "Paris", "supporting_ids": ["p1"]}
+        manifest = {"run_id": "one", "index_embedding": {
+            "embedding_prompt_tokens": 100, "build_seconds_this_run": 10.0,
+            "cache_read_seconds": None}}
+        result = evaluate([row], [label], manifest=manifest)
+        self.assertEqual(result["generation_stopped_normally"], 1)
+        self.assertEqual(result["usage"]["index_embedding_prompt_tokens"], 100)
+        self.assertEqual(result["usage"]["generation_prompt_tokens"], 12)
+        self.assertEqual(result["usage"]["generation_completion_tokens"], 3)
+        self.assertEqual(result["usage"]["retrieval_seconds"], 0.01)
+        self.assertIsNone(result["usage"]["index_embedding_cache_read_seconds"])
+        with self.assertRaisesRegex(ValueError, "does not match"):
+            evaluate([row], [label], manifest={"run_id": "other"})
+
 
 if __name__ == "__main__":
     unittest.main()

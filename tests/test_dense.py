@@ -81,10 +81,12 @@ class DenseRetrievalTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="dense-cache-test-", dir=ROOT / "indexes" / "dense") as temp:
             cache = Path(temp) / "cache.npz"
             first_session = FakeEmbeddingSession()
-            first_vectors, _elapsed = embed_corpus(
+            first_vectors, first_stats = embed_corpus(
                 first_session, corpus, cache, corpus_fingerprint(corpus), "digest"
             )
             self.assertEqual(first_vectors.shape, (2, 2))
+            self.assertFalse(first_stats["cache_hit"])
+            self.assertIsNone(first_stats["embedding_prompt_tokens"])
             self.assertTrue(all(payload["truncate"] is EMBED_TRUNCATE
                                 for payload in first_session.payloads))
             with np.load(cache, allow_pickle=False) as saved:
@@ -96,10 +98,11 @@ class DenseRetrievalTests(unittest.TestCase):
                 def post(self, *_args, **_kwargs):
                     raise AssertionError("A valid cache should avoid embedding API calls")
 
-            cached_vectors, elapsed = embed_corpus(
+            cached_vectors, cached_stats = embed_corpus(
                 NoNetworkSession(), corpus, cache, corpus_fingerprint(corpus), "digest"
             )
-            self.assertEqual(elapsed, 0.0)
+            self.assertTrue(cached_stats["cache_hit"])
+            self.assertIsNone(cached_stats["embedding_prompt_tokens"])
             np.testing.assert_array_equal(cached_vectors, first_vectors)
 
     def test_processed_data_must_match_pinned_hashes_and_id_manifests(self):
