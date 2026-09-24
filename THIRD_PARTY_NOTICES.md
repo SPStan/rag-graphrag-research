@@ -2,7 +2,8 @@
 
 ## HippoRAG MuSiQue reader prompt
 
-The MuSiQue one-shot reader prompt in `scripts/run_dense.py` is adapted from
+The MuSiQue one-shot reader template copied to
+`scripts/vendor/hipporag2_musique_template.py` and used by `scripts/run_dense.py` is from
 [`rag_qa_musique.py`](https://github.com/OSU-NLP-Group/HippoRAG/blob/1438aba3fc44ff10573e5a5e1e7cc3c7f9794aff/src/hipporag/prompts/templates/rag_qa_musique.py)
 at upstream commit `1438aba3fc44ff10573e5a5e1e7cc3c7f9794aff`.
 

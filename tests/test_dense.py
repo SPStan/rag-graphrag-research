@@ -12,7 +12,9 @@ from scripts.run_dense import (EMBED_CACHE_SCHEMA_VERSION, EMBED_TEXT_VERSION,
                                EMBED_TRUNCATE, ROOT, build_reader_messages, corpus_fingerprint,
                                embed_corpus, normalize_rows, recover_cache_build_provenance,
                                require_completed_generation, run, top_k, validate_processed_data,
-                               DEMO_USER, PROMPT_SOURCE_COMMIT)
+                               DEMO_USER, DEMO_ASSISTANT, READER_SYSTEM, READER_PROMPT_VERSION,
+                               PROMPT_SOURCE_COMMIT, reader_template_sha256)
+from scripts.vendor.hipporag2_musique_template import prompt_template
 
 
 class FakeEmbeddingResponse:
@@ -36,6 +38,22 @@ class FakeEmbeddingSession:
 
 
 class DenseRetrievalTests(unittest.TestCase):
+    def test_reader_messages_match_pinned_upstream_template_exactly(self):
+        question = "Who is the professor?"
+        passages = [{"title": "Person", "text": "A professor."}]
+        messages = build_reader_messages(question, passages)
+        upstream = [
+            {"role": item["role"],
+             "content": item["content"].replace("${prompt_user}", messages[-1]["content"])}
+            for item in prompt_template
+        ]
+        self.assertEqual(messages, upstream)
+        self.assertEqual(READER_PROMPT_VERSION, "hipporag2-musique-one-shot-v6")
+        self.assertEqual(len(reader_template_sha256()), 64)
+        self.assertEqual(READER_SYSTEM, prompt_template[0]["content"])
+        self.assertEqual(DEMO_USER, prompt_template[1]["content"])
+        self.assertEqual(DEMO_ASSISTANT, prompt_template[2]["content"])
+
     def test_top_k_uses_cosine_similarity_and_returns_descending_order(self):
         documents = np.asarray([[10, 0], [1, 1], [0, 5]], dtype=np.float32)
         ranked = top_k([1, 0], documents, 3)

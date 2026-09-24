@@ -17,6 +17,7 @@ try:
     from scripts.run_dense import (GENERATION_OPTIONS, OLLAMA_URL, PROMPT_SOURCE,
                                    PROMPT_SOURCE_COMMIT, PROMPT_SOURCE_PATH,
                                    READER_PROMPT_VERSION, ROOT, build_reader_messages,
+                                   reader_template_sha256,
                                    git_snapshot, model_info, post_json,
                                    require_completed_generation, sha256_file,
                                    write_json_atomic)
@@ -26,6 +27,7 @@ except ModuleNotFoundError:  # Direct execution puts the scripts directory on sy
     from run_dense import (GENERATION_OPTIONS, OLLAMA_URL, PROMPT_SOURCE,
                            PROMPT_SOURCE_COMMIT, PROMPT_SOURCE_PATH,
                            READER_PROMPT_VERSION, ROOT, build_reader_messages,
+                           reader_template_sha256,
                            git_snapshot, model_info, post_json,
                            require_completed_generation, sha256_file,
                            write_json_atomic)
@@ -44,8 +46,9 @@ def validate_replay_source(payload):
     if retrieval.get("method") != "cosine":
         raise ValueError("Context source must be an original cosine Dense RAG run")
     generation = manifest.get("generation", {})
-    if generation.get("reader_prompt_version") != READER_PROMPT_VERSION:
-        raise ValueError("Context source must use the pinned reader prompt version")
+    source_prompt_version = generation.get("reader_prompt_version")
+    if not isinstance(source_prompt_version, str) or not source_prompt_version:
+        raise ValueError("Context source must declare its reader prompt version")
     if generation.get("options") != GENERATION_OPTIONS:
         raise ValueError("Context source must use the fixed generation options")
 
@@ -67,8 +70,8 @@ def validate_replay_source(payload):
         raise ValueError("Context source contains mixed embedding models")
     for item in payload["questions"]:
         row = item["row"]
-        if row.get("reader_prompt_version") != READER_PROMPT_VERSION:
-            raise ValueError("Context source rows contain a different reader prompt")
+        if row.get("reader_prompt_version") != source_prompt_version:
+            raise ValueError("Context source rows disagree with the manifest reader prompt")
         if row.get("generation_options") != GENERATION_OPTIONS:
             raise ValueError("Context source rows contain different generation options")
         if row.get("top_k") != top_k or len(row.get("retrieved", [])) != top_k:
@@ -150,7 +153,7 @@ def run(source_path, generation_model="qwen2.5:7b"):
             "reader_prompt_source": PROMPT_SOURCE,
             "reader_prompt_source_commit": PROMPT_SOURCE_COMMIT,
             "reader_prompt_source_path": PROMPT_SOURCE_PATH,
-            "reader_template_sha256": source_manifest["generation"]["reader_template_sha256"],
+            "reader_template_sha256": reader_template_sha256(),
         },
         "results_file": output_path.name,
     }

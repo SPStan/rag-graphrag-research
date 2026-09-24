@@ -41,6 +41,13 @@ def replay_payload():
 
 
 class ReaderReplayTests(unittest.TestCase):
+    def test_replay_source_accepts_historical_prompt_when_manifest_and_rows_match(self):
+        payload = replay_payload()
+        historical = "hipporag2-musique-one-shot-v5"
+        payload["manifest"]["generation"]["reader_prompt_version"] = historical
+        payload["rows"][0]["reader_prompt_version"] = historical
+        self.assertEqual(validate_replay_source(payload), 2)
+
     def test_replay_source_requires_completed_consistent_full_ordered_contexts(self):
         payload = replay_payload()
         self.assertEqual(validate_replay_source(payload), 2)

@@ -60,6 +60,17 @@ def write_jsonl_atomic(path, rows):
     temporary.replace(path)
 
 
+def persist_interrupted_run(manifest, manifest_path, events, lock):
+    """Keep a user-stopped run distinguishable from one still initializing."""
+    with lock:
+        manifest["usage_events"] = list(events)
+    manifest["status"] = "interrupted"
+    manifest["error_type"] = "KeyboardInterrupt"
+    manifest["error"] = "Run interrupted; no complete results or metrics were written."
+    manifest["interrupted_at"] = datetime.now(timezone.utc).isoformat()
+    write_json_atomic(manifest_path, manifest)
+
+
 def canonical_key(title, text):
     if not isinstance(title, str) or not isinstance(text, str) or not text.strip():
         raise ValueError("Each passage needs a non-empty title and text")
@@ -69,6 +80,26 @@ def canonical_key(title, text):
 def passage_id(title, text):
     payload = json_bytes(canonical_key(title, text)).rstrip(b"\n")
     return "sha256:" + sha256_bytes(payload)
+
+
+def normalize_ner_entities(values):
+    """Normalize Qwen's occasional object-shaped NER items to entity strings."""
+    normalized = []
+    for value in values:
+        if isinstance(value, str):
+            candidates = [value]
+        elif isinstance(value, dict):
+            # Common model variants wrap an entity with a type/label, or group
+            # entities by category. Keep names only and ignore category labels.
+            candidates = ([value["entity"]] if isinstance(value.get("entity"), str)
+                          else [item for item in value.values() if isinstance(item, str)])
+        else:
+            raise ValueError("NER entities must be strings or supported entity objects")
+        for candidate in candidates:
+            candidate = candidate.strip()
+            if candidate and candidate not in normalized:
+                normalized.append(candidate)
+    return normalized
 
 
 def normalize_inputs(corpus, queries, labels=None):
@@ -229,8 +260,16 @@ def instrument_models(rag, corpus, query_text_to_id, events, lock):
         if messages is None:
             raise ValueError("Missing messages for a tracked HippoRAG chat call")
         serialized = json.dumps(messages, ensure_ascii=False, sort_keys=True, default=str)
+        bypass_cache = kwargs.pop("_bypass_cache", False)
         try:
-            response, metadata, cache_hit = original_infer(*args, **kwargs)
+            if bypass_cache:
+                # The upstream decorator caches malformed JSON too. A targeted
+                # retry must go through its wrapped API method, bypassing SQLite.
+                response, metadata = original_infer.__func__.__wrapped__(
+                    llm, *args, **kwargs)
+                cache_hit = False
+            else:
+                response, metadata, cache_hit = original_infer(*args, **kwargs)
         except Exception as exc:
             stage = getattr(local, "stage", "unknown")
             event = {"kind": "chat", "stage": stage,
@@ -286,7 +325,36 @@ def instrument_models(rag, corpus, query_text_to_id, events, lock):
         local.stage = "openie_ner"
         local.passage_id = passage_id_by_text.get(passage)
         try:
-            return original_ner(chunk_key, passage)
+            result = original_ner(chunk_key, passage)
+            if not result.metadata.get("error"):
+                return result
+
+            # Retry malformed/cut-off NER once without consulting the upstream
+            # response cache. Successful cached passages remain untouched.
+            from hipporag.prompts import PromptTemplateManager
+            from hipporag.utils.llm_utils import fix_broken_generated_json
+            from hipporag.information_extraction.openie_openai import _extract_ner_from_response
+
+            messages = PromptTemplateManager(role_mapping={
+                "system": "system", "user": "user", "assistant": "assistant"
+            }).render(name="ner", passage=passage)
+            kwargs = {"max_new_tokens": rag.openie.ner_max_tokens,
+                      "_bypass_cache": True}
+            response_format = getattr(getattr(rag.qa_llm, "global_config", None),
+                                      "response_format", None)
+            if response_format is not None:
+                kwargs["response_format"] = response_format
+            response, metadata, _ = rag.qa_llm.infer(messages=messages, **kwargs)
+            parsed = (fix_broken_generated_json(response)
+                      if metadata.get("finish_reason") == "length" else response)
+            entities = normalize_ner_entities(_extract_ner_from_response(parsed))
+            metadata = dict(metadata)
+            metadata["retry_without_cache"] = True
+            metadata["ner_object_items_normalized"] = True
+            return type(result)(chunk_id=chunk_key, response=response,
+                                unique_entities=entities, metadata=metadata)
+        except Exception:
+            raise
         finally:
             local.stage = "index_embedding"
             local.passage_id = None
@@ -297,7 +365,34 @@ def instrument_models(rag, corpus, query_text_to_id, events, lock):
         local.stage = "openie_triples"
         local.passage_id = passage_id_by_text.get(passage)
         try:
-            return original_triples(chunk_key, passage, named_entities)
+            result = original_triples(chunk_key, passage, named_entities)
+            if not result.metadata.get("error"):
+                return result
+
+            # As with NER, a malformed cached answer must not poison retries.
+            from hipporag.prompts import PromptTemplateManager
+            from hipporag.utils.llm_utils import fix_broken_generated_json, filter_invalid_triples
+            from hipporag.information_extraction.openie_openai import _extract_json_list_field
+
+            messages = PromptTemplateManager(role_mapping={
+                "system": "system", "user": "user", "assistant": "assistant"
+            }).render(name="triple_extraction", passage=passage,
+                      named_entity_json=json.dumps({"named_entities": named_entities}))
+            kwargs = {"max_new_tokens": rag.openie.triple_max_tokens,
+                      "_bypass_cache": True}
+            response_format = getattr(getattr(rag.qa_llm, "global_config", None),
+                                      "response_format", None)
+            if response_format is not None:
+                kwargs["response_format"] = response_format
+            response, metadata, _ = rag.qa_llm.infer(messages=messages, **kwargs)
+            parsed = (fix_broken_generated_json(response)
+                      if metadata.get("finish_reason") == "length" else response)
+            triples = filter_invalid_triples(
+                triples=_extract_json_list_field(parsed, "triples"))
+            metadata = dict(metadata)
+            metadata["retry_without_cache"] = True
+            return type(result)(chunk_id=chunk_key, response=response,
+                                metadata=metadata, triples=triples)
         finally:
             local.stage = "index_embedding"
             local.passage_id = None
@@ -592,6 +687,14 @@ def run(args):
     try:
         rag = HippoRAG(global_config=config, extraction_llm=llm, qa_llm=llm,
                        embedding_model=embedding, index_identity=f"ollama:{model_identity}")
+        # A previous interrupted indexing attempt may have persisted passage
+        # vectors before producing a graph. Reuse those vectors and explicitly
+        # rebuild the missing graph from cached OpenIE outputs.
+        if (not rag._graph_state_available
+                and rag.chunk_embedding_store.get_all_ids()):
+            config.force_index_from_scratch = True
+            manifest["recovery"] = "rebuild_missing_graph_reusing_persisted_passage_embeddings"
+            write_json_atomic(manifest_path, manifest)
         local = instrument_models(rag, corpus, question_text_to_id, events, event_lock)
         before = {
             "passages": set(rag.chunk_embedding_store.get_all_ids()),
@@ -667,6 +770,9 @@ def run(args):
                           "model_embedding_digest": model_embedding["digest"]},
                          ensure_ascii=False, indent=2))
         return results_path
+    except KeyboardInterrupt:
+        persist_interrupted_run(manifest, manifest_path, events, event_lock)
+        raise
     except Exception as exc:
         manifest["status"] = "failed"
         manifest["error_type"] = type(exc).__name__

@@ -1,10 +1,38 @@
 import unittest
+import json
+import tempfile
+import threading
+from pathlib import Path
 
 from scripts.run_hipporag import (normalize_inputs, parse_args, passage_id,
-                                  summarize_usage, windows_safe_model_label)
+                                  normalize_ner_entities, summarize_usage,
+                                  persist_interrupted_run, windows_safe_model_label)
 
 
 class HippoRAGRunnerTests(unittest.TestCase):
+    def test_interrupted_run_manifest_persists_status_and_partial_usage(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "run.manifest.json"
+            manifest = {"status": "initializing"}
+            events = [{"stage": "openie_triples", "usage": {"prompt_tokens": 5}}]
+
+            persist_interrupted_run(manifest, path, events, threading.Lock())
+
+            saved = json.loads(path.read_text(encoding="utf-8"))
+            self.assertEqual(saved["status"], "interrupted")
+            self.assertEqual(saved["error_type"], "KeyboardInterrupt")
+            self.assertEqual(saved["usage_events"], events)
+            self.assertIn("interrupted_at", saved)
+
+    def test_object_shaped_ner_items_keep_entity_names_not_labels(self):
+        self.assertEqual(
+            normalize_ner_entities([
+                "Alice", {"entity": "Bob", "type": "person"},
+                {"Athlete": "Carol", "Sport": "Tennis"}, "Alice"
+            ]),
+            ["Alice", "Bob", "Carol", "Tennis"],
+        )
+
     def test_corpus_and_queries_must_be_explicit(self):
         with self.assertRaises(SystemExit):
             parse_args([])

@@ -16,35 +16,24 @@ import requests
 
 try:
     from scripts.answer_parser import extract_reader_answer
+    from scripts.vendor.hipporag2_musique_template import (
+        one_shot_rag_qa_input, one_shot_rag_qa_output, rag_qa_system,
+    )
 except ModuleNotFoundError:  # Direct execution puts the scripts directory on sys.path.
     from answer_parser import extract_reader_answer
+    from vendor.hipporag2_musique_template import (
+        one_shot_rag_qa_input, one_shot_rag_qa_output, rag_qa_system,
+    )
 
 
 ROOT = Path(__file__).resolve().parents[1]
 OLLAMA_URL = "http://localhost:11434"
 EMBED_MODEL = "bge-m3"
 GEN_MODEL = "qwen2.5:3b"
-READER_PROMPT_VERSION = "hipporag2-musique-one-shot-v5"
-# Adapted from OSU-NLP-Group/HippoRAG's rag_qa_musique.py (MIT), pinned below.
-# Keep this fixed demonstration independent of the benchmark questions and labels.
-READER_SYSTEM = (
-    'As an advanced reading comprehension assistant, your task is to analyze text passages and '
-    'corresponding questions meticulously. Your response start after "Thought: ", where you will '
-    'methodically break down the reasoning process, illustrating how you arrive at conclusions. '
-    'Conclude with "Answer: " to present a concise, definitive response, devoid of additional elaborations.'
-)
-DEMO_USER = (
-    "Wikipedia Title: The Last Horse\nThe Last Horse (Spanish:El último caballo) is a 1950 Spanish comedy film directed by Edgar Neville starring Fernando Fernán Gómez.\n"
-    "Wikipedia Title: Southampton\nThe University of Southampton, which was founded in 1862 and received its Royal Charter as a university in 1952, has over 22,000 students. The university is ranked in the top 100 research universities in the world in the Academic Ranking of World Universities 2010. In 2010, the THES - QS World University Rankings positioned the University of Southampton in the top 80 universities in the world.\nThe university considers itself one of the top 5 research universities in the UK.\nThe university has a global reputation for research into engineering sciences, oceanography, chemistry, cancer sciences, sound and vibration research, computer science and electronics, optoelectronics and textile conservation at the Textile Conservation Centre (which is due to close in October 2009.) It is also home to the National Oceanography Centre, Southampton (NOCS), the focus of Natural Environment Research Council-funded marine research.\n"
-    "Wikipedia Title: Stanton Township, Champaign County, Illinois\nStanton Township is a township in Champaign County, Illinois, USA. As of the 2010 census, its population was 505 and it contained 202 housing units.\n"
-    "Wikipedia Title: Neville A. Stanton\nNeville A. Stanton is a British Professor of Human Factors and Ergonomics at the University of Southampton. Prof Stanton is a Chartered Engineer (C.Eng), Chartered Psychologist (C.Psychol) and Chartered Ergonomist (C.ErgHF). He has written and edited over a forty books and over three hundered peer-reviewed journal papers on applications of the subject.\nStanton is a Fellow of the British Psychological Society, a Fellow of The Institute of Ergonomics and Human Factors and a member of the Institution of Engineering and Technology. He has been published in academic journals including \"Nature\". He has also helped organisations design new human-machine interfaces, such as the Adaptive Cruise Control system for Jaguar Cars.\n"
-    "Wikipedia Title: Finding Nemo\nFinding Nemo Theatrical release poster Directed by Andrew Stanton Produced by Graham Walters Screenplay by Andrew Stanton Bob Peterson David Reynolds Story by Andrew Stanton Starring Albert Brooks Ellen DeGeneres Alexander Gould Willem Dafoe Music by Thomas Newman Cinematography Sharon Calahan Jeremy Lasky Edited by David Ian Salter Production company Walt Disney Pictures Pixar Animation Studios Distributed by Buena Vista Pictures Distribution Release date May 30, 2003 (2003 - 05 - 30) Running time 100 minutes Country United States Language English Budget $$94 million Box office $$940.3 million"
-    "\n\nQuestion: When was Neville A. Stanton's employer founded?\nThought: "
-)
-DEMO_ASSISTANT = (
-    "The employer of Neville A. Stanton is University of Southampton. The University of Southampton "
-    "was founded in 1862. So the answer is: 1862.\nAnswer: 1862."
-)
+READER_PROMPT_VERSION = "hipporag2-musique-one-shot-v6"
+READER_SYSTEM = rag_qa_system
+DEMO_USER = one_shot_rag_qa_input
+DEMO_ASSISTANT = one_shot_rag_qa_output
 PROMPT_SOURCE_COMMIT = "1438aba3fc44ff10573e5a5e1e7cc3c7f9794aff"
 PROMPT_SOURCE_PATH = "src/hipporag/prompts/templates/rag_qa_musique.py"
 PROMPT_SOURCE = (
@@ -378,6 +367,13 @@ def build_reader_messages(question, passages):
     ]
 
 
+def reader_template_sha256():
+    return hashlib.sha256(
+        json.dumps([READER_SYSTEM, DEMO_USER, DEMO_ASSISTANT], ensure_ascii=False,
+                   separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+
+
 def run(dataset="musique", limit=10, top_n=5, generation_model=GEN_MODEL):
     if dataset != "musique":
         raise ValueError("The pinned HippoRAG one-shot reader is validated only for MuSiQue")
@@ -406,10 +402,7 @@ def run(dataset="musique", limit=10, top_n=5, generation_model=GEN_MODEL):
     output_path = output_dir / f"dense-{dataset}-{run_id}.jsonl"
     temporary = output_path.with_suffix(".jsonl.part")
     manifest_path = output_path.with_suffix(".manifest.json")
-    prompt_template_sha256 = hashlib.sha256(
-        json.dumps([READER_SYSTEM, DEMO_USER, DEMO_ASSISTANT], ensure_ascii=False,
-                   separators=(",", ":")).encode("utf-8")
-    ).hexdigest()
+    prompt_template_sha256 = reader_template_sha256()
     manifest = {
         "schema_version": 1,
         "run_id": run_id,
