@@ -152,3 +152,11 @@ Run экспортирован и проверен: MLflow run `e294cf1b391d48aa
 .\.venv\Scripts\python.exe scripts\evaluate_dense.py results\raw\dense-musique-d49b37ad-51b1-42d9-8162-fe6424bfea84.jsonl
 .\.venv\Scripts\python.exe scripts\evaluate_dense.py results\raw\dense-musique-reader-replay-48c2bb0e-9af4-4891-9224-69268ce8e4bf.jsonl
 ```
+
+## HippoRAG 2: локальный sample smoke, 24 сентября 2026
+
+Официальный HippoRAG 2 закреплён на commit `1438aba3fc44ff10573e5a5e1e7cc3c7f9794aff` и установлен в отдельное временное Python 3.12.6 окружение; основная `.venv` не менялась. Запущен upstream sample (3 пассажа, 1 вопрос) через Ollama OpenAI-compatible API, Qwen2.5 3B и BGE-M3. Для OpenIE потребовался `response_format={"type":"json_object"}`; без JSON-режима модель не вернула ожидаемую структуру.
+
+Построен граф с 30 узлами и 56 рёбрами. Поддерживающий passage найден на третьем месте, recall@5=1.0, но ответ Qwen оказался неверным (EM=0, F1=0). Отдельно посчитан usage на каждый passage: embedding и OpenIE-токены зафиксированы в [JSON-результате](../results/summary/hipporag2-sample.json). Повторный запуск переиспользовал passage/entity/fact embeddings и два chat cache результата; query embedding вызван повторно.
+
+Проверка выявила Windows-ограничение upstream: двоеточие в тегах моделей используется в имени рабочей папки. Для временного smoke двоеточие заменялось подчёркиванием только в копии исходников в `%TEMP%`. Это не готовая интеграция и не изменение закреплённого upstream commit. Следующий шаг — сделать воспроизводимый project runner с корректными путями, сохранением JSONL/usage/evaluator и связью с MLflow/Langfuse; затем проверить на малой общей подвыборке. Результат одного sample не является сравнением систем.

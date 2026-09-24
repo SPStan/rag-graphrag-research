@@ -1,10 +1,10 @@
 # RAG / GraphRAG — учебный исследовательский стенд
 
-Сравниваем dense RAG, RAPTOR, HippoRAG 2 и LightRAG по качеству ответов и расходу токенов, затем проверяем маршрутизацию между RAG и графом.
+Сравниваем dense RAG, HippoRAG 2, RAPTOR и LightRAG по качеству ответов и расходу токенов, затем проверяем маршрутизацию между RAG и графом.
 
 Для просмотра руководителем: [спецификация исследования](docs/SPEC.md), [статус задач по блокам](docs/TASKS.md), [результаты проверки стенда](docs/VERIFICATION.md).
 
-Следующий этап по обратной связи от 23 сентября — [локальный dense RAG MVP](docs/LOCAL_MVP.md). Работа идёт в отдельной ветке через Draft PR. [AGENTS.md](AGENTS.md) содержит инструкции для агента, [.adr/](.adr/README.md) — историю архитектурных решений. Локальные BGE-M3 и Qwen2.5 3B/7B проверены. Новый MuSiQue reader закреплён на upstream HippoRAG commit. На одинаковых baseline100 контекстах сравнили Qwen2.5 3B и 7B; результаты и traces в MLflow/Langfuse. Baseline100 включает debug10, поэтому это инженерный smoke, не независимая оценка; отдельный holdout100 не использовался.
+Локальный [dense RAG MVP](docs/LOCAL_MVP.md) и baseline100 выполнены; новый MuSiQue reader закреплён на upstream HippoRAG commit. На одинаковых baseline100 контекстах сравнили Qwen2.5 3B и 7B; результаты и traces в MLflow/Langfuse. Baseline100 включает debug10, поэтому это инженерный smoke, не независимая оценка; отдельный holdout100 не использовался. HippoRAG 2 запущен на одном upstream sample через локальные Ollama-модели; per-passage usage и cache replay записаны в [результате sample](results/summary/hipporag2-sample.json). Для Windows-запуска ещё нужен повторяемый адаптер.
 
 Подготовлены [данные и подвыборки](docs/DATA.md): MuSiQue и HotpotQA, по 500 вопросов и 5500 пассажей, seed 42. Источники, контрольные суммы и ID зафиксированы; все размеченные supporting-пассажи сохранены. Подготовка повторяется командами из docs/DATA.md.
 
