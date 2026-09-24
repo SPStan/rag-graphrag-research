@@ -221,7 +221,8 @@ def git_snapshot():
                                     capture_output=True, text=True).stdout.strip())
     except (OSError, subprocess.CalledProcessError):
         commit, dirty = None, None
-    source_files = ("scripts/run_dense.py", "scripts/evaluate_dense.py", "scripts/answer_parser.py")
+    source_files = ("scripts/run_dense.py", "scripts/replay_reader.py",
+                    "scripts/evaluate_dense.py", "scripts/answer_parser.py")
     return {
         "commit": commit,
         "working_tree_dirty": dirty,

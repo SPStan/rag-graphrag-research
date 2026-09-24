@@ -37,6 +37,10 @@ def verify_langfuse_trace(observations, payload):
     metadata = object_value(root.metadata) or {}
     if metadata.get("run_id") != payload["run_id"]:
         raise RuntimeError("Langfuse root trace does not contain the expected run_id")
+    replay_source = (payload.get("manifest", {}).get("retrieval", {})
+                     .get("context_source_run_id"))
+    if replay_source and metadata.get("context_source_run_id") != replay_source:
+        raise RuntimeError("Langfuse root trace does not contain the context source run_id")
     if object_value(root.input) is None or object_value(root.output) is None:
         raise RuntimeError("Langfuse root trace is missing its inputs or outputs")
     if len(by_name["question"]) != len(payload["questions"]):
@@ -123,7 +127,7 @@ def export_mlflow(payload, mlflow):
             "purpose": "dense-rag-evaluation",
             "rag.run_id": payload["run_id"],
             "rag.dataset": payload["dataset"],
-            "rag.mode": "local-poc",
+            "rag.mode": manifest.get("mode", "local-poc"),
             "rag.token_scope": "local_ollama_usage_not_billed_api_cost",
         })
         params = {
@@ -136,16 +140,22 @@ def export_mlflow(payload, mlflow):
             "generation_model": manifest["generation"]["model"]["name"],
             "generation_digest": manifest["generation"]["model"]["digest"],
             "reader_prompt_version": manifest["generation"]["reader_prompt_version"],
-            "mode": "local-poc",
+            "mode": manifest.get("mode", "local-poc"),
         }
+        context_source_run_id = manifest.get("retrieval", {}).get("context_source_run_id")
+        if context_source_run_id:
+            params["context_source_run_id"] = context_source_run_id
         mlflow.log_params(params)
         mlflow.log_metrics({key: float(metrics[key]) for key in ("em", "token_f1", "recall_at_k")})
 
         # MLflow's trace is a retrospective run record; timings are the measured values
         # saved by the runner, not the duration of this export operation.
         with mlflow.start_span(name="dense-rag-run", span_type="CHAIN") as root_span:
-            root_span.set_inputs({"run_id": payload["run_id"], "dataset": payload["dataset"],
-                                  "questions": len(run)})
+            root_inputs = {"run_id": payload["run_id"], "dataset": payload["dataset"],
+                           "questions": len(run)}
+            if context_source_run_id:
+                root_inputs["context_source_run_id"] = context_source_run_id
+            root_span.set_inputs(root_inputs)
             root_span.set_attribute("rag.run_id", payload["run_id"])
             root_span.set_outputs({"metrics": {key: metrics[key] for key in
                                                 ("em", "token_f1", "recall_at_k")}})
@@ -157,8 +167,12 @@ def export_mlflow(payload, mlflow):
                     with mlflow.start_span(name="query-embedding", span_type="EMBEDDING") as span:
                         span.set_inputs({"question": row["question"],
                                          "model": row["embedding_model"]["name"]})
-                        span.set_outputs({"prompt_tokens": row.get("query_embedding_prompt_tokens"),
-                                          "client_seconds": row.get("query_embedding_client_seconds")})
+                        if row.get("context_source_run_id"):
+                            span.set_outputs({"performed_this_run": False,
+                                              "reused_from_run_id": row["context_source_run_id"]})
+                        else:
+                            span.set_outputs({"prompt_tokens": row.get("query_embedding_prompt_tokens"),
+                                              "client_seconds": row.get("query_embedding_client_seconds")})
                     with mlflow.start_span(name="retrieval", span_type="RETRIEVER") as span:
                         span.set_inputs({"question": row["question"], "top_k": row["top_k"]})
                         span.set_outputs({"documents": item["retrieved_passages"]})
@@ -218,8 +232,13 @@ def export_langfuse(payload, base_dir=ROOT):
             as_type="chain", name="dense-rag-run",
             input={"run_id": payload["run_id"], "dataset": payload["dataset"],
                    "questions": len(payload["rows"])},
-            metadata={"run_id": payload["run_id"], "mode": "local-poc",
-                      "recording_mode": "posthoc_export"},
+            metadata={
+                "run_id": payload["run_id"],
+                "mode": payload["manifest"].get("mode", "local-poc"),
+                "recording_mode": "posthoc_export",
+                **({"context_source_run_id": payload["manifest"]["retrieval"]["context_source_run_id"]}
+                   if payload["manifest"].get("retrieval", {}).get("context_source_run_id") else {}),
+            },
         ) as root:
             trace_id = client.get_current_trace_id()
             root.update(output={"metrics": {key: payload["metrics"][key] for key in
@@ -231,11 +250,17 @@ def export_langfuse(payload, base_dir=ROOT):
                     input={"question_id": row["question_id"], "question": row["question"]},
                     metadata={"run_id": payload["run_id"]},
                 ) as question:
+                    embedding_output = (
+                        {"performed_this_run": False,
+                         "reused_from_run_id": row["context_source_run_id"]}
+                        if row.get("context_source_run_id") else
+                        {"prompt_tokens": row.get("query_embedding_prompt_tokens"),
+                         "client_seconds": row.get("query_embedding_client_seconds")}
+                    )
                     with client.start_as_current_observation(
                         as_type="embedding", name="query-embedding",
                         input={"question": row["question"]},
-                        output={"prompt_tokens": row.get("query_embedding_prompt_tokens"),
-                                "client_seconds": row.get("query_embedding_client_seconds")},
+                        output=embedding_output,
                         model=row["embedding_model"]["name"],
                     ):
                         pass

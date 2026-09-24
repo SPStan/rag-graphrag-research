@@ -144,6 +144,11 @@ def evaluate(rows, labels, expected_ids=None, manifest=None):
         if any(json.dumps(row.get(field), sort_keys=True, ensure_ascii=False) != value
                for row in rows[1:]):
             raise ValueError(f"Run rows have mixed {field}")
+    for field in ("context_source_run_id", "context_source_results_sha256"):
+        value = json.dumps(first.get(field), sort_keys=True, ensure_ascii=False)
+        if any(json.dumps(row.get(field), sort_keys=True, ensure_ascii=False) != value
+               for row in rows[1:]):
+            raise ValueError(f"Run rows have mixed {field}")
     top_k = first.get("top_k")
     if not isinstance(top_k, int) or top_k <= 0:
         raise ValueError("Run needs a positive top_k")
@@ -218,6 +223,11 @@ def evaluate(rows, labels, expected_ids=None, manifest=None):
         old_seconds = (manifest or {}).get("index_embedding_seconds_this_run")
         index_usage = {"build_seconds_this_run": old_seconds}
     cache_build = index_usage.get("cache_build_provenance") or {}
+    retrieval_manifest = (manifest or {}).get("retrieval", {})
+    if any(row.get("context_source_run_id") != retrieval_manifest.get("context_source_run_id")
+           or row.get("context_source_results_sha256")
+           != retrieval_manifest.get("context_source_results_sha256") for row in rows):
+        raise ValueError("Run rows disagree with manifest context replay source")
     return {
         "schema_version": 1,
         "metric_version": METRIC_VERSION,
@@ -228,6 +238,10 @@ def evaluate(rows, labels, expected_ids=None, manifest=None):
         "top_k": first.get("top_k"),
         "embedding_model": first.get("embedding_model"),
         "generation_model": first.get("generation_model"),
+        "context_source_run_id": (manifest or {}).get("retrieval", {}).get(
+            "context_source_run_id"),
+        "context_source_results_sha256": (manifest or {}).get("retrieval", {}).get(
+            "context_source_results_sha256"),
         "em": mean("em"),
         "token_f1": mean("f1"),
         "recall_at_k": mean("recall_at_k"),
@@ -250,7 +264,9 @@ def evaluate(rows, labels, expected_ids=None, manifest=None):
             "generation_server_seconds": known_sum("generation_seconds"),
             "question_end_to_end_seconds": known_sum("question_end_to_end_seconds"),
             "mean_generation_tokens_per_second": known_mean("generation_tokens_per_second"),
-            "note": "Index embedding usage is in the run manifest; null means unavailable, not zero.",
+            "note": ("Index embedding usage is in the run manifest; null means unavailable, not zero. "
+                     "Reader replays do not repeat query embedding or retrieval; their source run "
+                     "is recorded separately."),
         },
         "per_question": per_question,
     }

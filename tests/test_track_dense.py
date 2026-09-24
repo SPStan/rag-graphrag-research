@@ -54,9 +54,11 @@ class DenseTrackingPayloadTests(unittest.TestCase):
     def test_langfuse_verification_checks_run_id_full_text_and_known_usage(self):
         payload = {"run_id": "one", "rows": [{"prompt_tokens": 10,
                                                 "completion_tokens": 3}],
-                   "questions": [{"retrieved_passages": [{"text": "passage"}]}]}
+                   "questions": [{"retrieved_passages": [{"text": "passage"}]}],
+                   "manifest": {"retrieval": {"context_source_run_id": "source-run"}}}
         observations = [
-            SimpleNamespace(name="dense-rag-run", metadata={"run_id": "one"},
+            SimpleNamespace(name="dense-rag-run", metadata={"run_id": "one",
+                                                              "context_source_run_id": "source-run"},
                             input={"run_id": "one"}, output={"metrics": {}}),
             SimpleNamespace(name="question", input={"question_id": "q1"},
                             output={"answer": "Paris"}),
@@ -69,6 +71,9 @@ class DenseTrackingPayloadTests(unittest.TestCase):
         result = verify_langfuse_trace(observations, payload)
         self.assertEqual(result["retrieved_passages"], 1)
         self.assertEqual(result["generation_usage"], {"input": 10, "output": 3})
+        observations[0].metadata = {"run_id": "one", "context_source_run_id": "wrong-source"}
+        with self.assertRaisesRegex(RuntimeError, "context source run_id"):
+            verify_langfuse_trace(observations, payload)
         observations[0].metadata = {"run_id": "other"}
         with self.assertRaisesRegex(RuntimeError, "run_id"):
             verify_langfuse_trace(observations, payload)

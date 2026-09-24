@@ -104,7 +104,8 @@ class DenseEvaluationTests(unittest.TestCase):
                         query_embedding_client_seconds=0.2,
                         retrieval_seconds=0.01, generation_wall_seconds=0.4,
                         generation_seconds=0.35, question_end_to_end_seconds=0.7,
-                        generation_tokens_per_second=8.0)
+                        generation_tokens_per_second=8.0,
+                        context_source_run_id="retrieval-source")
         label = {"id": "q1", "answer": "Paris", "supporting_ids": ["p1"]}
         manifest = valid_manifest(index_embedding={
             "embedding_prompt_tokens": 100, "build_seconds_this_run": 10.0,
@@ -112,9 +113,10 @@ class DenseEvaluationTests(unittest.TestCase):
             "cache_build_provenance": {
                 "build_run_id": "index-build-1", "build_seconds": 78.764,
                 "embedding_prompt_tokens": None, "api_total_duration_ns": None,
-            }})
+            }}, retrieval={"context_source_run_id": "retrieval-source"})
         result = evaluate([row], [label], manifest=manifest)
         self.assertEqual(result["generation_stopped_normally"], 1)
+        self.assertEqual(result["context_source_run_id"], "retrieval-source")
         self.assertEqual(result["usage"]["index_embedding_prompt_tokens"], 100)
         self.assertEqual(result["usage"]["generation_prompt_tokens"], 12)
         self.assertEqual(result["usage"]["generation_completion_tokens"], 3)
