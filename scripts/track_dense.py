@@ -26,6 +26,23 @@ def object_value(value):
     return value
 
 
+def get_all_langfuse_observations(client, trace_id):
+    observations = []
+    cursor = None
+    while True:
+        page = client.api.observations.get_many(
+            trace_id=trace_id, limit=1000, cursor=cursor,
+            fields="core,basic,io,metadata,usage,trace_context",
+        )
+        observations.extend(page.data)
+        next_cursor = getattr(getattr(page, "meta", None), "next_cursor", None)
+        if not next_cursor:
+            return observations
+        if next_cursor == cursor:
+            raise RuntimeError("Langfuse observation pagination returned a repeated cursor")
+        cursor = next_cursor
+
+
 def verify_langfuse_trace(observations, payload):
     by_name = {}
     for observation in observations:
@@ -292,12 +309,10 @@ def export_langfuse(payload, base_dir=ROOT):
         deadline = time.monotonic() + 45
         expected = {"dense-rag-run", "question", "query-embedding", "retrieval", "generation"}
         while time.monotonic() < deadline:
-            observations = client.api.observations.get_many(
-                trace_id=trace_id, limit=100, fields="core,basic,io,metadata,usage,trace_context"
-            )
-            names = {observation.name for observation in observations.data}
+            observations = get_all_langfuse_observations(client, trace_id)
+            names = {observation.name for observation in observations}
             if expected.issubset(names):
-                verification = verify_langfuse_trace(observations.data, payload)
+                verification = verify_langfuse_trace(observations, payload)
                 return {"trace_id": trace_id, **verification,
                         "trace_url": client.get_trace_url(trace_id=trace_id)}
             time.sleep(2)

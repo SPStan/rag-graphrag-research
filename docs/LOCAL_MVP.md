@@ -129,4 +129,26 @@ HippoRAG 2 на sample, затем RAPTOR на малом корпусе; LightR
 
 7B завершил все 10 ответов штатно; Ollama сообщил digest `845dbda0ea48ed749caafd9e6037047aa19acfcfd82e704d7ca97d631a0b697e`, `size_vram` 4 748 056 984 байт и runtime context 4096. Локальная генерация учла 15668 input и 1408 output tokens. Это отладочный debug10, а не независимый benchmark; небольшое изменение EM/F1 не позволяет заключить, что 7B лучше в целом. Recall не менялся, так как все контексты взяты из того же retrieval run. Повторные embedding/retrieval usage и длительности оставлены null; происхождение контекстов записано отдельно.
 
-Run экспортирован и проверен: MLflow run `e294cf1b391d48aa80e516822d903727`, trace `tr-caf65669f15ec11d34f42bc9a187a727`; Langfuse trace `bb45a4a258ffa38bcc254836a96ec658` содержит 50 retrieved passages и usage 15668/1408. После добавления replay полный набор из 47 тестов прошёл, `pip check` чистый. Holdout и запуск на 100 вопросах не выполнялись.
+Run экспортирован и проверен: MLflow run `e294cf1b391d48aa80e516822d903727`, trace `tr-caf65669f15ec11d34f42bc9a187a727`; Langfuse trace `bb45a4a258ffa38bcc254836a96ec658` содержит 50 retrieved passages и usage 15668/1408. После добавления replay полный набор из 47 тестов прошёл, `pip check` чистый. На момент этого debug10 сравнения holdout и запуск на 100 вопросах не выполнялись.
+
+## Baseline100: парный запуск Qwen2.5 3B/7B, 24 сентября 2026
+
+Для следующего инженерного этапа разрешённый runner расширен до 100 первых ID закреплённого списка; использован `baseline100` ровно из `data/ids/musique_s500.json`. Run Qwen2.5 3B `d49b37ad-51b1-42d9-8162-fe6424bfea84` построил retrieval один раз, а Qwen2.5 7B `48c2bb0e-9af4-4891-9224-69268ce8e4bf` повторно использовал те же контексты. Скрипт попарной проверки подтвердил одинаковые 100 question IDs, упорядоченные retrieved records, top-k, prompt SHA/версию и generation options. Пересечение с `holdout100` равно нулю; первые 10 ID входят в debug10, поэтому baseline100 годится для инженерного smoke, но не для независимых выводов.
+
+| Reader | EM | Token F1 | Recall@5 | Генерация Ollama | Output tokens/s | Токены input/output |
+|---|---:|---:|---:|---:|---:|---:|
+| Qwen2.5 3B Q4_K_M | 0,150 | 0,241 | 0,595 | 104,698 с | 134,97 | 154029 / 11211 |
+| Qwen2.5 7B Q4_K_M | 0,090 | 0,177 | 0,595 | 264,675 с | 70,75 | 154029 / 15930 |
+
+Каждый reader штатно завершил 100/100 ответов. Retrieval и prompt не менялись, а recall совпал; на этом baseline100 7B снизил EM на 0,06 и token F1 примерно на 0,064 при примерно в 2,53 раза большем времени генерации. Полный supporting coverage в top-5 получен для 23 вопросов: exact match среди них — 9 у 3B и 5 у 7B; при неполном coverage exact match сохранился для 6 и 4 вопросов соответственно. Эти агрегаты отделяют случаи, где retrieval не вернул всю gold-разметку, но не являются полной ручной классификацией причин ошибок. На baseline100 разумно оставить 3B для текущего локального этапа; это не свидетельство общего превосходства, поскольку подвыборка использовалась в отладке, и целевой API/модель ещё не проверялись. 3B получил 2614 query-embedding tokens и выполнил retrieval за суммарные 2,073 с; эти фазы в 7B replay намеренно записаны как `null`, поскольку повторно не исполнялись. Индексный cache read для 3B занял 0,118 с.
+
+Оба запуска связаны с MLflow и Langfuse. MLflow: 3B run `f57fdb822d7c4fb59342c98f89808548` (FINISHED), trace `tr-32e987b255d996664165f3cb72866e1f`; 7B run `3f14d03f0bf246b192f53b84ee4d8acd`, trace `tr-0ecd9f1c1f72ca9a7edd3cdc5f2ec573`. Langfuse: 3B `9515f9df88cefd168cabce497155b102` проверен чтением всех 401 observations, 500 passages и usage 154029/11211; 7B `fd967e8f983354d58740727888962343` проверен exporter-ом, 500 passages и usage 154029/15930. Первоначальный экспортер 3B остановился на тайм-ауте своего 100-observation чтения, хотя trace был полным; исправлена cursor-pagination, добавлен тест. Holdout100, pilot200 и внутренний API не запускались.
+
+Команды воспроизведения baseline и reader replay:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\run_dense.py --dataset musique --limit 100 --generation-model qwen2.5:3b
+.\.venv\Scripts\python.exe scripts\replay_reader.py results\raw\dense-musique-d49b37ad-51b1-42d9-8162-fe6424bfea84.jsonl --generation-model qwen2.5:7b
+.\.venv\Scripts\python.exe scripts\evaluate_dense.py results\raw\dense-musique-d49b37ad-51b1-42d9-8162-fe6424bfea84.jsonl
+.\.venv\Scripts\python.exe scripts\evaluate_dense.py results\raw\dense-musique-reader-replay-48c2bb0e-9af4-4891-9224-69268ce8e4bf.jsonl
+```

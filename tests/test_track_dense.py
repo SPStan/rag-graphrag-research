@@ -4,10 +4,28 @@ import tempfile
 import unittest
 from types import SimpleNamespace
 
-from scripts.track_dense import prepare_payload, verify_langfuse_trace
+from scripts.track_dense import (get_all_langfuse_observations, prepare_payload,
+                                 verify_langfuse_trace)
 
 
 class DenseTrackingPayloadTests(unittest.TestCase):
+    def test_langfuse_observation_reader_follows_cursors(self):
+        first = SimpleNamespace(data=["a"], meta=SimpleNamespace(next_cursor="next"))
+        second = SimpleNamespace(data=["b"], meta=SimpleNamespace(next_cursor=None))
+
+        class Observations:
+            def __init__(self):
+                self.cursors = []
+
+            def get_many(self, **kwargs):
+                self.cursors.append(kwargs["cursor"])
+                return first if len(self.cursors) == 1 else second
+
+        observations = Observations()
+        client = SimpleNamespace(api=SimpleNamespace(observations=observations))
+        self.assertEqual(get_all_langfuse_observations(client, "trace"), ["a", "b"])
+        self.assertEqual(observations.cursors, [None, "next"])
+
     def test_payload_links_run_metrics_manifest_and_full_retrieved_text(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

@@ -1,4 +1,4 @@
-"""Run a small, local dense-RAG pilot through the Ollama HTTP API."""
+"""Run local Dense RAG on a pinned MuSiQue view through the Ollama HTTP API."""
 
 import argparse
 from datetime import datetime, timezone
@@ -387,8 +387,8 @@ def run(dataset="musique", limit=10, top_n=5, generation_model=GEN_MODEL):
     queries = read_json(queries_path)
     corpus = read_json(corpus_path)
     data_provenance = validate_processed_data(dataset, data_dir, queries, corpus)
-    if not 1 <= limit <= 20:
-        raise ValueError("Pilot limit must be between 1 and 20; larger runs need a reviewed protocol")
+    if not 1 <= limit <= 100:
+        raise ValueError("Local benchmark limit must be between 1 and 100; use a pinned view")
     if not isinstance(top_n, int) or top_n <= 0:
         raise ValueError("top-k must be a positive integer")
     if len(queries) < limit:
@@ -584,7 +584,7 @@ def main():
     parser.add_argument("--dataset", choices=("musique",), default="musique",
                         help="HippoRAG one-shot reader currently validated for MuSiQue only")
     parser.add_argument("--limit", type=int, default=10,
-                        help="number of initial fixed-ID questions (1-20)")
+                        help="number of initial fixed-ID questions (1-100; baseline100 includes debug10)")
     parser.add_argument("--top-k", type=int, default=5)
     parser.add_argument("--generation-model", default=GEN_MODEL,
                         help=f"installed Ollama generation model (default: {GEN_MODEL})")
