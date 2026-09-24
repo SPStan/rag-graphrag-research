@@ -4,7 +4,7 @@
 
 Для просмотра руководителем: [спецификация исследования](docs/SPEC.md), [статус задач по блокам](docs/TASKS.md), [результаты проверки стенда](docs/VERIFICATION.md).
 
-Локальный [dense RAG MVP](docs/LOCAL_MVP.md) и baseline100 выполнены; новый MuSiQue reader закреплён на upstream HippoRAG commit. На одинаковых baseline100 контекстах сравнили Qwen2.5 3B и 7B; результаты и traces в MLflow/Langfuse. Baseline100 включает debug10, поэтому это инженерный smoke, не независимая оценка; отдельный holdout100 не использовался. HippoRAG 2 запущен на одном upstream sample через локальные Ollama-модели; per-passage usage и cache replay записаны в [результате sample](results/summary/hipporag2-sample.json). Для Windows-запуска ещё нужен повторяемый адаптер.
+Локальный [dense RAG MVP](docs/LOCAL_MVP.md) и baseline100 выполнены; новый MuSiQue reader закреплён на upstream HippoRAG commit. На одинаковых baseline100 контекстах сравнили Qwen2.5 3B и 7B; результаты и traces в MLflow/Langfuse. Baseline100 включает debug10, поэтому это инженерный smoke, не независимая оценка; отдельный holdout100 не использовался. HippoRAG 2 проверен на upstream sample и запускается project runner в отдельном окружении; usage и cache replay записаны в [результатах sample](results/summary/hipporag2-sample.json) и [runner smoke](results/summary/hipporag2-runner-smoke.json). Интеграцию HippoRAG с MLflow/Langfuse и общее сравнение ещё предстоит сделать.
 
 Подготовлены [данные и подвыборки](docs/DATA.md): MuSiQue и HotpotQA, по 500 вопросов и 5500 пассажей, seed 42. Источники, контрольные суммы и ID зафиксированы; все размеченные supporting-пассажи сохранены. Подготовка повторяется командами из docs/DATA.md.
 

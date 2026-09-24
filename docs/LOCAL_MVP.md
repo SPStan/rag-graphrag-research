@@ -159,4 +159,23 @@ Run экспортирован и проверен: MLflow run `e294cf1b391d48aa
 
 Построен граф с 30 узлами и 56 рёбрами. Поддерживающий passage найден на третьем месте, recall@5=1.0, но ответ Qwen оказался неверным (EM=0, F1=0). Отдельно посчитан usage на каждый passage: embedding и OpenIE-токены зафиксированы в [JSON-результате](../results/summary/hipporag2-sample.json). Повторный запуск переиспользовал passage/entity/fact embeddings и два chat cache результата; query embedding вызван повторно.
 
-Проверка выявила Windows-ограничение upstream: двоеточие в тегах моделей используется в имени рабочей папки. Для временного smoke двоеточие заменялось подчёркиванием только в копии исходников в `%TEMP%`. Это не готовая интеграция и не изменение закреплённого upstream commit. Следующий шаг — сделать воспроизводимый project runner с корректными путями, сохранением JSONL/usage/evaluator и связью с MLflow/Langfuse; затем проверить на малой общей подвыборке. Результат одного sample не является сравнением систем.
+Windows-ограничение upstream обойдёно в project runner без изменения закреплённого исходника: для имени локальной рабочей папки используются безопасные внутренние метки, API получает исходные имена моделей. Установка остаётся в отдельной среде. Project runner и evaluator проверены; сводка, метрики и ограничения описаны в [результате runner](../results/summary/hipporag2-runner-smoke.json). Один sample не является сравнением систем.
+
+Для повторного запуска нужен upstream clone на закреплённом commit и отдельное Python 3.12 окружение. Команды ниже намеренно требуют явные пути к корпусу и вопросам и ограничивают число вопросов, чтобы случайно не запускать весь корпус при `--limit 1`:
+
+```powershell
+$hippoEnv = Join-Path $env:TEMP 'hipporag2-1438aba3-venv'
+$hippoPy = Join-Path $hippoEnv 'Scripts\python.exe'
+$hippoRepo = Join-Path $env:TEMP 'HippoRAG-1438aba3-src'
+py -3.12 -m venv $hippoEnv
+& $hippoPy -m pip install -r requirements-hipporag2.txt
+git clone https://github.com/OSU-NLP-Group/HippoRAG.git $hippoRepo
+git -C $hippoRepo checkout 1438aba3fc44ff10573e5a5e1e7cc3c7f9794aff
+& $hippoPy scripts\run_hipporag.py --dataset sample `
+  --corpus (Join-Path $hippoRepo 'reproduce\dataset\sample_corpus.json') `
+  --queries (Join-Path $hippoRepo 'reproduce\dataset\sample.json') `
+  --limit 1 --results-dir results\raw --storage-dir storage\hipporag2-sample `
+  --max-new-tokens 512 --num-ctx 4096
+```
+
+`--limit` разрешён до 20 вопросов. JSONL и manifest пишутся в игнорируемую `results/raw/`, локальное хранилище — в игнорируемую `storage/`; их нельзя коммитить. Основная `.venv` остаётся без HippoRAG.

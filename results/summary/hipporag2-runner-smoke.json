@@ -1,0 +1,113 @@
+{
+  "schema_version": 1,
+  "run_type": "hipporag2_project_runner_smoke",
+  "checked_at": "2026-09-24",
+  "run_id": "e31c5b71-4db1-4683-97bc-2642581a6c6f",
+  "upstream": {
+    "repository": "https://github.com/OSU-NLP-Group/HippoRAG",
+    "commit": "1438aba3fc44ff10573e5a5e1e7cc3c7f9794aff",
+    "package_version": "2.0.0a5",
+    "sample_sha256": "78ea468558731544ff0443cdac1d278927f1dd24290e5f46a8c2590f50eab5fc",
+    "corpus_sha256": "ae16a6889ee0e86abedee57efdc061ed0389720583dd66e77ca2a02c8a562f06"
+  },
+  "environment": {
+    "os": "Windows",
+    "python": "3.12.6",
+    "isolation": "separate HippoRAG venv; project .venv unchanged",
+    "main_environment_pip_check": "passed",
+    "isolated_environment_pip_check": "passed",
+    "project_tests": "54 tests passed"
+  },
+  "models": {
+    "generation": {
+      "name": "qwen2.5:3b",
+      "digest": "357c53fb659c5076de1d65ccb0b397446227b71a42be9d1603d46168015c9e4b",
+      "quantization": "Q4_K_M"
+    },
+    "embedding": {
+      "name": "bge-m3:latest",
+      "digest": "7907646426070047a77226ac3e684fbbe8410524f7b4a74d02837e43f2146bab",
+      "quantization": "F16",
+      "dimension": 1024
+    }
+  },
+  "configuration": {
+    "endpoint_kind": "Ollama OpenAI-compatible API",
+    "sample_passages": 3,
+    "questions": 1,
+    "top_k": 5,
+    "temperature": 0,
+    "seed": 42,
+    "max_new_tokens": 512,
+    "requested_context": 4096,
+    "verified_runtime_context": 4096,
+    "openie_response_format": "json_object",
+    "embedding_batch_size": 1
+  },
+  "graph": {
+    "phrase_nodes": 22,
+    "passage_nodes": 3,
+    "total_nodes": 25,
+    "extracted_triples": 21,
+    "total_edges": 45
+  },
+  "retrieval_and_reader": {
+    "question_id": "sample/question_1.json",
+    "retrieved_titles": [
+      "Karl Deisseroth",
+      "David Eagleman",
+      "Thomas C. Sudhof"
+    ],
+    "supporting_title_rank": 3,
+    "recall_at_5": 1.0,
+    "prediction": "Karl Alexander Deisseroth",
+    "gold_answer": "Thomas C. Sudhof",
+    "exact_match": 0.0,
+    "token_f1": 0.0,
+    "done_reason": "stop",
+    "note": "One upstream sample only; not a quality benchmark. Gold label was applied by the evaluator after generation. This runner smoke used its own explicit configuration; do not compare node counts with the earlier exploratory smoke as a controlled experiment."
+  },
+  "usage": {
+    "source": "usage returned by local Ollama API; null timing fields remain unknown",
+    "index_embedding_tokens": 1132,
+    "index_embedding_calls": 46,
+    "openie_ner_prompt_tokens": 817,
+    "openie_ner_completion_tokens": 192,
+    "openie_triples_prompt_tokens": 1897,
+    "openie_triples_completion_tokens": 522,
+    "query_embedding_tokens": 12,
+    "qa_prompt_tokens": 1085,
+    "qa_completion_tokens": 184,
+    "per_passage": [
+      {
+        "title": "Thomas C. Sudhof",
+        "passage_embedding_tokens": 108,
+        "openie_prompt_tokens": 881,
+        "openie_completion_tokens": 211
+      },
+      {
+        "title": "David Eagleman",
+        "passage_embedding_tokens": 125,
+        "openie_prompt_tokens": 920,
+        "openie_completion_tokens": 224
+      },
+      {
+        "title": "Karl Deisseroth",
+        "passage_embedding_tokens": 122,
+        "openie_prompt_tokens": 913,
+        "openie_completion_tokens": 279
+      }
+    ],
+    "retrieval_seconds": 0.544,
+    "index_build_seconds": 13.362,
+    "generation_wall_seconds": null
+  },
+  "cache_replay": {
+    "passages_reused": 3,
+    "entities_reused": 22,
+    "facts_reused": 21,
+    "qa_chat_cache_hits": 1,
+    "query_embedding_repeated_tokens": 12,
+    "note": "Cache replay is a separate run recorded in the local ignored manifest; API usage and cached historical usage are separated."
+  }
+}

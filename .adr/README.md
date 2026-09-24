@@ -8,7 +8,7 @@ ADR (Architecture Decision Record) объясняет, почему выбран
 | [0002](0002-pinned-data-and-passage-identity.md) | Принято, проверено | Фиксация источников, сопоставление пассажей и детерминированные подвыборки |
 | [0003](0003-local-ollama-models.md) | Принято для отладки; 7B пока отложена | Ollama, BGE-M3 и локальные Qwen2.5 для Dense RAG PoC |
 | [0004](0004-dense-run-tracking.md) | Принято, локальная проверка пройдена | Post-hoc экспорт завершённого Dense RAG run в MLflow и Langfuse |
-| [0005](0005-hipporag2-local-sample.md) | Sample проверен; интеграция не выбрана | Изолированный локальный smoke HippoRAG 2 на Ollama; per-passage usage и кэш |
+| [0005](0005-hipporag2-local-sample.md) | Sample runner проверен; MLflow/Langfuse интеграция не выбрана | Изолированное окружение и повторяемый локальный запуск HippoRAG 2 на Ollama |
 
 Новая запись получает следующий номер и фактическую дату. Шаблон: [template.md](template.md). Статусы: предложено, принято, отклонено, заменено. Принятое решение может требовать проверки реализации: это указывается отдельно.
 
