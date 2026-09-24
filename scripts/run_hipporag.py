@@ -550,6 +550,7 @@ def run(args):
                    "labels_sha256": sha256_file(args.labels) if args.labels else labels_fingerprint},
         "expected_question_ids": [query["id"] for query in queries],
         "generation": {"model": model_generation, "endpoint": args.base_url,
+                       "reader_prompt_version": PROMPT_VERSION,
                        "options": generation_options},
         "embedding": {"model": model_embedding, "endpoint": args.base_url,
                       "batch_size": args.embedding_batch_size},

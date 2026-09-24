@@ -96,6 +96,38 @@ class DenseTrackingPayloadTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "run_id"):
             verify_langfuse_trace(observations, payload)
 
+    def test_langfuse_verification_accepts_hipporag_run_with_indexing_observations(self):
+        payload = {
+            "run_id": "hippo-1", "system": "hipporag2",
+            "trace_name": "hipporag2-rag-run",
+            "rows": [{"prompt_tokens": 10, "completion_tokens": 2}],
+            "questions": [{"retrieved_passages": [{"text": "full passage"}]}],
+            "manifest": {"index": {"usage": {"phases": {
+                "openie_ner": {"api_prompt_tokens": 3},
+            }}}},
+        }
+        observations = [
+            SimpleNamespace(name="hipporag2-rag-run", metadata={"run_id": "hippo-1"},
+                            input={"run_id": "hippo-1"}, output={"metrics": {}}),
+            SimpleNamespace(name="indexing", metadata={}, input={"model": "bge-m3"},
+                            output={"cache": {}}),
+            SimpleNamespace(name="openie-extraction", metadata={}, input={"commit": "abc"},
+                            output={"phases": {}}),
+            SimpleNamespace(name="question", metadata={}, input={"id": "q1"},
+                            output={"answer": "Alice"}),
+            SimpleNamespace(name="query-embedding", metadata={}, input={"question": "Who?"},
+                            output={"prompt_tokens": 1}),
+            SimpleNamespace(name="retrieval", metadata={}, input={"question": "Who?"},
+                            output={"documents": [{"text": "full passage"}]}),
+            SimpleNamespace(name="generation", metadata={}, input={"question": "Who?"},
+                            output={"answer": "Alice"},
+                            usage_details={"input": 10, "output": 2}),
+        ]
+        result = verify_langfuse_trace(observations, payload)
+        self.assertIn("hipporag2-rag-run", result["observation_names"])
+        self.assertIn("indexing", result["observation_names"])
+        self.assertEqual(result["generation_usage"], {"input": 10, "output": 2})
+
 
 if __name__ == "__main__":
     unittest.main()

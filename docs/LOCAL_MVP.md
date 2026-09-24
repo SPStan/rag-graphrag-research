@@ -161,6 +161,8 @@ Run экспортирован и проверен: MLflow run `e294cf1b391d48aa
 
 Windows-ограничение upstream обойдёно в project runner без изменения закреплённого исходника: для имени локальной рабочей папки используются безопасные внутренние метки, API получает исходные имена моделей. Установка остаётся в отдельной среде. Project runner и evaluator проверены; сводка, метрики и ограничения описаны в [результате runner](../results/summary/hipporag2-runner-smoke.json). Один sample не является сравнением систем.
 
+Сохранённый HippoRAG sample post-hoc экспортирован в MLflow и Langfuse. В обеих системах trace связывается исходным `run_id`; проверены indexing, OpenIE, query embedding, retrieval с полными текстами пассажей и generation. MLflow run содержит JSONL, metrics и manifest артефакты; Langfuse проверил 3 retrieved passages и generation usage 1085/184. Trace IDs и ссылки записаны в summary JSON. Это локальный usage Ollama и не расход внутреннего API.
+
 Для повторного запуска нужен upstream clone на закреплённом commit и отдельное Python 3.12 окружение. Команды ниже намеренно требуют явные пути к корпусу и вопросам и ограничивают число вопросов, чтобы случайно не запускать весь корпус при `--limit 1`:
 
 ```powershell

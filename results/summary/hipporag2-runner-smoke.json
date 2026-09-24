@@ -16,7 +16,7 @@
     "isolation": "separate HippoRAG venv; project .venv unchanged",
     "main_environment_pip_check": "passed",
     "isolated_environment_pip_check": "passed",
-    "project_tests": "54 tests passed"
+    "project_tests": "57 tests passed"
   },
   "models": {
     "generation": {
@@ -109,5 +109,39 @@
     "qa_chat_cache_hits": 1,
     "query_embedding_repeated_tokens": 12,
     "note": "Cache replay is a separate run recorded in the local ignored manifest; API usage and cached historical usage are separated."
+  },
+  "observability": {
+    "mlflow": {
+      "status": "verified",
+      "experiment_id": "2",
+      "run_id": "1c2e40116d1640ada74505210672afbd",
+      "trace_id": "tr-89235109ed7bd51176ed5c05a7b29185",
+      "spans": [
+        "hipporag2-rag-run",
+        "indexing",
+        "openie-extraction",
+        "question",
+        "query-embedding",
+        "retrieval",
+        "generation"
+      ],
+      "artifacts": ["JSONL", "metrics JSON", "manifest JSON"]
+    },
+    "langfuse": {
+      "status": "verified",
+      "trace_id": "de6a9ed41cb2f85cd89b507bc69cfb4c",
+      "trace_url": "http://localhost:3000/project/cmu4eytkr0006o707cn1hr42k/traces/de6a9ed41cb2f85cd89b507bc69cfb4c",
+      "observations": [
+        "hipporag2-rag-run",
+        "indexing",
+        "openie-extraction",
+        "question",
+        "query-embedding",
+        "retrieval",
+        "generation"
+      ],
+      "retrieved_passages_with_full_text": 3,
+      "reader_usage_tokens": {"input": 1085, "output": 184}
+    }
   }
 }

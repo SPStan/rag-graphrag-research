@@ -47,10 +47,16 @@ def verify_langfuse_trace(observations, payload):
     by_name = {}
     for observation in observations:
         by_name.setdefault(observation.name, []).append(observation)
-    expected_names = {"dense-rag-run", "question", "query-embedding", "retrieval", "generation"}
+    root_name = payload.get("trace_name", "dense-rag-run")
+    expected_names = {root_name, "question", "query-embedding", "retrieval", "generation"}
+    if payload.get("system") == "hipporag2":
+        expected_names.add("indexing")
+        if any(name.startswith("openie_") for name in payload["manifest"].get("index", {}).get("usage", {}).get("phases", {})):
+            expected_names.add("openie-extraction")
     if not expected_names.issubset(by_name):
         raise RuntimeError("Langfuse trace is missing expected observation types")
-    root = by_name["dense-rag-run"][0]
+    root_name = payload.get("trace_name", "dense-rag-run")
+    root = by_name[root_name][0]
     metadata = object_value(root.metadata) or {}
     if metadata.get("run_id") != payload["run_id"]:
         raise RuntimeError("Langfuse root trace does not contain the expected run_id")
@@ -138,10 +144,13 @@ def export_mlflow(payload, mlflow):
     manifest = payload["manifest"]
     run = payload["rows"]
     metrics = payload["metrics"]
-    with mlflow.start_run(run_name=f"dense-{payload['dataset']}-{payload['run_id'][:8]}") as active:
+    system = payload.get("system", "dense")
+    trace_name = payload.get("trace_name", "dense-rag-run")
+    with mlflow.start_run(run_name=f"{system}-{payload['dataset']}-{payload['run_id'][:8]}") as active:
         mlflow.set_tags({
             "project": "rag-graphrag",
-            "purpose": "dense-rag-evaluation",
+            "purpose": f"{system}-rag-evaluation",
+            "rag.system": system,
             "rag.run_id": payload["run_id"],
             "rag.dataset": payload["dataset"],
             "rag.mode": manifest.get("mode", "local-poc"),
@@ -150,6 +159,7 @@ def export_mlflow(payload, mlflow):
         params = {
             "run_id": payload["run_id"],
             "dataset": payload["dataset"],
+            "system": system,
             "questions": str(metrics["questions_evaluated"]),
             "top_k": str(metrics["top_k"]),
             "embedding_model": manifest["embedding"]["model"]["name"],
@@ -167,7 +177,7 @@ def export_mlflow(payload, mlflow):
 
         # MLflow's trace is a retrospective run record; timings are the measured values
         # saved by the runner, not the duration of this export operation.
-        with mlflow.start_span(name="dense-rag-run", span_type="CHAIN") as root_span:
+        with mlflow.start_span(name=trace_name, span_type="CHAIN") as root_span:
             root_inputs = {"run_id": payload["run_id"], "dataset": payload["dataset"],
                            "questions": len(run)}
             if context_source_run_id:
@@ -176,6 +186,22 @@ def export_mlflow(payload, mlflow):
             root_span.set_attribute("rag.run_id", payload["run_id"])
             root_span.set_outputs({"metrics": {key: metrics[key] for key in
                                                 ("em", "token_f1", "recall_at_k")}})
+            if system == "hipporag2":
+                index = manifest.get("index", {})
+                root_span.set_attribute("rag.index_fingerprint", manifest.get("inputs", {}).get("corpus_fingerprint"))
+                with mlflow.start_span(name="indexing", span_type="CHAIN") as span:
+                    span.set_inputs({"corpus_sha256": manifest.get("inputs", {}).get("corpus_sha256"),
+                                     "embedding_model": manifest["embedding"]["model"]["name"]})
+                    span.set_outputs({"usage": index.get("usage", {}).get("phases", {}).get("index_embedding"),
+                                      "cache": index.get("cache"),
+                                      "pipeline_wall_seconds": index.get("build_seconds")})
+                phases = index.get("usage", {}).get("phases", {})
+                extraction = {name: value for name, value in phases.items()
+                              if name.startswith("openie_")}
+                if extraction:
+                    with mlflow.start_span(name="openie-extraction", span_type="CHAIN") as span:
+                        span.set_inputs({"upstream_commit": manifest.get("upstream", {}).get("commit")})
+                        span.set_outputs({"phases": extraction})
             for item in payload["questions"]:
                 row = item["row"]
                 with mlflow.start_span(name="question", span_type="CHAIN") as question_span:
@@ -219,7 +245,7 @@ def export_mlflow(payload, mlflow):
     for trace_id in trace_ids:
         trace = mlflow.get_trace(trace_id)
         span_names = [span.name for span in trace.data.spans]
-        if "dense-rag-run" in span_names:
+        if trace_name in span_names:
             matching.append({"trace_id": trace_id, "span_names": span_names})
     if not matching:
         raise RuntimeError("MLflow run was logged, but its trace was not found after flushing")
@@ -245,12 +271,15 @@ def export_langfuse(payload, base_dir=ROOT):
     try:
         if not client.auth_check():
             raise RuntimeError("Langfuse authentication failed")
+        system = payload.get("system", "dense")
+        trace_name = payload.get("trace_name", "dense-rag-run")
         with client.start_as_current_observation(
-            as_type="chain", name="dense-rag-run",
+            as_type="chain", name=trace_name,
             input={"run_id": payload["run_id"], "dataset": payload["dataset"],
                    "questions": len(payload["rows"])},
             metadata={
                 "run_id": payload["run_id"],
+                "system": system,
                 "mode": payload["manifest"].get("mode", "local-poc"),
                 "recording_mode": "posthoc_export",
                 **({"context_source_run_id": payload["manifest"]["retrieval"]["context_source_run_id"]}
@@ -260,6 +289,29 @@ def export_langfuse(payload, base_dir=ROOT):
             trace_id = client.get_current_trace_id()
             root.update(output={"metrics": {key: payload["metrics"][key] for key in
                                              ("em", "token_f1", "recall_at_k")}})
+            if system == "hipporag2":
+                index = payload["manifest"].get("index", {})
+                with client.start_as_current_observation(
+                    as_type="chain", name="indexing",
+                    input={"corpus_sha256": payload["manifest"].get("inputs", {}).get("corpus_sha256"),
+                           "embedding_model": payload["manifest"]["embedding"]["model"]["name"]},
+                    output={"usage": index.get("usage", {}).get("phases", {}).get("index_embedding"),
+                            "cache": index.get("cache"),
+                            "pipeline_wall_seconds": index.get("build_seconds")},
+                    metadata={"run_id": payload["run_id"]},
+                ):
+                    pass
+                phases = index.get("usage", {}).get("phases", {})
+                extraction = {name: value for name, value in phases.items()
+                              if name.startswith("openie_")}
+                if extraction:
+                    with client.start_as_current_observation(
+                        as_type="chain", name="openie-extraction",
+                        input={"upstream_commit": payload["manifest"].get("upstream", {}).get("commit")},
+                        output={"phases": extraction},
+                        metadata={"run_id": payload["run_id"]},
+                    ):
+                        pass
             for item in payload["questions"]:
                 row = item["row"]
                 with client.start_as_current_observation(
@@ -307,7 +359,7 @@ def export_langfuse(payload, base_dir=ROOT):
                                             "answer_extraction_status": row.get("answer_extraction_status")})
         client.flush()
         deadline = time.monotonic() + 45
-        expected = {"dense-rag-run", "question", "query-embedding", "retrieval", "generation"}
+        expected = {trace_name, "question", "query-embedding", "retrieval", "generation"}
         while time.monotonic() < deadline:
             observations = get_all_langfuse_observations(client, trace_id)
             names = {observation.name for observation in observations}
