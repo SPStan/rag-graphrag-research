@@ -53,7 +53,9 @@ def build_openie_acceptance_gate(expected_passage_ids, attempts):
                                "reason": "maximum_attempts_exceeded"})
             continue
         numbers = [item.get("attempt") for item in items]
-        if numbers != list(range(1, len(items) + 1)):
+        if (any(not isinstance(number, int) or isinstance(number, bool)
+                for number in numbers)
+                or numbers != list(range(1, len(items) + 1))):
             unresolved.append({"passage_id": pid, "stage": stage,
                                "reason": "attempt_sequence_incomplete"})
             continue

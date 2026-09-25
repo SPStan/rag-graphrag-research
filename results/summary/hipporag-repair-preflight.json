@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "source_run_id": "e78eff08-532a-40b3-a359-49a6b08b32a7",
+  "status": "not_ready_for_model_calls",
+  "source_index_modified": false,
+  "llm_calls_during_preflight": 0,
+  "current_artifacts_match_original_openie_state": true,
+  "post_repair_vector_compatibility_verified": false,
+  "targeted_calls_first_pass_estimate": 196,
+  "source_artifacts": {
+    "openie_state": "728b93a078a28eee94267a9da0522c6460d535a66aa8cf55527ab69f12754f85",
+    "graph": "cc7d53101cd7fc53e95beaece956ed5ec6cc9e19cdb30b1ecf84221567d0fbe6",
+    "chunk_metadata": "7e8b519b809923a54483ec5377077332068f36d0e57c4206fc4cf886ffbd05d0",
+    "chunk_embeddings": "b9435c1b72271555cd1da3c91ad082f6b5ca167514e38d626c71bf6765260f84",
+    "entity_embeddings": "90ebde2437bed03a487aa95625025aaeb897fd32448e99d17c13b15a691ebf2c",
+    "fact_embeddings": "7fe8f81c07ce51aa915b6ae25333a6dd5ec9eb1c1e58114d3407c5bc2cbe85b6",
+    "index_manifest": "696eca0444d8818c9c62c1ab9c6855de8ecd86130431d3730eb4cd95ede2c79d"
+  },
+  "synthetic_preflight_checks": {
+    "hash_verified_copy_helper": "passed",
+    "attempt_ledger_merge": "passed",
+    "openie_state_patch_validation": "passed",
+    "vector_id_filter": "passed",
+    "dependency_refresh_gate": "passed",
+    "bounded_third_attempt_gate": "passed",
+    "truncated_partial_recovery_telemetry": "passed",
+    "unit_tests": "112 passed",
+    "pip_check": "passed"
+  },
+  "blockers": [
+    "No repair orchestrator yet connects the real attempt ledger, bounded uncached extraction calls, local payloads, state patch, new vector embedding, and manifest updates.",
+    "Retry-cap and rendered-prompt context feasibility have not been preflighted for the target model/context.",
+    "Exact entity/fact vector sets can only be confirmed after repaired OpenIE outputs exist; the new helper reports missing and obsolete IDs but the integrated cloned-store write path is not implemented.",
+    "The pinned HippoRAG force-index path has not been exercised against a repaired clone with filtered vector stores and the updated gate."
+  ],
+  "next_step": "Implement and test the copy-only repair orchestrator and context preflight; then provide a readiness report before any model call, graph rebuild, or QA.",
+  "scope_note": "This report contains no dataset passages, prompts, generated answers, local paths, secrets, or service URLs."
+}

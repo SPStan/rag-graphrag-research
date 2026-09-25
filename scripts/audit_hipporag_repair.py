@@ -128,6 +128,7 @@ def audit_run(manifest_path):
     artifact_paths = {
         "openie_state": state_path,
         "graph": working_dir / "graph.pickle",
+        "chunk_metadata": working_dir / "chunk_metadata.json",
         "chunk_embeddings": working_dir / "chunk_embeddings" / "vdb_chunk.parquet",
         "entity_embeddings": working_dir / "entity_embeddings" / "vdb_entity.parquet",
         "fact_embeddings": working_dir / "fact_embeddings" / "vdb_fact.parquet",
