@@ -22,7 +22,13 @@
 - Context fit не подтверждён. 158 prompts отрендерены, 38 зависимых prompts появятся только после исправления NER. UTF-8 bytes — не token count.
 - Исторические debug10 использовались при разработке, baseline100 включает их; полный index cost неизвестен. `holdout100` не использован.
 
-## Действие следующей модели
+## Обновление 25 сентября 2026 после R1/R2 offline
+
+R1: checkpoint/resume, сохранение values/SHA, один writer, зависимые triples проверены; коммит `58bbc25` отправлен в Draft PR. R2: синтетический `repair → vectors → pinned graph → gate` и захват payload прошли в отдельном HippoRAG environment. Основной набор: 142 unittest, 2 pinned-only пропуска; pinned-only 2 теста прошли отдельно. Старые записи ниже — история состояния до R1.
+
+Текущая очередь: R3 в [TASKS](TASKS.md), предложение в [R3_RUN_PROPOSAL](R3_RUN_PROPOSAL.md). Никаких модельных запросов, реального repair/rebuild или QA ещё не было. Пилот из двух модельных измерений требует отдельного разрешения. Сохранить локальные WORK_PLAN.md, scripts/resume_dense.py, docs/LUNA_REVIEW_HANDOFF.md вне коммита.
+
+## Действие следующей модели (историческое)
 
 **Активный блок: R1 в TASKS.** Закончить offline-маршрут repair/resume с сохранением успешных extraction values и зависимыми triples.
 Использовать существующий код. Не начинать второй транспорт, универсальный scheduler, plugin или новый цикл только-документальных preflight-коммитов.

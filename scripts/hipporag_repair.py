@@ -75,6 +75,16 @@ def sha256_file(path):
     return digest.hexdigest()
 
 
+def openie_values_sha256(state):
+    """Hash extraction values independent of pinned state serialization."""
+    rows = [{key: doc[key] for key in ("idx", "passage", "extracted_entities",
+                                       "extracted_triples")}
+            for doc in state["docs"]]
+    payload = json.dumps(rows, ensure_ascii=False, sort_keys=True,
+                         separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
 def plan_openie_repairs(expected_passage_ids, source_attempts):
     """Plan bounded extraction repairs without making model requests.
 
@@ -347,6 +357,7 @@ def prepare_repair_clone(source_dir, destination_dir, expected_hashes, *,
                          source_run_id, source_compatibility,
                          source_attempts, repair_attempts, expected_passage_ids,
                          state_updates, passage_id_to_index,
+                         checkpoint_rows,
                          new_entity_rows=None, new_fact_rows=None,
                          repair_protocol):
     """Build a verified repair clone from already completed, validated outputs.
@@ -365,6 +376,21 @@ def prepare_repair_clone(source_dir, destination_dir, expected_hashes, *,
     }
     if not isinstance(repair_protocol, dict) or not required_protocol <= set(repair_protocol):
         raise ValueError("Repair protocol must be complete and frozen")
+    from scripts.hipporag_repair_journal import RepairJournal
+    if not isinstance(checkpoint_rows, list) or len(checkpoint_rows) != len(repair_attempts):
+        raise ValueError("Repair requires exact private checkpoint rows")
+    for stored, attempt in zip(checkpoint_rows, repair_attempts):
+        RepairJournal._validate_output(stored)
+        if stored.get("attempt") != attempt:
+            raise ValueError("Checkpoint attempt differs from repair ledger")
+    checkpoint_updates = [
+        {"passage_id": row["task"]["passage_id"],
+         "stage": row["task"]["stage"], "status": row["attempt"]["status"],
+         "values": row["values"]}
+        for row in checkpoint_rows if row["values"] is not None
+    ]
+    if checkpoint_updates != state_updates:
+        raise ValueError("State updates differ from checkpoint values")
     required_compatibility = {
         "producer_identity_matches", "embedding_identity_matches",
         "openie_identity_matches", "source_corpus_sha256_matches_manifest",
@@ -426,16 +452,22 @@ def prepare_repair_clone(source_dir, destination_dir, expected_hashes, *,
     staging = destination.with_name(f".{destination.name}.preparing-{uuid.uuid4().hex}")
     try:
         create_verified_index_copy(source, staging, expected_hashes)
+        # The pinned constructor requires the unchanged config manifest to open
+        # retained vectors. Only the diagnostic graph must be removed.
+        (staging / REPAIR_ARTIFACTS["graph"]).unlink()
         state_bytes = (json.dumps(patched_state, ensure_ascii=False, indent=2) + "\n")\
             .encode("utf-8")
         (staging / REPAIR_ARTIFACTS["openie_state"]).write_bytes(state_bytes)
         for name, table in prepared_tables.items():
             parquet.write_table(table, staging / REPAIR_ARTIFACTS[name])
         provenance = {
+            "status": "graph_pending",
             "source_run_id": source_run_id,
+            "checkpoint_sha256": RepairJournal._output_sha(checkpoint_rows),
             "source_openie_state_sha256": expected_hashes["openie_state"],
             "source_index_manifest_sha256": expected_hashes["index_manifest"],
             "repaired_openie_state_sha256": hashlib.sha256(state_bytes).hexdigest(),
+            "repaired_openie_values_sha256": openie_values_sha256(patched_state),
             "repair_protocol": repair_protocol,
             "gate": {key: gate[key] for key in
                      ("eligible", "expected_passages", "expected_stage_outcomes",
@@ -453,3 +485,42 @@ def prepare_repair_clone(source_dir, destination_dir, expected_hashes, *,
             shutil.rmtree(staging)
         raise
     return {"provenance": provenance, "merged_attempts": merged_attempts}
+
+
+def finalize_repair_graph(destination_dir, source_hashes):
+    """Publish graph readiness only after the pinned index path writes new files."""
+    import pyarrow.parquet as parquet
+
+    destination = Path(destination_dir).resolve(strict=True)
+    provenance_path = destination / "repair_provenance.json"
+    provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
+    if provenance.get("status") != "graph_pending" or provenance.get("gate", {}).get("eligible") is not True:
+        raise ValueError("Repair graph is not pending or extraction gate failed")
+    state_path = destination / REPAIR_ARTIFACTS["openie_state"]
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    if openie_values_sha256(state) != provenance["repaired_openie_values_sha256"]:
+        raise ValueError("Repaired OpenIE extraction values changed after clone")
+    entity_ids, fact_ids = expected_openie_vector_ids(state["docs"])
+    for name, expected in (("chunk_embeddings", {row["idx"] for row in state["docs"]}),
+                           ("entity_embeddings", entity_ids), ("fact_embeddings", fact_ids)):
+        actual = parquet.read_table(destination / REPAIR_ARTIFACTS[name]).column("hash_id").to_pylist()
+        if len(actual) != len(set(actual)) or set(actual) != expected:
+            raise ValueError(f"Repaired {name} IDs differ from OpenIE state")
+    new_hashes = {}
+    for name in ("graph", "index_manifest"):
+        path = destination / REPAIR_ARTIFACTS[name]
+        if not path.is_file():
+            raise ValueError(f"Pinned index has not written {name}")
+        new_hashes[name] = sha256_file(path)
+        if name == "graph" and new_hashes[name] == source_hashes[name]:
+            raise ValueError(f"Diagnostic {name} cannot be accepted as repaired")
+    if new_hashes["index_manifest"] != source_hashes["index_manifest"]:
+        raise ValueError("Pinned index configuration manifest changed")
+    provenance["status"] = "graph_ready"
+    provenance["graph_sha256"] = new_hashes["graph"]
+    provenance["index_manifest_sha256"] = new_hashes["index_manifest"]
+    temporary = provenance_path.with_suffix(".json.part")
+    temporary.write_text(json.dumps(provenance, ensure_ascii=False, indent=2) + "\n",
+                         encoding="utf-8", newline="\n")
+    temporary.replace(provenance_path)
+    return provenance

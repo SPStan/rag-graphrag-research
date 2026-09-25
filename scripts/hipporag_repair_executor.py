@@ -62,7 +62,7 @@ def validate_context_preflight(report, *, model_digest, num_ctx, output_cap,
     return input_tokens
 
 
-def make_uncached_ollama_request(llm):
+def make_uncached_ollama_request(llm, *, protocol, model_digest):
     """Create an uncached request callback with SDK retries disabled.
 
     The callback does not run until invoked. CacheOpenAI must be constructed
@@ -73,6 +73,11 @@ def make_uncached_ollama_request(llm):
     client = getattr(llm, "openai_client", None)
     if getattr(client, "max_retries", None) != 0:
         raise ValueError("OpenAI transport must be configured with max_retries=0")
+    required = ("model", "model_digest", "seed", "temperature", "num_ctx")
+    if (not isinstance(protocol, dict) or any(key not in protocol for key in required)
+            or protocol["model_digest"] != model_digest
+            or getattr(llm, "request_model_name", None) != protocol["model"]):
+        raise ValueError("Frozen model identity does not match the transport")
     bound_infer = getattr(llm, "infer", None)
     method = getattr(bound_infer, "__func__", None)
     uncached_infer = getattr(method, "__wrapped__", None)
@@ -83,7 +88,9 @@ def make_uncached_ollama_request(llm):
         started = time.perf_counter()
         response, metadata = uncached_infer(
             llm, messages=messages, max_new_tokens=max_new_tokens,
-            response_format=response_format)
+            response_format=response_format, model=protocol["model"],
+            seed=protocol["seed"], temperature=protocol["temperature"],
+            extra_body={"options": {"num_ctx": protocol["num_ctx"]}})
         return response, metadata, {
             "cache_hit": False,
             "cache_status": "bypassed",
@@ -91,6 +98,8 @@ def make_uncached_ollama_request(llm):
             "client_seconds": time.perf_counter() - started,
         }
 
+    request.frozen_protocol = dict(protocol)
+    request.model_digest = model_digest
     return request
 
 
@@ -157,6 +166,12 @@ def execute_openie_task(task, passage, named_entities, *, request_fn, parse_fn,
     protocol = context_preflight.get("protocol") if isinstance(context_preflight, dict) else None
     if not isinstance(protocol, dict):
         raise ValueError("Context report is missing the frozen repair protocol")
+    transport_protocol = getattr(request_fn, "frozen_protocol", None)
+    if transport_protocol is not None:
+        if (getattr(request_fn, "model_digest", None) != model_digest
+                or any(transport_protocol.get(key) != protocol.get(key)
+                       for key in ("model", "model_digest", "seed", "temperature", "num_ctx"))):
+            raise ValueError("Context report differs from frozen transport protocol")
     output_cap = protocol.get(cap_key)
     num_ctx = protocol.get("num_ctx")
     if (not isinstance(output_cap, int) or isinstance(output_cap, bool)
@@ -182,7 +197,7 @@ def execute_openie_task(task, passage, named_entities, *, request_fn, parse_fn,
         response, metadata = None, {}
         request_meta = {
             "cache_hit": False, "cache_status": "bypassed",
-            "transport_attempt_count": 1,
+            "transport_attempt_count": None,
             "client_seconds": None, "error_type": type(exc).__name__,
         }
         request_error = True
@@ -193,8 +208,8 @@ def execute_openie_task(task, passage, named_entities, *, request_fn, parse_fn,
     if (not isinstance(request_meta, dict)
             or request_meta.get("cache_status") != "bypassed"
             or request_meta.get("cache_hit") is not False
-            or type(request_meta.get("transport_attempt_count")) is not int
-            or request_meta.get("transport_attempt_count") != 1):
+            or (not request_error and request_meta.get("transport_attempt_count") != 1)
+            or (request_error and request_meta.get("transport_attempt_count") is not None)):
         raise ValueError("Request callback did not prove one cache-bypassed transport call")
 
     values, parse_error = None, False

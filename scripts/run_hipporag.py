@@ -401,7 +401,22 @@ def install_no_truncate_embedding_api(embedding_model, base_url, model_name,
             if response.status_code == 400 and len(prepared_texts) > 1:
                 middle = len(prepared_texts) // 2
                 left, left_usage = request_embeddings(prepared_texts[:middle])
-                right, right_usage = request_embeddings(prepared_texts[middle:])
+                try:
+                    right, right_usage = request_embeddings(prepared_texts[middle:])
+                except Exception as exc:
+                    earlier = getattr(exc, "completed_embedding_usage", None)
+                    earlier_prompt = (earlier.get("prompt_tokens") or 0) if earlier else 0
+                    earlier_total = (earlier.get("total_tokens") or 0) if earlier else 0
+                    exc.completed_embedding_usage = {
+                        "prompt_tokens": left_usage["prompt_tokens"] + earlier_prompt,
+                        "total_tokens": left_usage["total_tokens"] + earlier_total,
+                        "total_duration_ns": (left_usage.get("total_duration_ns") or 0)
+                        + ((earlier.get("total_duration_ns") or 0) if earlier else 0),
+                        "load_duration_ns": (left_usage.get("load_duration_ns") or 0)
+                        + ((earlier.get("load_duration_ns") or 0) if earlier else 0),
+                        "usage_unknown": True, "truncate": False,
+                    }
+                    raise
                 usage = {
                     "prompt_tokens": left_usage["prompt_tokens"] + right_usage["prompt_tokens"],
                     "total_tokens": left_usage["total_tokens"] + right_usage["total_tokens"],
@@ -437,7 +452,14 @@ def install_no_truncate_embedding_api(embedding_model, base_url, model_name,
             raise ValueError("Embedding input must be a non-empty list of strings")
         prepared_texts = [text.replace("\n", " ") or " " for text in texts]
         embedding_model.last_usage = None
-        vectors, usage = request_embeddings(prepared_texts)
+        try:
+            vectors, usage = request_embeddings(prepared_texts)
+        except Exception as exc:
+            embedding_model.last_usage = getattr(exc, "completed_embedding_usage", {
+                "prompt_tokens": None, "total_tokens": None,
+                "usage_unknown": True, "truncate": False,
+            })
+            raise
         matrix = np.asarray(vectors, dtype=np.float32)
         if (matrix.ndim != 2 or matrix.shape[0] != len(texts)
                 or not np.all(np.isfinite(matrix))

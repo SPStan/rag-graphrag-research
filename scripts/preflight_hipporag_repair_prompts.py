@@ -75,7 +75,7 @@ def summarize_prompts(rows, *, model_digest, num_ctx, output_caps):
     }
 
 
-def render_source_prompts(manifest, expected_ids, attempts):
+def render_source_prompts(manifest, expected_ids, attempts, *, include_messages=False):
     """Render exact prompts for stages whose input data is already known."""
     from hipporag.prompts import PromptTemplateManager
 
@@ -136,9 +136,12 @@ def render_source_prompts(manifest, expected_ids, attempts):
             )
         serialized = json.dumps(messages, ensure_ascii=False, sort_keys=True,
                                 separators=(",", ":"), default=str).encode("utf-8")
-        rows.append({"order": order, "stage": stage,
-                     "utf8_bytes": len(serialized),
-                     "prompt_sha256": hashlib.sha256(serialized).hexdigest()})
+        row = {"order": order, "stage": stage,
+               "utf8_bytes": len(serialized),
+               "prompt_sha256": hashlib.sha256(serialized).hexdigest()}
+        if include_messages:
+            row["messages"] = messages
+        rows.append(row)
 
     return rows, pending_triples
 

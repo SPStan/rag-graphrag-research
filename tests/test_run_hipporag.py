@@ -201,6 +201,34 @@ class HippoRAGRunnerTests(unittest.TestCase):
         self.assertEqual(embedding_model.last_usage["prompt_tokens"], 4)
         self.assertEqual(embedding_model.last_usage["total_duration_ns"], 20)
 
+    def test_native_embedding_retains_completed_usage_when_later_split_fails(self):
+        embedding_model = SimpleNamespace(
+            global_config=SimpleNamespace(embedding_request_timeout=5), last_usage=None)
+
+        class Response:
+            def __init__(self, inputs):
+                self.inputs = inputs
+                self.status_code = 400 if len(inputs) > 2 or "bad" in inputs else 200
+
+            def raise_for_status(self):
+                if self.status_code == 400:
+                    raise requests.HTTPError("bad input")
+
+            def json(self):
+                return {"embeddings": [[1.0, 2.0] for _ in self.inputs],
+                        "prompt_eval_count": len(self.inputs),
+                        "total_duration": 12, "load_duration": 3}
+
+        install_no_truncate_embedding_api(
+            embedding_model, "http://localhost:11434/v1", "bge-m3:latest",
+            post_json=lambda _url, **kwargs: Response(kwargs["json"]["input"]),
+        )
+        with self.assertRaises(requests.HTTPError):
+            embedding_model.encode(["one", "two", "bad", "four"])
+        self.assertEqual(embedding_model.last_usage["prompt_tokens"], 2)
+        self.assertEqual(embedding_model.last_usage["total_duration_ns"], 12)
+        self.assertTrue(embedding_model.last_usage["usage_unknown"])
+
     def test_shared_reader_messages_match_dense_exactly(self):
         passages = [
             {"title": "First", "text": "Evidence one."},

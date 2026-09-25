@@ -135,6 +135,21 @@ class HippoRAGRepairExecutorTests(unittest.TestCase):
         self.assertTrue(result["attempt"]["usage_unknown"])
         self.assertIsNone(result["attempt"]["client_seconds"])
 
+    def test_request_error_does_not_claim_transport_was_sent(self):
+        messages = render_openie_messages("openie_ner", "title\ntext",
+                                          prompt_manager=FakePromptManager())
+        def before_send(*_args, **_kwargs):
+            raise RuntimeError("before send")
+        result = execute_openie_task(
+            {"passage_id": "p1", "stage": "openie_ner", "attempt": 2,
+             "retry_of_attempt": 1}, "title\ntext", None,
+            request_fn=before_send, parse_fn=lambda *_args, **_kwargs: [],
+            run_id="repair-run", model_digest="model-sha",
+            context_preflight=context_report(messages), model_requests_enabled=True,
+            prompt_manager=FakePromptManager())
+        self.assertEqual(result["attempt"]["status"], "request_error")
+        self.assertIsNone(result["attempt"]["transport_attempt_count"])
+
     def test_executor_rejects_unmarked_third_attempt_before_request(self):
         messages = render_openie_messages("openie_ner", "title\ntext",
                                           prompt_manager=FakePromptManager())
@@ -150,6 +165,27 @@ class HippoRAGRepairExecutorTests(unittest.TestCase):
                 model_requests_enabled=True, prompt_manager=FakePromptManager())
         self.assertEqual(called, [])
 
+    def test_preflight_must_match_bound_transport(self):
+        messages = render_openie_messages("openie_ner", "title\ntext",
+                                          prompt_manager=FakePromptManager())
+        calls = []
+        def request(*args, **kwargs):
+            calls.append(True)
+        request.frozen_protocol = {"model": "qwen-test", "model_digest": "other",
+                                   "seed": 42, "temperature": 0.0, "num_ctx": 4096}
+        request.model_digest = "other"
+        report = context_report(messages)
+        report["protocol"].update({"model": "qwen-test", "model_digest": "model-sha"})
+        with self.assertRaisesRegex(ValueError, "frozen transport"):
+            execute_openie_task(
+                {"passage_id": "p1", "stage": "openie_ner", "attempt": 2,
+                 "retry_of_attempt": 1}, "title\ntext", None,
+                request_fn=request, parse_fn=lambda *_args, **_kwargs: [],
+                run_id="repair", model_digest="model-sha",
+                context_preflight=report, model_requests_enabled=True,
+                prompt_manager=FakePromptManager())
+        self.assertEqual(calls, [])
+
     def test_cache_bypass_adapter_requires_zero_sdk_retries(self):
         class FakeResponse:
             pass
@@ -159,16 +195,22 @@ class HippoRAGRepairExecutorTests(unittest.TestCase):
 
         class FakeLLM:
             max_retries = 0
+            request_model_name = "qwen-test"
             openai_client = FakeClient()
             def infer(self, messages, **kwargs):
                 raise AssertionError("decorated infer must be bypassed")
 
+        captured = []
         def direct_infer(self, messages, **kwargs):
+            captured.append(kwargs)
             return "response", {"finish_reason": "stop"}
 
         # Mimic functools.wraps metadata on the pinned cache decorator.
         FakeLLM.infer.__wrapped__ = direct_infer
-        callback = make_uncached_ollama_request(FakeLLM())
+        callback = make_uncached_ollama_request(
+            FakeLLM(), protocol={"model": "qwen-test", "model_digest": "digest",
+                                 "seed": 42, "temperature": 0.0, "num_ctx": 4096},
+            model_digest="digest")
         response, metadata, request_meta = callback(
             [{"role": "user", "content": "x"}], max_new_tokens=10,
             response_format={"type": "json_object"})
@@ -176,6 +218,12 @@ class HippoRAGRepairExecutorTests(unittest.TestCase):
         self.assertEqual(metadata["finish_reason"], "stop")
         self.assertEqual(request_meta["cache_status"], "bypassed")
         self.assertEqual(request_meta["transport_attempt_count"], 1)
+        self.assertEqual(captured[0]["model"], "qwen-test")
+        self.assertEqual(captured[0]["seed"], 42)
+        self.assertEqual(captured[0]["temperature"], 0.0)
+        self.assertEqual(captured[0]["extra_body"], {"options": {"num_ctx": 4096}})
+        self.assertEqual(captured[0]["max_new_tokens"], 10)
+        self.assertEqual(captured[0]["response_format"], {"type": "json_object"})
 
 
 if __name__ == "__main__":

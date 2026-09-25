@@ -14,6 +14,7 @@ from scripts.hipporag_repair import (
     plan_openie_repairs,
     apply_openie_updates,
     prepare_repair_clone,
+    finalize_repair_graph,
     sha256_file,
 )
 
@@ -298,6 +299,14 @@ class HippoRAGRepairPlanningTests(unittest.TestCase):
                  "operation": "dependency_refresh", "dependency_stage": "openie_ner",
                  "dependency_attempt": 2, "source_provenance_complete": True},
             ]
+            from scripts.hipporag_repair_journal import RepairJournal
+            checkpoint_rows = [
+                {"task": {"passage_id": row["passage_id"], "stage": row["stage"],
+                          "attempt": row["attempt"]},
+                 "attempt": row, "values": update["values"],
+                 "values_sha256": RepairJournal._output_sha(update["values"])}
+                for row, update in zip(repair_attempts, updates)
+            ]
             protocol = {
                 "model_digest": "synthetic-model", "prompt_schema_version": "synthetic-v1",
                 "response_format": {"type": "json_object"}, "temperature": 0,
@@ -321,11 +330,22 @@ class HippoRAGRepairPlanningTests(unittest.TestCase):
                 source_attempts=source_attempts, repair_attempts=repair_attempts,
                 expected_passage_ids=["p1"], state_updates=updates,
                 passage_id_to_index={"p1": "doc-1"},
+                checkpoint_rows=checkpoint_rows,
                 new_entity_rows=new_entities, new_fact_rows=new_facts,
                 repair_protocol=protocol,
             )
 
             self.assertTrue(result["provenance"]["gate"]["eligible"])
+            self.assertEqual(result["provenance"]["status"], "graph_pending")
+            self.assertFalse((destination / REPAIR_ARTIFACTS["graph"]).exists())
+            self.assertEqual(sha256_file(destination / REPAIR_ARTIFACTS["index_manifest"]),
+                             expected_hashes["index_manifest"])
+            with self.assertRaisesRegex(ValueError, "has not written graph"):
+                finalize_repair_graph(destination, expected_hashes)
+            (destination / REPAIR_ARTIFACTS["graph"]).write_bytes(
+                (source / REPAIR_ARTIFACTS["graph"]).read_bytes())
+            with self.assertRaisesRegex(ValueError, "cannot be accepted"):
+                finalize_repair_graph(destination, expected_hashes)
             self.assertTrue(result["provenance"]["vector_plans"]["entity_embeddings"]["complete"])
             self.assertTrue(result["provenance"]["vector_plans"]["fact_embeddings"]["complete"])
             clone_state = json.loads((destination / "openie_state.json").read_text(encoding="utf-8"))
