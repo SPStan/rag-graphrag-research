@@ -3,7 +3,9 @@ import json
 import unittest
 
 from scripts.hipporag_repair_executor import (
-    execute_openie_task, make_uncached_ollama_request, render_openie_messages,
+    execute_openie_task, make_native_ollama_request,
+    make_uncached_ollama_request, measure_then_execute_openie_task,
+    native_chat_payload, render_openie_messages,
 )
 
 
@@ -192,6 +194,76 @@ class HippoRAGRepairExecutorTests(unittest.TestCase):
                 object(), protocol={"model": "qwen-test", "model_digest": "digest",
                                     "seed": 42, "temperature": 0.0, "num_ctx": 4096},
                 model_digest="digest")
+
+    def test_native_measurement_and_extraction_share_frozen_payload(self):
+        protocol = {"model": "qwen-test", "model_digest": "digest",
+                    "seed": 42, "temperature": 0.0, "num_ctx": 4096,
+                    "ner_max_new_tokens": 1024}
+        messages = [{"role": "user", "content": "synthetic"}]
+        captured = []
+        def post_json(payload):
+            captured.append(payload)
+            return {"message": {"content": '{"named_entities": []}'},
+                    "done_reason": "stop", "prompt_eval_count": 12,
+                    "eval_count": 8}
+        request = make_native_ollama_request(
+            "http://127.0.0.1:11434/v1", protocol=protocol,
+            model_digest="digest", post_json=post_json)
+        self.assertEqual(captured, [])
+        content, metadata, meta = request(
+            messages, max_new_tokens=1024,
+            response_format={"type": "json_object"})
+        self.assertEqual(content, '{"named_entities": []}')
+        self.assertEqual(metadata, {"finish_reason": "stop",
+                                    "prompt_tokens": 12,
+                                    "completion_tokens": 8})
+        self.assertEqual(meta["transport_attempt_count"], 1)
+        self.assertEqual(captured, [native_chat_payload(
+            messages, protocol=protocol, max_new_tokens=1024,
+            response_format={"type": "json_object"})])
+        self.assertEqual(captured[0]["options"], {
+            "num_ctx": 4096, "num_predict": 1024,
+            "seed": 42, "temperature": 0.0})
+        self.assertIs(captured[0]["truncate"], False)
+        self.assertEqual(captured[0]["format"], "json")
+
+    def test_native_context_gate_runs_measurement_before_extraction(self):
+        protocol = {"model": "qwen-test", "model_digest": "model-sha",
+                    "seed": 42, "temperature": 0.0, "num_ctx": 4096,
+                    "ner_max_new_tokens": 1024}
+        task = {"passage_id": "p1", "stage": "openie_ner", "attempt": 2,
+                "retry_of_attempt": 1}
+        payloads = []
+        def post_json(payload):
+            payloads.append(payload)
+            return {"message": {"content": '{"named_entities": []}'},
+                    "done_reason": "stop", "prompt_eval_count": 100,
+                    "eval_count": 1}
+        request = make_native_ollama_request(
+            "http://localhost:11434", protocol=protocol,
+            model_digest="model-sha", post_json=post_json)
+        kwargs = dict(request_fn=request,
+                      parse_fn=lambda stage, response, recover_partial: [],
+                      run_id="repair", model_digest="model-sha",
+                      model_requests_enabled=True,
+                      prompt_manager=FakePromptManager())
+        result = measure_then_execute_openie_task(
+            task, "title\ntext", None, **kwargs)
+        self.assertEqual([p["options"]["num_predict"] for p in payloads],
+                         [1, 1024])
+        self.assertEqual(result["attempt"]["context_measurement_usage"],
+                         {"prompt_tokens": 100, "completion_tokens": 1})
+        payloads.clear()
+        def over_budget(payload):
+            payloads.append(payload)
+            return {"message": {"content": "{}"}, "done_reason": "stop",
+                    "prompt_eval_count": 3073, "eval_count": 1}
+        kwargs["request_fn"] = make_native_ollama_request(
+            "http://localhost:11434", protocol=protocol,
+            model_digest="model-sha", post_json=over_budget)
+        with self.assertRaisesRegex(ValueError, "exceed"):
+            measure_then_execute_openie_task(task, "title\ntext", None, **kwargs)
+        self.assertEqual(len(payloads), 1)
 
 
 if __name__ == "__main__":

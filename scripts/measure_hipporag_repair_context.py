@@ -11,6 +11,7 @@ from scripts.preflight_hipporag_repair_prompts import (
     render_source_prompts, validate_upstream_pin,
 )
 from scripts.run_hipporag import model_info, write_json_atomic
+from scripts.hipporag_repair_executor import native_chat_payload
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -67,11 +68,13 @@ def main(argv=None):
     for row in chosen:
         result["in_flight"] = {"stage": row["stage"], "prompt_sha256": row["prompt_sha256"]}
         write_json_atomic(output, result)
-        payload = {"model": model, "messages": row["messages"], "stream": False,
-                   "format": "json", "truncate": False,
-                   "options": {"num_ctx": options["num_ctx"], "num_predict": 1,
-                               "temperature": options["temperature"],
-                               "seed": options["seed"]}}
+        payload = native_chat_payload(
+            row["messages"],
+            protocol={"model": model, "model_digest": digest,
+                      "num_ctx": options["num_ctx"],
+                      "temperature": options["temperature"],
+                      "seed": options["seed"]},
+            max_new_tokens=1, response_format={"type": "json_object"})
         request = Request(endpoint, data=json.dumps(payload).encode("utf-8"),
                           headers={"Content-Type": "application/json"}, method="POST")
         with urlopen(request, timeout=300) as response:

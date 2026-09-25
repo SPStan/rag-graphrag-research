@@ -5,6 +5,7 @@ import json
 import math
 import threading
 import time
+from urllib.request import Request, urlopen
 
 try:
     from scripts.openie_protocol import classify_openie_attempt
@@ -71,6 +72,123 @@ def make_uncached_ollama_request(llm, *, protocol, model_digest):
     raise RuntimeError(
         "Ollama OpenAI-compatible chat does not forward num_ctx; "
         "a verified context-preserving transport is required")
+
+
+def native_chat_payload(messages, *, protocol, max_new_tokens, response_format):
+    """Build one native Ollama chat request for measurement or extraction."""
+    if (response_format != {"type": "json_object"}
+            or not isinstance(messages, list) or not messages
+            or type(max_new_tokens) is not int or max_new_tokens <= 0):
+        raise ValueError("Invalid native chat request")
+    for key in ("model", "model_digest", "num_ctx", "seed", "temperature"):
+        if key not in protocol:
+            raise ValueError(f"Missing frozen protocol field: {key}")
+    if (type(protocol["num_ctx"]) is not int or protocol["num_ctx"] <= max_new_tokens
+            or type(protocol["seed"]) is not int
+            or not isinstance(protocol["temperature"], (int, float))):
+        raise ValueError("Invalid frozen native chat options")
+    return {
+        "model": protocol["model"], "messages": messages,
+        "stream": False, "format": "json", "truncate": False,
+        "options": {"num_ctx": protocol["num_ctx"],
+                    "num_predict": max_new_tokens,
+                    "seed": protocol["seed"],
+                    "temperature": protocol["temperature"]},
+    }
+
+
+def make_native_ollama_request(endpoint, *, protocol, model_digest,
+                               post_json=None):
+    """Bind the native chat route; inject post_json for network-free tests."""
+    if protocol.get("model_digest") != model_digest:
+        raise ValueError("Frozen model digest differs from transport")
+    if not endpoint.startswith(("http://127.0.0.1:", "http://localhost:")):
+        raise ValueError("Repair transport must use a local Ollama endpoint")
+    url = endpoint.removesuffix("/v1").rstrip("/") + "/api/chat"
+
+    def default_post(payload):
+        request = Request(url, data=json.dumps(payload).encode("utf-8"),
+                          headers={"Content-Type": "application/json"}, method="POST")
+        with urlopen(request, timeout=300) as response:
+            return json.load(response)
+
+    send = post_json if post_json is not None else default_post
+
+    def request(messages, *, max_new_tokens, response_format):
+        payload = native_chat_payload(
+            messages, protocol=protocol, max_new_tokens=max_new_tokens,
+            response_format=response_format)
+        started = time.perf_counter()
+        reply = send(payload)
+        if not isinstance(reply, dict) or not isinstance(reply.get("message"), dict):
+            raise ValueError("Malformed native Ollama response")
+        metadata = {
+            "finish_reason": reply.get("done_reason"),
+            "prompt_tokens": reply.get("prompt_eval_count"),
+            "completion_tokens": reply.get("eval_count"),
+        }
+        return reply["message"].get("content"), metadata, {
+            "cache_hit": False, "cache_status": "bypassed",
+            "transport_attempt_count": 1,
+            "client_seconds": time.perf_counter() - started,
+        }
+
+    request.frozen_protocol = dict(protocol)
+    request.model_digest = model_digest
+    return request
+
+
+def measure_then_execute_openie_task(task, passage, named_entities, *, request_fn,
+                                    parse_fn, run_id, model_digest,
+                                    model_requests_enabled=False,
+                                    prompt_manager=None):
+    """Measure this exact prompt before its extraction request."""
+    if model_requests_enabled is not True:
+        raise RuntimeError("Model requests are disabled for this run")
+    protocol = getattr(request_fn, "frozen_protocol", None)
+    if not isinstance(protocol, dict) or protocol.get("model_digest") != model_digest:
+        raise ValueError("A frozen native transport is required")
+    stage = task.get("stage")
+    cap_key = {"openie_ner": "ner_max_new_tokens",
+               "openie_triples": "triples_max_new_tokens"}.get(stage)
+    if cap_key is None or cap_key not in protocol:
+        raise ValueError("Unknown stage or missing output cap")
+    messages = render_openie_messages(
+        stage, passage, named_entities, prompt_manager=prompt_manager)
+    serialized = json.dumps(messages, ensure_ascii=False, sort_keys=True,
+                            separators=(",", ":"), default=str).encode("utf-8")
+    prompt_hash = hashlib.sha256(serialized).hexdigest()
+    _, measurement, meta = request_fn(
+        messages, max_new_tokens=1, response_format={"type": "json_object"})
+    if (not isinstance(measurement, dict)
+            or type(measurement.get("prompt_tokens")) is not int
+            or measurement["prompt_tokens"] < 0
+            or not isinstance(meta, dict)
+            or meta.get("transport_attempt_count") != 1):
+        raise ValueError("Native measurement did not report valid input tokens")
+    report = {
+        "status": "context_fit_verified", "protocol": dict(protocol),
+        "model_digest": model_digest, "num_ctx": protocol["num_ctx"],
+        "max_new_tokens": protocol[cap_key], "prompt_sha256": prompt_hash,
+        "input_tokens": measurement["prompt_tokens"], "stage": stage,
+        "temperature": protocol["temperature"], "seed": protocol["seed"],
+        "response_format": {"type": "json_object"},
+    }
+    validate_context_preflight(
+        report, model_digest=model_digest, num_ctx=protocol["num_ctx"],
+        output_cap=protocol[cap_key], prompt_sha256=prompt_hash, stage=stage,
+        temperature=protocol["temperature"], seed=protocol["seed"],
+        response_format={"type": "json_object"})
+    result = execute_openie_task(
+        task, passage, named_entities, request_fn=request_fn, parse_fn=parse_fn,
+        run_id=run_id, model_digest=model_digest, context_preflight=report,
+        model_requests_enabled=True, prompt_manager=prompt_manager)
+    result["attempt"]["context_measurement_usage"] = {
+        "prompt_tokens": measurement["prompt_tokens"],
+        "completion_tokens": measurement.get("completion_tokens")
+        if type(measurement.get("completion_tokens")) is int else None,
+    }
+    return result
 
 
 def make_pinned_openie_parser():

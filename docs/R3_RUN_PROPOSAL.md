@@ -11,9 +11,9 @@
 | NER | 691 | 1715 | 2381 |
 | Triples | 1003 | 4075 | 21 |
 
-Счётчик completion этих двух измерений не был сохранён; он неизвестен, а не равен нулю. Пилот не доказывает токены остальных prompts. Проверка исходников Ollama 0.34.4 показала, что OpenAI-compatible endpoint отбрасывает `extra_body.options.num_ctx`; этот adapter теперь отказывает до вызова модели. Текущий guard остаётся закрытым. Перед любым repair требуется транспорт, который реально применяет `num_ctx` и `truncate=false`, и offline-проверка его payload.
+Счётчик completion этих двух измерений не был сохранён; он неизвестен, а не равен нулю. Пилот не доказывает токены остальных prompts. Проверка исходников Ollama 0.34.4 показала, что OpenAI-compatible endpoint отбрасывает `extra_body.options.num_ctx`; этот adapter отказывает до вызова модели. Измерение и extraction теперь собирают один native `/api/chat` payload с `num_ctx` и `truncate=false`; его параметры проверены offline. Текущий context guard остаётся закрытым до измерения каждого нужного prompt.
 
-После отдельного разрешения выполнить только эту команду из корня проекта в PowerShell:
+Историческая команда уже выполненного пилота (повторно не запускать):
 
 ```powershell
 $hippoPython = Join-Path $env:TEMP 'hipporag2-1438aba3-venv\Scripts\python.exe'
@@ -32,7 +32,7 @@ $hippoPython = Join-Path $env:TEMP 'hipporag2-1438aba3-venv\Scripts\python.exe'
 | Plan SHA-256 | `f6ea09286136724f67621e24c4efc64913051a5fea1456d808a88ea1a6ec6d7e` |
 | Model | `qwen2.5:3b`, digest `357c53fb659c5076de1d65ccb0b397446227b71a42be9d1603d46168015c9e4b`, Q4_K_M |
 | HippoRAG | `2.0.0a5`, upstream `1438aba3fc44ff10573e5a5e1e7cc3c7f9794aff` |
-| Protocol | `seed=42`, `temperature=0`, `num_ctx=4096`, JSON mode, uncached, SDK retries `0` |
+| Protocol | native `/api/chat`, `seed=42`, `temperature=0`, `num_ctx=4096`, `truncate=false`, JSON mode, без SDK cache/retries |
 | Extraction caps | NER `1024`, triples `3072` generated tokens |
 | Proposed fresh namespace | `storage/hipporag2-independent-s500-200-299-repair-f6ea0928` (currently absent) |
 
@@ -40,4 +40,4 @@ $hippoPython = Join-Path $env:TEMP 'hipporag2-1438aba3-venv\Scripts\python.exe'
 
 Первый замороженный проход: 38 NER и 158 triples, всего 196 extraction tasks, включая две attempt 3. Это размер очереди, не обещание успешного окончания и не бюджет для дополнительных повторов. После пилота для каждой задачи нужен полный token count до extraction; 38 зависимых triple prompts измеряются только после сохранения соответствующего NER. Поэтому потенциальный потолок первого прохода — ещё до 196 измерительных запросов и до 196 extraction запросов; пилотные два запроса считаются отдельно. Время такого прохода пока неизвестно и должно быть ограничено перед отдельным разрешением. Локальные затраты токенов измеряются по фактическому usage; отсутствующий usage остаётся неизвестным. Расход внутреннего API к этому не относится.
 
-Пилот **не запускает repair, graph rebuild или QA**. После него сравнить полученные token counts с `num_ctx` и caps и проверить совпадение native измерения с фактическим OpenAI-compatible transport на отдельном ограниченном запросе. Если это не доказано, текущий `context_fit_verified` guard остаётся закрытым. Для реального repair ещё нужен отдельный разрешённый запуск с новым namespace и проверкой source SHA. Любой unresolved extraction, превышение контекста, неизвестный in-flight, ошибка записи, изменение конфигурации или digest останавливают очередь; сохранённый checkpoint остаётся private. Graph строится только после zero-unresolved extraction gate и exact vector IDs, QA — после `graph_ready` и отдельного разрешения.
+Пилот **не запускает repair, graph rebuild или QA**. Для реального repair ещё нужен отдельный разрешённый запуск с новым namespace, проверкой source SHA и измерением каждого prompt через native `/api/chat` перед extraction. Любой unresolved extraction, превышение контекста, неизвестный in-flight, ошибка записи, изменение конфигурации или digest останавливают очередь; сохранённый checkpoint остаётся private. Graph строится только после zero-unresolved extraction gate и exact vector IDs, QA — после `graph_ready` и отдельного разрешения.

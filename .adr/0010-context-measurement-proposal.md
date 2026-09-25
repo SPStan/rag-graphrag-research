@@ -1,7 +1,7 @@
 # ADR-0010 — Measure complete chat prompts before OpenIE repair
 
 - Date: 2026-09-25
-- Status: two-request pilot completed; full context policy remains proposed; compatible transport blocked
+- Status: native transport selected offline; full context policy and real run remain unverified
 
 ## Context
 
@@ -26,7 +26,9 @@ Primary API references: [Ollama chat request types](https://github.com/ollama/ol
 
 ## Transport finding, 2026-09-25
 
-Ollama 0.34.4's OpenAI-compatible middleware decodes only declared ChatCompletionRequest fields. That type has no `options`, `num_ctx`, or `truncate` field; conversion to native ChatRequest therefore drops the executor's `extra_body.options.num_ctx`. The earlier SDK payload capture proves what the client sent, not what Ollama applied. The OpenAI-compatible repair adapter now refuses to construct a request callback. Before real repair, choose and test a transport that applies `num_ctx` and nontruncation to both context measurement and extraction. The two pilot counts remain observations for native `/api/chat` only.
+Ollama 0.34.4's OpenAI-compatible middleware decodes only declared ChatCompletionRequest fields. That type has no `options`, `num_ctx`, or `truncate` field; conversion to native ChatRequest therefore drops the executor's `extra_body.options.num_ctx`. The earlier SDK payload capture proves what the client sent, not what Ollama applied. The OpenAI-compatible repair adapter now refuses to construct a request callback. The two pilot counts remain observations for native `/api/chat` only.
+
+The offline implementation now uses one native `/api/chat` payload builder for measurement and extraction. A transport stub verifies `num_ctx`, `truncate=false`, JSON mode, seed, temperature and output cap without sending a request. The per-task wrapper measures the rendered prompt first, validates input tokens plus the frozen output cap, then permits extraction; a synthetic overflow sends no extraction request. Measurement usage is attached to the private attempt record. This removes the cross-route mismatch. A live server result, all per-prompt token counts, and real repair remain unverified and require a separately authorized run. The OpenAI-compatible adapter stays fail-closed.
 
 Versioned source: [OpenAI request conversion](https://github.com/ollama/ollama/blob/v0.34.4/openai/openai.go), [middleware](https://github.com/ollama/ollama/blob/v0.34.4/middleware/openai.go).
 
