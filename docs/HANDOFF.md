@@ -26,7 +26,7 @@
 
 R1: checkpoint/resume, сохранение values/SHA, один writer, зависимые triples проверены; коммит `58bbc25` отправлен в Draft PR. R2: синтетический `repair → vectors → pinned graph → gate` и захват payload прошли в отдельном HippoRAG environment. Основной набор: 142 unittest, 2 pinned-only пропуска; pinned-only 2 теста прошли отдельно. Старые записи ниже — история состояния до R1.
 
-Текущая очередь: R3 в [TASKS](TASKS.md), предложение в [R3_RUN_PROPOSAL](R3_RUN_PROPOSAL.md). Никаких модельных запросов, реального repair/rebuild или QA ещё не было. Пилот из двух модельных измерений требует отдельного разрешения. Сохранить локальные WORK_PLAN.md, scripts/resume_dense.py, docs/LUNA_REVIEW_HANDOFF.md вне коммита.
+Текущая очередь: R3 в [TASKS](TASKS.md), предложение и результат пилота в [R3_RUN_PROPOSAL](R3_RUN_PROPOSAL.md). По явному разрешению выполнены только два локальных измерительных запроса: 691 input token для NER, 1003 для triples; triple с cap 3072 занимает 4075 из 4096. Реального extraction repair/rebuild или QA не было, текущий context guard закрыт. Сохранить локальные WORK_PLAN.md, scripts/resume_dense.py, docs/LUNA_REVIEW_HANDOFF.md вне коммита.
 
 ## Действие следующей модели (историческое)
 

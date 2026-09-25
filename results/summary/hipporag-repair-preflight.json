@@ -44,7 +44,7 @@
   },
   "prompt_preflight": {
     "report": "hipporag-repair-prompt-preflight.json",
-    "sha256": "5eb3b5079ae801bdb0ce9b1b53c008a7d2642d8381cee50405abed2266929e42",
+    "sha256": "9cbcb1311db62472da97792f3a437243db210d7e880143fe8bd36594ee0abf36",
     "rendered_prompts": 158,
     "pending_triple_prompts": 38,
     "max_ner_prompt_utf8_bytes": 2184,

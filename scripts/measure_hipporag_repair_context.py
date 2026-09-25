@@ -79,9 +79,14 @@ def main(argv=None):
         count = reply.get("prompt_eval_count")
         if type(count) is not int or count < 0:
             raise ValueError("Ollama did not report a valid prompt token count")
+        completion = reply.get("eval_count")
+        if type(completion) is not int or completion < 0:
+            completion = None
         result["completed"].append({"stage": row["stage"],
                                     "prompt_sha256": row["prompt_sha256"],
-                                    "input_tokens": count})
+                                    "input_tokens": count,
+                                    "completion_tokens": completion,
+                                    "usage_unknown": completion is None})
         result["in_flight"] = None
         write_json_atomic(output, result)
     result["status"] = "pilot_complete"

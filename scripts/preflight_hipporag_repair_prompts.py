@@ -13,8 +13,10 @@ import statistics
 
 try:
     from scripts.plan_hipporag_repair import SOURCE_RUN_ID, build_plan_report, load_source_inputs
+    from scripts.hipporag_repair_executor import render_openie_messages
 except ModuleNotFoundError:  # Direct script execution puts scripts/ on sys.path.
     from plan_hipporag_repair import SOURCE_RUN_ID, build_plan_report, load_source_inputs
+    from hipporag_repair_executor import render_openie_messages
 
 ROOT = Path(__file__).resolve().parents[1]
 UPSTREAM_COMMIT = "1438aba3fc44ff10573e5a5e1e7cc3c7f9794aff"
@@ -127,13 +129,11 @@ def render_source_prompts(manifest, expected_ids, attempts, *, include_messages=
         if passage not in state_by_passage:
             raise ValueError("Source passage does not match persisted OpenIE state")
         if stage == "openie_ner":
-            messages = manager.render(name="ner", passage=passage)
+            messages = render_openie_messages(stage, passage, prompt_manager=manager)
         else:
             entities = state_by_passage[passage].get("extracted_entities", [])
-            messages = manager.render(
-                name="triple_extraction", passage=passage,
-                named_entity_json=json.dumps({"named_entities": entities}),
-            )
+            messages = render_openie_messages(
+                stage, passage, entities, prompt_manager=manager)
         serialized = json.dumps(messages, ensure_ascii=False, sort_keys=True,
                                 separators=(",", ":"), default=str).encode("utf-8")
         row = {"order": order, "stage": stage,

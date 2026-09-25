@@ -19,7 +19,7 @@
       "max_rendered_prompt_utf8_bytes": 4450,
       "median_rendered_prompt_utf8_bytes": 3125.5,
       "max_output_tokens": 3072,
-      "prompt_sha256_set": "b2ec32d9908ef19f41f1d808f0aed9e44bfe0f9d92e95175314a078cac24e312"
+      "prompt_sha256_set": "3488818ee144c2a39fce19df0f76602006958023516ad14fec7e22c4fa1f8367"
     }
   },
   "not_renderable_yet": {
