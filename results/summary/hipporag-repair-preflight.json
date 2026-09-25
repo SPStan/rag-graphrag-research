@@ -28,7 +28,8 @@
     "pinned_openie_parser": "passed in isolated HippoRAG environment; no model requests",
     "uncached_adapter_guard": "requires zero SDK retries, explicit execution flag, and exact tokenizer context report",
     "copy_only_clone_assembly": "passed with synthetic artifacts; not run on source index",
-    "unit_tests": "125 passed",
+    "unit_tests": "131 passed",
+    "repair_journal": "six synthetic checkpoint tests passed; primitive not integrated into a schedule runner",
     "pip_check": "passed"
   },
   "repair_plan": {
@@ -52,11 +53,11 @@
     "model_requests_made": 0
   },
   "blockers": [
-    "A guarded one-task cache-bypass executor is implemented, but the ordered multi-task runner, durable repair manifest, and embedding request layer are not implemented.",
-    "158 prompts were rendered with the pinned templates, but exact model-token counts are unavailable without a local tokenizer; 38 dependent triple prompts also require repaired NER outputs before rendering.",
+    "A guarded one-task executor and a crash-safe per-attempt journal primitive are implemented, but the ordered multi-task runner and embedding request layer are not implemented; journal integration remains untested.",
+    "158 prompts were rendered with the pinned templates, but exact model-token counts remain unavailable; 38 dependent triple prompts also require repaired NER outputs before rendering.",
     "Exact entity/fact vector sets can only be confirmed after repaired OpenIE outputs exist; exact reconciliation is tested synthetically but has not been exercised on a real clone.",
     "The pinned HippoRAG force-index path has not been exercised against a repaired clone with filtered vector stores and the updated gate."
   ],
-  "next_step": "Implement and test schedule orchestration, durable per-attempt manifest writing, and embedding requests; verify exact prompt token counts, then provide a readiness report before any model call, graph rebuild, or QA.",
+  "next_step": "Integrate the durable journal with ordered schedule orchestration and synthetic callbacks, implement the embedding request layer, and establish tokenizer-backed context fit for the exact rendered requests; then provide a readiness report before any model call, graph rebuild, or QA.",
   "scope_note": "This report contains no dataset passages, prompts, generated answers, local paths, secrets, or service URLs."
 }
