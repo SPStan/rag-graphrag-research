@@ -11,6 +11,7 @@ from scripts.hipporag_repair import (
     expected_openie_vector_ids,
     filter_embedding_table_to_ids,
     merge_attempt_ledgers,
+    plan_openie_repairs,
     apply_openie_updates,
     prepare_repair_clone,
     sha256_file,
@@ -18,6 +19,65 @@ from scripts.hipporag_repair import (
 
 
 class HippoRAGRepairPlanningTests(unittest.TestCase):
+    def test_repair_plan_orders_ner_before_dependent_triples_and_bounds_attempts(self):
+        history = []
+        for pid in ("p1", "p2", "p3"):
+            ner_attempts = 2 if pid == "p2" else 1
+            for attempt in range(1, ner_attempts + 1):
+                history.append({
+                    "passage_id": pid, "stage": "openie_ner", "attempt": attempt,
+                    "status": "truncated", "source_provenance_complete": True,
+                })
+            history.append({
+                "passage_id": pid, "stage": "openie_triples", "attempt": 1,
+                "status": ("valid_nonempty" if pid == "p3" else "parse_error"),
+                "source_provenance_complete": True,
+            })
+
+        plan = plan_openie_repairs(["p1", "p2", "p3"], history)
+
+        self.assertEqual(plan["summary"], {
+            "expected_passages": 3,
+            "planned_stage_outcomes": 6,
+            "planned_by_stage": {"openie_ner": 3, "openie_triples": 3},
+            "dependency_refreshes": 3,
+            "remedial_attempts": 1,
+            "model_requests_made": 0,
+        })
+        self.assertEqual([row["stage"] for row in plan["targets"]], [
+            "openie_ner", "openie_ner", "openie_ner", "openie_triples",
+            "openie_triples", "openie_triples",
+        ])
+        # All NER work must precede triple extraction even when input IDs vary.
+        self.assertEqual([row["passage_id"] for row in plan["targets"][:3]],
+                         ["p1", "p2", "p3"])
+        p2_ner = next(row for row in plan["targets"]
+                      if row["passage_id"] == "p2" and row["stage"] == "openie_ner")
+        self.assertEqual(p2_ner["attempt"], 3)
+        self.assertTrue(p2_ner["remedial_retry"])
+        p1_triples = next(row for row in plan["targets"]
+                          if row["passage_id"] == "p1" and row["stage"] == "openie_triples")
+        self.assertEqual(p1_triples["operation"], "dependency_refresh")
+        p3_triples = next(row for row in plan["targets"]
+                          if row["passage_id"] == "p3" and row["stage"] == "openie_triples")
+        self.assertEqual(p3_triples["attempt"], 2)
+        self.assertEqual(p3_triples["retry_of_attempt"], 1)
+        self.assertEqual(len(history), 7)
+
+    def test_repair_plan_rejects_missing_history_and_attempt_overflow(self):
+        with self.assertRaisesRegex(ValueError, "missing stage history"):
+            plan_openie_repairs(["p1"], [])
+
+        history = [{
+            "passage_id": "p1", "stage": "openie_ner", "attempt": number,
+            "status": "truncated", "source_provenance_complete": True,
+        } for number in (1, 2, 3)] + [{
+            "passage_id": "p1", "stage": "openie_triples", "attempt": 1,
+            "status": "valid_empty", "source_provenance_complete": True,
+        }]
+        with self.assertRaisesRegex(ValueError, "exceed the three-attempt limit"):
+            plan_openie_repairs(["p1"], history)
+
     def test_filter_reuses_matching_vectors_and_reports_new_and_obsolete_ids(self):
         source = pa.table({
             "hash_id": ["keep-a", "stale", "keep-b"],

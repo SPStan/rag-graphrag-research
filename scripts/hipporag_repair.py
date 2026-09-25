@@ -75,6 +75,101 @@ def sha256_file(path):
     return digest.hexdigest()
 
 
+def plan_openie_repairs(expected_passage_ids, source_attempts):
+    """Plan bounded extraction repairs without making model requests.
+
+    Every passage/stage must already have an attributable attempt history.
+    NER repairs are ordered before triples, and triples for a passage with an
+    unresolved NER outcome are explicitly marked as dependency refreshes.
+    """
+    try:
+        from scripts.openie_protocol import (
+            OPENIE_STAGES, VALID_STATUSES, UNRESOLVED_STATUSES)
+    except ModuleNotFoundError:  # Direct script execution puts scripts/ on sys.path.
+        from openie_protocol import OPENIE_STAGES, VALID_STATUSES, UNRESOLVED_STATUSES
+
+    expected = list(expected_passage_ids)
+    if not expected or len(expected) != len(set(expected)):
+        raise ValueError("Expected passage IDs must be non-empty and unique")
+    expected_set = set(expected)
+    grouped = {(pid, stage): [] for pid in expected
+               for stage in OPENIE_STAGES}
+    for row in source_attempts:
+        pid, stage = row.get("passage_id"), row.get("stage")
+        if (pid, stage) not in grouped:
+            raise ValueError("Source attempt ledger contains an unexpected stage")
+        grouped[(pid, stage)].append(row)
+
+    latest = {}
+    for key, rows in grouped.items():
+        rows.sort(key=lambda item: item.get("attempt", -1))
+        if not rows:
+            raise ValueError("Cannot plan repair with a missing stage history")
+        numbers = [item.get("attempt") for item in rows]
+        if (any(not isinstance(number, int) or isinstance(number, bool)
+                for number in numbers)
+                or numbers != list(range(1, len(rows) + 1))
+                or len(rows) > 3):
+            raise ValueError("Source attempt history is not consecutive or exceeds limit")
+        if any(item.get("source_provenance_complete") is not True for item in rows):
+            raise ValueError("Cannot plan repair from incomplete attempt provenance")
+        if any(item.get("status") not in VALID_STATUSES | UNRESOLVED_STATUSES
+               for item in rows):
+            raise ValueError("Source attempt history has an unknown status")
+        latest[key] = rows[-1]
+
+    unresolved_ner = {
+        pid for pid in expected
+        if latest[(pid, "openie_ner")].get("status") not in VALID_STATUSES
+    }
+    targets = []
+    for stage in OPENIE_STAGES:
+        for pid in expected:
+            previous = latest[(pid, stage)]
+            dependent_refresh = stage == "openie_triples" and pid in unresolved_ner
+            if (previous.get("status") in VALID_STATUSES
+                    and not dependent_refresh):
+                continue
+            attempt = previous["attempt"] + 1
+            if attempt > 3:
+                raise ValueError("A repair would exceed the three-attempt limit")
+            if (dependent_refresh and previous.get("status") in VALID_STATUSES
+                    and attempt > 2):
+                raise ValueError(
+                    "A dependency refresh after a valid second triple attempt is not authorized"
+                )
+            row = {
+                "passage_id": pid,
+                "stage": stage,
+                "attempt": attempt,
+                "retry_of_attempt": previous["attempt"],
+                "remedial_retry": attempt == 3,
+            }
+            if dependent_refresh:
+                row.update({
+                    "operation": "dependency_refresh",
+                    "dependency_stage": "openie_ner",
+                    "dependency_attempt_pending": True,
+                })
+            targets.append(row)
+    return {
+        "targets": targets,
+        "summary": {
+            "expected_passages": len(expected_set),
+            "planned_stage_outcomes": len(targets),
+            "planned_by_stage": {
+                stage: sum(row["stage"] == stage for row in targets)
+                for stage in OPENIE_STAGES
+            },
+            "dependency_refreshes": sum(
+                row.get("operation") == "dependency_refresh" for row in targets
+            ),
+            "remedial_attempts": sum(row["remedial_retry"] for row in targets),
+            "model_requests_made": 0,
+        },
+    }
+
+
 def expected_openie_vector_ids(state_docs):
     """Return pinned HippoRAG entity/fact IDs for an OpenIE state."""
     entities, facts = set(), set()
