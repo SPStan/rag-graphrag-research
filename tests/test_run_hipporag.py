@@ -12,6 +12,7 @@ from scripts.run_hipporag import (normalize_inputs, parse_args, passage_id,
                                   normalize_ner_entities, summarize_usage,
                                   persist_interrupted_run, windows_safe_model_label,
                                   record_openie_failure, record_openie_attempt,
+                                  recover_partial_openie_values,
                                   instrument_models,
                                   build_shared_reader_messages, install_shared_reader_template,
                                   run_shared_reader, git_snapshot,
@@ -38,6 +39,30 @@ class HippoRAGRunnerTests(unittest.TestCase):
         self.assertTrue(openie_needs_retry({"error": "invalid_schema",
                                             "finish_reason": "stop"}))
         self.assertFalse(openie_needs_retry({"finish_reason": "stop"}))
+
+    def test_truncated_partial_recovery_is_recorded_without_accepting_attempt(self):
+        attempts = []
+        record_openie_attempt(
+            attempts, threading.Lock(), run_id="run", pid="p1", passage="safe text",
+            stage="openie_ner", attempt_number=1,
+            response='{"entities":["Alice"]}',
+            metadata={"finish_reason": "length"},
+            values=recover_partial_openie_values("openie_ner", [" Alice "]),
+            model_digest="model", call_event=None,
+        )
+
+        self.assertEqual(attempts[0]["status"], "truncated")
+        self.assertTrue(attempts[0]["partial_recovery_succeeded"])
+
+    def test_partial_recovery_keeps_only_valid_structures_for_telemetry(self):
+        self.assertEqual(recover_partial_openie_values("openie_ner", [{"entity": " A "}]),
+                         ["A"])
+        self.assertEqual(recover_partial_openie_values(
+            "openie_triples", [["A", "likes", "B"]]), [["A", "likes", "B"]])
+        self.assertIsNone(recover_partial_openie_values(
+            "openie_ner", [], parse_error=True))
+        self.assertIsNone(recover_partial_openie_values(
+            "openie_triples", [["A", "likes"]]))
 
     def test_openie_attempt_context_is_bound_inside_worker_threads(self):
         shared_attempts, shared_failures = [], []

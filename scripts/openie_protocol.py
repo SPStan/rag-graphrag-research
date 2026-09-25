@@ -41,11 +41,16 @@ def build_openie_acceptance_gate(expected_passage_ids, attempts):
 
     missing = []
     unresolved = []
+    ner_groups = {pid: grouped[(pid, "openie_ner")] for pid in expected}
     for (pid, stage), items in grouped.items():
         items.sort(key=lambda item: (item.get("attempt")
                                      if isinstance(item.get("attempt"), int) else -1))
         if not items:
             missing.append({"passage_id": pid, "stage": stage})
+            continue
+        if len(items) > 3:
+            unresolved.append({"passage_id": pid, "stage": stage,
+                               "reason": "maximum_attempts_exceeded"})
             continue
         numbers = [item.get("attempt") for item in items]
         if numbers != list(range(1, len(items) + 1)):
@@ -61,13 +66,50 @@ def build_openie_acceptance_gate(expected_passage_ids, attempts):
             unresolved.append({"passage_id": pid, "stage": stage,
                                "reason": "source_provenance_missing"})
         for previous, retry in zip(items, items[1:]):
-            if previous.get("status") in VALID_STATUSES:
+            dependency_attempt = retry.get("dependency_attempt")
+            ner_history = ner_groups[pid]
+            dependency = next((row for row in ner_history
+                               if row.get("attempt") == dependency_attempt), None)
+            prior_ner_failure = any(
+                row.get("attempt", 0) < dependency_attempt
+                and row.get("status") not in VALID_STATUSES
+                for row in ner_history
+            ) if (isinstance(dependency_attempt, int)
+                 and not isinstance(dependency_attempt, bool)) else False
+            if retry.get("operation") == "dependency_refresh" and not (
+                    stage == "openie_triples"
+                    and retry.get("dependency_stage") == "openie_ner"
+                    and isinstance(dependency_attempt, int)
+                    and not isinstance(dependency_attempt, bool)
+                    and dependency is not None
+                    and dependency.get("status") in VALID_STATUSES
+                    and prior_ner_failure):
                 unresolved.append({"passage_id": pid, "stage": stage,
-                                   "reason": "retry_after_valid_attempt"})
+                                   "reason": "dependency_refresh_link_invalid"})
                 break
+            if previous.get("status") in VALID_STATUSES:
+                valid_dependency_refresh = (
+                    stage == "openie_triples"
+                    and retry.get("operation") == "dependency_refresh"
+                    and (retry.get("attempt", 0) <= 2
+                         or retry.get("remedial_retry") is True)
+                )
+                if not valid_dependency_refresh:
+                    unresolved.append({"passage_id": pid, "stage": stage,
+                                       "reason": "retry_after_valid_attempt"})
+                    break
+                if retry.get("retry_of_attempt") != previous["attempt"]:
+                    unresolved.append({"passage_id": pid, "stage": stage,
+                                       "reason": "retry_link_missing"})
+                    break
+                continue
             if retry.get("retry_of_attempt") != previous["attempt"]:
                 unresolved.append({"passage_id": pid, "stage": stage,
                                    "reason": "retry_link_missing"})
+                break
+            if retry.get("attempt", 0) > 2 and retry.get("remedial_retry") is not True:
+                unresolved.append({"passage_id": pid, "stage": stage,
+                                   "reason": "remedial_retry_not_declared"})
                 break
         if items[-1]["status"] not in VALID_STATUSES:
             unresolved.append({"passage_id": pid, "stage": stage,

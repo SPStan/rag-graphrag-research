@@ -88,6 +88,72 @@ class OpenIEProtocolTests(unittest.TestCase):
             item["reason"] for item in gate["unresolved_stage_outcomes"]
         })
 
+    def test_gate_accepts_triple_refresh_linked_to_corrected_ner(self):
+        attempts = [
+            {"passage_id": "p1", "stage": "openie_ner", "attempt": 1,
+             "status": "truncated", "source_provenance_complete": True},
+            {"passage_id": "p1", "stage": "openie_ner", "attempt": 2,
+             "status": "valid_nonempty", "retry_of_attempt": 1,
+             "source_provenance_complete": True},
+            {"passage_id": "p1", "stage": "openie_triples", "attempt": 1,
+             "status": "valid_nonempty", "source_provenance_complete": True},
+            {"passage_id": "p1", "stage": "openie_triples", "attempt": 2,
+             "status": "valid_nonempty", "retry_of_attempt": 1,
+             "operation": "dependency_refresh", "dependency_stage": "openie_ner",
+             "dependency_attempt": 2, "source_provenance_complete": True},
+        ]
+        gate = build_openie_acceptance_gate(["p1"], attempts)
+        self.assertTrue(gate["eligible"], gate["unresolved_stage_outcomes"])
+
+        attempts[2]["status"] = "truncated"
+        gate = build_openie_acceptance_gate(["p1"], attempts)
+        self.assertTrue(gate["eligible"], gate["unresolved_stage_outcomes"])
+
+    def test_gate_rejects_unlinked_or_unverified_dependency_refresh(self):
+        attempts = [
+            {"passage_id": "p1", "stage": "openie_ner", "attempt": 1,
+             "status": "truncated", "source_provenance_complete": True},
+            {"passage_id": "p1", "stage": "openie_ner", "attempt": 2,
+             "status": "valid_nonempty", "retry_of_attempt": 1,
+             "source_provenance_complete": True},
+            {"passage_id": "p1", "stage": "openie_triples", "attempt": 1,
+             "status": "valid_empty", "source_provenance_complete": True},
+            {"passage_id": "p1", "stage": "openie_triples", "attempt": 2,
+             "status": "valid_nonempty", "retry_of_attempt": 1,
+             "operation": "dependency_refresh", "dependency_stage": "openie_ner",
+             "dependency_attempt": 1, "source_provenance_complete": True},
+        ]
+        gate = build_openie_acceptance_gate(["p1"], attempts)
+        self.assertFalse(gate["eligible"])
+        self.assertIn("dependency_refresh_link_invalid", {
+            item["reason"] for item in gate["unresolved_stage_outcomes"]
+        })
+
+    def test_gate_allows_one_explicit_remedial_attempt_and_rejects_more(self):
+        ner = [
+            {"passage_id": "p1", "stage": "openie_ner", "attempt": number,
+             "status": status, "retry_of_attempt": number - 1 if number > 1 else None,
+             "source_provenance_complete": True}
+            for number, status in ((1, "truncated"), (2, "request_error"),
+                                   (3, "valid_nonempty"))
+        ]
+        triple = {"passage_id": "p1", "stage": "openie_triples", "attempt": 1,
+                  "status": "valid_empty", "source_provenance_complete": True}
+        gate = build_openie_acceptance_gate(["p1"], [*ner, triple])
+        self.assertFalse(gate["eligible"])
+        ner[-1]["remedial_retry"] = True
+        gate = build_openie_acceptance_gate(["p1"], [*ner, triple])
+        self.assertTrue(gate["eligible"], gate["unresolved_stage_outcomes"])
+
+        ner.append({"passage_id": "p1", "stage": "openie_ner", "attempt": 4,
+                    "status": "valid_nonempty", "retry_of_attempt": 3,
+                    "remedial_retry": True, "source_provenance_complete": True})
+        gate = build_openie_acceptance_gate(["p1"], [*ner, triple])
+        self.assertFalse(gate["eligible"])
+        self.assertIn("maximum_attempts_exceeded", {
+            item["reason"] for item in gate["unresolved_stage_outcomes"]
+        })
+
 
 if __name__ == "__main__":
     unittest.main()

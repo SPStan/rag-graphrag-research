@@ -197,6 +197,23 @@ def normalize_ner_entities(values):
     return normalized
 
 
+def recover_partial_openie_values(stage, values, *, parse_error=False):
+    """Return parsed partial values for telemetry without accepting them."""
+    if parse_error or not isinstance(values, list):
+        return None
+    if stage == "openie_ner":
+        try:
+            return normalize_ner_entities(values)
+        except ValueError:
+            return None
+    if stage == "openie_triples":
+        if all(isinstance(item, (list, tuple)) and len(item) == 3
+               and all(isinstance(value, str) for value in item)
+               for item in values):
+            return [list(item) for item in values]
+    return None
+
+
 def openie_needs_retry(metadata):
     """Retry incomplete or explicitly invalid OpenIE responses once."""
     metadata = metadata if isinstance(metadata, dict) else {}
@@ -729,14 +746,20 @@ def instrument_models(rag, corpus, query_text_to_id, events, lock,
                     request_error=bool(local.last_chat_event and
                                         local.last_chat_event.get("error_type")))
             else:
+                partial_values = recover_partial_openie_values(
+                    "openie_ner", result.unique_entities,
+                    parse_error=bool(result.metadata.get("error")),
+                ) if result.metadata.get("finish_reason") == "length" else None
                 record_openie_attempt(
                     openie_attempts, openie_attempts_lock,
                     run_id=local.run_id, pid=local.passage_id,
                     passage=passage, stage="openie_ner", attempt_number=1,
-                    response=result.response, metadata=result.metadata, values=None,
+                    response=result.response, metadata=result.metadata,
+                    values=partial_values,
                     model_digest=local.model_digest, call_event=local.last_chat_event,
-                    parse_error=not bool(local.last_chat_event and
-                                         local.last_chat_event.get("error_type")),
+                    parse_error=(result.metadata.get("finish_reason") != "length"
+                                 and not bool(local.last_chat_event and
+                                              local.last_chat_event.get("error_type"))),
                     request_error=bool(local.last_chat_event and
                                         local.last_chat_event.get("error_type")))
 
@@ -832,14 +855,20 @@ def instrument_models(rag, corpus, query_text_to_id, events, lock,
                     values=result.triples, model_digest=local.model_digest,
                     call_event=local.last_chat_event)
                 return result
+            partial_values = recover_partial_openie_values(
+                "openie_triples", result.triples,
+                parse_error=bool(result.metadata.get("error")),
+            ) if result.metadata.get("finish_reason") == "length" else None
             record_openie_attempt(
                 openie_attempts, openie_attempts_lock,
                 run_id=local.run_id, pid=local.passage_id, passage=passage,
                 stage="openie_triples", attempt_number=1,
-                response=result.response, metadata=result.metadata, values=None,
+                response=result.response, metadata=result.metadata,
+                values=partial_values,
                 model_digest=local.model_digest, call_event=local.last_chat_event,
-                parse_error=not bool(local.last_chat_event and
-                                     local.last_chat_event.get("error_type")),
+                parse_error=(result.metadata.get("finish_reason") != "length"
+                             and not bool(local.last_chat_event and
+                                          local.last_chat_event.get("error_type"))),
                 request_error=bool(local.last_chat_event and
                                    local.last_chat_event.get("error_type")))
 
