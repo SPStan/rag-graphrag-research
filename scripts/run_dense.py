@@ -220,7 +220,7 @@ def git_snapshot():
     }
 
 
-def validate_processed_data(dataset, data_dir, queries, corpus):
+def validate_processed_data(dataset, data_dir, queries, corpus, labels_path=None):
     report_path = ROOT / "results" / "data" / "subsamples.json"
     ids_path = ROOT / "data" / "ids" / f"{dataset}_s500.json"
     report = read_json(report_path)
@@ -232,6 +232,12 @@ def validate_processed_data(dataset, data_dir, queries, corpus):
         expected = dataset_report["output_sha256"].get(filename)
         if actual_hashes[filename] != expected:
             raise ValueError(f"Processed {filename} does not match the pinned subsample report")
+    labels_path = Path(labels_path) if labels_path else Path(data_dir) / "labels.json"
+    if labels_path.is_file():
+        actual_hashes["labels.json"] = sha256_file(labels_path)
+        expected = dataset_report["output_sha256"].get("labels.json")
+        if actual_hashes["labels.json"] != expected:
+            raise ValueError("Processed labels.json does not match the pinned subsample report")
     query_ids = [row["id"] for row in queries]
     corpus_ids = [row["id"] for row in corpus]
     if query_ids != ids_manifest["question_ids"]:
@@ -382,7 +388,8 @@ def run(dataset="musique", limit=10, top_n=5, generation_model=GEN_MODEL):
     corpus_path = data_dir / "corpus.json"
     queries = read_json(queries_path)
     corpus = read_json(corpus_path)
-    data_provenance = validate_processed_data(dataset, data_dir, queries, corpus)
+    data_provenance = validate_processed_data(
+        dataset, data_dir, queries, corpus, data_dir / "labels.json")
     if not 1 <= limit <= 100:
         raise ValueError("Local benchmark limit must be between 1 and 100; use a pinned view")
     if not isinstance(top_n, int) or top_n <= 0:

@@ -4,6 +4,7 @@ import argparse
 from contextlib import contextmanager
 from datetime import datetime, timezone
 import hashlib
+from importlib import metadata as importlib_metadata
 import json
 import logging
 import os
@@ -18,12 +19,13 @@ import uuid
 from string import Template
 
 import numpy as np
+import requests
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_RESULTS = ROOT / "results" / "raw"
 DEFAULT_STORAGE = ROOT / "storage" / "hipporag2"
 OLLAMA_BASE_URL = "http://localhost:11434/v1"
-RUNNER_VERSION = "hipporag2-local-runner-v2"
+RUNNER_VERSION = "hipporag2-local-runner-v3"
 PROMPT_VERSION = "hipporag2-musique-one-shot-v6"
 UPSTREAM_READER_PROMPT_VERSION = "hipporag2-upstream-reader-v1"
 PROMPT_SOURCE_COMMIT = "1438aba3fc44ff10573e5a5e1e7cc3c7f9794aff"
@@ -309,9 +311,128 @@ def git_snapshot():
                                 capture_output=True, text=True).stdout.strip()
         dirty = bool(subprocess.run([*git, "status", "--porcelain"], cwd=ROOT, check=True,
                                     capture_output=True, text=True).stdout.strip())
-        return {"commit": commit, "dirty": dirty}
+        snapshot = {"commit": commit, "dirty": dirty}
     except (OSError, subprocess.CalledProcessError):
-        return {"commit": None, "dirty": None}
+        snapshot = {"commit": None, "dirty": None}
+    source_files = (
+        "scripts/run_hipporag.py", "scripts/run_dense.py",
+        "scripts/evaluate_dense.py", "scripts/answer_parser.py",
+        "scripts/vendor/hipporag2_musique_template.py",
+        "requirements-hipporag2.txt",
+    )
+    snapshot["source_sha256"] = {
+        name: sha256_file(ROOT / name) for name in source_files
+        if (ROOT / name).is_file()
+    }
+    return snapshot
+
+
+def ollama_api_base(base_url):
+    base = base_url.rstrip("/")
+    return base[:-3] if base.endswith("/v1") else base
+
+
+def install_no_truncate_embedding_api(embedding_model, base_url, model_name,
+                                      post_json=None):
+    """Use Ollama's native embed API so truncate=false is part of each request."""
+    session = requests.Session() if post_json is None else None
+    if session is not None:
+        session.trust_env = False
+    post_json = post_json or session.post
+    embedding_model._no_truncate_session = session
+    endpoint = f"{ollama_api_base(base_url)}/api/embed"
+
+    def request_embeddings(prepared_texts):
+        response = post_json(
+            endpoint,
+            json={"model": model_name, "input": prepared_texts, "truncate": False},
+            timeout=embedding_model.global_config.embedding_request_timeout,
+        )
+        try:
+            response.raise_for_status()
+        except requests.HTTPError:
+            # Ollama can reject an otherwise small batch for one input. Split
+            # only rejected multi-input batches so a single bad value is
+            # isolated and recorded instead of discarding the whole index.
+            if response.status_code == 400 and len(prepared_texts) > 1:
+                middle = len(prepared_texts) // 2
+                left, left_usage = request_embeddings(prepared_texts[:middle])
+                right, right_usage = request_embeddings(prepared_texts[middle:])
+                usage = {
+                    "prompt_tokens": left_usage["prompt_tokens"] + right_usage["prompt_tokens"],
+                    "total_tokens": left_usage["total_tokens"] + right_usage["total_tokens"],
+                    "total_duration_ns": (left_usage.get("total_duration_ns") or 0)
+                    + (right_usage.get("total_duration_ns") or 0),
+                    "load_duration_ns": (left_usage.get("load_duration_ns") or 0)
+                    + (right_usage.get("load_duration_ns") or 0),
+                    "truncate": False,
+                }
+                return left + right, usage
+            raise
+        payload = response.json()
+        vectors = payload.get("embeddings")
+        if not isinstance(vectors, list) or len(vectors) != len(prepared_texts):
+            raise RuntimeError("Ollama returned an incomplete embedding response")
+        token_count = payload.get("prompt_eval_count")
+        if not isinstance(token_count, int) or isinstance(token_count, bool) or token_count < 0:
+            raise RuntimeError("Ollama embedding response omitted valid prompt_eval_count")
+        usage = {
+            "prompt_tokens": token_count,
+            "total_tokens": token_count,
+            "total_duration_ns": payload.get("total_duration"),
+            "load_duration_ns": payload.get("load_duration"),
+            "truncate": False,
+        }
+        return vectors, usage
+
+    def encode(texts):
+        scalar_input = isinstance(texts, str)
+        if scalar_input:
+            texts = [texts]
+        if not texts or any(not isinstance(text, str) for text in texts):
+            raise ValueError("Embedding input must be a non-empty list of strings")
+        prepared_texts = [text.replace("\n", " ") or " " for text in texts]
+        embedding_model.last_usage = None
+        vectors, usage = request_embeddings(prepared_texts)
+        matrix = np.asarray(vectors, dtype=np.float32)
+        if (matrix.ndim != 2 or matrix.shape[0] != len(texts)
+                or not np.all(np.isfinite(matrix))
+                or np.any(np.linalg.norm(matrix, axis=1) <= 0)):
+            raise RuntimeError("Ollama returned invalid, non-finite, or zero embeddings")
+        embedding_model.last_usage = usage
+        # HippoRAG batch_encode normalizes rows along axis 1, including the
+        # one-query case. Preserve a vector row for list inputs of length one.
+        return matrix[0] if scalar_input else matrix
+
+    embedding_model.encode = encode
+    return endpoint
+
+
+def validate_pinned_dataset(dataset, corpus_path, queries, corpus, labels_path=None):
+    if dataset not in ("musique", "hotpotqa"):
+        return None
+    try:
+        from scripts.run_dense import validate_processed_data
+    except ModuleNotFoundError:  # Direct script execution puts scripts/ on sys.path.
+        from run_dense import validate_processed_data
+    labels_path = Path(labels_path) if labels_path else Path(corpus_path).parent / "labels.json"
+    if not labels_path.is_file():
+        raise ValueError(f"Pinned dataset labels are required: {labels_path}")
+    return validate_processed_data(
+        dataset, Path(corpus_path).parent, queries, corpus, labels_path)
+
+
+def runtime_metadata(base_url):
+    response = requests.get(f"{ollama_api_base(base_url)}/api/version", timeout=30)
+    response.raise_for_status()
+    packages = {}
+    for name in ("hipporag", "openai", "numpy", "requests"):
+        try:
+            packages[name] = importlib_metadata.version(name)
+        except importlib_metadata.PackageNotFoundError:
+            packages[name] = None
+    return {"python": platform.python_version(), "platform": platform.platform(),
+            "ollama": response.json().get("version"), "packages": packages}
 
 
 def _append_event(events, lock, event):
@@ -330,7 +451,8 @@ def record_openie_failure(failures, lock, passage_id, exc, stage):
 
 
 def instrument_models(rag, corpus, query_text_to_id, events, lock,
-                     embedding_max_inputs_per_second=18.0):
+                     embedding_max_inputs_per_second=18.0,
+                     embedding_request_batch_size=4):
     """Record SDK usage and cache state without storing any raw prompts or texts."""
     local = threading.local()
     openie_failures = []
@@ -386,34 +508,38 @@ def instrument_models(rag, corpus, query_text_to_id, events, lock,
     original_encode = embedding_model.encode
     embedding_gate = threading.Lock()
     last_embedding_started = [0.0]
-    minimum_embedding_interval = 1.0 / embedding_max_inputs_per_second
 
     def tracked_encode(texts):
         if isinstance(texts, str):
             texts = [texts]
         results = []
         total_usage = {"prompt_tokens": 0, "total_tokens": 0}
-        # Ollama's Windows runner opens several loopback connections for each
-        # input in /api/embed. Pace individual inputs; an input array does not
-        # reduce the runner-side connection count.
-        with embedding_gate:
-            for text in texts:
-                wait = minimum_embedding_interval - (time.perf_counter() - last_embedding_started[0])
+        for offset in range(0, len(texts), embedding_request_batch_size):
+            batch = texts[offset:offset + embedding_request_batch_size]
+            items = [{"input_sha256": sha256_bytes(text.encode("utf-8")),
+                      "input_chars": len(text),
+                      "input_type": "passage" if text in passage_id_by_text else (
+                          "query" if text in query_id_by_embedding else "entity_or_fact"),
+                      "passage_id": passage_id_by_text.get(text),
+                      "question_id": query_id_by_embedding.get(text),
+                      "prepared_input_sha256": sha256_bytes(
+                          (text.replace("\n", " ") or " ").encode("utf-8")),
+                      "preprocessing": "replace-newlines-with-space-v1"}
+                     for text in batch]
+            minimum_batch_interval = len(batch) / embedding_max_inputs_per_second
+            with embedding_gate:
+                wait = minimum_batch_interval - (
+                    time.perf_counter() - last_embedding_started[0]
+                )
                 if last_embedding_started[0] and wait > 0:
                     time.sleep(wait)
                 last_embedding_started[0] = time.perf_counter()
-                item = {"input_sha256": sha256_bytes(text.encode("utf-8")),
-                        "input_chars": len(text),
-                        "input_type": "passage" if text in passage_id_by_text else (
-                            "query" if text in query_id_by_embedding else "entity_or_fact"),
-                        "passage_id": passage_id_by_text.get(text),
-                        "question_id": query_id_by_embedding.get(text)}
                 try:
-                    result = original_encode([text])
+                    result = original_encode(batch)
                 except Exception:
                     usage = dict(embedding_model.last_usage or {})
                     event = {"kind": "embedding", "stage": getattr(local, "stage", "unknown"),
-                             "items": [item], "batch_size": 1, "usage_unknown": True,
+                             "items": items, "batch_size": len(batch), "usage_unknown": True,
                              "error_type": "embedding_request_failed"}
                     if isinstance(usage.get("prompt_tokens"), int):
                         event["usage"] = usage
@@ -426,7 +552,7 @@ def instrument_models(rag, corpus, query_text_to_id, events, lock,
                         or usage["prompt_tokens"] < 0):
                     raise RuntimeError("HippoRAG embedding response did not provide prompt token usage")
                 event = {"kind": "embedding", "stage": getattr(local, "stage", "unknown"),
-                         "items": [item], "batch_size": 1, "usage": usage}
+                         "items": items, "batch_size": len(batch), "usage": usage}
                 _append_event(events, lock, event)
                 total_usage["prompt_tokens"] += usage["prompt_tokens"]
                 total_usage["total_tokens"] += usage.get("total_tokens", usage["prompt_tokens"])
@@ -752,6 +878,7 @@ def parse_args(argv=None):
     parser.add_argument("--temperature", type=float, default=0.0)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--embedding-batch-size", type=int, default=1)
+    parser.add_argument("--embedding-request-batch-size", type=int, default=4)
     parser.add_argument("--embedding-max-inputs-per-second", type=float, default=18.0)
     return parser.parse_args(argv)
 
@@ -761,13 +888,16 @@ def run(args):
         raise ValueError("--limit must be between 1 and 20 for this runner")
     if (args.top_k < 1 or args.max_new_tokens < 1 or args.num_ctx < 1
             or not 1 <= args.embedding_batch_size <= 128
+            or not 1 <= args.embedding_request_batch_size <= 18
             or args.embedding_max_inputs_per_second <= 0):
-        raise ValueError("top-k, max-new-tokens and num-ctx must be positive; embedding batch size must be 1-128")
+        raise ValueError("top-k, max-new-tokens and num-ctx must be positive; embedding batch sizes must be 1-128 and 1-18")
     raw_corpus = read_json(args.corpus)
     raw_queries = read_json(args.queries)
     labels_path = args.labels
     raw_labels = read_json(labels_path) if labels_path and labels_path.exists() else None
     corpus, queries, labels = normalize_inputs(raw_corpus, raw_queries, raw_labels)
+    data_provenance = validate_pinned_dataset(
+        args.dataset, args.corpus, queries, corpus, args.labels)
     queries = queries[:args.limit]
     labels = labels[:args.limit]
     corpus_by_text = {item["title"] + "\n" + item["text"]: item for item in corpus}
@@ -778,6 +908,7 @@ def run(args):
     labels_fingerprint = sha256_bytes(json_bytes(labels))
     model_generation = model_info(args.generation_model, args.base_url)
     model_embedding = model_info(args.embedding_model, args.base_url)
+    runtime = runtime_metadata(args.base_url)
     run_id = str(uuid.uuid4())
     timestamp = datetime.now(timezone.utc).isoformat()
     output = args.results_dir.resolve()
@@ -809,19 +940,30 @@ def run(args):
     top_k = args.top_k
     local_alias = windows_safe_model_label(args.generation_model)
     embedding_alias = windows_safe_model_label(args.embedding_model)
-    model_identity = sha256_bytes(json_bytes({"generation": model_generation["digest"],
-                                               "embedding": model_embedding["digest"],
-                                               "upstream": "1438aba3fc44ff10573e5a5e1e7cc3c7f9794aff"}))
+    embedding_pipeline = {
+        "endpoint": "/api/embed", "truncate": False,
+        "text_preprocessing": "replace-newlines-with-space-v1",
+        "vector_validation": "finite-nonzero-row-v1",
+    }
+    model_identity = sha256_bytes(json_bytes({
+        "generation": model_generation["digest"],
+        "embedding": model_embedding["digest"],
+        "embedding_pipeline": embedding_pipeline,
+        "upstream": "1438aba3fc44ff10573e5a5e1e7cc3c7f9794aff",
+    }))
+    index_storage = storage / f"index-{model_identity[:12]}"
+    index_storage.mkdir(parents=True, exist_ok=True)
     manifest = {
         "schema_version": 1, "run_id": run_id, "dataset": args.dataset,
         "status": "initializing", "created_at": timestamp,
-        "runner": RUNNER_VERSION, "source": git_snapshot(),
+        "runner": RUNNER_VERSION, "source": git_snapshot(), "runtime": runtime,
         "inputs": {"corpus_path": str(args.corpus), "corpus_sha256": sha256_file(args.corpus),
                    "corpus_fingerprint": corpus_fingerprint,
                    "queries_path": str(args.queries), "queries_sha256": sha256_file(args.queries),
                    "queries_fingerprint": query_fingerprint,
                    "labels_path": str(args.labels) if args.labels else None,
-                   "labels_sha256": sha256_file(args.labels) if args.labels else labels_fingerprint},
+                   "labels_sha256": sha256_file(args.labels) if args.labels else labels_fingerprint,
+                   "pinned_dataset_provenance": data_provenance},
         "expected_question_ids": [query["id"] for query in queries],
         "generation": {"model": model_generation, "endpoint": args.base_url,
                        "reader_prompt_version": reader_info["version"],
@@ -833,12 +975,15 @@ def run(args):
         "embedding": {"model": model_embedding, "endpoint": args.base_url,
                       "batch_size": 1,
                       "hipporag_outer_batch_size": args.embedding_batch_size,
-                      "max_inputs_per_second": args.embedding_max_inputs_per_second},
+                      "max_inputs_per_second": args.embedding_max_inputs_per_second,
+                      "request_batch_size": args.embedding_request_batch_size,
+                      **embedding_pipeline},
         "retrieval": {"top_k": args.top_k, "reader_context_top_k": args.top_k},
         "upstream": {"repository": "OSU-NLP-Group/HippoRAG",
                      "commit": "1438aba3fc44ff10573e5a5e1e7cc3c7f9794aff",
                      "package": "hipporag==2.0.0a5"},
-        "storage_dir": str(storage), "results_file": results_path.name,
+        "storage_dir": str(index_storage), "storage_root": str(storage),
+        "results_file": results_path.name,
         "metrics_file": metrics_path.name,
     }
     write_json_atomic(manifest_path, manifest)
@@ -858,10 +1003,13 @@ def run(args):
         retrieval_top_k=max(args.top_k, 200),
         qa_top_k=args.top_k,
         dataset=args.dataset,
-        save_dir=str(storage),
+        save_dir=str(index_storage),
         max_retry_attempts=1,
     )
     llm = CacheOpenAI.from_experiment_config(config)
+    llm_cache_dir = storage / "llm_cache"
+    llm_cache_dir.mkdir(parents=True, exist_ok=True)
+    llm.cache_file_name = str(llm_cache_dir / f"{local_alias}_cache.sqlite")
     llm.request_model_name = args.generation_model
     llm.llm_config.generate_params["model"] = args.generation_model
     llm.llm_config.generate_params["extra_body"] = {"options": {"num_ctx": args.num_ctx}}
@@ -872,6 +1020,9 @@ def run(args):
     try:
         rag = HippoRAG(global_config=config, extraction_llm=llm, qa_llm=llm,
                        embedding_model=embedding, index_identity=f"ollama:{model_identity}")
+        manifest["embedding"]["native_endpoint"] = install_no_truncate_embedding_api(
+            embedding, args.base_url, args.embedding_model)
+        write_json_atomic(manifest_path, manifest)
         if args.dataset == "musique":
             install_shared_reader_template(rag)
         # A previous interrupted indexing attempt may have persisted passage
@@ -883,7 +1034,8 @@ def run(args):
             manifest["recovery"] = "rebuild_missing_graph_reusing_persisted_passage_embeddings"
             write_json_atomic(manifest_path, manifest)
         local = instrument_models(rag, corpus, question_text_to_id, events, event_lock,
-                                  args.embedding_max_inputs_per_second)
+                                  args.embedding_max_inputs_per_second,
+                                  args.embedding_request_batch_size)
         before = {
             "passages": set(rag.chunk_embedding_store.get_all_ids()),
             "entities": set(rag.entity_embedding_store.get_all_ids()),
@@ -974,6 +1126,9 @@ def run(args):
     finally:
         if rag is not None:
             rag.close()
+        session = getattr(embedding, "_no_truncate_session", None)
+        if session is not None:
+            session.close()
         embedding.close()
         llm.close()
 

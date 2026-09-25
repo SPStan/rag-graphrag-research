@@ -5,12 +5,16 @@ import threading
 from pathlib import Path
 from types import SimpleNamespace
 
+import numpy as np
+import requests
+
 from scripts.run_hipporag import (normalize_inputs, parse_args, passage_id,
                                   normalize_ner_entities, summarize_usage,
                                   persist_interrupted_run, windows_safe_model_label,
                                   record_openie_failure, instrument_models,
                                   build_shared_reader_messages, install_shared_reader_template,
-                                  run_shared_reader, git_snapshot)
+                                  run_shared_reader, git_snapshot,
+                                  install_no_truncate_embedding_api, ollama_api_base)
 from scripts.run_dense import build_reader_messages
 
 
@@ -20,6 +24,92 @@ class HippoRAGRunnerTests(unittest.TestCase):
 
         self.assertRegex(snapshot["commit"], r"^[0-9a-f]{40}$")
         self.assertIsInstance(snapshot["dirty"], bool)
+        self.assertIn("scripts/run_hipporag.py", snapshot["source_sha256"])
+
+    def test_native_embedding_request_disables_truncation_and_checks_vectors(self):
+        calls = []
+        embedding_model = SimpleNamespace(
+            global_config=SimpleNamespace(embedding_request_timeout=5),
+            last_usage=None,
+        )
+
+        class Response:
+            def raise_for_status(self):
+                return None
+
+            def json(self):
+                return {"embeddings": [[3.0, 4.0]], "prompt_eval_count": 7,
+                        "total_duration": 11, "load_duration": 2}
+
+        def post_json(url, **kwargs):
+            calls.append((url, kwargs))
+            return Response()
+
+        endpoint = install_no_truncate_embedding_api(
+            embedding_model, "http://localhost:11434/v1/", "bge-m3:latest",
+            post_json=post_json,
+        )
+        vector = embedding_model.encode(["title\ntext"])
+
+        self.assertEqual(ollama_api_base("http://localhost:11434/v1"),
+                         "http://localhost:11434")
+        self.assertEqual(endpoint, "http://localhost:11434/api/embed")
+        self.assertEqual(calls[0][1]["json"]["truncate"], False)
+        self.assertEqual(calls[0][1]["json"]["input"], ["title text"])
+        self.assertEqual(vector.tolist(), [[3.0, 4.0]])
+        self.assertEqual(embedding_model.last_usage["prompt_tokens"], 7)
+        self.assertFalse(embedding_model.last_usage["truncate"])
+
+        class ZeroResponse(Response):
+            def json(self):
+                return {"embeddings": [[0.0, 0.0]], "prompt_eval_count": 7}
+
+        install_no_truncate_embedding_api(
+            embedding_model, "http://localhost:11434/v1", "bge-m3:latest",
+            post_json=lambda *_args, **_kwargs: ZeroResponse(),
+        )
+        with self.assertRaisesRegex(RuntimeError, "zero embeddings"):
+            embedding_model.encode(["passage"])
+
+    def test_native_embedding_splits_rejected_batches_and_aggregates_usage(self):
+        calls = []
+        embedding_model = SimpleNamespace(
+            global_config=SimpleNamespace(embedding_request_timeout=5),
+            last_usage=None,
+        )
+
+        class Response:
+            def __init__(self, inputs):
+                self.inputs = inputs
+                self.status_code = 200
+
+            def raise_for_status(self):
+                if len(self.inputs) > 2:
+                    self.status_code = 400
+                    error = requests.HTTPError("bad batch")
+                    error.response = self
+                    raise error
+
+            def json(self):
+                return {"embeddings": [[float(len(text)), 1.0] for text in self.inputs],
+                        "prompt_eval_count": len(self.inputs),
+                        "total_duration": 10, "load_duration": 2}
+
+        def post_json(_url, **kwargs):
+            inputs = kwargs["json"]["input"]
+            calls.append(inputs)
+            return Response(inputs)
+
+        install_no_truncate_embedding_api(
+            embedding_model, "http://localhost:11434/v1", "bge-m3:latest",
+            post_json=post_json,
+        )
+        vectors = embedding_model.encode(["one", "two", "three", "four"])
+
+        self.assertEqual(len(calls), 3)
+        self.assertEqual(vectors[:, 0].tolist(), [3.0, 3.0, 5.0, 4.0])
+        self.assertEqual(embedding_model.last_usage["prompt_tokens"], 4)
+        self.assertEqual(embedding_model.last_usage["total_duration_ns"], 20)
 
     def test_shared_reader_messages_match_dense_exactly(self):
         passages = [
@@ -190,7 +280,7 @@ class HippoRAGRunnerTests(unittest.TestCase):
             self.assertFalse(row["passage_embedding_usage_attributed"])
             self.assertEqual(row["embedding_batches"], 1)
 
-    def test_embedding_batch_is_split_for_rate_limit_and_usage_stays_per_passage(self):
+    def test_embedding_request_batch_usage_is_not_falsely_attributed_per_passage(self):
         corpus = [
             {"id": "p1", "title": "A", "text": "One."},
             {"id": "p2", "title": "B", "text": "Two."},
@@ -200,9 +290,10 @@ class HippoRAGRunnerTests(unittest.TestCase):
             last_usage = None
 
             def encode(self, texts):
-                self.last_usage = {"prompt_tokens": len(texts[0]),
-                                   "total_tokens": len(texts[0])}
-                return [[len(texts[0])]]
+                token_total = sum(len(text) for text in texts)
+                self.last_usage = {"prompt_tokens": token_total,
+                                   "total_tokens": token_total}
+                return np.asarray([[len(text)] for text in texts], dtype=np.float32)
 
         rag = SimpleNamespace(
             qa_llm=SimpleNamespace(infer=lambda *args, **kwargs: ("", {}, False)),
@@ -221,10 +312,15 @@ class HippoRAGRunnerTests(unittest.TestCase):
         summary = summarize_usage(events, corpus)
 
         self.assertEqual(result.shape, (2, 1))
-        self.assertEqual(len(events), 2)
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["batch_size"], 2)
+        self.assertEqual(len(events[0]["items"]), 2)
         self.assertEqual(summary["phases"]["unknown"]["api_embedding_tokens"], 12)
-        self.assertEqual(summary["per_passage"]["p1"]["passage_embedding_tokens"], 6)
-        self.assertEqual(summary["per_passage"]["p2"]["passage_embedding_tokens"], 6)
+        for passage_id in ("p1", "p2"):
+            row = summary["per_passage"][passage_id]
+            self.assertIsNone(row["passage_embedding_tokens"])
+            self.assertFalse(row["passage_embedding_usage_attributed"])
+            self.assertEqual(row["embedding_batches"], 1)
 
 
 if __name__ == "__main__":
