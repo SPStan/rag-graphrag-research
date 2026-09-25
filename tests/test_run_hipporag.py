@@ -11,12 +11,14 @@ import requests
 from scripts.run_hipporag import (normalize_inputs, parse_args, passage_id,
                                   normalize_ner_entities, summarize_usage,
                                   persist_interrupted_run, windows_safe_model_label,
-                                  record_openie_failure, instrument_models,
+                                  record_openie_failure, record_openie_attempt,
+                                  instrument_models,
                                   build_shared_reader_messages, install_shared_reader_template,
                                   run_shared_reader, git_snapshot,
                                   install_no_truncate_embedding_api, ollama_api_base,
                                   build_rows)
 from scripts.run_dense import build_reader_messages
+from scripts.openie_protocol import build_openie_acceptance_gate
 
 
 class HippoRAGRunnerTests(unittest.TestCase):
@@ -201,6 +203,69 @@ class HippoRAGRunnerTests(unittest.TestCase):
         self.assertEqual(failure["error_type"], "RuntimeError")
         self.assertEqual(len(failures), 1)
         self.assertNotIn("passage_text", failure)
+
+    def test_openie_attempt_records_safe_provenance_and_unknown_usage(self):
+        attempts = []
+        record = record_openie_attempt(
+            attempts, threading.Lock(), run_id="run-1", pid="sha256:p1",
+            passage="Title\nPrivate passage", stage="openie_ner", attempt_number=1,
+            response='{"named_entities":[]}',
+            metadata={"finish_reason": "stop"}, values=[], model_digest="model-sha",
+            call_event={"cache_hit": True, "prompt_sha256": "prompt-sha",
+                        "usage_unknown": True, "client_seconds": 0.1},
+        )
+
+        self.assertEqual(record["status"], "valid_empty")
+        self.assertTrue(record["usage_unknown"])
+        self.assertEqual(record["cache_hit"], True)
+        self.assertEqual(record["response_bytes"], len('{"named_entities":[]}'.encode()))
+        self.assertNotIn("Private passage", json.dumps(record))
+        self.assertEqual(attempts, [record])
+
+    def test_instrumented_openie_records_valid_empty_without_retry_or_llm_call(self):
+        passage = "Title\nA synthetic passage."
+        llm_calls = []
+
+        def infer(*args, **kwargs):
+            llm_calls.append((args, kwargs))
+            return "", {}, False
+
+        def ner(chunk_key, text):
+            return SimpleNamespace(chunk_id=chunk_key, response='{"named_entities":[]}',
+                                   unique_entities=[], metadata={"finish_reason": "stop"})
+
+        def triples(chunk_key, text, entities):
+            return SimpleNamespace(chunk_id=chunk_key, response='{"triples":[]}',
+                                   triples=[], metadata={"finish_reason": "stop"})
+
+        rag = SimpleNamespace(
+            qa_llm=SimpleNamespace(infer=infer, global_config=SimpleNamespace(response_format=None)),
+            embedding_model=SimpleNamespace(encode=lambda values: values, last_usage=None),
+            openie=SimpleNamespace(ner=ner, triple_extraction=triples),
+            index=lambda docs: docs, retrieve=lambda queries: queries,
+            qa=lambda solutions: solutions,
+        )
+        corpus = [{"id": "sha256:p1", "title": "Title", "text": "A synthetic passage."}]
+        events = []
+        local = instrument_models(rag, corpus, {}, events, threading.Lock(), run_id="run-1",
+                                  model_digest="model-sha")
+
+        ner_result = rag.openie.ner("chunk-1", passage)
+        triple_result = rag.openie.triple_extraction("chunk-1", passage, [])
+        acceptance = build_openie_acceptance_gate(["sha256:p1"], local.openie_attempts)
+
+        self.assertEqual(ner_result.unique_entities, [])
+        self.assertEqual(triple_result.triples, [])
+        self.assertEqual(llm_calls, [])
+        self.assertFalse(acceptance["eligible"])
+        self.assertEqual(acceptance["unresolved_stage_outcomes"], [
+            {"passage_id": "sha256:p1", "stage": "openie_ner",
+             "reason": "source_provenance_missing"},
+            {"passage_id": "sha256:p1", "stage": "openie_triples",
+             "reason": "source_provenance_missing"},
+        ])
+        self.assertEqual([item["status"] for item in local.openie_attempts],
+                         ["valid_empty", "valid_empty"])
 
     def test_object_shaped_ner_items_keep_entity_names_not_labels(self):
         self.assertEqual(

@@ -8,20 +8,20 @@
 
 ## Актуальное состояние и ближайший план, 25 сентября 2026
 
-**Что уже проверено.** На Windows работают WSL 2, Docker Desktop, локальный Langfuse и отдельный MLflow. На RTX 3070 (8 ГБ) через Ollama проверены BGE-M3, Qwen2.5 3B и Qwen2.5 7B. Закреплены данные MuSiQue и HotpotQA; полный корпус MuSiQue содержит 5500 passages. Тесты и зависимости проходят (`78` unittest и `pip check`).
+**Что уже проверено.** На Windows работают WSL 2, Docker Desktop, локальный Langfuse и отдельный MLflow. На RTX 3070 (8 ГБ) через Ollama проверены BGE-M3, Qwen2.5 3B и Qwen2.5 7B. Закреплены данные MuSiQue и HotpotQA; полный корпус MuSiQue содержит 5500 passages. Полный набор из 87 unittest прошёл; основная `.venv` проходит `pip check`.
 
 **Локальные результаты, не являющиеся независимым benchmark.** Dense baseline100 3B: EM 0,150, F1 0,241, recall@5 0,595. 7B replay на тех же retrieval contexts: EM 0,090, F1 0,177, recall@5 0,595. Dense debug10 v6: EM 0,100, F1 0,200, recall@5 0,633. HippoRAG rebuilt debug10: EM 0,300, F1 0,380, recall@5 0,783. `debug10` использовался при разработке и входит в baseline100; `holdout100` не запускался.
 
-**Что сделано с HippoRAG.** Закреплён HippoRAG 2.0.0a5 на upstream commit `1438aba3fc44ff10573e5a5e1e7cc3c7f9794aff`. Для rebuilt OpenIE state выполнен read-only аудит: 446 документов имеют пустые entities и непустые triples, 27 — непустые entities и пустые triples, 8 — оба поля пусты, 5019 — оба непусты. В SQLite LLM cache есть 180 ответов с `finish_reason=length` и 200 non-JSON, но cache не хранит passage ID или исходный prompt. Поэтому эти cache записи нельзя отнести к конкретному документу. Пустой `openie_extraction_failures` final cache-replay не доказывает отсутствие ошибок исходного построения графа.
+**Что сделано с HippoRAG.** Закреплён HippoRAG 2.0.0a5 на upstream commit `1438aba3fc44ff10573e5a5e1e7cc3c7f9794aff`. Для rebuilt OpenIE state выполнен read-only аудит: 446 документов имеют пустые entities и непустые triples, 27 — непустые entities и пустые triples, 8 — оба поля пусты, 5019 — оба непусты. В SQLite LLM cache есть 180 ответов с `finish_reason=length` и 200 non-JSON, но cache не хранит passage ID или исходный prompt. Поэтому эти cache записи нельзя отнести к конкретному документу. Пустой `openie_extraction_failures` final cache-replay не доказывает отсутствие ошибок исходного построения графа. Для новых запусков реализованы attempt-level статусы, безопасная запись provenance и acceptance gate; исторические результаты задним числом не реконструируются.
 
 **Учёт и воспроизводимость.** Сохранены компактные public summaries для четырёх локальных run без ответов, passages, секретов, локальных путей и localhost URL. Экспорт в MLflow проверяет хэш результатов, полный упорядоченный список question ID и конфигурацию; trace выбирается по точному атрибуту `rag.run_id`. Для будущих HippoRAG run записываются wall time query embedding, retrieval, generation и полного вопроса. Старые raw-результаты не переписывались.
 
 **Ближайшая работа без новых LLM-вызовов.**
 
 1. Прочитать `docs/LUNA_REVIEW_HANDOFF.md`, `docs/LOCAL_MVP.md`, `docs/TASKS.md` и ADR-0006; проверить, что дальнейшие изменения не противоречат зафиксированным ограничениям.
-2. Политика extraction failures и candidate S500[200:300] записаны в [ADR-0007](.adr/0007-openie-extraction-audit-and-independent-evaluation.md); статусы runner ещё не реализованы.
-3. Реализовать запись статусов и acceptance gate с синтетическими тестами; проверить candidate IDs на disjointness с сохранёнными manifests и закрепить их хэш. Не запускать выборку и не использовать `holdout100`.
-4. Перед независимым или дорогим прогоном дать короткий отчёт о готовности протокола и дождаться отдельного разрешения.
+2. Политика OpenIE attempt statuses и gate реализована с синтетическими тестами; независимое построение индекса не запускалось.
+3. Кандидат S500[200:300] закреплён с ordered IDs/hash. Audit проверил 29 MuSiQue manifests и 4 raw-only результата; пересечений нет. Перед прогоном проверку нужно повторить с актуальными артефактами.
+4. До генерации ещё требуется protocol freeze (одинаковые модели, reader, corpus, параметры и метрики); после этого дать readiness report и дождаться отдельного разрешения. `holdout100`, новые 100-вопросные прогоны и сравнение с 7B не запускать.
 
 Оставшиеся ограничения: полный index cost неизвестен из-за нескольких попыток и одного запроса с неизвестным usage; OpenIE coverage не измеряет качество extraction; целевой внутренний API, T4 и HotpotQA не проверены; RAPTOR, LightRAG, cost model, bootstrap и router ещё не реализованы. В HippoRAG debug10 один ответ завершился по `length` без `Answer:`.
 

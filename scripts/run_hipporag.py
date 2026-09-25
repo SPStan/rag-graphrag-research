@@ -21,11 +21,16 @@ from string import Template
 import numpy as np
 import requests
 
+try:
+    from scripts.openie_protocol import build_openie_acceptance_gate, classify_openie_attempt
+except ModuleNotFoundError:  # Direct script execution puts scripts/ on sys.path.
+    from openie_protocol import build_openie_acceptance_gate, classify_openie_attempt
+
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_RESULTS = ROOT / "results" / "raw"
 DEFAULT_STORAGE = ROOT / "storage" / "hipporag2"
 OLLAMA_BASE_URL = "http://localhost:11434/v1"
-RUNNER_VERSION = "hipporag2-local-runner-v3"
+RUNNER_VERSION = "hipporag2-local-runner-v4"
 PROMPT_VERSION = "hipporag2-musique-one-shot-v6"
 UPSTREAM_READER_PROMPT_VERSION = "hipporag2-upstream-reader-v1"
 PROMPT_SOURCE_COMMIT = "1438aba3fc44ff10573e5a5e1e7cc3c7f9794aff"
@@ -450,14 +455,80 @@ def record_openie_failure(failures, lock, passage_id, exc, stage):
     return failure
 
 
+def record_openie_attempt(attempts, lock, *, run_id, pid, passage, stage,
+                          attempt_number, response, metadata, values,
+                          model_digest, call_event=None, parse_error=False,
+                          request_error=False, retry_of_attempt=None):
+    """Append safe per-attempt provenance; never retain prompts or response text."""
+    raw = response.encode("utf-8") if isinstance(response, str) else None
+    finish_reason = metadata.get("finish_reason") if isinstance(metadata, dict) else None
+    status = classify_openie_attempt(
+        response, finish_reason, values, parse_error=parse_error,
+        request_error=request_error,
+    )
+    record = {
+        "index_run_id": run_id,
+        "passage_id": pid,
+        "passage_fingerprint_sha256": sha256_bytes(passage.encode("utf-8")),
+        "stage": stage,
+        "attempt": attempt_number,
+        "retry_of_attempt": retry_of_attempt,
+        "model_digest": model_digest,
+        "prompt_schema_version": (
+            f"hipporag2-2.0.0a5-{stage.removeprefix('openie_')}-upstream-template"
+        ),
+        "response_format": "json_object",
+        "prompt_sha256": call_event.get("prompt_sha256") if call_event else None,
+        "cache_hit": call_event.get("cache_hit") if call_event else None,
+        "cache_status": (
+            "hit" if call_event and call_event.get("cache_hit") is True else
+            "miss" if call_event and call_event.get("cache_hit") is False else
+            "not_observed_at_llm_layer"
+        ),
+        "source_provenance_complete": call_event is not None,
+        "finish_reason": finish_reason,
+        "status": status,
+        "status_reason": {
+            "request_error": "request_exception",
+            "parse_error": "upstream_schema_or_parse_error",
+            "truncated": "finish_reason_length",
+            "raw_response_missing": "response_body_missing",
+            "completion_unknown": "finish_reason_missing_or_nonterminal",
+        }.get(status),
+        "response_sha256": sha256_bytes(raw) if raw is not None else None,
+        "response_bytes": len(raw) if raw is not None else None,
+        "partial_recovery_succeeded": (
+            values is not None and not parse_error
+            if finish_reason == "length" else None
+        ),
+        "usage": ({key: call_event["usage"].get(key)
+                   for key in ("prompt_tokens", "completion_tokens")}
+                  if call_event and isinstance(call_event.get("usage"), dict) else None),
+        "usage_unknown": (not bool(call_event and isinstance(call_event.get("usage"), dict))
+                          or bool(call_event.get("usage_unknown"))),
+        "client_seconds": call_event.get("client_seconds") if call_event else None,
+    }
+    with lock:
+        attempts.append(record)
+    return record
+
+
 def instrument_models(rag, corpus, query_text_to_id, events, lock,
                      embedding_max_inputs_per_second=18.0,
-                     embedding_request_batch_size=4):
+                     embedding_request_batch_size=4, run_id=None,
+                     model_digest=None):
     """Record SDK usage and cache state without storing any raw prompts or texts."""
     local = threading.local()
     openie_failures = []
     openie_failures_lock = threading.Lock()
     local.openie_failures = openie_failures
+    openie_attempts = []
+    openie_attempts_lock = threading.Lock()
+    local.openie_attempts = openie_attempts
+    local.last_chat_event = None
+    local.openie_attempt_number = None
+    local.run_id = run_id
+    local.model_digest = model_digest
     passage_id_by_text = {item["title"] + "\n" + item["text"]: item["id"] for item in corpus}
     query_id_by_embedding = {text: qid for text, qid in query_text_to_id.items()}
 
@@ -486,22 +557,30 @@ def instrument_models(rag, corpus, query_text_to_id, events, lock,
                      "passage_id": getattr(local, "passage_id", None),
                      "question_id": getattr(local, "question_id", None),
                      "prompt_sha256": sha256_bytes(serialized.encode("utf-8")),
-                     "usage_unknown": True, "error_type": type(exc).__name__}
+                     "usage_unknown": True, "error_type": type(exc).__name__,
+                     "attempt": getattr(local, "openie_attempt_number", None)}
             _append_event(events, lock, event)
+            local.last_chat_event = event
             raise
         complete_usage = all(isinstance(metadata.get(key), int)
                              and not isinstance(metadata.get(key), bool)
                              and metadata[key] >= 0
                              for key in ("prompt_tokens", "completion_tokens"))
-        if not complete_usage:
-            raise RuntimeError("HippoRAG chat response did not provide complete token usage")
         event = {"kind": "chat", "stage": getattr(local, "stage", "unknown"),
                  "passage_id": getattr(local, "passage_id", None),
                  "question_id": getattr(local, "question_id", None),
                  "prompt_sha256": sha256_bytes(serialized.encode("utf-8")),
                  "usage": metadata, "cache_hit": bool(cache_hit),
-                 "client_seconds": time.perf_counter() - started}
+                 "usage_unknown": not complete_usage,
+                 "client_seconds": time.perf_counter() - started,
+                 "finish_reason": metadata.get("finish_reason"),
+                 "response_sha256": sha256_bytes(response.encode("utf-8"))
+                 if isinstance(response, str) else None,
+                 "response_bytes": len(response.encode("utf-8"))
+                 if isinstance(response, str) else None,
+                 "attempt": getattr(local, "openie_attempt_number", None)}
         _append_event(events, lock, event)
+        local.last_chat_event = event
         return response, metadata, cache_hit
 
     llm.infer = tracked_infer
@@ -570,22 +649,57 @@ def instrument_models(rag, corpus, query_text_to_id, events, lock,
     def tracked_ner(chunk_key, passage):
         local.stage = "openie_ner"
         local.passage_id = passage_id_by_text.get(passage)
+        local.openie_attempt_number = 1
+        local.last_chat_event = None
         try:
-            result = original_ner(chunk_key, passage)
+            try:
+                result = original_ner(chunk_key, passage)
+            except Exception as exc:
+                record_openie_attempt(openie_attempts, openie_attempts_lock,
+                                      run_id=local.run_id, pid=local.passage_id,
+                                      passage=passage, stage="openie_ner", attempt_number=1,
+                                      response=None, metadata={}, values=None,
+                                      model_digest=local.model_digest,
+                                      call_event=local.last_chat_event, request_error=True)
+                raise
             if not result.metadata.get("error"):
                 try:
                     entities = normalize_ner_entities(result.unique_entities)
                 except ValueError:
                     # An otherwise cache-valid response can still contain an
                     # unsupported item; retry it once below without the cache.
-                    pass
+                    entities = None
                 else:
                     if entities == result.unique_entities:
+                        record_openie_attempt(
+                            openie_attempts, openie_attempts_lock,
+                            run_id=local.run_id, pid=local.passage_id,
+                            passage=passage, stage="openie_ner", attempt_number=1,
+                            response=result.response, metadata=result.metadata,
+                            values=entities, model_digest=local.model_digest,
+                            call_event=local.last_chat_event)
                         return result
-                    metadata = dict(result.metadata)
-                    metadata["ner_object_items_normalized"] = True
-                    return type(result)(chunk_id=chunk_key, response=result.response,
-                                        unique_entities=entities, metadata=metadata)
+                record_openie_attempt(
+                    openie_attempts, openie_attempts_lock,
+                    run_id=local.run_id, pid=local.passage_id,
+                    passage=passage, stage="openie_ner", attempt_number=1,
+                    response=result.response, metadata=result.metadata, values=None,
+                    model_digest=local.model_digest, call_event=local.last_chat_event,
+                    parse_error=not bool(local.last_chat_event and
+                                         local.last_chat_event.get("error_type")),
+                    request_error=bool(local.last_chat_event and
+                                        local.last_chat_event.get("error_type")))
+            else:
+                record_openie_attempt(
+                    openie_attempts, openie_attempts_lock,
+                    run_id=local.run_id, pid=local.passage_id,
+                    passage=passage, stage="openie_ner", attempt_number=1,
+                    response=result.response, metadata=result.metadata, values=None,
+                    model_digest=local.model_digest, call_event=local.last_chat_event,
+                    parse_error=not bool(local.last_chat_event and
+                                         local.last_chat_event.get("error_type")),
+                    request_error=bool(local.last_chat_event and
+                                        local.last_chat_event.get("error_type")))
 
             # Retry malformed/cut-off NER once without consulting the upstream
             # response cache. Successful cached passages remain untouched.
@@ -603,17 +717,37 @@ def instrument_models(rag, corpus, query_text_to_id, events, lock,
             if response_format is not None:
                 kwargs["response_format"] = response_format
             try:
+                local.openie_attempt_number = 2
+                local.last_chat_event = None
                 response, metadata, _ = rag.qa_llm.infer(messages=messages, **kwargs)
                 parsed = (fix_broken_generated_json(response)
                           if metadata.get("finish_reason") == "length" else response)
                 entities = normalize_ner_entities(_extract_ner_from_response(parsed))
             except Exception as exc:
+                record_openie_attempt(
+                    openie_attempts, openie_attempts_lock,
+                    run_id=local.run_id, pid=local.passage_id,
+                    passage=passage, stage="openie_ner", attempt_number=2,
+                    response=locals().get("response"), metadata=locals().get("metadata", {}),
+                    values=None, model_digest=local.model_digest,
+                    call_event=local.last_chat_event,
+                    parse_error=not bool(local.last_chat_event and
+                                         local.last_chat_event.get("error_type")),
+                    request_error=bool(local.last_chat_event and
+                                       local.last_chat_event.get("error_type")),
+                    retry_of_attempt=1)
                 record_openie_failure(openie_failures, openie_failures_lock,
                                       local.passage_id, exc, "openie_ner")
                 return type(result)(chunk_id=chunk_key, response="",
                                     unique_entities=[],
                                     metadata={"extraction_failed": True,
                                               "retry_without_cache": True})
+            record_openie_attempt(
+                openie_attempts, openie_attempts_lock,
+                run_id=local.run_id, pid=local.passage_id, passage=passage,
+                stage="openie_ner", attempt_number=2, response=response,
+                metadata=metadata, values=entities, model_digest=local.model_digest,
+                call_event=local.last_chat_event, retry_of_attempt=1)
             metadata = dict(metadata)
             metadata["retry_without_cache"] = True
             metadata["ner_object_items_normalized"] = True
@@ -624,16 +758,45 @@ def instrument_models(rag, corpus, query_text_to_id, events, lock,
         finally:
             local.stage = "index_embedding"
             local.passage_id = None
+            local.openie_attempt_number = None
     rag.openie.ner = tracked_ner
 
     original_triples = rag.openie.triple_extraction
     def tracked_triples(chunk_key, passage, named_entities):
         local.stage = "openie_triples"
         local.passage_id = passage_id_by_text.get(passage)
+        local.openie_attempt_number = 1
+        local.last_chat_event = None
         try:
-            result = original_triples(chunk_key, passage, named_entities)
+            try:
+                result = original_triples(chunk_key, passage, named_entities)
+            except Exception:
+                record_openie_attempt(
+                    openie_attempts, openie_attempts_lock,
+                    run_id=local.run_id, pid=local.passage_id, passage=passage,
+                    stage="openie_triples", attempt_number=1, response=None,
+                    metadata={}, values=None, model_digest=local.model_digest,
+                    call_event=local.last_chat_event, request_error=True)
+                raise
             if not result.metadata.get("error"):
+                record_openie_attempt(
+                    openie_attempts, openie_attempts_lock,
+                    run_id=local.run_id, pid=local.passage_id, passage=passage,
+                    stage="openie_triples", attempt_number=1,
+                    response=result.response, metadata=result.metadata,
+                    values=result.triples, model_digest=local.model_digest,
+                    call_event=local.last_chat_event)
                 return result
+            record_openie_attempt(
+                openie_attempts, openie_attempts_lock,
+                run_id=local.run_id, pid=local.passage_id, passage=passage,
+                stage="openie_triples", attempt_number=1,
+                response=result.response, metadata=result.metadata, values=None,
+                model_digest=local.model_digest, call_event=local.last_chat_event,
+                parse_error=not bool(local.last_chat_event and
+                                     local.last_chat_event.get("error_type")),
+                request_error=bool(local.last_chat_event and
+                                   local.last_chat_event.get("error_type")))
 
             # As with NER, a malformed cached answer must not poison retries.
             from hipporag.prompts import PromptTemplateManager
@@ -651,12 +814,26 @@ def instrument_models(rag, corpus, query_text_to_id, events, lock,
             if response_format is not None:
                 kwargs["response_format"] = response_format
             try:
+                local.openie_attempt_number = 2
+                local.last_chat_event = None
                 response, metadata, _ = rag.qa_llm.infer(messages=messages, **kwargs)
                 parsed = (fix_broken_generated_json(response)
                           if metadata.get("finish_reason") == "length" else response)
                 triples = filter_invalid_triples(
                     triples=_extract_json_list_field(parsed, "triples"))
             except Exception as exc:
+                record_openie_attempt(
+                    openie_attempts, openie_attempts_lock,
+                    run_id=local.run_id, pid=local.passage_id, passage=passage,
+                    stage="openie_triples", attempt_number=2,
+                    response=locals().get("response"), metadata=locals().get("metadata", {}),
+                    values=None, model_digest=local.model_digest,
+                    call_event=local.last_chat_event,
+                    parse_error=not bool(local.last_chat_event and
+                                         local.last_chat_event.get("error_type")),
+                    request_error=bool(local.last_chat_event and
+                                       local.last_chat_event.get("error_type")),
+                    retry_of_attempt=1)
                 # Ollama may abort one fragment on token repetition. Keep a
                 # partial graph, and disclose the omitted extraction explicitly.
                 record_openie_failure(openie_failures, openie_failures_lock,
@@ -665,6 +842,12 @@ def instrument_models(rag, corpus, query_text_to_id, events, lock,
                                     metadata={"extraction_failed": True,
                                               "retry_without_cache": True},
                                     triples=[])
+            record_openie_attempt(
+                openie_attempts, openie_attempts_lock,
+                run_id=local.run_id, pid=local.passage_id, passage=passage,
+                stage="openie_triples", attempt_number=2, response=response,
+                metadata=metadata, values=triples, model_digest=local.model_digest,
+                call_event=local.last_chat_event, retry_of_attempt=1)
             metadata = dict(metadata)
             metadata["retry_without_cache"] = True
             return type(result)(chunk_id=chunk_key, response=response,
@@ -672,6 +855,7 @@ def instrument_models(rag, corpus, query_text_to_id, events, lock,
         finally:
             local.stage = "index_embedding"
             local.passage_id = None
+            local.openie_attempt_number = None
     rag.openie.triple_extraction = tracked_triples
 
     original_index = rag.index
@@ -959,7 +1143,7 @@ def run(args):
     index_storage = storage / f"index-{model_identity[:12]}"
     index_storage.mkdir(parents=True, exist_ok=True)
     manifest = {
-        "schema_version": 1, "run_id": run_id, "dataset": args.dataset,
+        "schema_version": 2, "run_id": run_id, "dataset": args.dataset,
         "status": "initializing", "created_at": timestamp,
         "runner": RUNNER_VERSION, "source": git_snapshot(), "runtime": runtime,
         "inputs": {"corpus_path": str(args.corpus), "corpus_sha256": sha256_file(args.corpus),
@@ -1022,6 +1206,7 @@ def run(args):
     embedding.request_model_name = args.embedding_model
     embedding.embedding_config.embedding_model_name = args.embedding_model
     rag = None
+    local = None
     try:
         rag = HippoRAG(global_config=config, extraction_llm=llm, qa_llm=llm,
                        embedding_model=embedding, index_identity=f"ollama:{model_identity}")
@@ -1040,7 +1225,9 @@ def run(args):
             write_json_atomic(manifest_path, manifest)
         local = instrument_models(rag, corpus, question_text_to_id, events, event_lock,
                                   args.embedding_max_inputs_per_second,
-                                  args.embedding_request_batch_size)
+                                  args.embedding_request_batch_size,
+                                  run_id=run_id,
+                                  model_digest=model_generation["digest"])
         before = {
             "passages": set(rag.chunk_embedding_store.get_all_ids()),
             "entities": set(rag.entity_embedding_store.get_all_ids()),
@@ -1103,6 +1290,9 @@ def run(args):
         manifest["results_sha256"] = results_hash
         manifest["index"] = {"build_seconds": round(index_seconds, 6), "cache": cache_counts,
                               "usage": summarize_usage(events, corpus)}
+        manifest["index"]["openie_attempts"] = local.openie_attempts
+        manifest["index"]["openie_acceptance_gate"] = build_openie_acceptance_gate(
+            [item["id"] for item in corpus], local.openie_attempts)
         manifest["index"]["openie_extraction_failures"] = sorted(
             local.openie_failures, key=lambda item: item.get("passage_id") or "")
         manifest["usage_events"] = events
@@ -1133,12 +1323,20 @@ def run(args):
                          ensure_ascii=False, indent=2))
         return results_path
     except KeyboardInterrupt:
+        if local is not None:
+            manifest.setdefault("index", {})["openie_attempts"] = local.openie_attempts
+            manifest["index"]["openie_acceptance_gate"] = build_openie_acceptance_gate(
+                [item["id"] for item in corpus], local.openie_attempts)
         persist_interrupted_run(manifest, manifest_path, events, event_lock)
         raise
     except Exception as exc:
         manifest["status"] = "failed"
         manifest["error_type"] = type(exc).__name__
         manifest["error"] = str(exc)
+        if local is not None:
+            manifest.setdefault("index", {})["openie_attempts"] = local.openie_attempts
+            manifest["index"]["openie_acceptance_gate"] = build_openie_acceptance_gate(
+                [item["id"] for item in corpus], local.openie_attempts)
         manifest["usage_events"] = events
         write_json_atomic(manifest_path, manifest)
         raise
