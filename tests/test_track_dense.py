@@ -5,7 +5,7 @@ import unittest
 from types import SimpleNamespace
 
 from scripts.track_dense import (get_all_langfuse_observations, prepare_payload,
-                                 verify_langfuse_trace)
+                                 select_mlflow_trace_for_run, verify_langfuse_trace)
 
 
 class DenseTrackingPayloadTests(unittest.TestCase):
@@ -37,9 +37,13 @@ class DenseTrackingPayloadTests(unittest.TestCase):
             row = {"run_id": run_id, "dataset": "musique", "question_id": "q1",
                    "question": "Who?", "retrieved": [{"id": "p1", "score": 0.9}]}
             run_path.write_text(json.dumps(row) + "\n", encoding="utf-8")
-            metrics_path.write_text(json.dumps({"run_id": run_id}), encoding="utf-8")
-            manifest_path.write_text(json.dumps({"run_id": run_id, "status": "completed"}),
-                                     encoding="utf-8")
+            run_hash = __import__("hashlib").sha256(run_path.read_bytes()).hexdigest()
+            metrics_path.write_text(json.dumps({"run_id": run_id, "dataset": "musique",
+                                                 "questions_evaluated": 1, "top_k": 5}), encoding="utf-8")
+            manifest_path.write_text(json.dumps({"run_id": run_id, "status": "completed",
+                "dataset": "musique", "expected_question_ids": ["q1"], "results_sha256": run_hash,
+                "generation": {"model": {"name": "g"}}, "embedding": {"model": {"name": "e"}},
+                "retrieval": {"method": "cosine", "top_k": 5}}), encoding="utf-8")
             corpus_path.write_text(json.dumps([{"id": "p1", "title": "A", "text": "Full passage"}]),
                                    encoding="utf-8")
 
@@ -68,6 +72,44 @@ class DenseTrackingPayloadTests(unittest.TestCase):
                                      encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "completed runs"):
                 prepare_payload(run_path, metrics_path, manifest_path, corpus_path)
+
+    def test_mlflow_trace_selection_uses_exact_run_id(self):
+        def trace(trace_id, run_id):
+            return SimpleNamespace(data=SimpleNamespace(spans=[
+                SimpleNamespace(name="dense-rag-run", attributes={"rag.run_id": run_id}),
+                SimpleNamespace(name="generation", attributes={}),
+            ]))
+
+        class FakeMlflow:
+            def search_traces(self, **_kwargs):
+                return {"trace_id": SimpleNamespace(tolist=lambda: ["old", "wanted"])}
+
+            def get_trace(self, trace_id):
+                return trace(trace_id, "old-run" if trace_id == "old" else "wanted-run")
+
+        selected = select_mlflow_trace_for_run(FakeMlflow(), "1", "dense-rag-run", "wanted-run")
+        self.assertEqual(selected["trace_id"], "wanted")
+
+    def test_payload_rejects_manifest_question_sequence_mismatch(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            run_path = root / "run.jsonl"
+            run_path.write_text(json.dumps({"run_id": "one", "dataset": "musique",
+                                             "question_id": "q1", "retrieved": []}) + "\n",
+                                encoding="utf-8")
+            (root / "metrics.json").write_text(json.dumps({"run_id": "one", "dataset": "musique",
+                "questions_evaluated": 1, "top_k": 5}), encoding="utf-8")
+            (root / "manifest.json").write_text(json.dumps({
+                "run_id": "one", "status": "completed", "dataset": "musique",
+                "expected_question_ids": ["other"],
+                "results_sha256": __import__("hashlib").sha256(run_path.read_bytes()).hexdigest(),
+                "generation": {"model": {"name": "g"}}, "embedding": {"model": {"name": "e"}},
+                "retrieval": {"method": "cosine", "top_k": 5},
+            }), encoding="utf-8")
+            (root / "corpus.json").write_text("[]", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "question_id sequence"):
+                prepare_payload(run_path, root / "metrics.json", root / "manifest.json",
+                                root / "corpus.json")
 
     def test_langfuse_verification_checks_run_id_full_text_and_known_usage(self):
         payload = {"run_id": "one", "rows": [{"prompt_tokens": 10,

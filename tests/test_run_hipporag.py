@@ -14,11 +14,29 @@ from scripts.run_hipporag import (normalize_inputs, parse_args, passage_id,
                                   record_openie_failure, instrument_models,
                                   build_shared_reader_messages, install_shared_reader_template,
                                   run_shared_reader, git_snapshot,
-                                  install_no_truncate_embedding_api, ollama_api_base)
+                                  install_no_truncate_embedding_api, ollama_api_base,
+                                  build_rows)
 from scripts.run_dense import build_reader_messages
 
 
 class HippoRAGRunnerTests(unittest.TestCase):
+    def test_rows_record_measured_per_question_timing(self):
+        passage = {"id": "p1", "title": "Title", "text": "Text"}
+        solution = SimpleNamespace(answer="Answer: Alice", docs=["Title\nText"],
+                                   doc_scores=np.asarray([0.9]))
+        rows = build_rows(
+            "run", "musique", [{"id": "q1", "question": "Who?"}], [solution],
+            ["Answer: Alice"], [{"finish_reason": "stop", "prompt_tokens": 1,
+                                  "completion_tokens": 2}], {"Title\nText": passage},
+            {"q1": 3}, {"name": "embed"}, {"name": "generate"}, 5,
+            {"temperature": 0}, "fingerprint", {"version": "v1"},
+            {"q1": 0.1}, {"q1": 0.2}, {"q1": 0.3}, {"q1": 0.5},
+        )
+        self.assertEqual(rows[0]["query_embedding_client_seconds"], 0.1)
+        self.assertEqual(rows[0]["retrieval_seconds"], 0.2)
+        self.assertEqual(rows[0]["generation_wall_seconds"], 0.3)
+        self.assertEqual(rows[0]["question_end_to_end_seconds"], 0.5)
+
     def test_git_snapshot_works_with_workspace_safe_directory_override(self):
         snapshot = git_snapshot()
 

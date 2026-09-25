@@ -470,6 +470,7 @@ def instrument_models(rag, corpus, query_text_to_id, events, lock,
             raise ValueError("Missing messages for a tracked HippoRAG chat call")
         serialized = json.dumps(messages, ensure_ascii=False, sort_keys=True, default=str)
         bypass_cache = kwargs.pop("_bypass_cache", False)
+        started = time.perf_counter()
         try:
             if bypass_cache:
                 # The upstream decorator caches malformed JSON too. A targeted
@@ -498,7 +499,8 @@ def instrument_models(rag, corpus, query_text_to_id, events, lock,
                  "passage_id": getattr(local, "passage_id", None),
                  "question_id": getattr(local, "question_id", None),
                  "prompt_sha256": sha256_bytes(serialized.encode("utf-8")),
-                 "usage": metadata, "cache_hit": bool(cache_hit)}
+                 "usage": metadata, "cache_hit": bool(cache_hit),
+                 "client_seconds": time.perf_counter() - started}
         _append_event(events, lock, event)
         return response, metadata, cache_hit
 
@@ -535,6 +537,7 @@ def instrument_models(rag, corpus, query_text_to_id, events, lock,
                     time.sleep(wait)
                 last_embedding_started[0] = time.perf_counter()
                 try:
+                    started = time.perf_counter()
                     result = original_encode(batch)
                 except Exception:
                     usage = dict(embedding_model.last_usage or {})
@@ -552,7 +555,8 @@ def instrument_models(rag, corpus, query_text_to_id, events, lock,
                         or usage["prompt_tokens"] < 0):
                     raise RuntimeError("HippoRAG embedding response did not provide prompt token usage")
                 event = {"kind": "embedding", "stage": getattr(local, "stage", "unknown"),
-                         "items": items, "batch_size": len(batch), "usage": usage}
+                         "items": items, "batch_size": len(batch), "usage": usage,
+                         "client_seconds": time.perf_counter() - started}
                 _append_event(events, lock, event)
                 total_usage["prompt_tokens"] += usage["prompt_tokens"]
                 total_usage["total_tokens"] += usage.get("total_tokens", usage["prompt_tokens"])
@@ -807,7 +811,8 @@ def load_hipporag_classes():
 def build_rows(run_id, dataset, queries, solutions, raw_answers,
                generation_metadata, corpus_by_text, query_usage, model_embedding,
                model_generation, top_k, generation_options, index_fingerprint,
-               reader_info):
+               reader_info, query_embedding_seconds, retrieval_seconds,
+               generation_seconds, question_seconds):
     rows = []
     for query, solution, raw, metadata in zip(queries, solutions, raw_answers, generation_metadata):
         if not isinstance(raw, str) or not isinstance(solution.answer, str):
@@ -851,10 +856,10 @@ def build_rows(run_id, dataset, queries, solutions, raw_answers,
             "prompt_tokens": prompt_tokens,
             "completion_tokens": completion_tokens,
             "query_embedding_prompt_tokens": query_usage.get(query["id"]),
-            "query_embedding_client_seconds": None,
-            "retrieval_seconds": None,
-            "generation_wall_seconds": None,
-            "question_end_to_end_seconds": None,
+            "query_embedding_client_seconds": query_embedding_seconds.get(query["id"]),
+            "retrieval_seconds": retrieval_seconds.get(query["id"]),
+            "generation_wall_seconds": generation_seconds.get(query["id"]),
+            "question_end_to_end_seconds": question_seconds.get(query["id"]),
         }
         rows.append(row)
     return rows
@@ -1050,20 +1055,34 @@ def run(args):
         raw_answers = []
         generation_metadata = []
         query_usage = {}
+        query_embedding_seconds = {}
         retrieval_seconds = {}
+        generation_seconds = {}
+        question_seconds = {}
         for query in queries:
-            started = time.perf_counter()
+            question_started = time.perf_counter()
+            retrieval_started = time.perf_counter()
             with current_question(local, query["id"]):
                 retrieved = rag.retrieve([query["question"]])
-            retrieval_seconds[query["id"]] = time.perf_counter() - started
+            retrieval_seconds[query["id"]] = time.perf_counter() - retrieval_started
             solution = retrieved[0]
+            generation_started = time.perf_counter()
             with current_question(local, query["id"]):
                 qa_solutions, raw, metadata = rag.qa([solution])
+            generation_seconds[query["id"]] = time.perf_counter() - generation_started
+            question_seconds[query["id"]] = time.perf_counter() - question_started
             solutions.extend(qa_solutions)
             raw_answers.extend(raw)
             generation_metadata.extend(metadata)
             query_usage[query["id"]] = sum(
                 event["usage"].get("prompt_tokens", 0)
+                for event in events if event["kind"] == "embedding"
+                and event.get("stage") == "graph_retrieval"
+                and event.get("batch_size") == 1
+                and any(item.get("question_id") == query["id"] for item in event.get("items", []))
+            ) or None
+            query_embedding_seconds[query["id"]] = sum(
+                event.get("client_seconds", 0.0)
                 for event in events if event["kind"] == "embedding"
                 and event.get("stage") == "graph_retrieval"
                 and event.get("batch_size") == 1
@@ -1076,9 +1095,9 @@ def run(args):
         rows = build_rows(run_id, args.dataset, queries, solutions,
                           raw_answers, generation_metadata, corpus_by_text,
                           query_usage, model_embedding, model_generation, top_k,
-                          generation_options, corpus_fingerprint, reader_info)
-        for row in rows:
-            row["retrieval_seconds"] = retrieval_seconds[row["question_id"]]
+                          generation_options, corpus_fingerprint, reader_info,
+                          query_embedding_seconds, retrieval_seconds,
+                          generation_seconds, question_seconds)
         write_jsonl_atomic(results_path, rows)
         results_hash = sha256_file(results_path)
         manifest["results_sha256"] = results_hash

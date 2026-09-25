@@ -96,6 +96,26 @@ def verify_langfuse_trace(observations, payload):
             "generation_usage": generation_usage}
 
 
+def select_mlflow_trace_for_run(mlflow, experiment_id, trace_name, run_id):
+    """Find the one trace whose root span carries this exported RAG run ID."""
+    traces = mlflow.search_traces(locations=[experiment_id], max_results=100)
+    trace_ids = traces["trace_id"].tolist() if "trace_id" in traces else []
+    matching = []
+    for trace_id in trace_ids:
+        trace = mlflow.get_trace(trace_id)
+        for span in trace.data.spans:
+            attributes = getattr(span, "attributes", {}) or {}
+            if (span.name == trace_name and attributes.get("rag.run_id") == run_id):
+                matching.append({"trace_id": trace_id,
+                                 "span_names": [item.name for item in trace.data.spans]})
+                break
+    if len(matching) != 1:
+        raise RuntimeError(
+            "MLflow trace lookup must find exactly one trace with the exported rag.run_id"
+        )
+    return matching[0]
+
+
 def prepare_payload(run_path, metrics_path, manifest_path, corpus_path):
     rows = [json.loads(line) for line in run_path.read_text(encoding="utf-8").splitlines()
             if line.strip()]
@@ -110,15 +130,33 @@ def prepare_payload(run_path, metrics_path, manifest_path, corpus_path):
     if manifest.get("status") != "completed":
         raise ValueError("Only completed runs can be exported")
     expected_results_hash = manifest.get("results_sha256")
-    if expected_results_hash and hashlib.sha256(run_path.read_bytes()).hexdigest() != expected_results_hash:
+    if not expected_results_hash:
+        raise ValueError("Run manifest must contain results_sha256")
+    if hashlib.sha256(run_path.read_bytes()).hexdigest() != expected_results_hash:
         raise ValueError("Run JSONL does not match the results hash in its manifest")
+    expected_ids = manifest.get("expected_question_ids")
+    actual_ids = [row.get("question_id") for row in rows]
+    if not isinstance(expected_ids, list) or not expected_ids:
+        raise ValueError("Run manifest must contain expected_question_ids")
+    if expected_ids != actual_ids:
+        raise ValueError("Run JSONL question_id sequence does not match its manifest")
+    if not manifest.get("dataset") or manifest.get("dataset") != rows[0].get("dataset"):
+        raise ValueError("Run manifest dataset does not match the JSONL")
+    generation = manifest.get("generation", {})
+    embedding = manifest.get("embedding", {})
+    retrieval = manifest.get("retrieval", {})
+    if not all((generation.get("model"), embedding.get("model"), retrieval.get("method"),
+                retrieval.get("top_k"))):
+        raise ValueError("Run manifest lacks required model or retrieval configuration")
     expected_corpus_hash = manifest.get("inputs", {}).get("corpus_sha256")
     if expected_corpus_hash and hashlib.sha256(corpus_path.read_bytes()).hexdigest() != expected_corpus_hash:
         raise ValueError("Corpus does not match the pinned hash in the run manifest")
-    if metrics.get("questions_evaluated") not in (None, len(rows)):
+    if metrics.get("questions_evaluated") != len(rows):
         raise ValueError("Metrics question count does not match the JSONL")
-    if metrics.get("dataset") not in (None, rows[0].get("dataset")):
+    if metrics.get("dataset") != rows[0].get("dataset"):
         raise ValueError("Metrics dataset does not match the JSONL")
+    if metrics.get("top_k") != retrieval["top_k"]:
+        raise ValueError("Metrics top_k does not match the manifest")
     corpus = read_json(corpus_path)
     passages = {passage["id"]: passage for passage in corpus}
     questions = []
@@ -239,18 +277,9 @@ def export_mlflow(payload, mlflow):
         experiment_id = active.info.experiment_id
         mlflow_run_id = active.info.run_id
 
-    traces = mlflow.search_traces(locations=[experiment_id], max_results=100)
-    trace_ids = traces["trace_id"].tolist() if "trace_id" in traces else []
-    matching = []
-    for trace_id in trace_ids:
-        trace = mlflow.get_trace(trace_id)
-        span_names = [span.name for span in trace.data.spans]
-        if trace_name in span_names:
-            matching.append({"trace_id": trace_id, "span_names": span_names})
-    if not matching:
-        raise RuntimeError("MLflow run was logged, but its trace was not found after flushing")
     return {"experiment_id": experiment_id, "mlflow_run_id": mlflow_run_id,
-            "trace": matching[0]}
+            "trace": select_mlflow_trace_for_run(mlflow, experiment_id, trace_name,
+                                                   payload["run_id"])}
 
 
 def export_langfuse(payload, base_dir=ROOT):
