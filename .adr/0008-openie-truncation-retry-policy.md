@@ -35,6 +35,10 @@ For a future repair, preserve all original attempt rows. A dependency refresh of
 
 For a truncated attempt, retain any schema-valid partial parsed values only for the `partial_recovery_succeeded` diagnostic. The attempt status remains `truncated` and the OpenIE gate still requires a complete successful retry. The pinned upstream parser returns an empty list on parse failure and records the error in metadata, so an empty fallback must not be mistaken for successful recovery. A partial parse with `metadata.error`, an unsupported structure, or no list is recorded with `partial_recovery_succeeded=false`.
 
+### 2026-09-25 implementation update
+
+Synthetic tests now cover the linked dependency-refresh gate, one explicitly marked attempt 3 for stages whose second attempt was unresolved, and the copy-only vector/state repair helpers. A deterministic read-only planner verifies source corpus and manifest hashes, orders NER repairs before dependent triple refreshes, and writes only an aggregate plan with a hash of the ordered schedule ([plan summary](../results/summary/hipporag-repair-plan.json)). For the diagnostic source run, the first scheduled pass has 38 NER requests, 158 triple requests (36 of them additional refreshes beyond the 122 unresolved triple outcomes), and two remedial attempt-3 requests. No model requests or real index copies were made. The request runner, request-level manifest wiring, tokenizer-backed context feasibility check, and real graph integration remain prerequisites; `not_ready_for_model_calls` is unchanged.
+
 ## Review conditions
 
 Revisit this policy if the chosen model/context cannot complete extractions under a predeclared cap, if one retry is insufficient, or if a future labeled extraction audit shows that valid empty outputs need different handling. Any additional retries or partial-output salvage policy requires a new decision and must account for all additional usage.
