@@ -22,7 +22,7 @@
 
 1. Прочитать `docs/LUNA_REVIEW_HANDOFF.md`, `docs/LOCAL_MVP.md`, `docs/TASKS.md` и ADR-0006; проверить, что дальнейшие изменения не противоречат зафиксированным ограничениям.
 2. Прочитать gate failure counts из новой сводки и сопоставить их с правилами retry/cache в runner; сырые prompts, passages и ответы не публиковать.
-3. Сформулировать, что именно считать исправимым truncation, как ограничить retries/usage и какие атрибуты provenance обязательны; оформить решение до любого повтора индексации.
+3. Зафиксировать корректировку retry: `finish_reason=length` всегда запускает один uncached retry, даже если parser восстановил часть JSON. Перед следующим индексным запуском добавить в конфигурацию и manifest повышенные stage caps и проверить context window; затем заморозить протокол и представить readiness report. Текущий прогон был остановлен до QA, поэтому сравнение Dense и HippoRAG на кандидатной выборке пока невозможно.
 4. Подготовить новый readiness report для HippoRAG. Не запускать повторный build, дополнительный QA, `holdout100` или сравнение с 7B, пока протокол не согласован отдельно.
 
 Оставшиеся ограничения: полный index cost неизвестен из-за нескольких попыток и одного запроса с неизвестным usage; OpenIE coverage не измеряет качество extraction; целевой внутренний API, T4 и HotpotQA не проверены; RAPTOR, LightRAG, cost model, bootstrap и router ещё не реализованы. В HippoRAG debug10 один ответ завершился по `length` без `Answer:`.

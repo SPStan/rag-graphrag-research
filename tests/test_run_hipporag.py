@@ -17,11 +17,18 @@ from scripts.run_hipporag import (normalize_inputs, parse_args, passage_id,
                                   run_shared_reader, git_snapshot,
                                   install_no_truncate_embedding_api, ollama_api_base,
                                   build_rows, bind_openie_thread_context)
+from scripts.run_hipporag import openie_needs_retry
 from scripts.run_dense import build_reader_messages
 from scripts.openie_protocol import build_openie_acceptance_gate
 
 
 class HippoRAGRunnerTests(unittest.TestCase):
+    def test_openie_truncation_is_retried_even_if_partial_json_was_parsed(self):
+        self.assertTrue(openie_needs_retry({"finish_reason": "length"}))
+        self.assertTrue(openie_needs_retry({"error": "invalid_schema",
+                                            "finish_reason": "stop"}))
+        self.assertFalse(openie_needs_retry({"finish_reason": "stop"}))
+
     def test_openie_attempt_context_is_bound_inside_worker_threads(self):
         shared_attempts, shared_failures = [], []
         attempts_lock, failures_lock = threading.Lock(), threading.Lock()

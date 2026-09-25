@@ -181,6 +181,12 @@ def normalize_ner_entities(values):
     return normalized
 
 
+def openie_needs_retry(metadata):
+    """Retry incomplete or explicitly invalid OpenIE responses once."""
+    metadata = metadata if isinstance(metadata, dict) else {}
+    return bool(metadata.get("error") or metadata.get("finish_reason") == "length")
+
+
 def normalize_inputs(corpus, queries, labels=None):
     """Normalize project data and the upstream HippoRAG sample schema."""
     if not isinstance(corpus, list) or not corpus:
@@ -527,7 +533,7 @@ def bind_openie_thread_context(local, *, run_id, model_digest, attempts,
 def instrument_models(rag, corpus, query_text_to_id, events, lock,
                      embedding_max_inputs_per_second=18.0,
                      embedding_request_batch_size=4, run_id=None,
-                     model_digest=None):
+                     model_digest=None, openie_retry_token_caps=None):
     """Record SDK usage and cache state without storing any raw prompts or texts."""
     local = threading.local()
     openie_failures = []
@@ -540,6 +546,7 @@ def instrument_models(rag, corpus, query_text_to_id, events, lock,
     local.openie_attempt_number = None
     local.run_id = run_id
     local.model_digest = model_digest
+    openie_retry_token_caps = openie_retry_token_caps or {}
     passage_id_by_text = {item["title"] + "\n" + item["text"]: item["id"] for item in corpus}
     query_id_by_embedding = {text: qid for text, qid in query_text_to_id.items()}
 
@@ -678,7 +685,7 @@ def instrument_models(rag, corpus, query_text_to_id, events, lock,
                                       model_digest=local.model_digest,
                                       call_event=local.last_chat_event, request_error=True)
                 raise
-            if not result.metadata.get("error"):
+            if not openie_needs_retry(result.metadata):
                 try:
                     entities = normalize_ner_entities(result.unique_entities)
                 except ValueError:
@@ -726,7 +733,8 @@ def instrument_models(rag, corpus, query_text_to_id, events, lock,
             messages = PromptTemplateManager(role_mapping={
                 "system": "system", "user": "user", "assistant": "assistant"
             }).render(name="ner", passage=passage)
-            kwargs = {"max_new_tokens": rag.openie.ner_max_tokens,
+            kwargs = {"max_new_tokens": openie_retry_token_caps.get(
+                          "openie_ner", rag.openie.ner_max_tokens * 2),
                       "_bypass_cache": True}
             response_format = getattr(getattr(rag.qa_llm, "global_config", None),
                                       "response_format", None)
@@ -799,7 +807,7 @@ def instrument_models(rag, corpus, query_text_to_id, events, lock,
                     metadata={}, values=None, model_digest=local.model_digest,
                     call_event=local.last_chat_event, request_error=True)
                 raise
-            if not result.metadata.get("error"):
+            if not openie_needs_retry(result.metadata):
                 record_openie_attempt(
                     openie_attempts, openie_attempts_lock,
                     run_id=local.run_id, pid=local.passage_id, passage=passage,
@@ -828,7 +836,8 @@ def instrument_models(rag, corpus, query_text_to_id, events, lock,
                 "system": "system", "user": "user", "assistant": "assistant"
             }).render(name="triple_extraction", passage=passage,
                       named_entity_json=json.dumps({"named_entities": named_entities}))
-            kwargs = {"max_new_tokens": rag.openie.triple_max_tokens,
+            kwargs = {"max_new_tokens": openie_retry_token_caps.get(
+                          "openie_triples", rag.openie.triple_max_tokens * 2),
                       "_bypass_cache": True}
             response_format = getattr(getattr(rag.qa_llm, "global_config", None),
                                       "response_format", None)
@@ -1091,6 +1100,8 @@ def parse_args(argv=None):
     parser.add_argument("--top-k", type=int, default=5)
     parser.add_argument("--max-new-tokens", type=int, default=512)
     parser.add_argument("--num-ctx", type=int, default=4096)
+    parser.add_argument("--openie-ner-retry-max-tokens", type=int, default=1024)
+    parser.add_argument("--openie-triples-retry-max-tokens", type=int, default=3072)
     parser.add_argument("--temperature", type=float, default=0.0)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--embedding-batch-size", type=int, default=1)
@@ -1103,6 +1114,10 @@ def run(args):
     if not 1 <= args.limit <= 100:
         raise ValueError("--limit must be between 1 and 100 for this runner")
     if (args.top_k < 1 or args.max_new_tokens < 1 or args.num_ctx < 1
+            or args.openie_ner_retry_max_tokens <= 512
+            or args.openie_triples_retry_max_tokens <= 2048
+            or args.num_ctx <= max(args.openie_ner_retry_max_tokens,
+                                   args.openie_triples_retry_max_tokens)
             or not 1 <= args.embedding_batch_size <= 128
             or not 1 <= args.embedding_request_batch_size <= 18
             or args.embedding_max_inputs_per_second <= 0):
@@ -1174,10 +1189,21 @@ def run(args):
         "text_preprocessing": "replace-newlines-with-space-v1",
         "vector_validation": "finite-nonzero-row-v1",
     }
+    openie_retry_token_caps = {
+        "openie_ner": args.openie_ner_retry_max_tokens,
+        "openie_triples": args.openie_triples_retry_max_tokens,
+    }
+    openie_protocol_identity = {
+        "upstream_initial_caps": {"openie_ner": 512, "openie_triples": 2048},
+        "retry_caps": openie_retry_token_caps,
+        "retry_policy": "one-uncached-retry-on-invalid-or-length-v1",
+        "num_ctx": args.num_ctx,
+    }
     model_identity = sha256_bytes(json_bytes({
         "generation": model_generation["digest"],
         "embedding": model_embedding["digest"],
         "embedding_pipeline": embedding_pipeline,
+        "openie_protocol": openie_protocol_identity,
         "upstream": "1438aba3fc44ff10573e5a5e1e7cc3c7f9794aff",
     }))
     index_storage = storage / f"index-{model_identity[:12]}"
@@ -1204,6 +1230,7 @@ def run(args):
                        "reader_prompt_source_path": reader_info["source_path"],
                        "reader_template_sha256": reader_info["template_sha256"],
                        "options": generation_options},
+        "openie_protocol": openie_protocol_identity,
         "embedding": {"model": model_embedding, "endpoint": args.base_url,
                       "batch_size": 1,
                       "hipporag_outer_batch_size": args.embedding_batch_size,
@@ -1283,7 +1310,8 @@ def run(args):
                                   args.embedding_max_inputs_per_second,
                                   args.embedding_request_batch_size,
                                   run_id=run_id,
-                                  model_digest=model_generation["digest"])
+                                  model_digest=model_generation["digest"],
+                                  openie_retry_token_caps=openie_retry_token_caps)
         before = {
             "passages": set(rag.chunk_embedding_store.get_all_ids()),
             "entities": set(rag.entity_embedding_store.get_all_ids()),

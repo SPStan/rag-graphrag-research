@@ -71,7 +71,7 @@
         "request_error_attempts": 2,
         "cache_hits": 5498,
         "cache_misses": 24,
-        "llm_layer_provenance_unobserved": 2
+        "request_error_cache_outcome_unavailable": 2
       },
       "openie_triples": {
         "total": 5501,
@@ -107,7 +107,7 @@
     "The acceptance gate failure leaves the HippoRAG index diagnostic only; preserve it and do not silently repair or rebuild.",
     "debug10 was used during development and is included in the historical baseline100; those older results are not independent.",
     "holdout100 was not used.",
-    "OpenIE coverage is not an extraction-quality measure; some LLM-layer provenance and usage are unknown.",
+    "OpenIE coverage is not an extraction-quality measure; two NER request-error attempts have unknown usage and no response-cache outcome, while attempt/error provenance is present.",
     "No target API/T4 setup was exercised."
   ]
 }
