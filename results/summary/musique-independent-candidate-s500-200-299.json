@@ -1,0 +1,113 @@
+{
+  "schema_version": 1,
+  "evaluation_view": {
+    "name": "independent-candidate-s500-200-299",
+    "dataset": "musique",
+    "questions": 100,
+    "ordered_question_ids_sha256": "a026de236266ceb4ee7faa4cde5d031996ecfd74f4e6edd806a8b08cc493d42b",
+    "view_file_sha256": "7c1206abe86d377981c51a30a375f70aadd5c0304c1167651dfe45a7d965df18",
+    "source_ids_sha256": "82f5b26acedb39998398b0b4e9b4cb8f5fc9ec9bbb16420914dd66a4f058d33a",
+    "labels_sha256": "76a36d30f3934c24ad5f7f5eaa6a67e4d26e30f2e29f7302f58d211ccb05da4a",
+    "prior_disjointness_audit": {
+      "manifests": 29,
+      "raw_only_artifacts": 4,
+      "overlaps": 0
+    }
+  },
+  "shared_configuration": {
+    "corpus_passages": 5500,
+    "corpus_sha256": "054338e3803fbe69f67037c58d2a49438572ffe2e8c8a047148a2dcdc100e44b",
+    "generator": "qwen2.5:3b",
+    "generator_digest": "357c53fb659c5076de1d65ccb0b397446227b71a42be9d1603d46168015c9e4b",
+    "quantization": "Q4_K_M",
+    "embedding_model": "bge-m3:latest",
+    "embedding_digest": "7907646426070047a77226ac3e684fbbe8410524f7b4a74d02837e43f2146bab",
+    "reader_prompt_version": "hipporag2-musique-one-shot-v6",
+    "reader_template_sha256": "beb15da1f15193ee88f93cc25c96199d679ade1d652cd9c750cc10e63cbc6047",
+    "top_k": 5,
+    "generation_options": {
+      "temperature": 0.0,
+      "seed": 42,
+      "num_predict": 512,
+      "max_new_tokens": 512,
+      "num_ctx": 4096
+    }
+  },
+  "dense": {
+    "status": "completed",
+    "run_id": "98d8b412-cec6-45e4-9c14-0e4ad85855bb",
+    "results_sha256": "4125eca7beea5d0691ff54efb08a4ecdf5d759abd0a63b3f4ddc567ac8988b6b",
+    "questions": 100,
+    "em": 0.11,
+    "token_f1": 0.18581020525585742,
+    "recall_at_5": 0.6058333333333333,
+    "generation_prompt_tokens": 154400,
+    "generation_completion_tokens": 12222,
+    "query_embedding_prompt_tokens": 2592,
+    "index_embedding_usage": "unknown for the original embedding build; cached vectors were reused"
+  },
+  "hipporag2": {
+    "status": "failed_openie_gate",
+    "run_id": "e78eff08-532a-40b3-a359-49a6b08b32a7",
+    "qa_started": false,
+    "eligible": false,
+    "expected_stage_outcomes": 11000,
+    "recorded_attempts": 11025,
+    "missing_outcomes": 0,
+    "unexpected_attempts": 0,
+    "unresolved_outcomes": 160,
+    "unresolved_by_stage_reason": {
+      "openie_triples_truncated": 122,
+      "openie_ner_truncated": 37,
+      "openie_ner_request_error": 1
+    },
+    "attempts_by_stage": {
+      "openie_ner": {
+        "total": 5524,
+        "valid_nonempty": 4528,
+        "valid_empty": 934,
+        "truncated_attempts": 39,
+        "parse_error_attempts": 21,
+        "request_error_attempts": 2,
+        "cache_hits": 5498,
+        "cache_misses": 24,
+        "llm_layer_provenance_unobserved": 2
+      },
+      "openie_triples": {
+        "total": 5501,
+        "valid_nonempty": 5348,
+        "valid_empty": 30,
+        "truncated_attempts": 123
+      }
+    },
+    "build_wall_seconds": 14427.862,
+    "seed_cache_source_run_id": "b4f17c7b-84e8-4c1f-b7c4-c180c8af8ad9",
+    "usage_local_ollama_by_stage": {
+      "index_embedding": {
+        "prompt_tokens": 2178263,
+        "completion_tokens": 0,
+        "events": 97728
+      },
+      "openie_ner": {
+        "prompt_tokens": 1589341,
+        "completion_tokens": 282935,
+        "events": 5524
+      },
+      "openie_triples": {
+        "prompt_tokens": 3472747,
+        "completion_tokens": 1239425,
+        "events": 5501
+      }
+    },
+    "usage_unknown_events": 2
+  },
+  "interpretation": [
+    "Dense candidate run is a local evaluation on a frozen 100-question slice; it is not representative of the full dataset.",
+    "Dense and HippoRAG cannot be compared on this view because HippoRAG produced no QA answers.",
+    "The acceptance gate failure leaves the HippoRAG index diagnostic only; preserve it and do not silently repair or rebuild.",
+    "debug10 was used during development and is included in the historical baseline100; those older results are not independent.",
+    "holdout100 was not used.",
+    "OpenIE coverage is not an extraction-quality measure; some LLM-layer provenance and usage are unknown.",
+    "No target API/T4 setup was exercised."
+  ]
+}
