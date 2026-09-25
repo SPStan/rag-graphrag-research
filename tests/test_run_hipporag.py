@@ -22,6 +22,12 @@ from scripts.openie_protocol import build_openie_acceptance_gate
 
 
 class HippoRAGRunnerTests(unittest.TestCase):
+    def test_runner_accepts_candidate_evaluation_size(self):
+        args = parse_args(["--dataset", "musique", "--corpus", "corpus.json",
+                           "--queries", "queries.json", "--labels", "labels.json",
+                           "--limit", "100"])
+        self.assertEqual(args.limit, 100)
+
     def test_rows_record_measured_per_question_timing(self):
         passage = {"id": "p1", "title": "Title", "text": "Text"}
         solution = SimpleNamespace(answer="Answer: Alice", docs=["Title\nText"],

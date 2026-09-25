@@ -1055,7 +1055,9 @@ def parse_args(argv=None):
     parser.add_argument("--corpus", type=Path, required=True)
     parser.add_argument("--queries", type=Path, required=True)
     parser.add_argument("--labels", type=Path, help="Separate labels file; labels are read only after retrieval/generation")
-    parser.add_argument("--limit", type=int, default=1, help="Small smoke size; maximum 20 questions")
+    parser.add_argument("--id-view", type=Path,
+                        help="Frozen ordered evaluation ID view; --limit must match its size")
+    parser.add_argument("--limit", type=int, default=1, help="Question count (1-100)")
     parser.add_argument("--generation-model", default="qwen2.5:3b")
     parser.add_argument("--embedding-model", default="bge-m3:latest")
     parser.add_argument("--base-url", default=OLLAMA_BASE_URL)
@@ -1073,8 +1075,8 @@ def parse_args(argv=None):
 
 
 def run(args):
-    if not 1 <= args.limit <= 20:
-        raise ValueError("--limit must be between 1 and 20 for this runner")
+    if not 1 <= args.limit <= 100:
+        raise ValueError("--limit must be between 1 and 100 for this runner")
     if (args.top_k < 1 or args.max_new_tokens < 1 or args.num_ctx < 1
             or not 1 <= args.embedding_batch_size <= 128
             or not 1 <= args.embedding_request_batch_size <= 18
@@ -1087,6 +1089,19 @@ def run(args):
     corpus, queries, labels = normalize_inputs(raw_corpus, raw_queries, raw_labels)
     data_provenance = validate_pinned_dataset(
         args.dataset, args.corpus, queries, corpus, args.labels)
+    view_info = None
+    if args.id_view:
+        try:
+            from scripts.evaluation_view import load_view, select_in_view
+        except ModuleNotFoundError:
+            from evaluation_view import load_view, select_in_view
+        view_info = load_view(args.id_view, args.dataset, args.labels)
+        if args.limit != len(view_info["question_ids"]):
+            raise ValueError("--limit must equal the frozen evaluation view size")
+        queries = select_in_view(queries, view_info["question_ids"], "query")
+        labels = select_in_view(labels, view_info["question_ids"], "label")
+    elif len(queries) < args.limit:
+        raise ValueError(f"Requested {args.limit} questions but only {len(queries)} are available")
     queries = queries[:args.limit]
     labels = labels[:args.limit]
     corpus_by_text = {item["title"] + "\n" + item["text"]: item for item in corpus}
@@ -1152,7 +1167,10 @@ def run(args):
                    "queries_fingerprint": query_fingerprint,
                    "labels_path": str(args.labels) if args.labels else None,
                    "labels_sha256": sha256_file(args.labels) if args.labels else labels_fingerprint,
-                   "pinned_dataset_provenance": data_provenance},
+                   "pinned_dataset_provenance": data_provenance,
+                   "evaluation_view": ({key: value for key, value in view_info.items()
+                                         if key != "question_ids"}
+                                        if view_info else None)},
         "expected_question_ids": [query["id"] for query in queries],
         "generation": {"model": model_generation, "endpoint": args.base_url,
                        "reader_prompt_version": reader_info["version"],
@@ -1238,6 +1256,20 @@ def run(args):
         rag.index(docs)
         index_seconds = time.perf_counter() - start
         cache_counts = collect_cache_counts(rag, before)
+        index_gate = build_openie_acceptance_gate(
+            [item["id"] for item in corpus], local.openie_attempts)
+        manifest["index"] = {
+            "build_seconds": round(index_seconds, 6), "cache": cache_counts,
+            "openie_attempts": local.openie_attempts,
+            "openie_acceptance_gate": index_gate,
+            "openie_extraction_failures": sorted(
+                local.openie_failures, key=lambda item: item.get("passage_id") or ""),
+        }
+        write_json_atomic(manifest_path, manifest)
+        if not index_gate["eligible"]:
+            raise RuntimeError(
+                "OpenIE index acceptance gate failed; preserving index and stopping before QA"
+            )
         solutions = []
         raw_answers = []
         generation_metadata = []

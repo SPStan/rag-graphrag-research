@@ -15,11 +15,13 @@ import numpy as np
 import requests
 
 try:
+    from scripts.evaluation_view import load_view, select_in_view
     from scripts.answer_parser import extract_reader_answer
     from scripts.vendor.hipporag2_musique_template import (
         one_shot_rag_qa_input, one_shot_rag_qa_output, rag_qa_system,
     )
 except ModuleNotFoundError:  # Direct execution puts the scripts directory on sys.path.
+    from evaluation_view import load_view, select_in_view
     from answer_parser import extract_reader_answer
     from vendor.hipporag2_musique_template import (
         one_shot_rag_qa_input, one_shot_rag_qa_output, rag_qa_system,
@@ -380,7 +382,8 @@ def reader_template_sha256():
     ).hexdigest()
 
 
-def run(dataset="musique", limit=10, top_n=5, generation_model=GEN_MODEL):
+def run(dataset="musique", limit=10, top_n=5, generation_model=GEN_MODEL,
+        id_view_path=None):
     if dataset != "musique":
         raise ValueError("The pinned HippoRAG one-shot reader is validated only for MuSiQue")
     data_dir = ROOT / "data" / "processed" / dataset
@@ -390,6 +393,12 @@ def run(dataset="musique", limit=10, top_n=5, generation_model=GEN_MODEL):
     corpus = read_json(corpus_path)
     data_provenance = validate_processed_data(
         dataset, data_dir, queries, corpus, data_dir / "labels.json")
+    labels_path = data_dir / "labels.json"
+    view_info = load_view(id_view_path, dataset, labels_path) if id_view_path else None
+    if view_info:
+        if limit != len(view_info["question_ids"]):
+            raise ValueError("--limit must equal the frozen evaluation view size")
+        queries = select_in_view(queries, view_info["question_ids"], "query")
     if not 1 <= limit <= 100:
         raise ValueError("Local benchmark limit must be between 1 and 100; use a pinned view")
     if not isinstance(top_n, int) or top_n <= 0:
@@ -424,6 +433,8 @@ def run(dataset="musique", limit=10, top_n=5, generation_model=GEN_MODEL):
             "corpus_fingerprint": fingerprint,
             **data_provenance,
         },
+        "evaluation_view": ({key: value for key, value in view_info.items()
+                              if key != "question_ids"} if view_info else None),
         "code": git_snapshot(),
         "runtime": {
             "python": platform.python_version(),
@@ -586,11 +597,13 @@ def main():
     parser.add_argument("--limit", type=int, default=10,
                         help="number of initial fixed-ID questions (1-100; baseline100 includes debug10)")
     parser.add_argument("--top-k", type=int, default=5)
+    parser.add_argument("--id-view", type=Path,
+                        help="frozen ID view; --limit must equal its question count")
     parser.add_argument("--generation-model", default=GEN_MODEL,
                         help=f"installed Ollama generation model (default: {GEN_MODEL})")
     args = parser.parse_args()
     try:
-        run(args.dataset, args.limit, args.top_k, args.generation_model)
+        run(args.dataset, args.limit, args.top_k, args.generation_model, args.id_view)
     except (OSError, requests.RequestException, ValueError, RuntimeError, KeyError) as exc:
         print(f"Dense RAG pilot failed: {exc}", file=sys.stderr)
         raise SystemExit(1)

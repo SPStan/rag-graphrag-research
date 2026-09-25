@@ -15,6 +15,7 @@ from scripts.run_dense import (EMBED_CACHE_SCHEMA_VERSION, EMBED_TEXT_VERSION,
                                DEMO_USER, DEMO_ASSISTANT, READER_SYSTEM, READER_PROMPT_VERSION,
                                PROMPT_SOURCE_COMMIT, reader_template_sha256)
 from scripts.vendor.hipporag2_musique_template import prompt_template
+from scripts.evaluation_view import load_view, ordered_ids_sha256, select_in_view
 
 
 class FakeEmbeddingResponse:
@@ -38,6 +39,36 @@ class FakeEmbeddingSession:
 
 
 class DenseRetrievalTests(unittest.TestCase):
+    def test_frozen_view_selects_exact_order_and_checks_ids_and_labels_hash(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            labels = root / "labels.json"
+            labels.write_text("[]", encoding="utf-8")
+            view_path = root / "view.json"
+            question_ids = ["q2", "q1"]
+            view_path.write_text(json.dumps({
+                "dataset": "musique", "view": "candidate",
+                "question_ids": question_ids,
+                "ordered_question_ids_sha256": ordered_ids_sha256(question_ids),
+                "labels_sha256": hashlib.sha256(labels.read_bytes()).hexdigest(),
+            }), encoding="utf-8")
+
+            metadata = load_view(view_path, "musique", labels)
+            selected = select_in_view([{"id": "q1"}, {"id": "q2"}],
+                                      metadata["question_ids"], "query")
+
+            self.assertEqual([row["id"] for row in selected], question_ids)
+            view_path.write_text(view_path.read_text(encoding="utf-8").replace(
+                '"q2", "q1"', '"q1", "q2"'), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "ordered ID hash"):
+                load_view(view_path, "musique", labels)
+
+    def test_frozen_view_refuses_missing_and_duplicate_source_ids(self):
+        with self.assertRaisesRegex(ValueError, "unknown query IDs"):
+            select_in_view([{"id": "q1"}], ["q2"], "query")
+        with self.assertRaisesRegex(ValueError, "Duplicate query ID"):
+            select_in_view([{"id": "q1"}, {"id": "q1"}], ["q1"], "query")
+
     def test_reader_messages_match_pinned_upstream_template_exactly(self):
         question = "Who is the professor?"
         passages = [{"title": "Person", "text": "A professor."}]
