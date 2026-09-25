@@ -79,6 +79,8 @@
 
 **Результат попытки 25 сентября:** исполняемый runner и команда внесены в [R3_RUN_PROPOSAL](R3_RUN_PROPOSAL.md). Offline dry-run подтвердил 196 задач и SHA семи источников; целевые 24 unittest прошли. По явному запросу пользователя выполнено 4 native chat POST для двух NER задач; Ollama подтвердил выделение GPU VRAM. Первая задача `valid_nonempty`, вторая `truncated` на cap 1024. Checkpoint остановлен, SHA `83f61962940c06c912ff0c595a8617be298698b802151bc50d8136d2ef331d13`. Автовозобновление запрещено. Cap/retry policy требует пересмотра по ADR-0008 перед любым дальнейшим вызовом. Embeddings, graph rebuild и QA не выполнялись.
 
+**Подготовка remedial attempt 3:** по решению пользователя в [ADR-0008](../.adr/0008-openie-truncation-retry-policy.md) закреплён один NER attempt 3 с cap 2048. Новый режим `--remedial-ner` читает остановленный checkpoint по точному SHA, проверяет семь исходных SHA и строит отдельную однозадачную очередь; старый checkpoint не изменяет. Offline dry-run прошёл, 23 целевых теста прошли. GPU-запуск остаётся за Luna; в этом чате новых model requests не было.
+
 Способ, результаты и границы запуска: [R3_RUN_PROPOSAL](R3_RUN_PROPOSAL.md), решение: [ADR-0010](../.adr/0010-context-measurement-proposal.md). Два прежних пилотных prompt имели 691 и 1003 input tokens. Первый repair-run измерил ещё два NER prompt (473 и 334); второй completion занял весь cap 1024 и завершился `truncated`. Для этих запросов native transport и GPU размещение подтверждены, остальные prompts не измерены. Текущий context guard не ослаблен.
 
 ## После разрешения, не выполнять сейчас
