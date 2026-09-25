@@ -63,44 +63,14 @@ def validate_context_preflight(report, *, model_digest, num_ctx, output_cap,
 
 
 def make_uncached_ollama_request(llm, *, protocol, model_digest):
-    """Create an uncached request callback with SDK retries disabled.
+    """Reject the incompatible OpenAI route before any model request.
 
-    The callback does not run until invoked. CacheOpenAI must be constructed
-    with max_retries=0 so one ledger row cannot hide repeated transport calls.
+    Ollama 0.34.4's OpenAI middleware drops ``extra_body.options.num_ctx``.
+    A callback that claims a frozen context through this route is unsafe.
     """
-    if getattr(llm, "max_retries", None) != 0:
-        raise ValueError("CacheOpenAI must be configured with max_retries=0")
-    client = getattr(llm, "openai_client", None)
-    if getattr(client, "max_retries", None) != 0:
-        raise ValueError("OpenAI transport must be configured with max_retries=0")
-    required = ("model", "model_digest", "seed", "temperature", "num_ctx")
-    if (not isinstance(protocol, dict) or any(key not in protocol for key in required)
-            or protocol["model_digest"] != model_digest
-            or getattr(llm, "request_model_name", None) != protocol["model"]):
-        raise ValueError("Frozen model identity does not match the transport")
-    bound_infer = getattr(llm, "infer", None)
-    method = getattr(bound_infer, "__func__", None)
-    uncached_infer = getattr(method, "__wrapped__", None)
-    if not callable(uncached_infer):
-        raise ValueError("Pinned CacheOpenAI infer wrapper cannot be bypassed safely")
-
-    def request(messages, *, max_new_tokens, response_format):
-        started = time.perf_counter()
-        response, metadata = uncached_infer(
-            llm, messages=messages, max_new_tokens=max_new_tokens,
-            response_format=response_format, model=protocol["model"],
-            seed=protocol["seed"], temperature=protocol["temperature"],
-            extra_body={"options": {"num_ctx": protocol["num_ctx"]}})
-        return response, metadata, {
-            "cache_hit": False,
-            "cache_status": "bypassed",
-            "transport_attempt_count": 1,
-            "client_seconds": time.perf_counter() - started,
-        }
-
-    request.frozen_protocol = dict(protocol)
-    request.model_digest = model_digest
-    return request
+    raise RuntimeError(
+        "Ollama OpenAI-compatible chat does not forward num_ctx; "
+        "a verified context-preserving transport is required")
 
 
 def make_pinned_openie_parser():

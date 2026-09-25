@@ -53,7 +53,7 @@
 
 ## R2 — Проверенные запросы и сборка графа, без реального индекса
 
-**Статус:** выполнено offline 25 сентября 2026. Зависит от R1. **Владелец:** Sol.
+**Статус:** синтетический graph path выполнен offline; проверка transport payload подтверждала только клиентский запрос. Ollama 0.34.4 отбрасывает `num_ctx` в совместимом API; реальный транспорт заблокирован. **Владелец:** Sol.
 **Результат:** offline-интеграция с закреплённым HippoRAG, которая строит маленький синтетический граф на исправленных данных и не обращается к модели.
 
 - Связать preflight с фактическим транспортом: проверять model/digest, seed, temperature, num_ctx, output cap и JSON mode в захваченном исходящем payload. Совпадения двух словарей отчёта недостаточно.
@@ -65,7 +65,7 @@
 
 **Готово, когда:** единый синтетический repair → vectors → graph → gate сценарий проходит, старый граф не может быть принят как исправленный, параметры запроса подтверждены transport stub. Это не разрешение на real rebuild.
 
-Проверка R2: `$hippoPython = Join-Path $env:TEMP 'hipporag2-1438aba3-venv\Scripts\python.exe'; & $hippoPython -m unittest tests.test_pinned_repair_graph -v`. Тест восстанавливает NER из checkpoint, проводит зависимый triple, подаёт готовые векторы в закреплённый `HippoRAG.index` и закрывает graph gate. Fake LLM и embedding запрещают неожиданный вызов. Второй тест захватывает payload pinned `CacheOpenAI.infer`; сеть не вызывается. Copy helper оставляет проверенный `index_manifest` конфигурации, необходимый pinned constructor для открытия сохранённых векторов, удаляет старый graph и держит `graph_pending`. Новый SHA графа публикуется в repair provenance после проверки exact IDs; копия старого графа отклоняется. Контракт выбора manifest записан в ADR-0009.
+Проверка R2: `$hippoPython = Join-Path $env:TEMP 'hipporag2-1438aba3-venv\Scripts\python.exe'; & $hippoPython -m unittest tests.test_pinned_repair_graph -v`. Тест восстанавливает NER из checkpoint, проводит зависимый triple, подаёт готовые векторы в закреплённый `HippoRAG.index` и закрывает graph gate. Fake LLM и embedding запрещают неожиданный вызов. Старый тест захвата payload pinned `CacheOpenAI.infer` не подтверждает применение `num_ctx` сервером; он требует пересмотра. Copy helper оставляет проверенный `index_manifest` конфигурации, необходимый pinned constructor для открытия сохранённых векторов, удаляет старый graph и держит `graph_pending`. Новый SHA графа публикуется в repair provenance после проверки exact IDs; копия старого графа отклоняется. Контракт выбора manifest записан в ADR-0009.
 
 ## R3 — Контекст и конкретное предложение запуска
 

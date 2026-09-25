@@ -9,7 +9,7 @@ from types import SimpleNamespace
 
 
 class PinnedGraphTests(unittest.TestCase):
-    def test_pinned_transport_payload_matches_frozen_protocol(self):
+    def test_pinned_compatible_transport_is_blocked_before_request(self):
         if importlib.util.find_spec("hipporag") is None:
             self.skipTest("Run this integration test with the pinned HippoRAG Python")
         from hipporag.llm.openai_gpt import CacheOpenAI
@@ -38,18 +38,10 @@ class PinnedGraphTests(unittest.TestCase):
             max_retries=0, chat=SimpleNamespace(completions=FakeCompletions()))
         protocol = {"model": "qwen-test", "model_digest": "verified-digest",
                     "seed": 42, "temperature": 0.0, "num_ctx": 4096}
-        request = make_uncached_ollama_request(
-            llm, protocol=protocol, model_digest="verified-digest")
-        request([{"role": "user", "content": "synthetic"}],
-                max_new_tokens=1024, response_format={"type": "json_object"})
-        self.assertEqual(len(captured), 1)
-        payload = captured[0]
-        self.assertEqual(payload["model"], protocol["model"])
-        self.assertEqual(payload["seed"], protocol["seed"])
-        self.assertEqual(payload["temperature"], protocol["temperature"])
-        self.assertEqual(payload["max_tokens"], 1024)
-        self.assertEqual(payload["response_format"], {"type": "json_object"})
-        self.assertEqual(payload["extra_body"], {"options": {"num_ctx": 4096}})
+        with self.assertRaisesRegex(RuntimeError, "does not forward num_ctx"):
+            make_uncached_ollama_request(
+                llm, protocol=protocol, model_digest="verified-digest")
+        self.assertEqual(captured, [])
 
     def test_pinned_index_uses_repaired_state_without_model_or_embedding(self):
         if importlib.util.find_spec("hipporag") is None:

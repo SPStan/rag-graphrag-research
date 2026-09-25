@@ -186,44 +186,12 @@ class HippoRAGRepairExecutorTests(unittest.TestCase):
                 prompt_manager=FakePromptManager())
         self.assertEqual(calls, [])
 
-    def test_cache_bypass_adapter_requires_zero_sdk_retries(self):
-        class FakeResponse:
-            pass
-
-        class FakeClient:
-            max_retries = 0
-
-        class FakeLLM:
-            max_retries = 0
-            request_model_name = "qwen-test"
-            openai_client = FakeClient()
-            def infer(self, messages, **kwargs):
-                raise AssertionError("decorated infer must be bypassed")
-
-        captured = []
-        def direct_infer(self, messages, **kwargs):
-            captured.append(kwargs)
-            return "response", {"finish_reason": "stop"}
-
-        # Mimic functools.wraps metadata on the pinned cache decorator.
-        FakeLLM.infer.__wrapped__ = direct_infer
-        callback = make_uncached_ollama_request(
-            FakeLLM(), protocol={"model": "qwen-test", "model_digest": "digest",
-                                 "seed": 42, "temperature": 0.0, "num_ctx": 4096},
-            model_digest="digest")
-        response, metadata, request_meta = callback(
-            [{"role": "user", "content": "x"}], max_new_tokens=10,
-            response_format={"type": "json_object"})
-        self.assertEqual(response, "response")
-        self.assertEqual(metadata["finish_reason"], "stop")
-        self.assertEqual(request_meta["cache_status"], "bypassed")
-        self.assertEqual(request_meta["transport_attempt_count"], 1)
-        self.assertEqual(captured[0]["model"], "qwen-test")
-        self.assertEqual(captured[0]["seed"], 42)
-        self.assertEqual(captured[0]["temperature"], 0.0)
-        self.assertEqual(captured[0]["extra_body"], {"options": {"num_ctx": 4096}})
-        self.assertEqual(captured[0]["max_new_tokens"], 10)
-        self.assertEqual(captured[0]["response_format"], {"type": "json_object"})
+    def test_openai_compatible_adapter_fails_before_model_request(self):
+        with self.assertRaisesRegex(RuntimeError, "does not forward num_ctx"):
+            make_uncached_ollama_request(
+                object(), protocol={"model": "qwen-test", "model_digest": "digest",
+                                    "seed": 42, "temperature": 0.0, "num_ctx": 4096},
+                model_digest="digest")
 
 
 if __name__ == "__main__":

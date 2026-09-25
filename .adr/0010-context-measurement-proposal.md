@@ -1,7 +1,7 @@
 # ADR-0010 — Measure complete chat prompts before OpenIE repair
 
 - Date: 2026-09-25
-- Status: two-request pilot completed; full context policy remains proposed
+- Status: two-request pilot completed; full context policy remains proposed; compatible transport blocked
 
 ## Context
 
@@ -23,6 +23,12 @@ Use a bounded native Ollama `/api/chat` measurement request with the same model,
 The pilot costs at most two local one-token model requests and writes only hashes/counts to ignored `results/raw`. An interrupted pilot leaves an in-flight marker and does not auto-replay. A two-request pilot cannot prove fit for the other 194 prompts or the later corrected triple prompts; any full pass would require per-prompt measurements and a separate bounded repair authorization. The source run, digest, plan hash, frozen caps, and namespace are listed in `docs/R3_RUN_PROPOSAL.md`. Reconsider this approach if the installed Ollama version ignores `truncate=false`, native and compatible API usage disagree, or the model/context cannot accommodate the declared output caps.
 
 Primary API references: [Ollama chat request types](https://github.com/ollama/ollama/blob/main/api/types.go) and [API usage fields](https://github.com/ollama/ollama/blob/main/docs/api.md).
+
+## Transport finding, 2026-09-25
+
+Ollama 0.34.4's OpenAI-compatible middleware decodes only declared ChatCompletionRequest fields. That type has no `options`, `num_ctx`, or `truncate` field; conversion to native ChatRequest therefore drops the executor's `extra_body.options.num_ctx`. The earlier SDK payload capture proves what the client sent, not what Ollama applied. The OpenAI-compatible repair adapter now refuses to construct a request callback. Before real repair, choose and test a transport that applies `num_ctx` and nontruncation to both context measurement and extraction. The two pilot counts remain observations for native `/api/chat` only.
+
+Versioned source: [OpenAI request conversion](https://github.com/ollama/ollama/blob/v0.34.4/openai/openai.go), [middleware](https://github.com/ollama/ollama/blob/v0.34.4/middleware/openai.go).
 
 ## Pilot observation, 2026-09-25
 
