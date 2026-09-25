@@ -83,6 +83,8 @@
 
 **Результат remedial:** Luna выполнила одно измерение и одну extraction; NER attempt 3 снова `truncated` (`finish_reason=length`, 334 input / 2048 completion). Новый checkpoint `stopped/unresolved_extraction`, SHA `1cf000239921f3dc36d4a879e5defe355c8ecbb7afc7e092bc31a193c8c57275`; исходный SHA не изменился. Частичные values не приняты. Повторять этот запуск, добавлять attempt 4, продолжать основную очередь, строить граф или запускать QA нельзя. Следующий блок — решить, фиксировать этот локальный кандидат как заблокированный или описывать новую extraction-стратегию как отдельный вариант исследования; выбор до новых model calls записать в ADR.
 
+**Следующий вариант подготовлен offline:** [ADR-0011](../.adr/0011-local-openie-extraction-variant-proposal.md) предлагает отдельно проверить установленный Qwen2.5 7B на том же NER passage — максимум два native запроса, без принятия результата в старый ledger. Режим `--probe-7b-ner --dry-run` прошёл в pinned environment, fake transport подтвердил два запроса и сохранение только диагностических полей. Это только probe; полный 7B-индекс не разрешён. До отдельного решения пользователя никаких model/embedding вызовов и QA.
+
 Способ, результаты и границы запуска: [R3_RUN_PROPOSAL](R3_RUN_PROPOSAL.md), решение: [ADR-0010](../.adr/0010-context-measurement-proposal.md). Два прежних пилотных prompt имели 691 и 1003 input tokens. Первый repair-run измерил ещё два NER prompt (473 и 334); второй completion занял весь cap 1024 и завершился `truncated`. Для этих запросов native transport и GPU размещение подтверждены, остальные prompts не измерены. Текущий context guard не ослаблен.
 
 ## После разрешения, не выполнять сейчас
