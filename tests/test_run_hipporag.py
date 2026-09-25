@@ -16,12 +16,34 @@ from scripts.run_hipporag import (normalize_inputs, parse_args, passage_id,
                                   build_shared_reader_messages, install_shared_reader_template,
                                   run_shared_reader, git_snapshot,
                                   install_no_truncate_embedding_api, ollama_api_base,
-                                  build_rows)
+                                  build_rows, bind_openie_thread_context)
 from scripts.run_dense import build_reader_messages
 from scripts.openie_protocol import build_openie_acceptance_gate
 
 
 class HippoRAGRunnerTests(unittest.TestCase):
+    def test_openie_attempt_context_is_bound_inside_worker_threads(self):
+        shared_attempts, shared_failures = [], []
+        attempts_lock, failures_lock = threading.Lock(), threading.Lock()
+        result = []
+
+        def worker():
+            local = threading.local()
+            bind_openie_thread_context(
+                local, run_id="run", model_digest="model",
+                attempts=shared_attempts, attempts_lock=attempts_lock,
+                failures=shared_failures, failures_lock=failures_lock,
+            )
+            result.append((local.run_id, local.model_digest,
+                           local.openie_attempts is shared_attempts,
+                           local.openie_failures is shared_failures))
+
+        thread = threading.Thread(target=worker)
+        thread.start()
+        thread.join()
+
+        self.assertEqual(result, [("run", "model", True, True)])
+
     def test_runner_accepts_candidate_evaluation_size(self):
         args = parse_args(["--dataset", "musique", "--corpus", "corpus.json",
                            "--queries", "queries.json", "--labels", "labels.json",

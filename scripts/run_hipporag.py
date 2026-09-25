@@ -513,6 +513,17 @@ def record_openie_attempt(attempts, lock, *, run_id, pid, passage, stage,
     return record
 
 
+def bind_openie_thread_context(local, *, run_id, model_digest, attempts,
+                              attempts_lock, failures, failures_lock):
+    """Bind run-wide ledgers to the worker thread before instrumented OpenIE calls."""
+    local.run_id = run_id
+    local.model_digest = model_digest
+    local.openie_attempts = attempts
+    local.openie_attempts_lock = attempts_lock
+    local.openie_failures = failures
+    local.openie_failures_lock = failures_lock
+
+
 def instrument_models(rag, corpus, query_text_to_id, events, lock,
                      embedding_max_inputs_per_second=18.0,
                      embedding_request_batch_size=4, run_id=None,
@@ -647,6 +658,11 @@ def instrument_models(rag, corpus, query_text_to_id, events, lock,
 
     original_ner = rag.openie.ner
     def tracked_ner(chunk_key, passage):
+        bind_openie_thread_context(
+            local, run_id=run_id, model_digest=model_digest,
+            attempts=openie_attempts, attempts_lock=openie_attempts_lock,
+            failures=openie_failures, failures_lock=openie_failures_lock,
+        )
         local.stage = "openie_ner"
         local.passage_id = passage_id_by_text.get(passage)
         local.openie_attempt_number = 1
@@ -763,6 +779,11 @@ def instrument_models(rag, corpus, query_text_to_id, events, lock,
 
     original_triples = rag.openie.triple_extraction
     def tracked_triples(chunk_key, passage, named_entities):
+        bind_openie_thread_context(
+            local, run_id=run_id, model_digest=model_digest,
+            attempts=openie_attempts, attempts_lock=openie_attempts_lock,
+            failures=openie_failures, failures_lock=openie_failures_lock,
+        )
         local.stage = "openie_triples"
         local.passage_id = passage_id_by_text.get(passage)
         local.openie_attempt_number = 1
@@ -1057,6 +1078,10 @@ def parse_args(argv=None):
     parser.add_argument("--labels", type=Path, help="Separate labels file; labels are read only after retrieval/generation")
     parser.add_argument("--id-view", type=Path,
                         help="Frozen ordered evaluation ID view; --limit must match its size")
+    parser.add_argument("--llm-cache-seed", type=Path,
+                        help="Copy a stopped, integrity-checked LLM cache into this new run namespace")
+    parser.add_argument("--llm-cache-seed-run-id",
+                        help="Run ID that produced the copied LLM cache, for provenance")
     parser.add_argument("--limit", type=int, default=1, help="Question count (1-100)")
     parser.add_argument("--generation-model", default="qwen2.5:3b")
     parser.add_argument("--embedding-model", default="bge-m3:latest")
@@ -1216,7 +1241,20 @@ def run(args):
     llm = CacheOpenAI.from_experiment_config(config)
     llm_cache_dir = storage / "llm_cache"
     llm_cache_dir.mkdir(parents=True, exist_ok=True)
-    llm.cache_file_name = str(llm_cache_dir / f"{local_alias}_cache.sqlite")
+    llm_cache_path = llm_cache_dir / f"{local_alias}_cache.sqlite"
+    if args.llm_cache_seed:
+        try:
+            from scripts.seed_sqlite_cache import seed_sqlite_cache
+        except ModuleNotFoundError:
+            from seed_sqlite_cache import seed_sqlite_cache
+        cache_seed = seed_sqlite_cache(args.llm_cache_seed, llm_cache_path)
+        manifest["llm_cache_seed"] = {
+            "source_run_id": args.llm_cache_seed_run_id,
+            "source_filename": args.llm_cache_seed.name,
+            **cache_seed,
+        }
+        write_json_atomic(manifest_path, manifest)
+    llm.cache_file_name = str(llm_cache_path)
     llm.request_model_name = args.generation_model
     llm.llm_config.generate_params["model"] = args.generation_model
     llm.llm_config.generate_params["extra_body"] = {"options": {"num_ctx": args.num_ctx}}
