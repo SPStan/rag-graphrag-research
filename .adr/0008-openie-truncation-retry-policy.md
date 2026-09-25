@@ -49,4 +49,8 @@ The follow-up journal guarantees above describe intent more broadly than the tes
 
 ## Review conditions
 
+### R1 offline checkpoint, 2026-09-25
+
+The frozen first-pass schedule remains 196 tasks. The offline runner now consumes the existing planner and executor result shape, persists accepted extraction values and their SHA-256 in the same atomic journal replacement as completion metadata, and reconstructs state updates and the merged ledger after reopening the checkpoint. A local file lock allows one writer; an interrupted request remains in-flight and requires manual reconciliation. A failed write closes the writer without advancing its in-memory task index. The synthetic fake-transport test verifies that a saved NER result supplies the exact entities and attempt number to a dependent triple, with no second NER callback. Corrupt values and unknown in-flight state stop resume. This does not verify model transport parameters, vectors, graph reconstruction or real repair; those remain R2/R3 work.
+
 Revisit this policy if the chosen model/context cannot complete extractions under a predeclared cap, if one retry is insufficient, or if a future labeled extraction audit shows that valid empty outputs need different handling. Any additional retries or partial-output salvage policy requires a new decision and must account for all additional usage.
