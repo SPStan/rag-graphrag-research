@@ -53,11 +53,23 @@
     "model_requests_made": 0
   },
   "blockers": [
-    "A guarded one-task executor and a crash-safe per-attempt journal primitive are implemented, but the ordered multi-task runner and embedding request layer are not implemented; journal integration remains untested.",
+    "Ordered repair/resume integration is missing. Journal primitives do not yet persist accepted values or enforce a single writer. Reuse the existing embedding transport rather than adding a second one.",
     "158 prompts were rendered with the pinned templates, but exact model-token counts remain unavailable; 38 dependent triple prompts also require repaired NER outputs before rendering.",
     "Exact entity/fact vector sets can only be confirmed after repaired OpenIE outputs exist; exact reconciliation is tested synthetically but has not been exercised on a real clone.",
     "The pinned HippoRAG force-index path has not been exercised against a repaired clone with filtered vector stores and the updated gate."
   ],
-  "next_step": "Integrate the durable journal with ordered schedule orchestration and synthetic callbacks, implement the embedding request layer, and establish tokenizer-backed context fit for the exact rendered requests; then provide a readiness report before any model call, graph rebuild, or QA.",
-  "scope_note": "This report contains no dataset passages, prompts, generated answers, local paths, secrets, or service URLs."
+  "next_step": "Complete TASKS R1 with one offline repair/resume integration, then R2 graph/transport integration and R3 bounded context strategy. Stop before real requests/rebuild/QA.",
+  "scope_note": "This report contains no dataset passages, prompts, generated answers, local paths, secrets, or service URLs.",
+  "review": {
+    "code_commit": "e7a0367",
+    "report": "../../docs/REVIEW_2026-09-25.md",
+    "method": "code inspection and synthetic temporary journal checks; no model calls",
+    "full_suite_rerun": false,
+    "unresolved": [
+      "Successful extraction values are not durably bound to completed task records.",
+      "Two open journal writers can begin the same task; task fields bypass content validation.",
+      "Actual model request config is not bound to the context-fit report.",
+      "Clone assembly retains the old graph and manifest until graph integration."
+    ]
+  }
 }

@@ -41,4 +41,6 @@ Langfuse хранит трассы операций и вызовов. MLflow �
 
 ## Что проверено сейчас
 
+Оперативный план ведётся только в [TASKS](TASKS.md), вход для другой модели — [HANDOFF](HANDOFF.md). Ниже — состояние исследовательских результатов; локальная repair-интеграция ещё не завершена.
+
 Инфраструктура и mock-события: [протокол проверок](VERIFICATION.md). Подготовлены [подвыборки и тесты данных](DATA.md), по 500 вопросов и 5500 пассажей на набор. Dense baseline100 содержит debug10; 7B run — replay тех же retrieval contexts, поэтому прежние результаты не независимы. Проектный HippoRAG runner, общий MuSiQue reader и evaluator проверены на диагностическом debug10. Read-only [OpenIE audit](../results/summary/hipporag2-openie-coverage-rebuilt-debug10.json) показывает покрытие, но не причины пустых извлечений. [ADR-0007](../.adr/0007-openie-extraction-audit-and-independent-evaluation.md) реализован в новых запусках. На замороженном candidate view S500[200:300] Dense 3B завершил 100 вопросов (EM 0,110; F1 0,186; recall@5 0,606); HippoRAG fresh index build остановился до QA: gate обнаружил 160 unresolved OpenIE outcomes. Итоги и конфигурации доступны в [безопасной сводке](../results/summary/musique-independent-candidate-s500-200-299.json). `holdout100` остаётся нетронутым. Целевой benchmark и сравнительные выводы не готовы.
