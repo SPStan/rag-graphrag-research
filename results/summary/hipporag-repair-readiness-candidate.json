@@ -21,7 +21,8 @@
     "chunk_ids_match_openie_state": true,
     "entity_ids_match_openie_state": true,
     "fact_ids_match_openie_state": true,
-    "compatible_for_cloned_graph_rebuild": true,
+    "current_state_artifacts_consistent": true,
+    "post_repair_graph_rebuild_ready": false,
     "embedding_ids_missing_or_stale": {
       "chunks": 0,
       "entities": 0,
@@ -81,12 +82,14 @@
     "full_passage_reembedding_appears_unnecessary": true,
     "requires_cloned_storage_namespace": true,
     "requires_openie_state_patch_and_graph_reconstruction": true,
+    "requires_exact_post_repair_vector_id_filter": true,
     "audit_sent_model_calls": false,
     "repair_requires_targeted_model_calls": true,
     "repair_wall_time_estimate": null,
     "notes": [
       "Reuse is conditional on verifying exact producer, corpus, embedding and vector-store compatibility.",
       "Only newly introduced entity/fact strings should need new embeddings after targeted extraction repair.",
+      "Corrected extractions can remove old entity/fact IDs. Filter cloned vector stores to the exact corrected OpenIE ID sets before graph construction; an unfiltered clone is not graph-ready.",
       "The source diagnostic index must remain immutable; perform repair in a verified copy.",
       "No QA run or benchmark is authorized by this audit."
     ]

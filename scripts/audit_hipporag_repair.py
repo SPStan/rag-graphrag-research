@@ -230,7 +230,8 @@ def audit_run(manifest_path):
             "source_corpus_sha256_matches_manifest": corpus_hash_matches,
             "source_passages_match_openie_state": source_passages_match,
             **vector_match,
-            "compatible_for_cloned_graph_rebuild": compatible,
+            "current_state_artifacts_consistent": compatible,
+            "post_repair_graph_rebuild_ready": False,
             "embedding_ids_missing_or_stale": {
                 "chunks": len(expected_chunk_ids ^ current_ids["chunk"]),
                 "entities": len(expected_entity_ids ^ current_ids["entity"]),
@@ -243,12 +244,14 @@ def audit_run(manifest_path):
             "full_passage_reembedding_appears_unnecessary": compatible,
             "requires_cloned_storage_namespace": True,
             "requires_openie_state_patch_and_graph_reconstruction": True,
+            "requires_exact_post_repair_vector_id_filter": True,
             "audit_sent_model_calls": False,
             "repair_requires_targeted_model_calls": True,
             "repair_wall_time_estimate": None,
             "notes": [
                 "Reuse is conditional on verifying exact producer, corpus, embedding and vector-store compatibility.",
                 "Only newly introduced entity/fact strings should need new embeddings after targeted extraction repair.",
+                "Corrected extractions can remove old entity/fact IDs. Filter cloned vector stores to the exact corrected OpenIE ID sets before graph construction; an unfiltered clone is not graph-ready.",
                 "The source diagnostic index must remain immutable; perform repair in a verified copy.",
                 "No QA run or benchmark is authorized by this audit."
             ]
