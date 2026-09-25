@@ -128,9 +128,9 @@
       "artifacts": ["JSONL", "metrics JSON", "manifest JSON"]
     },
     "langfuse": {
-      "status": "verified",
+      "status": "verified locally",
       "trace_id": "de6a9ed41cb2f85cd89b507bc69cfb4c",
-      "trace_url": "http://localhost:3000/project/cmu4eytkr0006o707cn1hr42k/traces/de6a9ed41cb2f85cd89b507bc69cfb4c",
+      "access_scope": "The trace was checked on the local stand; this summary does not claim remote availability.",
       "observations": [
         "hipporag2-rag-run",
         "indexing",

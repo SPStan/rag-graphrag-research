@@ -4,7 +4,7 @@
 
 Для просмотра руководителем: [спецификация исследования](docs/SPEC.md), [статус задач по блокам](docs/TASKS.md), [результаты проверки стенда](docs/VERIFICATION.md).
 
-Локальный [dense RAG MVP](docs/LOCAL_MVP.md) и baseline100 выполнены; MuSiQue reader закреплён на upstream HippoRAG commit. На одинаковых baseline100 контекстах были сохранены локальные 3B/7B результаты и traces в MLflow/Langfuse; baseline включает debug10 и не является независимой оценкой. HippoRAG 2 проверен на общей reader-конфигурации с Dense и rebuilt no-trunc index для диагностического debug10 (`9cac28e5-2885-4510-b227-ecba06f1b3de`, EM=0,300, F1=0,380, recall@5=0,783). Run и оценка связаны с MLflow и Langfuse тем же run_id; source build usage содержит одну неизвестную embedding-попытку. Новые сравнение с 7B и прогоны на 100 вопросах отложены. Подробности и ограничения — в [локальном плане](docs/LOCAL_MVP.md) и [ADR-0006](.adr/0006-hipporag-common-reader-debug10.md).
+Локальный [dense RAG MVP](docs/LOCAL_MVP.md) и baseline100 выполнены; MuSiQue reader закреплён на upstream HippoRAG commit. На одинаковых baseline100 контекстах были сохранены локальные 3B/7B результаты и traces в MLflow/Langfuse; baseline включает debug10 и не является независимой оценкой. HippoRAG 2 проверен на общей reader-конфигурации с Dense и rebuilt no-trunc index для диагностического debug10 (`9cac28e5-2885-4510-b227-ecba06f1b3de`, EM=0,300, F1=0,380, recall@5=0,783). Run и оценка связаны с MLflow и Langfuse тем же run_id; source build usage содержит одну неизвестную embedding-попытку. [Read-only OpenIE audit](results/summary/hipporag2-openie-coverage-rebuilt-debug10.json) публикует только агрегаты и fingerprinty passages; он не доказывает причины пустых извлечений. Новые сравнение с 7B и прогоны на 100 вопросах отложены. Подробности и ограничения — в [локальном плане](docs/LOCAL_MVP.md) и [ADR-0006](.adr/0006-hipporag-common-reader-debug10.md).
 
 Подготовлены [данные и подвыборки](docs/DATA.md): MuSiQue и HotpotQA, по 500 вопросов и 5500 пассажей, seed 42. Источники, контрольные суммы и ID зафиксированы; все размеченные supporting-пассажи сохранены. Подготовка повторяется командами из docs/DATA.md.
 
@@ -92,7 +92,7 @@ docker compose ps
 
 В [MLflow](http://127.0.0.1:5000) открой ссылку на run из вывода команды. Эксперимент: `rag-graphrag-smoke`; имя запуска: `smoke-test-no-llm`; параметры: `mode=mock`, `llm_calls=0`, `retrieval_method=none`; метрика: `toy_score=1`. Каждый запуск скрипта создаёт новый run.
 
-Проверенный запуск использует локальную `mlflow.db` в корне проекта. База и каталоги артефактов исключены из Git. MLflow пока не входит в Compose и запускается отдельно после перезагрузки; остановка — `Ctrl+C` в окне сервера. Проверка сохранения файлов-артефактов и явная конфигурация их хранения запланированы отдельно.
+Проверенный запуск использует локальную `mlflow.db` в корне проекта. База и каталоги артефактов исключены из Git. MLflow пока не входит в Compose и запускается отдельно после перезагрузки; остановка — `Ctrl+C` в окне сервера. Сохранность артефактов проверена для локального HippoRAG debug10: JSONL, metrics и manifest были скачаны из MLflow и побайтно сверены с локальными файлами. Явная конфигурация удалённого хранилища остаётся отдельной задачей.
 
 ## Что запускается
 

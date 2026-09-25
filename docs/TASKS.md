@@ -20,6 +20,8 @@
 | 2.4 | LightRAG | Не начато | 50 пассажей; контекст и токены для выбранных режимов |
 | 2.5 | Литература и КТ-2 | Не завершено | 10 конспектов; обсуждены В1/В2, X/Y, бюджет и минимальный объём |
 
+Для сохранённого rebuilt index добавлен read-only [аудит OpenIE](../results/summary/hipporag2-openie-coverage-rebuilt-debug10.json): 446 documents имеют пустые entities при непустых triples, 27 — непустые entities при пустых triples, 8 — оба поля пусты, 5019 — оба поля непусты. Финальный cache-replay не выполнял OpenIE заново: его пустой список `openie_extraction_failures` не доказывает отсутствие ошибок в предыдущих build attempts. SQLite cache не хранит исходные prompts, поэтому длина или не-JSON response из cache не атрибутируются конкретному passage.
+
 ## Порядок ближайших занятий
 
 1. Новая ветка и Draft PR с планом, AGENTS.md и журналом ADR.
