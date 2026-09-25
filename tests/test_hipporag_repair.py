@@ -78,6 +78,18 @@ class HippoRAGRepairPlanningTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "exceed the three-attempt limit"):
             plan_openie_repairs(["p1"], history)
 
+        valid_second_attempt = [
+            {"passage_id": "p1", "stage": "openie_ner", "attempt": 1,
+             "status": "truncated", "source_provenance_complete": True},
+            {"passage_id": "p1", "stage": "openie_triples", "attempt": 1,
+             "status": "valid_empty", "source_provenance_complete": True},
+            {"passage_id": "p1", "stage": "openie_triples", "attempt": 2,
+             "retry_of_attempt": 1, "operation": "dependency_refresh",
+             "status": "valid_empty", "source_provenance_complete": True},
+        ]
+        with self.assertRaisesRegex(ValueError, "not authorized"):
+            plan_openie_repairs(["p1"], valid_second_attempt)
+
     def test_filter_reuses_matching_vectors_and_reports_new_and_obsolete_ids(self):
         source = pa.table({
             "hash_id": ["keep-a", "stale", "keep-b"],
