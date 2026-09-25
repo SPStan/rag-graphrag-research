@@ -8,9 +8,12 @@ import pyarrow as pa
 from scripts.hipporag_repair import (
     REPAIR_ARTIFACTS,
     create_verified_index_copy,
+    expected_openie_vector_ids,
     filter_embedding_table_to_ids,
     merge_attempt_ledgers,
     apply_openie_updates,
+    prepare_repair_clone,
+    sha256_file,
 )
 
 
@@ -140,6 +143,130 @@ class HippoRAGRepairPlanningTests(unittest.TestCase):
                     "status": "truncated", "values": ["partial"]}]
         with self.assertRaisesRegex(ValueError, "Only complete"):
             apply_openie_updates(source, {"p1": "doc-1"}, partial)
+
+    def test_prepare_repair_clone_filters_and_reuses_vectors_without_touching_source(self):
+        import json
+        import pyarrow.parquet as parquet
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "source"
+            source.mkdir()
+            source_state = {"provenance": {"identity": "original"}, "docs": [{
+                "idx": "doc-1", "passage": "synthetic title\\ntext",
+                "extracted_entities": ["Old"],
+                "extracted_triples": [["Old", "relation", "Thing"]],
+            }]}
+            (source / REPAIR_ARTIFACTS["openie_state"]).write_text(
+                json.dumps(source_state), encoding="utf-8")
+            for name, relative in REPAIR_ARTIFACTS.items():
+                path = source / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                if name == "openie_state":
+                    continue
+                if name == "chunk_embeddings":
+                    table = pa.table({
+                        "hash_id": pa.array(["doc-1"], type=pa.large_string()),
+                        "content": pa.array(["synthetic title\\ntext"], type=pa.large_string()),
+                        "embedding": pa.array([[1.0, 0.0]], type=pa.list_(pa.float32())),
+                    })
+                    parquet.write_table(table, path)
+                elif name in {"entity_embeddings", "fact_embeddings"}:
+                    continue
+                else:
+                    path.write_text(f"synthetic:{name}", encoding="utf-8")
+
+            updates = [
+                {"passage_id": "p1", "stage": "openie_ner",
+                 "status": "valid_nonempty", "values": ["Alice", "Bob"]},
+                {"passage_id": "p1", "stage": "openie_triples",
+                 "status": "valid_nonempty", "values": [["Alice", "likes", "Bob"]]},
+            ]
+            repaired_state, _ = apply_openie_updates(
+                source_state, {"p1": "doc-1"}, updates)
+            entity_ids, fact_ids = expected_openie_vector_ids(repaired_state["docs"])
+            schema = pa.schema([
+                ("hash_id", pa.large_string()), ("content", pa.large_string()),
+                ("embedding", pa.list_(pa.float32())),
+            ])
+            source_entities = pa.Table.from_pylist([{
+                "hash_id": "entity-obsolete", "content": "obsolete",
+                "embedding": [0.0, 1.0],
+            }], schema=schema)
+            source_facts = pa.Table.from_pylist([{
+                "hash_id": "fact-obsolete", "content": "obsolete fact",
+                "embedding": [0.0, 1.0],
+            }], schema=schema)
+            parquet.write_table(source_entities, source / REPAIR_ARTIFACTS["entity_embeddings"])
+            parquet.write_table(source_facts, source / REPAIR_ARTIFACTS["fact_embeddings"])
+            new_entities = pa.Table.from_pylist([{
+                "hash_id": vector_id, "content": "new entity",
+                "embedding": [1.0, 0.0],
+            } for vector_id in sorted(entity_ids)], schema=schema)
+            new_facts = pa.Table.from_pylist([{
+                "hash_id": vector_id, "content": "new fact",
+                "embedding": [1.0, 0.0],
+            } for vector_id in sorted(fact_ids)], schema=schema)
+            expected_hashes = {
+                name: sha256_file(source / relative)
+                for name, relative in REPAIR_ARTIFACTS.items()
+            }
+            source_attempts = [
+                {"passage_id": "p1", "stage": "openie_ner", "attempt": 1,
+                 "status": "truncated", "source_provenance_complete": True},
+                {"passage_id": "p1", "stage": "openie_triples", "attempt": 1,
+                 "status": "valid_nonempty", "source_provenance_complete": True},
+            ]
+            repair_attempts = [
+                {"passage_id": "p1", "stage": "openie_ner", "attempt": 2,
+                 "retry_of_attempt": 1, "status": "valid_nonempty",
+                 "source_provenance_complete": True},
+                {"passage_id": "p1", "stage": "openie_triples", "attempt": 2,
+                 "retry_of_attempt": 1, "status": "valid_nonempty",
+                 "operation": "dependency_refresh", "dependency_stage": "openie_ner",
+                 "dependency_attempt": 2, "source_provenance_complete": True},
+            ]
+            protocol = {
+                "model_digest": "synthetic-model", "prompt_schema_version": "synthetic-v1",
+                "response_format": {"type": "json_object"}, "temperature": 0,
+                "seed": 1, "num_ctx": 4096, "ner_max_new_tokens": 1024,
+                "triples_max_new_tokens": 3072,
+            }
+            destination = root / "clone"
+
+            result = prepare_repair_clone(
+                source, destination, expected_hashes,
+                source_run_id="synthetic-source-run",
+                source_compatibility={
+                    key: True for key in (
+                        "producer_identity_matches", "embedding_identity_matches",
+                        "openie_identity_matches", "source_corpus_sha256_matches_manifest",
+                        "source_passages_match_openie_state", "chunk_ids_match_openie_state",
+                        "entity_ids_match_openie_state", "fact_ids_match_openie_state",
+                        "current_state_artifacts_consistent",
+                    )
+                },
+                source_attempts=source_attempts, repair_attempts=repair_attempts,
+                expected_passage_ids=["p1"], state_updates=updates,
+                passage_id_to_index={"p1": "doc-1"},
+                new_entity_rows=new_entities, new_fact_rows=new_facts,
+                repair_protocol=protocol,
+            )
+
+            self.assertTrue(result["provenance"]["gate"]["eligible"])
+            self.assertTrue(result["provenance"]["vector_plans"]["entity_embeddings"]["complete"])
+            self.assertTrue(result["provenance"]["vector_plans"]["fact_embeddings"]["complete"])
+            clone_state = json.loads((destination / "openie_state.json").read_text(encoding="utf-8"))
+            self.assertEqual(clone_state["docs"][0]["extracted_entities"], ["Alice", "Bob"])
+            self.assertEqual(json.loads((source / "openie_state.json").read_text(encoding="utf-8")),
+                             source_state)
+            self.assertEqual(set(parquet.read_table(
+                destination / REPAIR_ARTIFACTS["entity_embeddings"]
+            ).column("hash_id").to_pylist()), entity_ids)
+            self.assertEqual(set(parquet.read_table(
+                destination / REPAIR_ARTIFACTS["fact_embeddings"]
+            ).column("hash_id").to_pylist()), fact_ids)
+            self.assertEqual(len(result["merged_attempts"]), 4)
 
 
 if __name__ == "__main__":

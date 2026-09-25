@@ -12,8 +12,10 @@ from pathlib import Path
 
 try:
     from scripts.run_hipporag import canonical_key, sha256_bytes
+    from scripts.hipporag_repair import expected_openie_vector_ids
 except ModuleNotFoundError:  # Direct script execution puts scripts/ on sys.path.
     from run_hipporag import canonical_key, sha256_bytes
+    from hipporag_repair import expected_openie_vector_ids
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_RUN_ID = "e78eff08-532a-40b3-a359-49a6b08b32a7"
@@ -30,26 +32,6 @@ def sha256_file(path):
         for block in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(block)
     return digest.hexdigest()
-
-
-def expected_openie_vector_ids(state_docs):
-    """Reproduce pinned HippoRAG entity/fact IDs without exposing source text."""
-    entities, facts = set(), set()
-    for document in state_docs:
-        for triple in document["extracted_triples"]:
-            if not isinstance(triple, list) or len(triple) != 3:
-                raise ValueError("OpenIE state contains an invalid triple")
-            normalized = tuple(" ".join(
-                "".join(c if c.isalnum() or c.isspace() else " "
-                        for c in value.casefold()).split()
-            ) for value in triple)
-            entities.update((normalized[0], normalized[2]))
-            facts.add(normalized)
-    entity_ids = {"entity-" + hashlib.md5(value.encode()).hexdigest()
-                  for value in entities}
-    fact_ids = {"fact-" + hashlib.md5(str(value).encode()).hexdigest()
-                for value in facts}
-    return entity_ids, fact_ids
 
 
 def producer_identity(manifest):
