@@ -1,6 +1,7 @@
 """Run the explicitly bounded first OpenIE repair pass using native Ollama chat."""
 
 import argparse
+import hashlib
 from datetime import datetime, timezone
 import importlib.metadata
 import json
@@ -25,6 +26,8 @@ MAX_SECONDS = 6 * 60 * 60
 REQUEST_TIMEOUT = 300
 EXPECTED_PLAN_SHA = "f6ea09286136724f67621e24c4efc64913051a5fea1456d808a88ea1a6ec6d7e"
 EXPECTED_DIGEST = "357c53fb659c5076de1d65ccb0b397446227b71a42be9d1603d46168015c9e4b"
+STOPPED_CHECKPOINT_SHA = "83f61962940c06c912ff0c595a8617be298698b802151bc50d8136d2ef331d13"
+REMEDIAL_CAP = 2048
 EXPECTED_SOURCE_HASHES = {
     "openie_state": "728b93a078a28eee94267a9da0522c6460d535a66aa8cf55527ab69f12754f85",
     "graph": "cc7d53101cd7fc53e95beaece956ed5ec6cc9e19cdb30b1ecf84221567d0fbe6",
@@ -87,6 +90,109 @@ def _source_artifacts(storage_dir):
 def _source_state(path):
     state = json.loads(path.read_text(encoding="utf-8"))
     return state
+
+
+def run_remedial_ner(args, *, dry_run=False):
+    """One new attempt-3 NER task; never reopen the stopped 196-task writer."""
+    manifest, passage_ids, source_attempts, manifest_sha, corpus_sha = load_source_inputs(args.manifest)
+    plan = build_plan_report(manifest["run_id"], passage_ids, source_attempts,
+                             manifest_sha256=manifest_sha, corpus_sha256=corpus_sha)
+    if plan["plan_sha256"] != EXPECTED_PLAN_SHA:
+        raise ValueError("Frozen first-pass plan changed")
+    distribution = importlib.metadata.distribution("hipporag")
+    validate_upstream_pin(distribution.version, distribution.read_text("direct_url.json"))
+    artifacts = _source_artifacts(manifest["storage_dir"])
+    original = ROOT / "storage" / "hipporag2-independent-s500-200-299-repair-f6ea0928" / "openie-repair-checkpoint.json"
+    if sha256_file(original) != STOPPED_CHECKPOINT_SHA:
+        raise ValueError("Stopped checkpoint SHA changed")
+    old = json.loads(original.read_text(encoding="utf-8"))
+    rows = old.get("attempts", [])
+    if (old.get("status") != "stopped"
+            or old.get("stop_reason") != "unresolved_extraction"
+            or old.get("in_flight") is not None
+            or old.get("next_task_index") != 2
+            or old.get("identity", {}).get("plan_sha256") != EXPECTED_PLAN_SHA
+            or old.get("identity", {}).get("schedule_size") != MAX_TASKS
+            or len(rows) != 2
+            or rows[0]["attempt"].get("status") not in ("valid_empty", "valid_nonempty")
+            or rows[1]["attempt"].get("stage") != "openie_ner"
+            or rows[1]["attempt"].get("attempt") != 2
+            or rows[1]["attempt"].get("status") != "truncated"
+            or rows[1]["attempt"].get("finish_reason") != "length"
+            or rows[1]["attempt"].get("retry_of_attempt") != 1):
+        raise ValueError("Stopped checkpoint is not the approved two-task result")
+    for row in rows:
+        RepairJournal._validate_output(row)
+    old_protocol = old["identity"]["protocol"]
+    generation = manifest["generation"]
+    model, digest = generation["model"]["name"], generation["model"]["digest"]
+    if (digest != EXPECTED_DIGEST or old_protocol != {
+            "model": model, "model_digest": digest, "num_ctx": 4096,
+            "seed": 42, "temperature": 0.0,
+            "ner_max_new_tokens": 1024, "triples_max_new_tokens": 3072}):
+        raise ValueError("Frozen model or stopped protocol changed")
+    source_task = rows[1]["task"]
+    task = {"passage_id": source_task["passage_id"], "stage": "openie_ner",
+            "attempt": 3, "retry_of_attempt": 2, "remedial_retry": True}
+    if task["passage_id"] not in passage_ids:
+        raise ValueError("Remedial passage ID is absent from source corpus")
+    task_bytes = json.dumps(task, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    plan_sha = hashlib.sha256(task_bytes).hexdigest()
+    namespace = ROOT / "storage" / f"hipporag2-remedial-ner3-cap2048-{plan_sha[:8]}"
+    if dry_run:
+        if namespace.exists():
+            raise ValueError("Remedial namespace already exists")
+        print(json.dumps({"status": "remedial_offline_preflight_passed",
+                          "tasks": 1, "max_model_requests": 2,
+                          "output_cap": REMEDIAL_CAP, "num_ctx": 4096,
+                          "source_checkpoint_sha256": STOPPED_CHECKPOINT_SHA,
+                          "source_hashes_verified": len(artifacts),
+                          "plan_sha256": plan_sha,
+                          "proposed_namespace": str(namespace)}), flush=True)
+        return
+    if namespace.exists():
+        raise ValueError("Remedial namespace already exists; no automatic replay")
+    if model_info(model, generation["endpoint"])["digest"] != digest:
+        raise ValueError("Installed model digest changed")
+    from scripts.run_hipporag import canonical_key, passage_id as make_passage_id
+    corpus = json.loads(Path(manifest["inputs"]["corpus_path"]).read_text(encoding="utf-8"))
+    matches = []
+    for item in corpus:
+        title, text = canonical_key(item["title"], item["text"])
+        if (item.get("id") or make_passage_id(title, text)) == task["passage_id"]:
+            matches.append(title + "\n" + text)
+    if len(matches) != 1:
+        raise ValueError("Remedial passage is not unique in source corpus")
+    protocol = {**old_protocol, "ner_max_new_tokens": REMEDIAL_CAP}
+    source_hashes = {"manifest": manifest_sha, "corpus": corpus_sha,
+                     "stopped_checkpoint": STOPPED_CHECKPOINT_SHA,
+                     **EXPECTED_SOURCE_HASHES}
+    endpoint = generation["endpoint"].removesuffix("/v1").rstrip("/") + "/api/chat"
+    deadline = time.monotonic() + 600
+    request_fn = make_native_ollama_request(
+        endpoint, protocol=protocol, model_digest=digest,
+        post_json=_post_json(endpoint, deadline, model=model))
+    namespace.mkdir(parents=True)
+    path = namespace / "openie-repair-checkpoint.json"
+    with RepairJournal(path, plan_sha256=plan_sha, source_hashes=source_hashes,
+                       protocol=protocol,
+                       expected_task_keys=[RepairJournal.task_key(task)]) as journal:
+        journal.begin(task)
+        result = measure_then_execute_openie_task(
+            task, matches[0], None, request_fn=request_fn,
+            parse_fn=make_pinned_openie_parser(), run_id=manifest["run_id"],
+            model_digest=digest, model_requests_enabled=True)
+        journal.complete(task, result["attempt"], result["values"])
+        if result["attempt"]["status"] in ("valid_empty", "valid_nonempty"):
+            journal.finish(expected_task_keys=[RepairJournal.task_key(task)])
+        else:
+            journal.stop("unresolved_extraction")
+    if sha256_file(original) != STOPPED_CHECKPOINT_SHA:
+        raise RuntimeError("Original stopped checkpoint changed")
+    print(json.dumps({"status": result["attempt"]["status"],
+                      "requests": 2, "checkpoint_sha256": sha256_file(path),
+                      "original_checkpoint_unchanged": True,
+                      "embeddings_rebuild_qa": "not run"}), flush=True)
 
 
 def run(args, *, dry_run=False):
@@ -201,9 +307,16 @@ def main():
                         help="explicitly enable bounded local model requests")
     parser.add_argument("--dry-run", action="store_true",
                         help="verify the frozen plan and source hashes without network calls")
+    parser.add_argument("--remedial-ner", action="store_true",
+                        help="run only the approved one-task attempt-3 NER revision")
     parser.add_argument("--manifest", type=Path, default=ROOT / "results" / "raw" /
                         f"hipporag2-musique-{SOURCE_RUN_ID}.manifest.json")
     args = parser.parse_args()
+    if args.remedial_ner:
+        if not args.dry_run and not args.execute:
+            raise SystemExit("Refusing: remedial model requests require --execute")
+        run_remedial_ner(args, dry_run=args.dry_run)
+        return
     if args.dry_run:
         run(args, dry_run=True)
         return

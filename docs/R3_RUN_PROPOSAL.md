@@ -73,3 +73,9 @@ $hippoPython = Join-Path $env:TEMP 'hipporag2-1438aba3-venv\Scripts\python.exe'
 Счётчики первой пары: measurement 473 input / 1 completion; extraction 473 / 45. Второй пары: measurement 334 / 1; extraction 334 / 1024. Usage получен для всех четырёх ответов. Private checkpoint остановлен с `unresolved_extraction`, содержит 2 задачи; SHA-256 `83f61962940c06c912ff0c595a8617be298698b802151bc50d8136d2ef331d13`. Исходные артефакты не менялись. Embeddings, graph rebuild и QA не запускались.
 
 Продолжение требует отдельного изменения cap/retry policy по ADR-0008 и явного решения; этот checkpoint не возобновляется автоматически и не должен обходиться повтором задачи.
+
+## Отдельная remedial NER attempt 3
+
+Пользователь разрешил только одну ограниченную remedial попытку. Решение и остановки записаны в [ADR-0008](../.adr/0008-openie-truncation-retry-policy.md): cap 2048, `num_ctx=4096`, максимум одно измерение и одна extraction, 300 секунд на HTTP-запрос, 10 минут всего. Исходный checkpoint SHA должен остаться `83f61962940c06c912ff0c595a8617be298698b802151bc50d8136d2ef331d13`. Новая задача — NER attempt 3 с `retry_of_attempt=2`, `remedial_retry=true`, в отдельном namespace. При unresolved результате дальнейшая очередь закрыта; embeddings, graph rebuild и QA не входят в запуск.
+
+Offline-проверка: `& $hippoPython -m scripts.run_hipporag_repair --remedial-ner --dry-run`. Только после неё ограниченный запуск: `& $hippoPython -m scripts.run_hipporag_repair --remedial-ner --execute`.
