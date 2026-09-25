@@ -38,6 +38,10 @@
       "sha256": "cc7d53101cd7fc53e95beaece956ed5ec6cc9e19cdb30b1ecf84221567d0fbe6",
       "bytes": 22298351
     },
+    "chunk_metadata": {
+      "sha256": "7e8b519b809923a54483ec5377077332068f36d0e57c4206fc4cf886ffbd05d0",
+      "bytes": 269503
+    },
     "chunk_embeddings": {
       "sha256": "b9435c1b72271555cd1da3c91ad082f6b5ca167514e38d626c71bf6765260f84",
       "bytes": 25154732,
