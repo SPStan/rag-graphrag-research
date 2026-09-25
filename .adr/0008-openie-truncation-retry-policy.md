@@ -1,7 +1,7 @@
 # ADR-0008 — OpenIE truncation retry policy
 
 - Date: 2026-09-25
-- Status: accepted for runner behavior; numeric retry caps and context window must be frozen before the next index build
+- Status: accepted for runner behavior; prefer repair from preserved compatible artifacts over a full index rebuild
 - Related: [ADR-0007](0007-openie-extraction-audit-and-independent-evaluation.md)
 
 ## Context
@@ -16,6 +16,7 @@ The candidate HippoRAG index build `e78eff08-532a-40b3-a359-49a6b08b32a7` failed
 - Do not silently accept recovered partial content as a complete extraction. If the retry is still truncated or invalid, keep the index diagnostic and stop before QA.
 - Freeze caps, model, prompt/schema, and context setting before the run. Check that the configured context can accommodate the rendered prompt and retry generation. Do not tune them against the candidate answers.
 - A rebuild is explicit, uses a new fingerprinted storage namespace, and preserves the diagnostic index, cache, manifests, and raw outputs. No automatic rebuild is permitted.
+- Before considering a full rebuild, audit whether the failed run preserved compatible passage/entity/fact vectors and OpenIE state. If so, the preferred path is to clone those artifacts into a new namespace, repair only unresolved extraction outcomes, refresh triples whose NER dependency changed, and reconstruct the graph with the pinned upstream `force_index_from_scratch` path. Reuse must be refused unless source hashes, producer identity, corpus fingerprint, embedding pipeline and vector row counts all match. Never mutate the diagnostic source directory.
 
 ## Alternatives considered
 
@@ -26,7 +27,7 @@ The candidate HippoRAG index build `e78eff08-532a-40b3-a359-49a6b08b32a7` failed
 
 ## Consequences and verification
 
-The runner's retry predicate now includes `finish_reason=length`, stage retry caps are explicit CLI settings included in the manifest and index namespace fingerprint, and a unit test covers truncated output whose partial JSON was otherwise parseable. The default retry caps are a protocol proposal; inspect expected prompt lengths and confirm hardware/context feasibility in the readiness report before a costly build. This ADR does not authorize or trigger an index rebuild. Before a candidate comparison, verify the frozen configuration, cache behavior, manifest fields, zero unresolved gate outcomes, and exact question-ID pairing. A failed gate means no HippoRAG QA and no paired metrics/bootstrap.
+The runner's retry predicate now includes `finish_reason=length`, stage retry caps are explicit CLI settings included in the manifest and index namespace fingerprint, and a unit test covers truncated output whose partial JSON was otherwise parseable. A read-only audit of the failed candidate confirms that all 5,500 passage vectors, 44,614 entity vectors, 47,614 fact vectors, graph and 5,500-row OpenIE state are present. It estimates 196 targeted generation calls if corrected NER outputs also refresh dependent triples. This supports a no-full-reembedding repair path, but compatibility and clone/rebuild behavior still need implementation and tests. The default retry caps are a protocol proposal; inspect expected prompt lengths and confirm hardware/context feasibility before targeted calls. This ADR does not authorize or trigger repair calls, graph reconstruction, or QA. Before a candidate comparison, verify the frozen configuration, cache behavior, manifest fields, zero unresolved gate outcomes, and exact question-ID pairing. A failed gate means no HippoRAG QA and no paired metrics/bootstrap.
 
 ## Review conditions
 

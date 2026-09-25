@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "source_run_id": "e78eff08-532a-40b3-a359-49a6b08b32a7",
+  "source_status": "failed",
+  "index_eligible": false,
+  "qa_started": false,
+  "expected_passages": 5500,
+  "persisted_openie_passages": 5500,
+  "persisted_graph_present": true,
+  "existing_embedding_rows": {
+    "chunk_embeddings": 5500,
+    "entity_embeddings": 44614,
+    "fact_embeddings": 47614
+  },
+  "artifacts": {
+    "openie_state": {
+      "sha256": "728b93a078a28eee94267a9da0522c6460d535a66aa8cf55527ab69f12754f85",
+      "bytes": 7027660
+    },
+    "graph": {
+      "sha256": "cc7d53101cd7fc53e95beaece956ed5ec6cc9e19cdb30b1ecf84221567d0fbe6",
+      "bytes": 22298351
+    },
+    "chunk_embeddings": {
+      "sha256": "b9435c1b72271555cd1da3c91ad082f6b5ca167514e38d626c71bf6765260f84",
+      "bytes": 25154732,
+      "rows": 5500
+    },
+    "entity_embeddings": {
+      "sha256": "90ebde2437bed03a487aa95625025aaeb897fd32448e99d17c13b15a691ebf2c",
+      "bytes": 185661903,
+      "rows": 44614
+    },
+    "fact_embeddings": {
+      "sha256": "7fe8f81c07ce51aa915b6ae25333a6dd5ec9eb1c1e58114d3407c5bc2cbe85b6",
+      "bytes": 199172236,
+      "rows": 47614
+    },
+    "index_manifest": {
+      "sha256": "696eca0444d8818c9c62c1ab9c6855de8ecd86130431d3730eb4cd95ede2c79d",
+      "bytes": 1862
+    }
+  },
+  "repair_analysis": {
+    "unresolved_by_stage": {
+      "openie_ner": 38,
+      "openie_triples": 122
+    },
+    "unresolved_terminal_attempt_numbers": {
+      "openie_ner": {
+        "1": 37,
+        "2": 1
+      },
+      "openie_triples": {
+        "1": 121,
+        "2": 1
+      }
+    },
+    "passages_with_both_stages_unresolved": 2,
+    "ner_repairs_requiring_dependent_triple_refresh": 36,
+    "estimated_targeted_generation_calls_if_dependency_refresh_is_required": 196,
+    "recorded_attempts": 11025
+  },
+  "reuse_assessment": {
+    "full_passage_reembedding_appears_unnecessary": true,
+    "requires_cloned_storage_namespace": true,
+    "requires_openie_state_patch_and_graph_reconstruction": true,
+    "audit_sent_model_calls": false,
+    "repair_requires_targeted_model_calls": true,
+    "repair_wall_time_estimate": null,
+    "notes": [
+      "Reuse is conditional on verifying exact producer, corpus, embedding and vector-store compatibility.",
+      "Only newly introduced entity/fact strings should need new embeddings after targeted extraction repair.",
+      "The source diagnostic index must remain immutable; perform repair in a verified copy.",
+      "No QA run or benchmark is authorized by this audit."
+    ]
+  },
+  "historical_build_wall_seconds": 14427.861756,
+  "interpretation": [
+    "This is an artifact-readiness audit, not a repaired or eligible benchmark result.",
+    "A corrected NER result requires refreshing its dependent triple extraction unless that triple is already being repaired.",
+    "Attempt estimates exclude retries if targeted calls fail and therefore are not a guaranteed upper bound."
+  ]
+}
