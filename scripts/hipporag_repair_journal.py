@@ -256,3 +256,16 @@ class RepairJournal:
         updated = deepcopy(self.data)
         updated["status"] = "complete"
         self._commit(updated)
+
+    def stop(self, reason):
+        """Durably halt this schedule so a later process cannot auto-resume it."""
+        allowed = {"unresolved_extraction", "context_overflow", "request_outcome_unknown",
+                   "deadline", "checkpoint_error"}
+        if reason not in allowed:
+            raise ValueError("Unknown repair stop reason")
+        if self.data["in_flight"] is not None:
+            raise RuntimeError("Cannot mark stopped while a request is in flight")
+        updated = deepcopy(self.data)
+        updated["status"] = "stopped"
+        updated["stop_reason"] = reason
+        self._commit(updated)

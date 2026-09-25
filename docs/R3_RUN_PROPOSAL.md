@@ -40,4 +40,36 @@ $hippoPython = Join-Path $env:TEMP 'hipporag2-1438aba3-venv\Scripts\python.exe'
 
 Первый замороженный проход: 38 NER и 158 triples, всего 196 extraction tasks, включая две attempt 3. Это размер очереди, не обещание успешного окончания и не бюджет для дополнительных повторов. После пилота для каждой задачи нужен полный token count до extraction; 38 зависимых triple prompts измеряются только после сохранения соответствующего NER. Поэтому потенциальный потолок первого прохода — ещё до 196 измерительных запросов и до 196 extraction запросов; пилотные два запроса считаются отдельно. Время такого прохода пока неизвестно и должно быть ограничено перед отдельным разрешением. Локальные затраты токенов измеряются по фактическому usage; отсутствующий usage остаётся неизвестным. Расход внутреннего API к этому не относится.
 
-Пилот **не запускает repair, graph rebuild или QA**. Для реального repair ещё нужен отдельный разрешённый запуск с новым namespace, проверкой source SHA и измерением каждого prompt через native `/api/chat` перед extraction. Любой unresolved extraction, превышение контекста, неизвестный in-flight, ошибка записи, изменение конфигурации или digest останавливают очередь; сохранённый checkpoint остаётся private. Graph строится только после zero-unresolved extraction gate и exact vector IDs, QA — после `graph_ready` и отдельного разрешения.
+Пилот **не запускал repair, graph rebuild или QA**.
+
+## Ограниченный первый repair-проход
+
+Исполняемый runner использует native Ollama `/api/chat`, frozen planner/executor и private `RepairJournal`. Offline-команда сверяет исходные SHA, pinned HippoRAG и ровно 196 упорядоченных задач без сети. Исполнение повторно сверяет digest модели; исходный индекс не меняется. Значения и результаты сохраняются только в checkpoint под новым namespace.
+
+Предельный бюджет: 196 задач (38 NER, 158 triples), максимум 196 измерений плюс 196 extraction-запросов, без повторов. Для каждого prompt измерение предшествует extraction; параметры: `num_ctx=4096`, `truncate=false`, JSON, `seed=42`, `temperature=0`, caps 1024/3072. Таймаут каждого HTTP-запроса — не более 300 секунд; абсолютный предел процесса — 6 часов. Usage, которого Ollama не вернёт, останется неизвестным.
+
+Остановить очередь при несовпадении любого SHA/digest/config, неполном prompt usage, превышении `prompt_eval_count + output_cap <= 4096`, ошибке checkpoint, неизвестном исходе измерительного запроса либо первом unresolved extraction. In-flight задача не повторяется автоматически. Остановленный checkpoint сохраняется; embeddings, graph rebuild и QA не входят в эту команду.
+
+Offline-проверка (без model request):
+
+```powershell
+$hippoPython = Join-Path $env:TEMP 'hipporag2-1438aba3-venv\Scripts\python.exe'
+& $hippoPython -m scripts.run_hipporag_repair --dry-run
+```
+
+Команда ограниченного запуска:
+
+```powershell
+$hippoPython = Join-Path $env:TEMP 'hipporag2-1438aba3-venv\Scripts\python.exe'
+& $hippoPython -m scripts.run_hipporag_repair --execute
+```
+
+Запуск проверяет локальный digest через Ollama API. Команда `ollama` в PATH не требуется. Результат repair остаётся private checkpoint до отдельного решения по следующим стадиям.
+
+## Фактический ограниченный запуск, 25 сентября 2026
+
+После offline-проверки и явного указания пользователя выполнены четыре native `/api/chat` POST: измерение и extraction для двух первых NER задач. Ollama подтвердил GPU размещение (`size_vram=2159374499` байт). Первая задача завершилась `valid_nonempty`; вторая достигла NER cap 1024 и получила `truncated`. По условию остановки очередь немедленно прекращена: оставшиеся 194 задачи не отправлялись, повтора нет.
+
+Счётчики первой пары: measurement 473 input / 1 completion; extraction 473 / 45. Второй пары: measurement 334 / 1; extraction 334 / 1024. Usage получен для всех четырёх ответов. Private checkpoint остановлен с `unresolved_extraction`, содержит 2 задачи; SHA-256 `83f61962940c06c912ff0c595a8617be298698b802151bc50d8136d2ef331d13`. Исходные артефакты не менялись. Embeddings, graph rebuild и QA не запускались.
+
+Продолжение требует отдельного изменения cap/retry policy по ADR-0008 и явного решения; этот checkpoint не возобновляется автоматически и не должен обходиться повтором задачи.

@@ -107,6 +107,15 @@ class RepairJournalTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "in flight"):
             self.open_journal()
 
+    def test_stopped_checkpoint_is_durable_without_in_flight_work(self):
+        journal = self.open_journal()
+        journal.stop("unresolved_extraction")
+        journal.close()
+        reopened = self.open_journal()
+        self.assertEqual(reopened.data["status"], "stopped")
+        self.assertEqual(reopened.data["stop_reason"], "unresolved_extraction")
+        reopened.close()
+
 
 if __name__ == "__main__":
     unittest.main()
