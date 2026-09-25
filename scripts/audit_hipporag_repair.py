@@ -10,6 +10,11 @@ import hashlib
 import json
 from pathlib import Path
 
+try:
+    from scripts.run_hipporag import canonical_key, sha256_bytes
+except ModuleNotFoundError:  # Direct script execution puts scripts/ on sys.path.
+    from run_hipporag import canonical_key, sha256_bytes
+
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_RUN_ID = "e78eff08-532a-40b3-a359-49a6b08b32a7"
 VALID = {"valid_empty", "valid_nonempty"}
@@ -25,6 +30,44 @@ def sha256_file(path):
         for block in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(block)
     return digest.hexdigest()
+
+
+def expected_openie_vector_ids(state_docs):
+    """Reproduce pinned HippoRAG entity/fact IDs without exposing source text."""
+    entities, facts = set(), set()
+    for document in state_docs:
+        for triple in document["extracted_triples"]:
+            if not isinstance(triple, list) or len(triple) != 3:
+                raise ValueError("OpenIE state contains an invalid triple")
+            normalized = tuple(" ".join(
+                "".join(c if c.isalnum() or c.isspace() else " "
+                        for c in value.casefold()).split()
+            ) for value in triple)
+            entities.update((normalized[0], normalized[2]))
+            facts.add(normalized)
+    entity_ids = {"entity-" + hashlib.md5(value.encode()).hexdigest()
+                  for value in entities}
+    fact_ids = {"fact-" + hashlib.md5(str(value).encode()).hexdigest()
+                for value in facts}
+    return entity_ids, fact_ids
+
+
+def producer_identity(manifest):
+    pipeline = {
+        "endpoint": "/api/embed", "truncate": False,
+        "text_preprocessing": "replace-newlines-with-space-v1",
+        "vector_validation": "finite-nonzero-row-v1",
+    }
+    payload = {
+        "generation": manifest["generation"]["model"]["digest"],
+        "embedding": manifest["embedding"]["model"]["digest"],
+        "embedding_pipeline": pipeline,
+        "upstream": manifest["upstream"]["commit"],
+    }
+    return "ollama:" + sha256_bytes(
+        (json.dumps(payload, ensure_ascii=False, separators=(",", ":")) + "\n")
+        .encode("utf-8")
+    )
 
 
 def summarize_attempts(attempts):
@@ -100,6 +143,7 @@ def audit_run(manifest_path):
     attempts = index.get("openie_attempts")
     if not isinstance(attempts, list):
         raise ValueError("Manifest has no attempt ledger")
+    import pyarrow.parquet as parquet
     from pyarrow.parquet import ParquetFile
 
     artifact_summary = {}
@@ -113,6 +157,61 @@ def audit_run(manifest_path):
     if row_counts["chunk_embeddings"] != expected_passages:
         raise ValueError("Chunk vector count does not match expected passage count")
 
+    index_manifest = read_json(artifact_paths["index_manifest"])
+    current_ids = {
+        name: set(parquet.read_table(path, columns=["hash_id"])
+                  .column("hash_id").to_pylist())
+        for name, path in (("chunk", artifact_paths["chunk_embeddings"]),
+                           ("entity", artifact_paths["entity_embeddings"]),
+                           ("fact", artifact_paths["fact_embeddings"]))
+    }
+    expected_entity_ids, expected_fact_ids = expected_openie_vector_ids(state["docs"])
+    expected_chunk_ids = {document["idx"] for document in state["docs"]}
+    index_identity_matches = (
+        index_manifest.get("components", {}).get("explicit_identity")
+        == producer_identity(manifest)
+    )
+    expected_embedding_label = manifest["embedding"]["model"]["name"].replace(
+        ":", "_").replace("/", "_")
+    embedding_identity_matches = (
+        index_manifest.get("embedding", {}).get("model_name") == expected_embedding_label
+        and index_manifest.get("embedding", {}).get("normalized") is True
+    )
+    openie_identity = index_manifest.get("openie", {}).get("identity", {})
+    options = manifest["generation"]["options"]
+    expected_generation_label = manifest["generation"]["model"]["name"].replace(
+        ":", "_").replace("/", "_")
+    openie_identity_matches = (
+        openie_identity.get("model_name") == expected_generation_label
+        and openie_identity.get("temperature") == options.get("temperature")
+        and openie_identity.get("seed") == options.get("seed")
+        and openie_identity.get("response_format") == {"type": "json_object"}
+        and openie_identity.get("ner_max_tokens") == 512
+        and openie_identity.get("triple_max_tokens") == 2048
+        and openie_identity.get("prompt_schema") == "hipporag_openie_v1"
+    )
+    vector_match = {
+        "chunk_ids_match_openie_state": current_ids["chunk"] == expected_chunk_ids,
+        "entity_ids_match_openie_state": current_ids["entity"] == expected_entity_ids,
+        "fact_ids_match_openie_state": current_ids["fact"] == expected_fact_ids,
+    }
+    corpus_path = Path(manifest["inputs"]["corpus_path"])
+    corpus_hash_matches = (corpus_path.is_file()
+                           and sha256_file(corpus_path) == manifest["inputs"]["corpus_sha256"])
+    corpus = read_json(corpus_path) if corpus_hash_matches else []
+    expected_passage_texts = {
+        f"{title}\n{text}"
+        for item in corpus
+        for title, text in [canonical_key(item["title"], item["text"])]
+    }
+    source_passages_match = (
+        len(expected_passage_texts) == len(state["docs"])
+        and expected_passage_texts == {item["passage"] for item in state["docs"]}
+    )
+    compatible = (index_identity_matches and embedding_identity_matches
+                  and openie_identity_matches and source_passages_match
+                  and corpus_hash_matches and all(vector_match.values()))
+
     return {
         "schema_version": 1,
         "source_run_id": run_id,
@@ -124,10 +223,24 @@ def audit_run(manifest_path):
         "persisted_openie_passages": len(state["docs"]),
         "persisted_graph_present": True,
         "existing_embedding_rows": row_counts,
+        "reuse_compatibility": {
+            "producer_identity_matches": index_identity_matches,
+            "embedding_identity_matches": embedding_identity_matches,
+            "openie_identity_matches": openie_identity_matches,
+            "source_corpus_sha256_matches_manifest": corpus_hash_matches,
+            "source_passages_match_openie_state": source_passages_match,
+            **vector_match,
+            "compatible_for_cloned_graph_rebuild": compatible,
+            "embedding_ids_missing_or_stale": {
+                "chunks": len(expected_chunk_ids ^ current_ids["chunk"]),
+                "entities": len(expected_entity_ids ^ current_ids["entity"]),
+                "facts": len(expected_fact_ids ^ current_ids["fact"]),
+            },
+        },
         "artifacts": artifact_summary,
         "repair_analysis": summarize_attempts(attempts),
         "reuse_assessment": {
-            "full_passage_reembedding_appears_unnecessary": True,
+            "full_passage_reembedding_appears_unnecessary": compatible,
             "requires_cloned_storage_namespace": True,
             "requires_openie_state_patch_and_graph_reconstruction": True,
             "audit_sent_model_calls": False,

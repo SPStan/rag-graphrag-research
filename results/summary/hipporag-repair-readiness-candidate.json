@@ -12,6 +12,22 @@
     "entity_embeddings": 44614,
     "fact_embeddings": 47614
   },
+  "reuse_compatibility": {
+    "producer_identity_matches": true,
+    "embedding_identity_matches": true,
+    "openie_identity_matches": true,
+    "source_corpus_sha256_matches_manifest": true,
+    "source_passages_match_openie_state": true,
+    "chunk_ids_match_openie_state": true,
+    "entity_ids_match_openie_state": true,
+    "fact_ids_match_openie_state": true,
+    "compatible_for_cloned_graph_rebuild": true,
+    "embedding_ids_missing_or_stale": {
+      "chunks": 0,
+      "entities": 0,
+      "facts": 0
+    }
+  },
   "artifacts": {
     "openie_state": {
       "sha256": "728b93a078a28eee94267a9da0522c6460d535a66aa8cf55527ab69f12754f85",

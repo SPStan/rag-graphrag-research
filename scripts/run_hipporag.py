@@ -58,6 +58,22 @@ def json_bytes(value):
     return (json.dumps(value, ensure_ascii=False, separators=(",", ":")) + "\n").encode("utf-8")
 
 
+def build_index_identities(generation_digest, embedding_digest,
+                           embedding_pipeline, openie_protocol, upstream_commit):
+    """Separate compatible index producer identity from run/storage policy."""
+    producer_identity = sha256_bytes(json_bytes({
+        "generation": generation_digest,
+        "embedding": embedding_digest,
+        "embedding_pipeline": embedding_pipeline,
+        "upstream": upstream_commit,
+    }))
+    storage_identity = sha256_bytes(json_bytes({
+        "producer_identity": producer_identity,
+        "openie_protocol": openie_protocol,
+    }))
+    return producer_identity, storage_identity
+
+
 def reader_template_metadata():
     try:
         from scripts.vendor.hipporag2_musique_template import prompt_template
@@ -1199,14 +1215,10 @@ def run(args):
         "retry_policy": "one-uncached-retry-on-invalid-or-length-v1",
         "num_ctx": args.num_ctx,
     }
-    model_identity = sha256_bytes(json_bytes({
-        "generation": model_generation["digest"],
-        "embedding": model_embedding["digest"],
-        "embedding_pipeline": embedding_pipeline,
-        "openie_protocol": openie_protocol_identity,
-        "upstream": "1438aba3fc44ff10573e5a5e1e7cc3c7f9794aff",
-    }))
-    index_storage = storage / f"index-{model_identity[:12]}"
+    producer_identity, storage_identity = build_index_identities(
+        model_generation["digest"], model_embedding["digest"], embedding_pipeline,
+        openie_protocol_identity, "1438aba3fc44ff10573e5a5e1e7cc3c7f9794aff")
+    index_storage = storage / f"index-{storage_identity[:12]}"
     index_storage.mkdir(parents=True, exist_ok=True)
     manifest = {
         "schema_version": 2, "run_id": run_id, "dataset": args.dataset,
@@ -1231,6 +1243,8 @@ def run(args):
                        "reader_template_sha256": reader_info["template_sha256"],
                        "options": generation_options},
         "openie_protocol": openie_protocol_identity,
+        "index_producer_identity": producer_identity,
+        "storage_namespace_identity": storage_identity,
         "embedding": {"model": model_embedding, "endpoint": args.base_url,
                       "batch_size": 1,
                       "hipporag_outer_batch_size": args.embedding_batch_size,
@@ -1292,7 +1306,7 @@ def run(args):
     local = None
     try:
         rag = HippoRAG(global_config=config, extraction_llm=llm, qa_llm=llm,
-                       embedding_model=embedding, index_identity=f"ollama:{model_identity}")
+                       embedding_model=embedding, index_identity=f"ollama:{producer_identity}")
         manifest["embedding"]["native_endpoint"] = install_no_truncate_embedding_api(
             embedding, args.base_url, args.embedding_model)
         write_json_atomic(manifest_path, manifest)

@@ -17,12 +17,22 @@ from scripts.run_hipporag import (normalize_inputs, parse_args, passage_id,
                                   run_shared_reader, git_snapshot,
                                   install_no_truncate_embedding_api, ollama_api_base,
                                   build_rows, bind_openie_thread_context)
-from scripts.run_hipporag import openie_needs_retry
+from scripts.run_hipporag import openie_needs_retry, build_index_identities
 from scripts.run_dense import build_reader_messages
 from scripts.openie_protocol import build_openie_acceptance_gate
 
 
 class HippoRAGRunnerTests(unittest.TestCase):
+    def test_retry_policy_changes_storage_namespace_not_compatible_producer_identity(self):
+        common = ("generation", "embedding", {"truncate": False})
+        producer_a, storage_a = build_index_identities(
+            *common, {"retry_cap": 1024}, "upstream")
+        producer_b, storage_b = build_index_identities(
+            *common, {"retry_cap": 2048}, "upstream")
+
+        self.assertEqual(producer_a, producer_b)
+        self.assertNotEqual(storage_a, storage_b)
+
     def test_openie_truncation_is_retried_even_if_partial_json_was_parsed(self):
         self.assertTrue(openie_needs_retry({"finish_reason": "length"}))
         self.assertTrue(openie_needs_retry({"error": "invalid_schema",
