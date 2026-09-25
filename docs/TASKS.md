@@ -17,7 +17,7 @@
 | Локальный стенд, данные, Dense, reader, evaluator | Работают по предыдущим проверкам; повторять установку не нужно |
 | Dense candidate100 | Завершён: EM 0,110; F1 0,1858; recall@5 0,6058 |
 | HippoRAG candidate100 | QA не начат: диагностический индекс имеет 160 unresolved OpenIE outcomes |
-| Ремонт OpenIE | Ограниченный GPU-запуск остановлен после первой `truncated` NER extraction; 1 из 196 задач успешна, 1 unresolved |
+| Ремонт OpenIE | Первая очередь остановлена после NER attempt 2; отдельная attempt 3 тоже `truncated` на cap 2048. Кандидат остаётся диагностическим |
 | Исторический debug10 | Диагностика, использовался при разработке; входит в baseline100 |
 | Целевые API/T4, HotpotQA-прогон, RAPTOR, router, cost model, bootstrap | Не завершены; после локального сравнения, по исходному заданию |
 
@@ -69,7 +69,7 @@
 
 ## R3 — Контекст и конкретное предложение запуска
 
-**Статус:** native transport и GPU проверены на ограниченном запуске; очередь остановлена после первой `truncated` extraction по заданному правилу. Полный context fit и repair не завершены. **Владелец решения:** Sol.
+**Статус:** native transport и GPU проверены на ограниченном запуске; NER attempt 2 и отдельная attempt 3 обе завершились `truncated`. Полный context fit и repair не завершены; кандидат заблокирован до методологического решения. **Владелец решения:** Sol.
 **Результат:** короткий проверяемый протокол вместо очередного общесловесного readiness-отчёта.
 
 - Полный context fit остаётся непроверенным: измерены только два фактических NER prompts. Зависимые triple prompts измеряются после сохранения успешного NER и прямо перед extraction.
@@ -80,6 +80,8 @@
 **Результат попытки 25 сентября:** исполняемый runner и команда внесены в [R3_RUN_PROPOSAL](R3_RUN_PROPOSAL.md). Offline dry-run подтвердил 196 задач и SHA семи источников; целевые 24 unittest прошли. По явному запросу пользователя выполнено 4 native chat POST для двух NER задач; Ollama подтвердил выделение GPU VRAM. Первая задача `valid_nonempty`, вторая `truncated` на cap 1024. Checkpoint остановлен, SHA `83f61962940c06c912ff0c595a8617be298698b802151bc50d8136d2ef331d13`. Автовозобновление запрещено. Cap/retry policy требует пересмотра по ADR-0008 перед любым дальнейшим вызовом. Embeddings, graph rebuild и QA не выполнялись.
 
 **Подготовка remedial attempt 3:** по решению пользователя в [ADR-0008](../.adr/0008-openie-truncation-retry-policy.md) закреплён один NER attempt 3 с cap 2048. Новый режим `--remedial-ner` читает остановленный checkpoint по точному SHA, проверяет семь исходных SHA и строит отдельную однозадачную очередь; старый checkpoint не изменяет. Offline dry-run прошёл, 23 целевых теста прошли. GPU-запуск остаётся за Luna; в этом чате новых model requests не было.
+
+**Результат remedial:** Luna выполнила одно измерение и одну extraction; NER attempt 3 снова `truncated` (`finish_reason=length`, 334 input / 2048 completion). Новый checkpoint `stopped/unresolved_extraction`, SHA `1cf000239921f3dc36d4a879e5defe355c8ecbb7afc7e092bc31a193c8c57275`; исходный SHA не изменился. Частичные values не приняты. Повторять этот запуск, добавлять attempt 4, продолжать основную очередь, строить граф или запускать QA нельзя. Следующий блок — решить, фиксировать этот локальный кандидат как заблокированный или описывать новую extraction-стратегию как отдельный вариант исследования; выбор до новых model calls записать в ADR.
 
 Способ, результаты и границы запуска: [R3_RUN_PROPOSAL](R3_RUN_PROPOSAL.md), решение: [ADR-0010](../.adr/0010-context-measurement-proposal.md). Два прежних пилотных prompt имели 691 и 1003 input tokens. Первый repair-run измерил ещё два NER prompt (473 и 334); второй completion занял весь cap 1024 и завершился `truncated`. Для этих запросов native transport и GPU размещение подтверждены, остальные prompts не измерены. Текущий context guard не ослаблен.
 
