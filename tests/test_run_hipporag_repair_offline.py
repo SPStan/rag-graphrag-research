@@ -8,6 +8,9 @@ import unittest
 from scripts.hipporag_repair import plan_openie_repairs
 from scripts.hipporag_repair_journal import RepairJournal
 from scripts.run_hipporag_repair_offline import run_repair_pass
+from scripts.hipporag_repair_executor import (
+    make_native_ollama_request, measure_then_execute_openie_task,
+)
 
 
 class OfflineRepairTests(unittest.TestCase):
@@ -54,6 +57,50 @@ class OfflineRepairTests(unittest.TestCase):
                          [["new", "is", "fresh"]])
         self.assertEqual(len(result["ledger"]), 4)
         self.assertEqual(json.loads(self.path.read_text())["status"], "complete")
+
+    def test_checkpoint_runner_uses_native_measurement_before_each_extraction(self):
+        protocol = {"model": "synthetic", "model_digest": "fake",
+                    "num_ctx": 4096, "seed": 42, "temperature": 0.0,
+                    "ner_max_new_tokens": 1024,
+                    "triples_max_new_tokens": 3072}
+        payloads = []
+        class Prompts:
+            def render(self, *, name, **kwargs):
+                return [{"role": "user", "content": name + str(kwargs)}]
+        def post_json(payload):
+            payloads.append(payload)
+            return {"message": {"content": "{}"}, "done_reason": "stop",
+                    "prompt_eval_count": 100, "eval_count": 1}
+        request = make_native_ollama_request(
+            "http://localhost:11434", protocol=protocol,
+            model_digest="fake", post_json=post_json)
+        def execute(task, entities):
+            return measure_then_execute_openie_task(
+                task, "synthetic passage", entities, request_fn=request,
+                parse_fn=lambda stage, response, recover_partial:
+                ["new"] if stage == "openie_ner" else [["new", "is", "fresh"]],
+                run_id="synthetic-repair", model_digest="fake",
+                model_requests_enabled=True, prompt_manager=Prompts())
+        with RepairJournal(
+                self.path, plan_sha256="a" * 64,
+                source_hashes={"manifest": "b" * 64}, protocol=protocol,
+                expected_task_keys=[RepairJournal.task_key(t) for t in self.targets]
+        ) as journal:
+            result = run_repair_pass(
+                journal, self.targets, self.source, self.state, {"p1": 0},
+                execute)
+        self.assertEqual([p["options"]["num_predict"] for p in payloads],
+                         [1, 1024, 1, 3072])
+        self.assertEqual(result["state"]["docs"][0]["extracted_entities"],
+                         ["new"])
+        self.assertEqual(result["state"]["docs"][0]["extracted_triples"],
+                         [["new", "is", "fresh"]])
+        saved = json.loads(self.path.read_text(encoding="utf-8"))
+        self.assertEqual(saved["status"], "complete")
+        self.assertEqual(len(saved["attempts"]), 2)
+        self.assertTrue(all(row["attempt"]["context_measurement_usage"]
+                            ["prompt_tokens"] == 100
+                            for row in saved["attempts"]))
 
     def test_corruption_and_unknown_request_refuse_resume(self):
         with self.journal() as journal:
