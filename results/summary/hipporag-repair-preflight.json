@@ -25,7 +25,7 @@
     "bounded_third_attempt_gate": "passed",
     "truncated_partial_recovery_telemetry": "passed",
     "copy_only_clone_assembly": "passed with synthetic artifacts; not run on source index",
-    "unit_tests": "116 passed",
+    "unit_tests": "119 passed",
     "pip_check": "passed"
   },
   "repair_plan": {
@@ -38,9 +38,19 @@
     "remedial_attempts": 2,
     "model_requests_made": 0
   },
+  "prompt_preflight": {
+    "report": "hipporag-repair-prompt-preflight.json",
+    "sha256": "5eb3b5079ae801bdb0ce9b1b53c008a7d2642d8381cee50405abed2266929e42",
+    "rendered_prompts": 158,
+    "pending_triple_prompts": 38,
+    "max_ner_prompt_utf8_bytes": 2184,
+    "max_known_triple_prompt_utf8_bytes": 4450,
+    "exact_token_counts_available": false,
+    "model_requests_made": 0
+  },
   "blockers": [
     "A deterministic read-only repair schedule is available, but the bounded cache-bypass extraction and embedding runner, plus its real manifest wiring, is not implemented.",
-    "Rendered-prompt context feasibility and token budgets have not been preflighted for the target model/context.",
+    "158 prompts were rendered with the pinned templates, but exact model-token counts are unavailable without a local tokenizer; 38 dependent triple prompts also require repaired NER outputs before rendering.",
     "Exact entity/fact vector sets can only be confirmed after repaired OpenIE outputs exist; exact reconciliation is tested synthetically but has not been exercised on a real clone.",
     "The pinned HippoRAG force-index path has not been exercised against a repaired clone with filtered vector stores and the updated gate."
   ],
