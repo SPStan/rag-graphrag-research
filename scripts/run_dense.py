@@ -382,6 +382,17 @@ def reader_template_sha256():
     ).hexdigest()
 
 
+def safe_print(*values, **kwargs):
+    """Keep non-UTF8 Windows consoles from aborting after a saved result row."""
+    stream = kwargs.get("file", sys.stdout)
+    if hasattr(stream, "reconfigure"):
+        try:
+            stream.reconfigure(errors="backslashreplace")
+        except (OSError, ValueError):
+            pass
+    print(*values, **kwargs)
+
+
 def run(dataset="musique", limit=10, top_n=5, generation_model=GEN_MODEL,
         id_view_path=None):
     if dataset != "musique":
@@ -567,19 +578,19 @@ def run(dataset="musique", limit=10, top_n=5, generation_model=GEN_MODEL,
                 output.write(json.dumps(row, ensure_ascii=False) + "\n")
                 output.flush()
                 require_completed_generation(generation, query["id"])
-                print(f"[{position}/{len(queries)}] {query['id']}: {row['answer']}")
+                safe_print(f"[{position}/{len(queries)}] {query['id']}: {row['answer']}")
         temporary.replace(output_path)
         manifest["status"] = "completed"
         manifest["completed_at"] = datetime.now(timezone.utc).isoformat()
         manifest["results_sha256"] = sha256_file(output_path)
         write_json_atomic(manifest_path, manifest)
         if index_embedding["build_seconds_this_run"] is not None:
-            print(f"Corpus embedding seconds: {index_embedding['build_seconds_this_run']:.2f}")
+            safe_print(f"Corpus embedding seconds: {index_embedding['build_seconds_this_run']:.2f}")
         else:
-            print(f"Embeddings cache read seconds: {index_embedding['cache_read_seconds']:.4f}")
-        print(f"Run ID: {run_id}")
-        print(f"Results: {output_path.relative_to(ROOT)}")
-        print(f"Manifest: {manifest_path.relative_to(ROOT)}")
+            safe_print(f"Embeddings cache read seconds: {index_embedding['cache_read_seconds']:.4f}")
+        safe_print(f"Run ID: {run_id}")
+        safe_print(f"Results: {output_path.relative_to(ROOT)}")
+        safe_print(f"Manifest: {manifest_path.relative_to(ROOT)}")
     except Exception as exc:
         manifest["status"] = "failed"
         manifest["completed_at"] = datetime.now(timezone.utc).isoformat()
@@ -605,7 +616,7 @@ def main():
     try:
         run(args.dataset, args.limit, args.top_k, args.generation_model, args.id_view)
     except (OSError, requests.RequestException, ValueError, RuntimeError, KeyError) as exc:
-        print(f"Dense RAG pilot failed: {exc}", file=sys.stderr)
+        safe_print(f"Dense RAG pilot failed: {exc}", file=sys.stderr)
         raise SystemExit(1)
 
 
