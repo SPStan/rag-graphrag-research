@@ -15,13 +15,23 @@ import sys
 import threading
 import time
 import uuid
+from string import Template
+
+import numpy as np
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_RESULTS = ROOT / "results" / "raw"
 DEFAULT_STORAGE = ROOT / "storage" / "hipporag2"
 OLLAMA_BASE_URL = "http://localhost:11434/v1"
-RUNNER_VERSION = "hipporag2-local-runner-v1"
-PROMPT_VERSION = "hipporag2-upstream-reader-v1"
+RUNNER_VERSION = "hipporag2-local-runner-v2"
+PROMPT_VERSION = "hipporag2-musique-one-shot-v6"
+UPSTREAM_READER_PROMPT_VERSION = "hipporag2-upstream-reader-v1"
+PROMPT_SOURCE_COMMIT = "1438aba3fc44ff10573e5a5e1e7cc3c7f9794aff"
+PROMPT_SOURCE_PATH = "src/hipporag/prompts/templates/rag_qa_musique.py"
+PROMPT_SOURCE = (
+    f"https://github.com/OSU-NLP-Group/HippoRAG/blob/{PROMPT_SOURCE_COMMIT}/"
+    f"{PROMPT_SOURCE_PATH}"
+)
 LOG = logging.getLogger("run_hipporag")
 
 
@@ -39,6 +49,68 @@ def sha256_file(path):
 
 def json_bytes(value):
     return (json.dumps(value, ensure_ascii=False, separators=(",", ":")) + "\n").encode("utf-8")
+
+
+def reader_template_metadata():
+    try:
+        from scripts.vendor.hipporag2_musique_template import prompt_template
+    except ModuleNotFoundError:  # Direct script execution puts scripts/ on sys.path.
+        from vendor.hipporag2_musique_template import prompt_template
+
+    messages = [{"role": item["role"], "content": item["content"]}
+                for item in prompt_template]
+    digest_payload = json.dumps(
+        [item["content"] for item in messages[:3]], ensure_ascii=False,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return messages, sha256_bytes(digest_payload)
+
+
+def build_shared_reader_messages(question, passages):
+    template, _ = reader_template_metadata()
+    context = "\n\n".join(
+        f"Wikipedia Title: {row['title']}\n{row['text']}" for row in passages
+    )
+    user_prompt = f"{context}\n\nQuestion: {question}\nThought: "
+    return [*template[:3], {"role": "user", "content": user_prompt}]
+
+
+def install_shared_reader_template(rag):
+    template, digest = reader_template_metadata()
+    rag.prompt_template_manager.templates["rag_qa_musique"] = [
+        {"role": item["role"], "content": Template(item["content"])}
+        for item in template
+    ]
+    return digest
+
+
+def run_shared_reader(original_qa, qa_llm, solutions):
+    """Use the common text reader and the same answer parser as Dense RAG."""
+    config = getattr(qa_llm, "global_config", None)
+    previous_format = getattr(config, "response_format", None) if config else None
+    previous_infer = qa_llm.infer
+
+    def uncached_infer(*args, **kwargs):
+        kwargs["_bypass_cache"] = True
+        return previous_infer(*args, **kwargs)
+
+    if config is not None:
+        config.response_format = None
+    qa_llm.infer = uncached_infer
+    try:
+        qa_solutions, raw_answers, metadata = original_qa(solutions)
+    finally:
+        qa_llm.infer = previous_infer
+        if config is not None:
+            config.response_format = previous_format
+
+    from scripts.answer_parser import extract_reader_answer
+
+    for solution, raw_answer, item_metadata in zip(qa_solutions, raw_answers, metadata):
+        solution.answer, item_metadata["answer_extraction_status"] = (
+            extract_reader_answer(raw_answer)
+        )
+    return qa_solutions, raw_answers, metadata
 
 
 def write_json_atomic(path, value):
@@ -231,10 +303,11 @@ def windows_safe_model_label(model_name):
 
 
 def git_snapshot():
+    git = ["git", "-c", f"safe.directory={ROOT.as_posix()}"]
     try:
-        commit = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT, check=True,
+        commit = subprocess.run([*git, "rev-parse", "HEAD"], cwd=ROOT, check=True,
                                 capture_output=True, text=True).stdout.strip()
-        dirty = bool(subprocess.run(["git", "status", "--porcelain"], cwd=ROOT, check=True,
+        dirty = bool(subprocess.run([*git, "status", "--porcelain"], cwd=ROOT, check=True,
                                     capture_output=True, text=True).stdout.strip())
         return {"commit": commit, "dirty": dirty}
     except (OSError, subprocess.CalledProcessError):
@@ -246,9 +319,23 @@ def _append_event(events, lock, event):
         events.append(event)
 
 
-def instrument_models(rag, corpus, query_text_to_id, events, lock):
+def record_openie_failure(failures, lock, passage_id, exc, stage):
+    """Record a skipped OpenIE step without retaining passage text."""
+    failure = {"stage": stage, "passage_id": passage_id,
+               "error_type": type(exc).__name__,
+               "error": str(exc)[:500]}
+    with lock:
+        failures.append(failure)
+    return failure
+
+
+def instrument_models(rag, corpus, query_text_to_id, events, lock,
+                     embedding_max_inputs_per_second=18.0):
     """Record SDK usage and cache state without storing any raw prompts or texts."""
     local = threading.local()
+    openie_failures = []
+    openie_failures_lock = threading.Lock()
+    local.openie_failures = openie_failures
     passage_id_by_text = {item["title"] + "\n" + item["text"]: item["id"] for item in corpus}
     query_id_by_embedding = {text: qid for text, qid in query_text_to_id.items()}
 
@@ -297,26 +384,55 @@ def instrument_models(rag, corpus, query_text_to_id, events, lock):
 
     embedding_model = rag.embedding_model
     original_encode = embedding_model.encode
+    embedding_gate = threading.Lock()
+    last_embedding_started = [0.0]
+    minimum_embedding_interval = 1.0 / embedding_max_inputs_per_second
 
     def tracked_encode(texts):
-        result = original_encode(texts)
-        usage = dict(embedding_model.last_usage or {})
-        if (not isinstance(usage.get("prompt_tokens"), int)
-                or isinstance(usage.get("prompt_tokens"), bool)
-                or usage["prompt_tokens"] < 0):
-            raise RuntimeError("HippoRAG embedding response did not provide prompt token usage")
-        items = []
-        for text in texts:
-            pid = passage_id_by_text.get(text)
-            qid = query_id_by_embedding.get(text)
-            items.append({"input_sha256": sha256_bytes(text.encode("utf-8")),
-                          "input_chars": len(text),
-                          "input_type": "passage" if pid else ("query" if qid else "entity_or_fact"),
-                          "passage_id": pid, "question_id": qid})
-        event = {"kind": "embedding", "stage": getattr(local, "stage", "unknown"),
-                 "items": items, "batch_size": len(texts), "usage": usage}
-        _append_event(events, lock, event)
-        return result
+        if isinstance(texts, str):
+            texts = [texts]
+        results = []
+        total_usage = {"prompt_tokens": 0, "total_tokens": 0}
+        # Ollama's Windows runner opens several loopback connections for each
+        # input in /api/embed. Pace individual inputs; an input array does not
+        # reduce the runner-side connection count.
+        with embedding_gate:
+            for text in texts:
+                wait = minimum_embedding_interval - (time.perf_counter() - last_embedding_started[0])
+                if last_embedding_started[0] and wait > 0:
+                    time.sleep(wait)
+                last_embedding_started[0] = time.perf_counter()
+                item = {"input_sha256": sha256_bytes(text.encode("utf-8")),
+                        "input_chars": len(text),
+                        "input_type": "passage" if text in passage_id_by_text else (
+                            "query" if text in query_id_by_embedding else "entity_or_fact"),
+                        "passage_id": passage_id_by_text.get(text),
+                        "question_id": query_id_by_embedding.get(text)}
+                try:
+                    result = original_encode([text])
+                except Exception:
+                    usage = dict(embedding_model.last_usage or {})
+                    event = {"kind": "embedding", "stage": getattr(local, "stage", "unknown"),
+                             "items": [item], "batch_size": 1, "usage_unknown": True,
+                             "error_type": "embedding_request_failed"}
+                    if isinstance(usage.get("prompt_tokens"), int):
+                        event["usage"] = usage
+                        event.pop("usage_unknown", None)
+                    _append_event(events, lock, event)
+                    raise
+                usage = dict(embedding_model.last_usage or {})
+                if (not isinstance(usage.get("prompt_tokens"), int)
+                        or isinstance(usage.get("prompt_tokens"), bool)
+                        or usage["prompt_tokens"] < 0):
+                    raise RuntimeError("HippoRAG embedding response did not provide prompt token usage")
+                event = {"kind": "embedding", "stage": getattr(local, "stage", "unknown"),
+                         "items": [item], "batch_size": 1, "usage": usage}
+                _append_event(events, lock, event)
+                total_usage["prompt_tokens"] += usage["prompt_tokens"]
+                total_usage["total_tokens"] += usage.get("total_tokens", usage["prompt_tokens"])
+                results.append(result)
+        embedding_model.last_usage = total_usage
+        return np.concatenate(results, axis=0) if len(results) > 1 else results[0]
 
     embedding_model.encode = tracked_encode
 
@@ -327,7 +443,19 @@ def instrument_models(rag, corpus, query_text_to_id, events, lock):
         try:
             result = original_ner(chunk_key, passage)
             if not result.metadata.get("error"):
-                return result
+                try:
+                    entities = normalize_ner_entities(result.unique_entities)
+                except ValueError:
+                    # An otherwise cache-valid response can still contain an
+                    # unsupported item; retry it once below without the cache.
+                    pass
+                else:
+                    if entities == result.unique_entities:
+                        return result
+                    metadata = dict(result.metadata)
+                    metadata["ner_object_items_normalized"] = True
+                    return type(result)(chunk_id=chunk_key, response=result.response,
+                                        unique_entities=entities, metadata=metadata)
 
             # Retry malformed/cut-off NER once without consulting the upstream
             # response cache. Successful cached passages remain untouched.
@@ -344,10 +472,18 @@ def instrument_models(rag, corpus, query_text_to_id, events, lock):
                                       "response_format", None)
             if response_format is not None:
                 kwargs["response_format"] = response_format
-            response, metadata, _ = rag.qa_llm.infer(messages=messages, **kwargs)
-            parsed = (fix_broken_generated_json(response)
-                      if metadata.get("finish_reason") == "length" else response)
-            entities = normalize_ner_entities(_extract_ner_from_response(parsed))
+            try:
+                response, metadata, _ = rag.qa_llm.infer(messages=messages, **kwargs)
+                parsed = (fix_broken_generated_json(response)
+                          if metadata.get("finish_reason") == "length" else response)
+                entities = normalize_ner_entities(_extract_ner_from_response(parsed))
+            except Exception as exc:
+                record_openie_failure(openie_failures, openie_failures_lock,
+                                      local.passage_id, exc, "openie_ner")
+                return type(result)(chunk_id=chunk_key, response="",
+                                    unique_entities=[],
+                                    metadata={"extraction_failed": True,
+                                              "retry_without_cache": True})
             metadata = dict(metadata)
             metadata["retry_without_cache"] = True
             metadata["ner_object_items_normalized"] = True
@@ -384,11 +520,21 @@ def instrument_models(rag, corpus, query_text_to_id, events, lock):
                                       "response_format", None)
             if response_format is not None:
                 kwargs["response_format"] = response_format
-            response, metadata, _ = rag.qa_llm.infer(messages=messages, **kwargs)
-            parsed = (fix_broken_generated_json(response)
-                      if metadata.get("finish_reason") == "length" else response)
-            triples = filter_invalid_triples(
-                triples=_extract_json_list_field(parsed, "triples"))
+            try:
+                response, metadata, _ = rag.qa_llm.infer(messages=messages, **kwargs)
+                parsed = (fix_broken_generated_json(response)
+                          if metadata.get("finish_reason") == "length" else response)
+                triples = filter_invalid_triples(
+                    triples=_extract_json_list_field(parsed, "triples"))
+            except Exception as exc:
+                # Ollama may abort one fragment on token repetition. Keep a
+                # partial graph, and disclose the omitted extraction explicitly.
+                record_openie_failure(openie_failures, openie_failures_lock,
+                                      local.passage_id, exc, "openie_triples")
+                return type(result)(chunk_id=chunk_key, response="",
+                                    metadata={"extraction_failed": True,
+                                              "retry_without_cache": True},
+                                    triples=[])
             metadata = dict(metadata)
             metadata["retry_without_cache"] = True
             return type(result)(chunk_id=chunk_key, response=response,
@@ -421,6 +567,8 @@ def instrument_models(rag, corpus, query_text_to_id, events, lock):
     def tracked_qa(solutions):
         local.stage = "qa"
         try:
+            if rag.global_config.dataset == "musique":
+                return run_shared_reader(original_qa, rag.qa_llm, solutions)
             return original_qa(solutions)
         finally:
             local.stage = "unknown"
@@ -456,6 +604,8 @@ def collect_cache_counts(rag, before):
 
 def summarize_usage(events, corpus):
     by_passage = {item["id"]: {"passage_embedding_tokens": 0,
+                               "passage_embedding_usage_attributed": True,
+                               "embedding_batches": 0,
                                "openie_prompt_tokens": 0,
                                "openie_completion_tokens": 0,
                                "openie_cached_prompt_tokens": 0,
@@ -503,8 +653,13 @@ def summarize_usage(events, corpus):
                 pid = item.get("passage_id")
                 if pid in by_passage:
                     row = by_passage[pid]
-                    row["embedding_calls"] += 1
-                    row["passage_embedding_tokens"] += count or 0
+                    row["embedding_batches"] += 1
+                    if event.get("batch_size", len(event.get("items", []))) == 1:
+                        row["embedding_calls"] += 1
+                        row["passage_embedding_tokens"] += count or 0
+                    else:
+                        row["passage_embedding_tokens"] = None
+                        row["passage_embedding_usage_attributed"] = False
     return {"phases": phases, "per_passage": by_passage}
 
 
@@ -525,7 +680,8 @@ def load_hipporag_classes():
 
 def build_rows(run_id, dataset, queries, solutions, raw_answers,
                generation_metadata, corpus_by_text, query_usage, model_embedding,
-               model_generation, top_k, generation_options, index_fingerprint):
+               model_generation, top_k, generation_options, index_fingerprint,
+               reader_info):
     rows = []
     for query, solution, raw, metadata in zip(queries, solutions, raw_answers, generation_metadata):
         if not isinstance(raw, str) or not isinstance(solution.answer, str):
@@ -549,13 +705,21 @@ def build_rows(run_id, dataset, queries, solutions, raw_answers,
             "question_id": query["id"], "planned_question_ids": [q["id"] for q in queries],
             "question": query["question"], "answer": solution.answer,
             "raw_answer": raw,
-            "answer_extraction_status": "ok" if "Answer:" in raw else "missing_answer_marker",
+            "answer_extraction_status": metadata.get(
+                "answer_extraction_status",
+                "ok" if "Answer:" in raw else "missing_answer_marker"),
             "done": True, "done_reason": finish_reason,
             "retrieved": docs,
             "top_k": top_k,
             "generation_model": model_generation,
             "embedding_model": model_embedding,
-            "reader_prompt_version": PROMPT_VERSION,
+            "reader_prompt_version": reader_info["version"],
+            "reader_prompt_source": reader_info.get("source"),
+            "reader_prompt_source_commit": reader_info.get("source_commit"),
+            "reader_prompt_sha256": hashlib.sha256(json.dumps(
+                build_shared_reader_messages(query["question"], docs),
+                ensure_ascii=False, sort_keys=True, separators=(",", ":")
+            ).encode("utf-8")).hexdigest() if dataset == "musique" else None,
             "generation_options": generation_options,
             "index_fingerprint": index_fingerprint,
             "prompt_tokens": prompt_tokens,
@@ -588,14 +752,17 @@ def parse_args(argv=None):
     parser.add_argument("--temperature", type=float, default=0.0)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--embedding-batch-size", type=int, default=1)
+    parser.add_argument("--embedding-max-inputs-per-second", type=float, default=18.0)
     return parser.parse_args(argv)
 
 
 def run(args):
     if not 1 <= args.limit <= 20:
         raise ValueError("--limit must be between 1 and 20 for this runner")
-    if args.top_k < 1 or args.max_new_tokens < 1 or args.num_ctx < 1 or args.embedding_batch_size != 1:
-        raise ValueError("top-k, max-new-tokens and num-ctx must be positive; batch size must be 1 for per-passage usage")
+    if (args.top_k < 1 or args.max_new_tokens < 1 or args.num_ctx < 1
+            or not 1 <= args.embedding_batch_size <= 128
+            or args.embedding_max_inputs_per_second <= 0):
+        raise ValueError("top-k, max-new-tokens and num-ctx must be positive; embedding batch size must be 1-128")
     raw_corpus = read_json(args.corpus)
     raw_queries = read_json(args.queries)
     labels_path = args.labels
@@ -625,8 +792,20 @@ def run(args):
     manifest_path = results_path.with_suffix(".manifest.json")
     generation_options = {"temperature": args.temperature, "seed": args.seed,
                           "num_predict": args.max_new_tokens, "max_new_tokens": args.max_new_tokens,
-                          "num_ctx": args.num_ctx,
-                          "response_format": {"type": "json_object"}}
+                          "num_ctx": args.num_ctx}
+    if args.dataset != "musique":
+        generation_options["response_format"] = {"type": "json_object"}
+    if args.dataset == "musique":
+        _reader_template, reader_template_sha256 = reader_template_metadata()
+        reader_info = {"version": PROMPT_VERSION, "source": PROMPT_SOURCE,
+                       "source_commit": PROMPT_SOURCE_COMMIT,
+                       "source_path": PROMPT_SOURCE_PATH,
+                       "template_sha256": reader_template_sha256}
+    else:
+        reader_info = {"version": UPSTREAM_READER_PROMPT_VERSION,
+                       "source": "HippoRAG upstream default reader",
+                       "source_commit": "1438aba3fc44ff10573e5a5e1e7cc3c7f9794aff",
+                       "source_path": None, "template_sha256": None}
     top_k = args.top_k
     local_alias = windows_safe_model_label(args.generation_model)
     embedding_alias = windows_safe_model_label(args.embedding_model)
@@ -645,10 +824,16 @@ def run(args):
                    "labels_sha256": sha256_file(args.labels) if args.labels else labels_fingerprint},
         "expected_question_ids": [query["id"] for query in queries],
         "generation": {"model": model_generation, "endpoint": args.base_url,
-                       "reader_prompt_version": PROMPT_VERSION,
+                       "reader_prompt_version": reader_info["version"],
+                       "reader_prompt_source": reader_info["source"],
+                       "reader_prompt_source_commit": reader_info["source_commit"],
+                       "reader_prompt_source_path": reader_info["source_path"],
+                       "reader_template_sha256": reader_info["template_sha256"],
                        "options": generation_options},
         "embedding": {"model": model_embedding, "endpoint": args.base_url,
-                      "batch_size": args.embedding_batch_size},
+                      "batch_size": 1,
+                      "hipporag_outer_batch_size": args.embedding_batch_size,
+                      "max_inputs_per_second": args.embedding_max_inputs_per_second},
         "retrieval": {"top_k": args.top_k, "reader_context_top_k": args.top_k},
         "upstream": {"repository": "OSU-NLP-Group/HippoRAG",
                      "commit": "1438aba3fc44ff10573e5a5e1e7cc3c7f9794aff",
@@ -687,6 +872,8 @@ def run(args):
     try:
         rag = HippoRAG(global_config=config, extraction_llm=llm, qa_llm=llm,
                        embedding_model=embedding, index_identity=f"ollama:{model_identity}")
+        if args.dataset == "musique":
+            install_shared_reader_template(rag)
         # A previous interrupted indexing attempt may have persisted passage
         # vectors before producing a graph. Reuse those vectors and explicitly
         # rebuild the missing graph from cached OpenIE outputs.
@@ -695,7 +882,8 @@ def run(args):
             config.force_index_from_scratch = True
             manifest["recovery"] = "rebuild_missing_graph_reusing_persisted_passage_embeddings"
             write_json_atomic(manifest_path, manifest)
-        local = instrument_models(rag, corpus, question_text_to_id, events, event_lock)
+        local = instrument_models(rag, corpus, question_text_to_id, events, event_lock,
+                                  args.embedding_max_inputs_per_second)
         before = {
             "passages": set(rag.chunk_embedding_store.get_all_ids()),
             "entities": set(rag.entity_embedding_store.get_all_ids()),
@@ -726,6 +914,7 @@ def run(args):
                 event["usage"].get("prompt_tokens", 0)
                 for event in events if event["kind"] == "embedding"
                 and event.get("stage") == "graph_retrieval"
+                and event.get("batch_size") == 1
                 and any(item.get("question_id") == query["id"] for item in event.get("items", []))
             ) or None
         actual_context = runtime_context_length(args.generation_model, args.base_url)
@@ -735,7 +924,7 @@ def run(args):
         rows = build_rows(run_id, args.dataset, queries, solutions,
                           raw_answers, generation_metadata, corpus_by_text,
                           query_usage, model_embedding, model_generation, top_k,
-                          generation_options, corpus_fingerprint)
+                          generation_options, corpus_fingerprint, reader_info)
         for row in rows:
             row["retrieval_seconds"] = retrieval_seconds[row["question_id"]]
         write_jsonl_atomic(results_path, rows)
@@ -743,6 +932,8 @@ def run(args):
         manifest["results_sha256"] = results_hash
         manifest["index"] = {"build_seconds": round(index_seconds, 6), "cache": cache_counts,
                               "usage": summarize_usage(events, corpus)}
+        manifest["index"]["openie_extraction_failures"] = sorted(
+            local.openie_failures, key=lambda item: item.get("passage_id") or "")
         manifest["usage_events"] = events
         index_embedding_tokens = sum(
             event.get("usage", {}).get("prompt_tokens", 0)

@@ -3,13 +3,70 @@ import json
 import tempfile
 import threading
 from pathlib import Path
+from types import SimpleNamespace
 
 from scripts.run_hipporag import (normalize_inputs, parse_args, passage_id,
                                   normalize_ner_entities, summarize_usage,
-                                  persist_interrupted_run, windows_safe_model_label)
+                                  persist_interrupted_run, windows_safe_model_label,
+                                  record_openie_failure, instrument_models,
+                                  build_shared_reader_messages, install_shared_reader_template,
+                                  run_shared_reader, git_snapshot)
+from scripts.run_dense import build_reader_messages
 
 
 class HippoRAGRunnerTests(unittest.TestCase):
+    def test_git_snapshot_works_with_workspace_safe_directory_override(self):
+        snapshot = git_snapshot()
+
+        self.assertRegex(snapshot["commit"], r"^[0-9a-f]{40}$")
+        self.assertIsInstance(snapshot["dirty"], bool)
+
+    def test_shared_reader_messages_match_dense_exactly(self):
+        passages = [
+            {"title": "First", "text": "Evidence one."},
+            {"title": "Second", "text": "Evidence two."},
+        ]
+        question = "What is the answer?"
+
+        self.assertEqual(
+            build_shared_reader_messages(question, passages),
+            build_reader_messages(question, passages),
+        )
+
+    def test_shared_reader_template_installs_dense_demo_messages(self):
+        rag = SimpleNamespace(
+            prompt_template_manager=SimpleNamespace(templates={})
+        )
+
+        digest = install_shared_reader_template(rag)
+
+        template = rag.prompt_template_manager.templates["rag_qa_musique"]
+        rendered = [item["content"].template for item in template]
+        self.assertEqual(len(rendered), 4)
+        self.assertEqual(rendered[-1], "${prompt_user}")
+        self.assertTrue(digest)
+
+    def test_shared_reader_disables_json_mode_and_uses_common_answer_parser(self):
+        qa_llm = SimpleNamespace(global_config=SimpleNamespace(
+            response_format={"type": "json_object"}), infer=lambda *args, **kwargs: None)
+        infer_calls = []
+        qa_llm.infer = lambda *args, **kwargs: infer_calls.append(kwargs.copy())
+        solution = SimpleNamespace(answer="old")
+
+        def original_qa(solutions):
+            self.assertIsNone(qa_llm.global_config.response_format)
+            qa_llm.infer(messages=[])
+            return solutions, ["Thought.\nAnswer: 42\n"], [{"finish_reason": "stop"}]
+
+        solutions, raw_answers, metadata = run_shared_reader(
+            original_qa, qa_llm, [solution])
+
+        self.assertEqual(solutions[0].answer, "42")
+        self.assertEqual(raw_answers, ["Thought.\nAnswer: 42\n"])
+        self.assertEqual(metadata[0]["answer_extraction_status"], "ok")
+        self.assertEqual(qa_llm.global_config.response_format, {"type": "json_object"})
+        self.assertEqual(infer_calls, [{"messages": [], "_bypass_cache": True}])
+
     def test_interrupted_run_manifest_persists_status_and_partial_usage(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "run.manifest.json"
@@ -23,6 +80,19 @@ class HippoRAGRunnerTests(unittest.TestCase):
             self.assertEqual(saved["error_type"], "KeyboardInterrupt")
             self.assertEqual(saved["usage_events"], events)
             self.assertIn("interrupted_at", saved)
+
+    def test_openie_failure_records_passage_and_error_without_source_text(self):
+        failures = []
+        lock = threading.Lock()
+        failure = record_openie_failure(
+            failures, lock, "sha256:passage-id", RuntimeError("token repeat limit reached"),
+            "openie_triples")
+
+        self.assertEqual(failure["passage_id"], "sha256:passage-id")
+        self.assertEqual(failure["stage"], "openie_triples")
+        self.assertEqual(failure["error_type"], "RuntimeError")
+        self.assertEqual(len(failures), 1)
+        self.assertNotIn("passage_text", failure)
 
     def test_object_shaped_ner_items_keep_entity_names_not_labels(self):
         self.assertEqual(
@@ -101,6 +171,60 @@ class HippoRAGRunnerTests(unittest.TestCase):
         self.assertEqual(summary["per_passage"]["p1"]["passage_embedding_tokens"], 8)
         self.assertEqual(summary["per_passage"]["p1"]["openie_prompt_tokens"], 12)
         self.assertEqual(summary["per_passage"]["p1"]["openie_cached_prompt_tokens"], 12)
+
+    def test_batched_embedding_tokens_are_not_falsely_attributed_per_passage(self):
+        corpus = [
+            {"id": "p1", "title": "A", "text": "One."},
+            {"id": "p2", "title": "B", "text": "Two."},
+        ]
+        summary = summarize_usage([{
+            "kind": "embedding", "stage": "index_embedding", "batch_size": 2,
+            "usage": {"prompt_tokens": 17},
+            "items": [{"passage_id": "p1"}, {"passage_id": "p2"}],
+        }], corpus)
+
+        self.assertEqual(summary["phases"]["index_embedding"]["api_embedding_tokens"], 17)
+        for passage_id in ("p1", "p2"):
+            row = summary["per_passage"][passage_id]
+            self.assertIsNone(row["passage_embedding_tokens"])
+            self.assertFalse(row["passage_embedding_usage_attributed"])
+            self.assertEqual(row["embedding_batches"], 1)
+
+    def test_embedding_batch_is_split_for_rate_limit_and_usage_stays_per_passage(self):
+        corpus = [
+            {"id": "p1", "title": "A", "text": "One."},
+            {"id": "p2", "title": "B", "text": "Two."},
+        ]
+
+        class FakeEmbedding:
+            last_usage = None
+
+            def encode(self, texts):
+                self.last_usage = {"prompt_tokens": len(texts[0]),
+                                   "total_tokens": len(texts[0])}
+                return [[len(texts[0])]]
+
+        rag = SimpleNamespace(
+            qa_llm=SimpleNamespace(infer=lambda *args, **kwargs: ("", {}, False)),
+            embedding_model=FakeEmbedding(),
+            openie=SimpleNamespace(ner=lambda *args: None,
+                                   triple_extraction=lambda *args: None),
+            index=lambda docs: docs,
+            retrieve=lambda queries: queries,
+            qa=lambda solutions: solutions,
+        )
+        events = []
+        instrument_models(rag, corpus, {}, events, threading.Lock(),
+                          embedding_max_inputs_per_second=10000)
+
+        result = rag.embedding_model.encode(["A\nOne.", "B\nTwo."])
+        summary = summarize_usage(events, corpus)
+
+        self.assertEqual(result.shape, (2, 1))
+        self.assertEqual(len(events), 2)
+        self.assertEqual(summary["phases"]["unknown"]["api_embedding_tokens"], 12)
+        self.assertEqual(summary["per_passage"]["p1"]["passage_embedding_tokens"], 6)
+        self.assertEqual(summary["per_passage"]["p2"]["passage_embedding_tokens"], 6)
 
 
 if __name__ == "__main__":
