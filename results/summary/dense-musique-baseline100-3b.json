@@ -1,0 +1,111 @@
+{
+  "configuration": {
+    "generation_options": {
+      "num_ctx": 4096,
+      "num_predict": 512,
+      "seed": 42,
+      "temperature": 0
+    },
+    "reader_prompt_version": "hipporag2-musique-one-shot-v5",
+    "reader_template_sha256": "e47d4b5c278f2c2fe58d019a591b0748ff607df1292b418959a43c48a896e159",
+    "retrieval_method": "cosine",
+    "top_k": 5
+  },
+  "inputs": {
+    "corpus_fingerprint": "f726a739ff0def6f7517fe3185780fdc21e5d51a2cfcd83ce3f18fba277c9f9a",
+    "corpus_sha256": "054338e3803fbe69f67037c58d2a49438572ffe2e8c8a047148a2dcdc100e44b",
+    "queries_sha256": "a0fd193f34f153e51052b8346b0db7868c60d68affb6f3e54c56cce7c2c14fc3"
+  },
+  "kind": "local_rag_run_public_summary",
+  "limitations": [
+    "baseline100 includes debug10 and is not independent",
+    "local Ollama usage is not billed internal API cost"
+  ],
+  "metrics": {
+    "em": 0.15,
+    "generation_stopped_normally": 100,
+    "metric_version": "hipporag2-squad-normalization-answer-marker-v3",
+    "questions_evaluated": 100,
+    "recall_at_k": 0.595,
+    "token_f1": 0.24080532212885153,
+    "top_k": 5,
+    "usage": {
+      "generation_completion_tokens": 11211,
+      "generation_prompt_tokens": 154029,
+      "generation_server_seconds": 104.6978764,
+      "generation_wall_seconds": 104.82943929993053,
+      "index_embedding_api_total_duration_ns": null,
+      "index_embedding_build_seconds": null,
+      "index_embedding_cache_read_seconds": 0.11823069999809377,
+      "index_embedding_original_api_total_duration_ns": null,
+      "index_embedding_original_build_run_id": "ed95bea9-9d11-4234-a80f-46ba3a8fd127",
+      "index_embedding_original_build_seconds": 78.764150899995,
+      "index_embedding_original_prompt_tokens": null,
+      "index_embedding_prompt_tokens": null,
+      "mean_generation_tokens_per_second": 134.97263438269263,
+      "note": "Index embedding usage is in the run manifest; null means unavailable, not zero. Reader replays do not repeat query embedding or retrieval; their source run is recorded separately.",
+      "query_embedding_client_seconds": 9.308014599999296,
+      "query_embedding_prompt_tokens": 2614,
+      "question_end_to_end_seconds": 116.22311059999629,
+      "retrieval_seconds": 2.0729970999746
+    }
+  },
+  "models": {
+    "embedding": {
+      "details": {
+        "context_length": 8192,
+        "embedding_length": 1024,
+        "families": [
+          "bert"
+        ],
+        "family": "bert",
+        "format": "gguf",
+        "parameter_size": "566.70M",
+        "parent_model": "",
+        "quantization_level": "F16"
+      },
+      "digest": "7907646426070047a77226ac3e684fbbe8410524f7b4a74d02837e43f2146bab",
+      "name": "bge-m3:latest",
+      "size_bytes": 1157672605
+    },
+    "generation": {
+      "details": {
+        "context_length": 32768,
+        "embedding_length": 2048,
+        "families": [
+          "qwen2"
+        ],
+        "family": "qwen2",
+        "format": "gguf",
+        "parameter_size": "3.1B",
+        "parent_model": "",
+        "quantization_level": "Q4_K_M"
+      },
+      "digest": "357c53fb659c5076de1d65ccb0b397446227b71a42be9d1603d46168015c9e4b",
+      "name": "qwen2.5:3b",
+      "size_bytes": 1929912432
+    }
+  },
+  "privacy": "No raw answers, prompts, passages, local paths, secrets or tracker URLs are included.",
+  "run": {
+    "dataset": "musique",
+    "expected_questions": 100,
+    "manifest_sha256": "175e584cf02f65f103bf1f819bc733920cadf43f79c077dc777695c7bcb1f40d",
+    "metrics_sha256": "5fcd1d6a1361710c4dd42ea50ae3f54085533d16f3424ac08135ea36309e33f9",
+    "mode": "local-poc",
+    "results_sha256": "ba06fe4e00d013d5fae178ada5c77cbff9d669054ea215e0d8cfc34a8bc7ce72",
+    "run_id": "d49b37ad-51b1-42d9-8162-fe6424bfea84",
+    "status": "completed"
+  },
+  "schema_version": 1,
+  "source": {
+    "commit": null,
+    "source_sha256": {
+      "scripts/answer_parser.py": "70fcba402589b61440c75d77fafcb76bb43fa53581a2ee68d3a5185bb5a359bd",
+      "scripts/evaluate_dense.py": "841a290eedd7eda5922223077c40e0f1ca91d0073186065bb185e204bc206fa0",
+      "scripts/replay_reader.py": "34056c23cd2b508bb066679dcd9dc7e38a30de4670018188a2ec42207a55a18e",
+      "scripts/run_dense.py": "cb1c90fc0b3403e865eb0d55f7ed8ad5631f43f4d7547974a04adb4cc7686ad1"
+    },
+    "working_tree_dirty": null
+  }
+}

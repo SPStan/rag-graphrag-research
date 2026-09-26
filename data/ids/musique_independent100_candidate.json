@@ -1,0 +1,360 @@
+{
+  "schema_version": 1,
+  "dataset": "musique",
+  "view": "independent-candidate-s500-200-299",
+  "status": "frozen_candidate_not_run",
+  "selection": {
+    "source": "musique_s500.json",
+    "source_revision": "5ec05b38deecc3318bb432c69865959c56058990",
+    "start_inclusive": 200,
+    "stop_exclusive": 300,
+    "selection_semantics": "ordered slice of pinned S500 question_ids"
+  },
+  "source_ids_sha256": "82f5b26acedb39998398b0b4e9b4cb8f5fc9ec9bbb16420914dd66a4f058d33a",
+  "ordered_question_ids_sha256": "a026de236266ceb4ee7faa4cde5d031996ecfd74f4e6edd806a8b08cc493d42b",
+  "labels_sha256": "76a36d30f3934c24ad5f7f5eaa6a67e4d26e30f2e29f7302f58d211ccb05da4a",
+  "question_ids": [
+    "2hop__96410_47902",
+    "3hop2__222979_133154_40768",
+    "2hop__35566_17873",
+    "3hop1__103180_214799_259594",
+    "2hop__20536_96912",
+    "3hop1__46571_87694_64412",
+    "2hop__57209_67668",
+    "4hop3__862_846_613770_7713",
+    "3hop2__326964_811351_7713",
+    "4hop1__608132_508773_85832_745702",
+    "4hop3__175072_88460_30152_20999",
+    "4hop1__105401_17130_70784_79935",
+    "2hop__705035_152093",
+    "3hop2__36852_613770_7713",
+    "2hop__33288_157788",
+    "3hop1__140514_2053_5289",
+    "3hop1__135392_87694_64412",
+    "2hop__10017_18974",
+    "3hop1__373866_5189_63702",
+    "2hop__61714_89309",
+    "2hop__9223_9237",
+    "2hop__123509_5385",
+    "3hop2__655849_467331_162182",
+    "2hop__684287_78303",
+    "2hop__58168_1783",
+    "2hop__478978_124498",
+    "2hop__149862_108549",
+    "2hop__481809_184805",
+    "4hop1__370129_621192_10659_59955",
+    "4hop1__88342_75218_128008_80487",
+    "2hop__16581_16525",
+    "3hop1__857_846_7877",
+    "2hop__88149_807969",
+    "2hop__156085_436709",
+    "3hop1__136129_87694_124169",
+    "2hop__24441_36630",
+    "2hop__24661_81961",
+    "3hop1__640171_228453_10972",
+    "2hop__853227_68633",
+    "3hop1__145427_106426_157788",
+    "2hop__347652_47134",
+    "4hop1__271272_508773_85832_745702",
+    "3hop1__131829_39743_24526",
+    "3hop1__390673_228453_86925",
+    "2hop__794999_113442",
+    "4hop1__37608_32392_823060_610794",
+    "3hop2__30152_105395_20999",
+    "4hop1__93601_46196_497223_15840",
+    "3hop1__761225_831637_91775",
+    "2hop__401710_456439",
+    "3hop1__829944_474097_84283",
+    "2hop__59048_827343",
+    "4hop1__152146_5274_458768_33637",
+    "3hop1__672543_503371_21711",
+    "4hop3__160230_470287_128875_72134",
+    "3hop2__92991_72083_76291",
+    "2hop__81379_84616",
+    "3hop1__106845_5188_86687",
+    "2hop__82270_177869",
+    "2hop__23459_35123",
+    "2hop__491195_265959",
+    "2hop__462179_643013",
+    "3hop2__90098_76623_10557",
+    "2hop__64323_55840",
+    "2hop__124412_402641",
+    "3hop1__320697_547811_80702",
+    "3hop1__152880_131926_90707",
+    "2hop__46550_85990",
+    "3hop1__837871_831637_91775",
+    "4hop2__9988_261673_70784_79935",
+    "2hop__107601_110222",
+    "2hop__156700_73244",
+    "3hop1__801799_547811_80702",
+    "3hop1__498954_160713_77246",
+    "2hop__149983_108549",
+    "4hop1__46196_497223_15840_36014",
+    "2hop__155781_155922",
+    "4hop1__443274_17130_70784_61381",
+    "2hop__63002_461854",
+    "3hop1__823336_228453_10972",
+    "3hop1__105837_160713_77246",
+    "2hop__476927_31270",
+    "2hop__543050_245420",
+    "3hop1__671542_651917_47686",
+    "3hop2__132957_222979_40768",
+    "2hop__444265_82341",
+    "3hop1__90327_73181_68042",
+    "2hop__252311_366220",
+    "3hop1__23444_160713_77246",
+    "3hop1__278222_42197_18397",
+    "2hop__84847_148696",
+    "2hop__487706_40502",
+    "3hop1__765847_831637_91775",
+    "2hop__766973_770570",
+    "2hop__37765_85990",
+    "2hop__170823_120171",
+    "4hop2__161324_14670_8987_8974",
+    "3hop1__639955_834494_34099",
+    "2hop__80860_510545",
+    "2hop__677160_110882"
+  ],
+  "disjointness_audit": {
+    "manifest_count": 29,
+    "manifests": [
+      {
+        "run_id": "00f91231-0799-470f-8f4d-f998ff988917",
+        "artifact_sha256": "6a44429b5a1998fe52c3cca99a7f241be253c03ffd03ca7c9590c1dd9b8caa79",
+        "status": "completed",
+        "question_count": 1,
+        "overlap_count": 0
+      },
+      {
+        "run_id": "06dcabef-de41-4815-a5ac-4bcb3eb01b11",
+        "artifact_sha256": "f680f7d62ee342a9db3cb74f0e963c139cba06b5c430dd4939b97a1d14c116ec",
+        "status": "completed",
+        "question_count": 1,
+        "overlap_count": 0
+      },
+      {
+        "run_id": "0b7bac50-d529-48f8-85d0-47ccc5228b94",
+        "artifact_sha256": "072cc5002ca5bec1255e20b93f104019e45e94576280f1d80762ff1da0534a97",
+        "status": "completed",
+        "question_count": 10,
+        "overlap_count": 0
+      },
+      {
+        "run_id": "17d31655-dc99-436c-940f-eb5262959b74",
+        "artifact_sha256": "4d255987421633daae76e5e75907dfd2c2547b5d333f0978cb2a1c3e13ce8e61",
+        "status": "completed",
+        "question_count": 1,
+        "overlap_count": 0
+      },
+      {
+        "run_id": "877f86c6-e9ff-43e1-80f9-d09962e62fe2",
+        "artifact_sha256": "4ba2a6ffcdb9b906b69023e44900d8473c1e5046eb1ffd4422bf7af26e365830",
+        "status": "completed",
+        "question_count": 10,
+        "overlap_count": 0
+      },
+      {
+        "run_id": "d49b37ad-51b1-42d9-8162-fe6424bfea84",
+        "artifact_sha256": "175e584cf02f65f103bf1f819bc733920cadf43f79c077dc777695c7bcb1f40d",
+        "status": "completed",
+        "question_count": 100,
+        "overlap_count": 0
+      },
+      {
+        "run_id": "de5a0376-e3cd-4b4e-ad65-ec05c1aa8aae",
+        "artifact_sha256": "7c74b93b132583fffdb23bf5e7129cc9a517cf75e963c9cecffc52db2d96e96c",
+        "status": "completed",
+        "question_count": 1,
+        "overlap_count": 0
+      },
+      {
+        "run_id": "ed95bea9-9d11-4234-a80f-46ba3a8fd127",
+        "artifact_sha256": "6a7f2e4ec5af60fc6f3872afb4e710e35e6372e23d6bb92e3b83288bfff45fd0",
+        "status": "completed",
+        "question_count": 1,
+        "overlap_count": 0
+      },
+      {
+        "run_id": "0fd4ab76-0923-4977-a01b-de4ca8f56e82",
+        "artifact_sha256": "38d9c0d1ca2195c63aac803f1e88b10478d7af9f3fe5d9d19fe4cb1e0c6d36e3",
+        "status": "completed",
+        "question_count": 10,
+        "overlap_count": 0
+      },
+      {
+        "run_id": "48c2bb0e-9af4-4891-9224-69268ce8e4bf",
+        "artifact_sha256": "5ab990c3aae1ae1087dbfea15a246d04b29685d5da21653d718ad8fa68208814",
+        "status": "completed",
+        "question_count": 100,
+        "overlap_count": 0
+      },
+      {
+        "run_id": "0857e2b7-62f1-4ec8-b2fe-26168fd0c6ea",
+        "artifact_sha256": "7e94e728580b1d55eff9d1710dfdc413bc49f93ee50adf7be91dd4116f5efd52",
+        "status": "failed",
+        "question_count": 10,
+        "overlap_count": 0
+      },
+      {
+        "run_id": "1e5212f4-0f80-46f5-91f9-811d34d0eb0a",
+        "artifact_sha256": "728f21260e71c6c1a4421abc7d3b88ebf64e089e4a14f1e624451828034c288d",
+        "status": "interrupted",
+        "question_count": 10,
+        "overlap_count": 0
+      },
+      {
+        "run_id": "2de48886-ca5a-4444-a34d-ee6b0ff3a63d",
+        "artifact_sha256": "0a0432237ad4f80dd843925e20ed02cd25c727714d7dfec164e177829d6a295d",
+        "status": "failed",
+        "question_count": 10,
+        "overlap_count": 0
+      },
+      {
+        "run_id": "3f0a9a85-e4cf-42dd-98d7-14e8d5d89d37",
+        "artifact_sha256": "9d8b6719e5e3a6fcdcaf3558bedb344a2fce4452a72047d20f3571397cf5a359",
+        "status": "failed",
+        "question_count": 10,
+        "overlap_count": 0
+      },
+      {
+        "run_id": "44d1aa58-0ce4-4e1f-8e8e-37e80417bf25",
+        "artifact_sha256": "bd8bf54d9c7c435dbea0f238a6afb28aad0ab36bb7db6d50f98f3a3718f64943",
+        "status": "failed",
+        "question_count": 10,
+        "overlap_count": 0
+      },
+      {
+        "run_id": "5d76f1ea-f93e-4ec3-b15a-fcf6ecc135fe",
+        "artifact_sha256": "56a1930a47b0f01a5657b649e582fdf6047c807cacf2138e85ab2cf25c88ef17",
+        "status": "failed",
+        "question_count": 10,
+        "overlap_count": 0
+      },
+      {
+        "run_id": "6dd79fde-2e19-4f4c-b8d5-83ea67468574",
+        "artifact_sha256": "c08c12308720cb054b5c46236a4025a10ef2465e038740202ecbc5bd9f20fba6",
+        "status": "failed",
+        "question_count": 10,
+        "overlap_count": 0
+      },
+      {
+        "run_id": "70c6c590-7c2e-4315-938f-af5fe73644fa",
+        "artifact_sha256": "15d1a0cf3f86710c8afbecffaaf950ea75909cec29fd52669d8b96354279e40d",
+        "status": "failed",
+        "question_count": 10,
+        "overlap_count": 0
+      },
+      {
+        "run_id": "78dfded3-91ee-4a90-999d-9758e5c7cb16",
+        "artifact_sha256": "a90bdca1586ba987ea6223acbe61393f423e5ce1c2a5375dc4edba43e9451104",
+        "status": "interrupted",
+        "question_count": 10,
+        "overlap_count": 0
+      },
+      {
+        "run_id": "8c9646c9-440e-4fbb-8aee-bffd46cbeb9b",
+        "artifact_sha256": "5679965bc96bd6f4d97be0691424ba22ecb99fa25cb320818f04225b5082a82d",
+        "status": "failed",
+        "question_count": 10,
+        "overlap_count": 0
+      },
+      {
+        "run_id": "8cec29ef-4ae8-4ea6-a1dc-40a81fbe7ff6",
+        "artifact_sha256": "d3beab8fb1187f24903bc3e6798c3b0ec2c8a6af5138206ed4a3ea61a578fb57",
+        "status": "failed",
+        "question_count": 10,
+        "overlap_count": 0
+      },
+      {
+        "run_id": "9cac28e5-2885-4510-b227-ecba06f1b3de",
+        "artifact_sha256": "b9c6521d483234c6fddedad03cf1017105acbe34b0a49d7cd301298b50ae2636",
+        "status": "completed",
+        "question_count": 10,
+        "overlap_count": 0
+      },
+      {
+        "run_id": "a314f37b-aac3-407c-bbd0-496b7e9f3d4d",
+        "artifact_sha256": "abb4e6e9689112afc6bea22809898b3c23b4236c16bd7a9cfa779dbb51350259",
+        "status": "completed",
+        "question_count": 10,
+        "overlap_count": 0
+      },
+      {
+        "run_id": "a341ae75-f211-4e27-9d27-eed92ff7dc0a",
+        "artifact_sha256": "526bee5be31650365c1bf8e60375fa098e5c48061464969667cd2f458dccc17d",
+        "status": "failed",
+        "question_count": 10,
+        "overlap_count": 0
+      },
+      {
+        "run_id": "a35e62bd-0751-4a83-a25b-ce4b06da12d9",
+        "artifact_sha256": "6b179b8347eb8acc565de9cde5446fa6abc4b5f64d3eb93982b8673a0edecce7",
+        "status": "failed",
+        "question_count": 10,
+        "overlap_count": 0
+      },
+      {
+        "run_id": "a38d6e57-3a33-4ece-aedb-390736ae3a0d",
+        "artifact_sha256": "c6b3036e8b600fbc57658f62f9a12361ef428a324abc2ff6ca3f661eaa907ff8",
+        "status": "completed",
+        "question_count": 10,
+        "overlap_count": 0
+      },
+      {
+        "run_id": "bd307b86-551c-4fa7-bf79-5a465b18ef27",
+        "artifact_sha256": "f27cf7a4cefa96f61e2df7ceb4ada0966cfb6285a4ed4ffb2c2298a52d7a80fb",
+        "status": "failed",
+        "question_count": 10,
+        "overlap_count": 0
+      },
+      {
+        "run_id": "bd7712cd-0e35-4e7c-b42a-9376e3cf685b",
+        "artifact_sha256": "3adfff5fa62f37c07a24bc0d58e627bf920d0b0fc0e24d9c3f27f52f405e9cb5",
+        "status": "completed",
+        "question_count": 10,
+        "overlap_count": 0
+      },
+      {
+        "run_id": "e325d9b0-c240-4905-9c05-95d36c8d14dc",
+        "artifact_sha256": "b20e77b7b9533c6e8ecf1a62dc4a74b017e48bf40570da6fcd5ad9d4a8949556",
+        "status": "interrupted",
+        "question_count": 10,
+        "overlap_count": 0
+      }
+    ],
+    "raw_without_manifest_count": 4,
+    "raw_without_manifests": [
+      {
+        "artifact_sha256": "dc59106a289ec946b760479562e10a7350d56581c32cab82595ad204eb8ff9f8",
+        "status": "raw_without_manifest",
+        "question_count": 10,
+        "overlap_count": 0
+      },
+      {
+        "artifact_sha256": "f129e6a206752af2e0b326147b965304b80d413728403e026cc45099fd1731b9",
+        "status": "raw_without_manifest",
+        "question_count": 10,
+        "overlap_count": 0
+      },
+      {
+        "artifact_sha256": "92bda8223555c6a486c84d020ebbe56c0f42a9d8ef8b47451a0061c21af24491",
+        "status": "raw_without_manifest",
+        "question_count": 10,
+        "overlap_count": 0
+      },
+      {
+        "artifact_sha256": "c4af39491e00747fc55163e5e8089670bd99fe2289a464efdb64c8cc49f7e5af",
+        "status": "raw_without_manifest",
+        "question_count": 10,
+        "overlap_count": 0
+      }
+    ],
+    "overlap_count": 0,
+    "note": "Re-run the overlap check immediately before evaluation to include later artifacts."
+  },
+  "limitations": [
+    "This is a frozen candidate view, not a benchmark result.",
+    "The candidate is a slice within pinned S500, not representative of the full source dataset.",
+    "Generation, index construction and evaluation were not run by this utility."
+  ]
+}

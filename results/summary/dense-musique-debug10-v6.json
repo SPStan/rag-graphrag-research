@@ -1,0 +1,110 @@
+{
+  "configuration": {
+    "generation_options": {
+      "num_ctx": 4096,
+      "num_predict": 512,
+      "seed": 42,
+      "temperature": 0
+    },
+    "reader_prompt_version": "hipporag2-musique-one-shot-v6",
+    "reader_template_sha256": "beb15da1f15193ee88f93cc25c96199d679ade1d652cd9c750cc10e63cbc6047",
+    "retrieval_method": "cosine",
+    "top_k": 5
+  },
+  "inputs": {
+    "corpus_fingerprint": "f726a739ff0def6f7517fe3185780fdc21e5d51a2cfcd83ce3f18fba277c9f9a",
+    "corpus_sha256": "054338e3803fbe69f67037c58d2a49438572ffe2e8c8a047148a2dcdc100e44b",
+    "queries_sha256": "a0fd193f34f153e51052b8346b0db7868c60d68affb6f3e54c56cce7c2c14fc3"
+  },
+  "kind": "local_rag_run_public_summary",
+  "limitations": [
+    "debug10 was used in development and is diagnostic only"
+  ],
+  "metrics": {
+    "em": 0.1,
+    "generation_stopped_normally": 10,
+    "metric_version": "hipporag2-squad-normalization-answer-marker-v3",
+    "questions_evaluated": 10,
+    "recall_at_k": 0.6333333333333333,
+    "token_f1": 0.2,
+    "top_k": 5,
+    "usage": {
+      "generation_completion_tokens": 1192,
+      "generation_prompt_tokens": 15558,
+      "generation_server_seconds": 12.9961918,
+      "generation_wall_seconds": 13.011115900000732,
+      "index_embedding_api_total_duration_ns": null,
+      "index_embedding_build_seconds": null,
+      "index_embedding_cache_read_seconds": 0.12253929999860702,
+      "index_embedding_original_api_total_duration_ns": null,
+      "index_embedding_original_build_run_id": "ed95bea9-9d11-4234-a80f-46ba3a8fd127",
+      "index_embedding_original_build_seconds": 78.764150899995,
+      "index_embedding_original_prompt_tokens": null,
+      "index_embedding_prompt_tokens": null,
+      "mean_generation_tokens_per_second": 128.40653357436378,
+      "note": "Index embedding usage is in the run manifest; null means unavailable, not zero. Reader replays do not repeat query embedding or retrieval; their source run is recorded separately.",
+      "query_embedding_client_seconds": 2.7737698999917484,
+      "query_embedding_prompt_tokens": 241,
+      "question_end_to_end_seconds": 16.017568700015545,
+      "retrieval_seconds": 0.23130180000589462
+    }
+  },
+  "models": {
+    "embedding": {
+      "details": {
+        "context_length": 8192,
+        "embedding_length": 1024,
+        "families": [
+          "bert"
+        ],
+        "family": "bert",
+        "format": "gguf",
+        "parameter_size": "566.70M",
+        "parent_model": "",
+        "quantization_level": "F16"
+      },
+      "digest": "7907646426070047a77226ac3e684fbbe8410524f7b4a74d02837e43f2146bab",
+      "name": "bge-m3:latest",
+      "size_bytes": 1157672605
+    },
+    "generation": {
+      "details": {
+        "context_length": 32768,
+        "embedding_length": 2048,
+        "families": [
+          "qwen2"
+        ],
+        "family": "qwen2",
+        "format": "gguf",
+        "parameter_size": "3.1B",
+        "parent_model": "",
+        "quantization_level": "Q4_K_M"
+      },
+      "digest": "357c53fb659c5076de1d65ccb0b397446227b71a42be9d1603d46168015c9e4b",
+      "name": "qwen2.5:3b",
+      "size_bytes": 1929912432
+    }
+  },
+  "privacy": "No raw answers, prompts, passages, local paths, secrets or tracker URLs are included.",
+  "run": {
+    "dataset": "musique",
+    "expected_questions": 10,
+    "manifest_sha256": "072cc5002ca5bec1255e20b93f104019e45e94576280f1d80762ff1da0534a97",
+    "metrics_sha256": "3c26bc85ea52dcab1e619837b3d9269429840fe929a9cb387441c8fcfaefcaa8",
+    "mode": "local-poc",
+    "results_sha256": "f69da4ba93c5e5ef9bc4738694cfd5b104e81cbf9c1cd32f637cb031cfebafa3",
+    "run_id": "0b7bac50-d529-48f8-85d0-47ccc5228b94",
+    "status": "completed"
+  },
+  "schema_version": 1,
+  "source": {
+    "commit": null,
+    "source_sha256": {
+      "scripts/answer_parser.py": "70fcba402589b61440c75d77fafcb76bb43fa53581a2ee68d3a5185bb5a359bd",
+      "scripts/evaluate_dense.py": "841a290eedd7eda5922223077c40e0f1ca91d0073186065bb185e204bc206fa0",
+      "scripts/replay_reader.py": "8cf75fbba52071b8f669af50cea901489a70ab9f844efaf25d6310501cc6058b",
+      "scripts/run_dense.py": "2581f06a52f3e6777ae2aac20a46b90cd5a7adfaa63825da1f4442b2d52b4325"
+    },
+    "working_tree_dirty": null
+  }
+}

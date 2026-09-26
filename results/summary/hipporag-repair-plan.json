@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "source_run_id": "e78eff08-532a-40b3-a359-49a6b08b32a7",
+  "source_manifest_sha256": "35fbf63508e611366fee129f1ede0994f2c9954242d6e7e89a603aed456159f2",
+  "source_corpus_sha256": "054338e3803fbe69f67037c58d2a49438572ffe2e8c8a047148a2dcdc100e44b",
+  "plan_sha256": "f6ea09286136724f67621e24c4efc64913051a5fea1456d808a88ea1a6ec6d7e",
+  "status": "planned_no_model_requests",
+  "preflight_status": "not_ready_for_model_calls",
+  "plan": {
+    "expected_passages": 5500,
+    "planned_stage_outcomes": 196,
+    "planned_by_stage": {
+      "openie_ner": 38,
+      "openie_triples": 158
+    },
+    "dependency_refreshes": 38,
+    "remedial_attempts": 2,
+    "model_requests_made": 0
+  },
+  "interpretation": [
+    "Counts are the exact first scheduled repair pass, not an upper bound on future retries.",
+    "NER repairs are scheduled before triple extraction and dependent triple refreshes.",
+    "This report contains no passage IDs, text, prompts, responses, local paths, or secrets."
+  ]
+}

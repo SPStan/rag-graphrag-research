@@ -1,0 +1,182 @@
+{
+  "audit_kind": "hipporag_openie_coverage_read_only",
+  "cache": {
+    "available": true,
+    "entries": 11048,
+    "finish_reasons": {
+      "length": 180,
+      "stop": 10868
+    },
+    "finish_reasons_by_response_kind": {
+      "ner_empty": {
+        "stop": 451
+      },
+      "ner_present": {
+        "stop": 4993
+      },
+      "non_json": {
+        "length": 180,
+        "stop": 20
+      },
+      "triples_present": {
+        "stop": 5404
+      }
+    },
+    "linkage_to_passages": "unavailable: this cache stores request hashes, responses and metadata, but not the original prompts or passage identifiers",
+    "malformed_metadata": 0,
+    "response_kinds": {
+      "ner_empty": 451,
+      "ner_present": 4993,
+      "non_json": 200,
+      "triples_present": 5404
+    }
+  },
+  "coverage": {
+    "categories": {
+      "both_empty": 8,
+      "both_present": 5019,
+      "entities_empty_triples_present": 446,
+      "entities_present_triples_empty": 27
+    },
+    "documents": 5500,
+    "spot_check": {
+      "note": "Fingerprints and structural flags support local follow-up without publishing passage text or titles. table_like is a heuristic, not a manual judgement.",
+      "records": {
+        "both_empty": [
+          {
+            "entity_count": 0,
+            "line_count": 2,
+            "passage_sha256": "d8e86945e5e3ebd8147d23cf02fd183b9b68bf3e601db1edc397b3d2b9912ce6",
+            "pipe_lines": 0,
+            "tab_lines": 0,
+            "table_like": false,
+            "triple_count": 0
+          },
+          {
+            "entity_count": 0,
+            "line_count": 2,
+            "passage_sha256": "17df3fd7dc60cb36cb4e0cd871d51a6eb87e892a81a90ccb8e210ad98d7839d4",
+            "pipe_lines": 0,
+            "tab_lines": 0,
+            "table_like": false,
+            "triple_count": 0
+          },
+          {
+            "entity_count": 0,
+            "line_count": 2,
+            "passage_sha256": "77254ae40cb17b95bcc73427f8f538793a806608f45af9d90c8cef0dcb6b046e",
+            "pipe_lines": 0,
+            "tab_lines": 0,
+            "table_like": false,
+            "triple_count": 0
+          }
+        ],
+        "both_present": [
+          {
+            "entity_count": 7,
+            "line_count": 2,
+            "passage_sha256": "d23f269eb819cfb04ee9571898ffe03114957d503038ea36a6e6af54251df28c",
+            "pipe_lines": 0,
+            "tab_lines": 0,
+            "table_like": false,
+            "triple_count": 5
+          },
+          {
+            "entity_count": 5,
+            "line_count": 2,
+            "passage_sha256": "4d1b4e5b5ed4dc248592802b78fef6dd2f2dbde87c2acebf47f4ccef5498e7b0",
+            "pipe_lines": 0,
+            "tab_lines": 0,
+            "table_like": false,
+            "triple_count": 8
+          },
+          {
+            "entity_count": 5,
+            "line_count": 2,
+            "passage_sha256": "71409f07389d7d0752da244c8f91427e99d46770af06ce3c8edcd13d9150f356",
+            "pipe_lines": 0,
+            "tab_lines": 0,
+            "table_like": false,
+            "triple_count": 6
+          }
+        ],
+        "entities_empty_triples_present": [
+          {
+            "entity_count": 0,
+            "line_count": 2,
+            "passage_sha256": "81cb68835f25e6b6c4d0ee51bd0b329ddb254540da44d41cce2dd05706b0f0ba",
+            "pipe_lines": 0,
+            "tab_lines": 0,
+            "table_like": false,
+            "triple_count": 9
+          },
+          {
+            "entity_count": 0,
+            "line_count": 2,
+            "passage_sha256": "452ab4509fe3edeec4114292ebf9d1355d9c3a666ae24dde7d28bdcefd91ddac",
+            "pipe_lines": 0,
+            "tab_lines": 0,
+            "table_like": false,
+            "triple_count": 5
+          },
+          {
+            "entity_count": 0,
+            "line_count": 2,
+            "passage_sha256": "a9f84aee06726f1c5124e22ed81bca0c3a04bd34a26b0b0a535960e8039024f0",
+            "pipe_lines": 0,
+            "tab_lines": 0,
+            "table_like": false,
+            "triple_count": 10
+          }
+        ],
+        "entities_present_triples_empty": [
+          {
+            "entity_count": 9,
+            "line_count": 2,
+            "passage_sha256": "00a743f365fb0b0aadebdf59d64c7bd0b61d1645a4b55d2311fbf0ffe26ad4af",
+            "pipe_lines": 0,
+            "tab_lines": 0,
+            "table_like": false,
+            "triple_count": 0
+          },
+          {
+            "entity_count": 16,
+            "line_count": 2,
+            "passage_sha256": "9e7a5fcd0739204ec26a3e577bf013ef4ce08592a7371761157a6e78f407ca62",
+            "pipe_lines": 0,
+            "tab_lines": 0,
+            "table_like": false,
+            "triple_count": 0
+          },
+          {
+            "entity_count": 6,
+            "line_count": 2,
+            "passage_sha256": "6c0b91f17f2caa13856d406fb7b430cb078aad509068c5872816ee7f8f890409",
+            "pipe_lines": 0,
+            "tab_lines": 0,
+            "table_like": false,
+            "triple_count": 0
+          }
+        ]
+      },
+      "sample_size_per_category": 3,
+      "seed": 42
+    },
+    "table_like_by_category": {
+      "both_empty": 0,
+      "both_present": 0,
+      "entities_empty_triples_present": 0,
+      "entities_present_triples_empty": 0
+    }
+  },
+  "limitations": [
+    "Empty entities or triples are coverage observations, not proven extraction failures.",
+    "The final cache-replay manifest cannot prove that an earlier index build had no OpenIE failures.",
+    "Cache rows cannot be linked to passages from the stored SQLite schema alone."
+  ],
+  "schema_version": 1,
+  "source": {
+    "openie_state_sha256": "af8e85bb5b2d6694c4873c80c80948d857f5f092c2842ea3a3e0ee580505b8d1",
+    "source_run_id": "9cac28e5-2885-4510-b227-ecba06f1b3de"
+  }
+}
