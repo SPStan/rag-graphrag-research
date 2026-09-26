@@ -1,0 +1,159 @@
+{
+  "kind": "diagnostic-as-built-paired-comparison",
+  "independent_benchmark_eligible": false,
+  "questions": 100,
+  "corpus_passages": 5500,
+  "dense": {
+    "run_id": "98d8b412-cec6-45e4-9c14-0e4ad85855bb",
+    "em": 0.11,
+    "token_f1": 0.18581020525585742,
+    "recall_at_k": 0.6058333333333333,
+    "generation_stopped_normally": 99,
+    "usage": {
+      "index_embedding_prompt_tokens": null,
+      "index_embedding_api_total_duration_ns": null,
+      "index_embedding_build_seconds": null,
+      "index_embedding_cache_read_seconds": 0.11668010000721551,
+      "index_embedding_original_build_run_id": "ed95bea9-9d11-4234-a80f-46ba3a8fd127",
+      "index_embedding_original_build_seconds": 78.764150899995,
+      "index_embedding_original_prompt_tokens": null,
+      "index_embedding_original_api_total_duration_ns": null,
+      "query_embedding_prompt_tokens": 2592,
+      "query_embedding_client_seconds": 7.466162999975495,
+      "retrieval_seconds": 1.9903729000943713,
+      "generation_prompt_tokens": 154400,
+      "generation_completion_tokens": 12222,
+      "generation_wall_seconds": 117.40304570003354,
+      "generation_server_seconds": 117.2247174,
+      "question_end_to_end_seconds": 126.87813189990993,
+      "mean_generation_tokens_per_second": 129.10930039959976,
+      "note": "Index embedding usage is in the run manifest; null means unavailable, not zero. Reader replays do not repeat query embedding or retrieval; their source run is recorded separately."
+    }
+  },
+  "hipporag2": {
+    "run_id": "5e1bdc68-1803-416f-b80b-e5cc5b7b8dcf",
+    "em": 0.2,
+    "token_f1": 0.2996557204981384,
+    "recall_at_k": 0.6475,
+    "generation_stopped_normally": 100,
+    "usage": {
+      "index_embedding_prompt_tokens": null,
+      "index_embedding_api_total_duration_ns": null,
+      "index_embedding_build_seconds": null,
+      "index_embedding_cache_read_seconds": null,
+      "index_embedding_original_build_run_id": null,
+      "index_embedding_original_build_seconds": null,
+      "index_embedding_original_prompt_tokens": null,
+      "index_embedding_original_api_total_duration_ns": null,
+      "query_embedding_prompt_tokens": 2592,
+      "query_embedding_client_seconds": 7.432541099959053,
+      "retrieval_seconds": 59.51382360004936,
+      "generation_prompt_tokens": 155111,
+      "generation_completion_tokens": 10865,
+      "generation_wall_seconds": 103.4347266000259,
+      "generation_server_seconds": null,
+      "question_end_to_end_seconds": 162.9554516000644,
+      "mean_generation_tokens_per_second": null,
+      "note": "Index embedding usage is in the run manifest; null means unavailable, not zero. Reader replays do not repeat query embedding or retrieval; their source run is recorded separately."
+    }
+  },
+  "paired": {
+    "em": {
+      "hipporag_minus_dense": 0.09,
+      "paired_bootstrap_95_percent": [
+        0.02,
+        0.17
+      ],
+      "better": 12,
+      "equal": 85,
+      "worse": 3
+    },
+    "f1": {
+      "hipporag_minus_dense": 0.11384551524228094,
+      "paired_bootstrap_95_percent": [
+        0.04006396207443655,
+        0.1865505540233976
+      ],
+      "better": 31,
+      "equal": 59,
+      "worse": 10
+    },
+    "recall_at_k": {
+      "hipporag_minus_dense": 0.04166666666666667,
+      "paired_bootstrap_95_percent": [
+        -0.004166666666666665,
+        0.0875
+      ],
+      "better": 17,
+      "equal": 76,
+      "worse": 7
+    }
+  },
+  "source_index_run_id": "e78eff08-532a-40b3-a359-49a6b08b32a7",
+  "unresolved_openie_outcomes": 160,
+  "dense_fallback_questions": 22,
+  "reader_model": {
+    "name": "qwen2.5:3b",
+    "digest": "357c53fb659c5076de1d65ccb0b397446227b71a42be9d1603d46168015c9e4b",
+    "size_bytes": 1929912432,
+    "details": {
+      "parent_model": "",
+      "format": "gguf",
+      "family": "qwen2",
+      "families": [
+        "qwen2"
+      ],
+      "parameter_size": "3.1B",
+      "quantization_level": "Q4_K_M",
+      "context_length": 32768,
+      "embedding_length": 2048
+    }
+  },
+  "embedding_model": {
+    "name": "bge-m3:latest",
+    "digest": "7907646426070047a77226ac3e684fbbe8410524f7b4a74d02837e43f2146bab",
+    "size_bytes": 1157672605,
+    "details": {
+      "parent_model": "",
+      "format": "gguf",
+      "family": "bert",
+      "families": [
+        "bert"
+      ],
+      "parameter_size": "566.70M",
+      "quantization_level": "F16",
+      "context_length": 8192,
+      "embedding_length": 1024
+    }
+  },
+  "reader_options": {
+    "temperature": 0,
+    "seed": 42,
+    "num_predict": 512,
+    "num_ctx": 4096
+  },
+  "reader_template_sha256": "beb15da1f15193ee88f93cc25c96199d679ade1d652cd9c750cc10e63cbc6047",
+  "corpus_sha256": "054338e3803fbe69f67037c58d2a49438572ffe2e8c8a047148a2dcdc100e44b",
+  "ordered_ids_sha256": "a026de236266ceb4ee7faa4cde5d031996ecfd74f4e6edd806a8b08cc493d42b",
+  "dense_results_sha256": "4125eca7beea5d0691ff54efb08a4ecdf5d759abd0a63b3f4ddc567ac8988b6b",
+  "hipporag_results_sha256": "352b7baec73350d1def4b285b4fed8babd73179b9da2f4d815f398af75a48c0d",
+  "chat_usage_by_stage": {
+    "fact_filter": {
+      "calls": 100,
+      "prompt_tokens": 294031,
+      "completion_tokens": 4695
+    },
+    "reader": {
+      "calls": 100,
+      "prompt_tokens": 155111,
+      "completion_tokens": 10865
+    }
+  },
+  "limitations": [
+    "Diagnostic as-built graph; strict index gate remains failed.",
+    "Historical total indexing cost unknown; query costs do not include it.",
+    "Small fixed local candidate, not target API benchmark.",
+    "Dense timing was measured in an earlier session; no controlled speed comparison.",
+    "Embedding preprocessing differs between package and Dense; same model, not identical pipeline."
+  ]
+}
