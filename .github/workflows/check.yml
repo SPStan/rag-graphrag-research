@@ -30,6 +30,7 @@ jobs:
         run: python -m scripts.check
       - name: Measure remaining lint debt
         continue-on-error: true
-        run: |
-          python -m ruff check --statistics scripts data tests
-          python -m ruff format --check scripts data tests
+        run: python -m ruff check scripts data tests
+      - name: Measure formatting debt
+        continue-on-error: true
+        run: python -m ruff format --check scripts data tests
