@@ -2,6 +2,16 @@
 
 ## 29 сентября — offline-проверки для ревью
 
+Дополнение к текущей подготовке: 13 обычных Ruff-замечаний исправлены; четыре
+F401 остались только в локально изменённом `scripts/resume_dense.py` и явно
+исключены до согласования этих правок. Отдельный коммит форматирования 52 файлов
+проверен сравнением Python AST; полный набор основной `.venv` выполнил 153 теста,
+из них 2 pinned-only skipped. Gitleaks v8.30.1 проверил Git history локально с `--redact`:
+exit code 0, находок нет. Новый [CI run](https://github.com/SPStan/rag-graphrag-research/actions/runs/36628383795)
+на `8b795df` прошёл полностью: `secrets`, `check (ubuntu-latest)` и
+`check (windows-latest)`. Локальный pre-commit ещё не установлен/проверен.
+Модельные вызовы не выполнялись.
+
 - Основная `.venv`: 153 unittest, OK, 2 pinned-only skips; pip check без конфликтов.
 - Новый синтетический тест retrieval → reader prompt → parser → evaluator прошёл.
 - Архив tracked-файлов без приватных данных выявил зависимость cache-теста от
