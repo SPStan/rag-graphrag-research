@@ -147,7 +147,8 @@ class DenseRetrievalTests(unittest.TestCase):
     def test_embedding_cache_records_and_checks_no_truncation_policy(self):
         corpus = [{"id": "p1", "title": "A", "text": "first"},
                   {"id": "p2", "title": "B", "text": "second"}]
-        with tempfile.TemporaryDirectory(prefix="dense-cache-test-", dir=ROOT / "indexes" / "dense") as temp:
+        with tempfile.TemporaryDirectory(prefix="dense-cache-test-") as temp, \
+                patch("scripts.run_dense.ROOT", Path(temp)):
             cache = Path(temp) / "cache.npz"
             first_session = FakeEmbeddingSession()
             first_vectors, first_stats = embed_corpus(

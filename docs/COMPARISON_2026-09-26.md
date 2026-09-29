@@ -108,3 +108,9 @@ HippoRAG потратил примерно в 2,79 раза больше LLM-т�
 [Решение до прогона](../.adr/0012-as-built-diagnostic-comparison.md).
 Полные ответы, запросы и контексты сохранены только локально в игнорируемых
 results/raw и storage; исходные результаты не переписаны.
+
+Уточнение воспроизводимости, 29 сентября: [записанное происхождение кода](../results/summary/asbuilt100-code-provenance.json).
+Dense manifest не содержит commit/dirty status; HippoRAG записал dirty checkout.
+Хэш `compare_asbuilt.py` в runtime snapshot отсутствует. Коммит `f916273`
+публикует код после запуска, поэтому не является доказательством точной execution
+revision. Это ограничение исторического запуска, а не повод повторять его сейчас.

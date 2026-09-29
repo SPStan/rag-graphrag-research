@@ -1,0 +1,42 @@
+{
+  "scope": "diagnostic-as-built100",
+  "exact_clean_commit_reproduction": false,
+  "limitations": [
+    "Dense manifest has no recorded commit or dirty status.",
+    "HippoRAG manifest records a dirty working tree.",
+    "compare_asbuilt.py was not included in the runtime source hash snapshot.",
+    "f916273 is a post-run publication commit, not the execution revision."
+  ],
+  "runs": {
+    "dense": {
+      "run_id": "98d8b412-cec6-45e4-9c14-0e4ad85855bb",
+      "results_sha256": "4125eca7beea5d0691ff54efb08a4ecdf5d759abd0a63b3f4ddc567ac8988b6b",
+      "recorded_source": {
+        "commit": null,
+        "working_tree_dirty": null,
+        "source_sha256": {
+          "scripts/run_dense.py": "4eb4fb7d90ba8535aba8e7368bdeb8a93825d35df0a401a3ea461c9eae0c0453",
+          "scripts/replay_reader.py": "8cf75fbba52071b8f669af50cea901489a70ab9f844efaf25d6310501cc6058b",
+          "scripts/evaluate_dense.py": "841a290eedd7eda5922223077c40e0f1ca91d0073186065bb185e204bc206fa0",
+          "scripts/answer_parser.py": "70fcba402589b61440c75d77fafcb76bb43fa53581a2ee68d3a5185bb5a359bd"
+        }
+      }
+    },
+    "hipporag2": {
+      "run_id": "5e1bdc68-1803-416f-b80b-e5cc5b7b8dcf",
+      "results_sha256": "352b7baec73350d1def4b285b4fed8babd73179b9da2f4d815f398af75a48c0d",
+      "recorded_source": {
+        "commit": "316882a2f06727ec157b958d89bcf1839a048b81",
+        "dirty": true,
+        "source_sha256": {
+          "scripts/run_hipporag.py": "2925e7a21b12f40e4783fa165004d83c3612efd33927f6dbb924cf18c8999c64",
+          "scripts/run_dense.py": "552ef0469b09c5a41191a2e0f44cd8a07f791e6fa40368d84d5e2bde9d6faa6b",
+          "scripts/evaluate_dense.py": "841a290eedd7eda5922223077c40e0f1ca91d0073186065bb185e204bc206fa0",
+          "scripts/answer_parser.py": "70fcba402589b61440c75d77fafcb76bb43fa53581a2ee68d3a5185bb5a359bd",
+          "scripts/vendor/hipporag2_musique_template.py": "fada8f3cffcd2b657f2eec268f46e5deafc09471d609ba6292a58e3baea79c51",
+          "requirements-hipporag2.txt": "73d32425c4b06b21716c60887a830b97c6eb694125ca812c770177d931b7e0af"
+        }
+      }
+    }
+  }
+}
