@@ -63,8 +63,12 @@ def classify_documents(state, seed=42, sample_size=3):
     for position, document in enumerate(state["docs"]):
         if not isinstance(document, dict):
             raise ValueError(f"Document {position} is not an object")
-        entities = _require_list(document.get("extracted_entities"), "extracted_entities", position)
-        triples = _require_list(document.get("extracted_triples"), "extracted_triples", position)
+        entities = _require_list(
+            document.get("extracted_entities"), "extracted_entities", position
+        )
+        triples = _require_list(
+            document.get("extracted_triples"), "extracted_triples", position
+        )
         if not entities and triples:
             category = "entities_empty_triples_present"
         elif entities and not triples:
@@ -138,16 +142,21 @@ def inspect_cache(cache_path):
         raise ValueError(f"LLM cache does not exist: {cache_path}")
     connection = sqlite3.connect(f"{cache_path.resolve().as_uri()}?mode=ro", uri=True)
     try:
-        tables = {row[0] for row in connection.execute(
-            "SELECT name FROM sqlite_master WHERE type='table'"
-        )}
+        tables = {
+            row[0]
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            )
+        }
         if "cache" not in tables:
             raise ValueError("LLM cache has no cache table")
         kinds = Counter()
         finish_reasons = Counter()
         finish_by_kind = defaultdict(Counter)
         malformed_metadata = 0
-        for message, metadata_text in connection.execute("SELECT message, metadata FROM cache"):
+        for message, metadata_text in connection.execute(
+            "SELECT message, metadata FROM cache"
+        ):
             kind = _response_kind(message)
             kinds[kind] += 1
             try:
@@ -178,7 +187,9 @@ def inspect_cache(cache_path):
         connection.close()
 
 
-def build_report(state_path, cache_path=None, seed=42, sample_size=3, source_run_id=None):
+def build_report(
+    state_path, cache_path=None, seed=42, sample_size=3, source_run_id=None
+):
     state_path = Path(state_path)
     state = read_json(state_path)
     report = {
@@ -215,19 +226,28 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--state", type=Path, required=True, help="OpenIE state JSON")
     parser.add_argument("--cache", type=Path, help="optional HippoRAG SQLite LLM cache")
-    parser.add_argument("--output", type=Path, required=True, help="safe compact JSON report")
+    parser.add_argument(
+        "--output", type=Path, required=True, help="safe compact JSON report"
+    )
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--sample-size", type=int, default=3)
     parser.add_argument("--source-run-id")
     args = parser.parse_args(argv)
-    report = build_report(args.state, args.cache, args.seed, args.sample_size, args.source_run_id)
+    report = build_report(
+        args.state, args.cache, args.seed, args.sample_size, args.source_run_id
+    )
     write_json_atomic(args.output, report)
-    print(json.dumps({
-        "status": "verified",
-        "documents": report["coverage"]["documents"],
-        "categories": report["coverage"]["categories"],
-        "output": str(args.output),
-    }, ensure_ascii=False))
+    print(
+        json.dumps(
+            {
+                "status": "verified",
+                "documents": report["coverage"]["documents"],
+                "categories": report["coverage"]["categories"],
+                "output": str(args.output),
+            },
+            ensure_ascii=False,
+        )
+    )
 
 
 if __name__ == "__main__":

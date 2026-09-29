@@ -16,12 +16,15 @@ ROOT = Path(__file__).resolve().parents[1]
 SOURCE_RUN_ID = "e78eff08-532a-40b3-a359-49a6b08b32a7"
 
 
-def build_plan_report(run_id, expected_passage_ids, attempts, *,
-                      manifest_sha256, corpus_sha256):
+def build_plan_report(
+    run_id, expected_passage_ids, attempts, *, manifest_sha256, corpus_sha256
+):
     """Summarize exact scheduled stage work without persisting passage IDs."""
     plan = plan_openie_repairs(expected_passage_ids, attempts)
     targets_bytes = json.dumps(
-        plan["targets"], ensure_ascii=False, sort_keys=True,
+        plan["targets"],
+        ensure_ascii=False,
+        sort_keys=True,
         separators=(",", ":"),
     ).encode("utf-8")
     return {
@@ -45,9 +48,14 @@ def load_source_inputs(manifest_path):
     manifest_path = Path(manifest_path).resolve(strict=True)
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     run_id = manifest.get("run_id")
-    if (not run_id or not manifest_path.name.endswith(f"{run_id}.manifest.json")
-            or run_id != SOURCE_RUN_ID):
-        raise ValueError("Manifest filename or run_id does not match the approved diagnostic source")
+    if (
+        not run_id
+        or not manifest_path.name.endswith(f"{run_id}.manifest.json")
+        or run_id != SOURCE_RUN_ID
+    ):
+        raise ValueError(
+            "Manifest filename or run_id does not match the approved diagnostic source"
+        )
     corpus_path = Path(manifest["inputs"]["corpus_path"])
     corpus_sha256 = manifest["inputs"]["corpus_sha256"]
     if not corpus_path.is_file() or sha256_file(corpus_path) != corpus_sha256:
@@ -64,10 +72,15 @@ def load_source_inputs(manifest_path):
         if not isinstance(pid, str) or not pid:
             raise ValueError("Source corpus contains an invalid passage ID")
         expected_ids.append(pid)
-    expected_count = manifest.get("index", {}).get(
-        "openie_acceptance_gate", {}).get("expected_passages")
+    expected_count = (
+        manifest.get("index", {})
+        .get("openie_acceptance_gate", {})
+        .get("expected_passages")
+    )
     if len(expected_ids) != expected_count:
-        raise ValueError("Source corpus passage count differs from the failed index gate")
+        raise ValueError(
+            "Source corpus passage count differs from the failed index gate"
+        )
     attempts = manifest.get("index", {}).get("openie_attempts")
     if not isinstance(attempts, list):
         raise ValueError("Source manifest has no OpenIE attempt ledger")
@@ -77,31 +90,48 @@ def load_source_inputs(manifest_path):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--manifest", type=Path,
-        default=ROOT / "results" / "raw" /
-        f"hipporag2-musique-{SOURCE_RUN_ID}.manifest.json",
+        "--manifest",
+        type=Path,
+        default=ROOT
+        / "results"
+        / "raw"
+        / f"hipporag2-musique-{SOURCE_RUN_ID}.manifest.json",
     )
     parser.add_argument(
-        "--output", type=Path,
+        "--output",
+        type=Path,
         default=ROOT / "results" / "summary" / "hipporag-repair-plan.json",
     )
     args = parser.parse_args(argv)
     manifest, expected_ids, attempts, manifest_hash, corpus_hash = load_source_inputs(
-        args.manifest)
+        args.manifest
+    )
     report = build_plan_report(
-        manifest["run_id"], expected_ids, attempts,
-        manifest_sha256=manifest_hash, corpus_sha256=corpus_hash)
+        manifest["run_id"],
+        expected_ids,
+        attempts,
+        manifest_sha256=manifest_hash,
+        corpus_sha256=corpus_hash,
+    )
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n",
-                           encoding="utf-8", newline="\n")
-    print(json.dumps({
-        "status": report["status"],
-        "preflight_status": report["preflight_status"],
-        "source_run_id": report["source_run_id"],
-        **report["plan"],
-        "plan_sha256": report["plan_sha256"],
-        "report": args.output.name,
-    }, ensure_ascii=False))
+    args.output.write_text(
+        json.dumps(report, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    print(
+        json.dumps(
+            {
+                "status": report["status"],
+                "preflight_status": report["preflight_status"],
+                "source_run_id": report["source_run_id"],
+                **report["plan"],
+                "plan_sha256": report["plan_sha256"],
+                "report": args.output.name,
+            },
+            ensure_ascii=False,
+        )
+    )
 
 
 if __name__ == "__main__":

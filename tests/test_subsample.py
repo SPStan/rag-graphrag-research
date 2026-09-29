@@ -5,16 +5,38 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from data.make_subsample import build_subset, build_views, canonical_key, passage_id, write_stable
+from data.make_subsample import (
+    build_subset,
+    build_views,
+    canonical_key,
+    passage_id,
+    write_stable,
+)
 from scripts.download_data import verify
 
 
 def fixture():
-    corpus = [{"title": "Same title", "text": f"Different passage {i}"} for i in range(12)]
-    questions = [{"id": f"q{i}", "question": f"Question {i}?", "answer": str(i),
-                  "answer_aliases": [f"alias {i}"], "answerable": True,
-                  "paragraphs": [{"title": corpus[i]["title"], "paragraph_text": corpus[i]["text"],
-                                  "idx": 0, "is_supporting": True}]} for i in range(6)]
+    corpus = [
+        {"title": "Same title", "text": f"Different passage {i}"} for i in range(12)
+    ]
+    questions = [
+        {
+            "id": f"q{i}",
+            "question": f"Question {i}?",
+            "answer": str(i),
+            "answer_aliases": [f"alias {i}"],
+            "answerable": True,
+            "paragraphs": [
+                {
+                    "title": corpus[i]["title"],
+                    "paragraph_text": corpus[i]["text"],
+                    "idx": 0,
+                    "is_supporting": True,
+                }
+            ],
+        }
+        for i in range(6)
+    ]
     return questions, corpus
 
 
@@ -22,12 +44,16 @@ class SubsampleTests(unittest.TestCase):
     def test_repeatability_and_input_order(self):
         questions, corpus = fixture()
         first = build_subset("musique", questions, corpus, 4, 8)
-        second = build_subset("musique", list(reversed(questions)), list(reversed(corpus)), 4, 8)
+        second = build_subset(
+            "musique", list(reversed(questions)), list(reversed(corpus)), 4, 8
+        )
         self.assertEqual(first, second)
 
     def test_supporting_coverage_no_leakage_and_unique_ids(self):
         questions, corpus = fixture()
-        queries, labels, docs, ids, stats = build_subset("musique", questions, corpus, 4, 8)
+        queries, labels, docs, ids, stats = build_subset(
+            "musique", questions, corpus, 4, 8
+        )
         self.assertEqual(len({d["id"] for d in docs}), 8)
         self.assertEqual(len(set(ids["question_ids"])), 4)
         for query in queries:
@@ -39,7 +65,9 @@ class SubsampleTests(unittest.TestCase):
         self.assertEqual(stats["supporting_passages"], 4)
         self.assertEqual(ids["views"]["debug10"], ids["question_ids"][:10])
 
-    def test_holdout_view_uses_last_hundred_and_is_disjoint_from_development_views(self):
+    def test_holdout_view_uses_last_hundred_and_is_disjoint_from_development_views(
+        self,
+    ):
         selected_ids = [f"q{i}" for i in range(500)]
         views = build_views(selected_ids)
         self.assertEqual(views["holdout100"], selected_ids[400:500])
@@ -81,11 +109,17 @@ class SubsampleTests(unittest.TestCase):
         self.assertEqual(stats["canonical_duplicates_removed"], 1)
 
     def test_hotpot_sentence_join_and_repeated_supporting_titles(self):
-        question = {"_id": "h1", "question": "Who?", "answer": "A",
-                    "context": [["A", ["First sentence.", " Second sentence."]]],
-                    "supporting_facts": [["A", 0], ["A", 1]]}
-        corpus = [{"title": "A", "text": "First sentence. Second sentence."},
-                  {"title": "A", "text": "Other article version."}]
+        question = {
+            "_id": "h1",
+            "question": "Who?",
+            "answer": "A",
+            "context": [["A", ["First sentence.", " Second sentence."]]],
+            "supporting_facts": [["A", 0], ["A", 1]],
+        }
+        corpus = [
+            {"title": "A", "text": "First sentence. Second sentence."},
+            {"title": "A", "text": "Other article version."},
+        ]
         _, labels, _, _, stats = build_subset("hotpotqa", [question], corpus, 1, 2)
         expected = passage_id(canonical_key("A", corpus[0]["text"]))
         self.assertEqual(labels[0]["supporting_ids"], [expected])
@@ -96,8 +130,13 @@ class SubsampleTests(unittest.TestCase):
             build_subset("hotpotqa", [bad], corpus, 1, 2)
 
     def test_hotpot_missing_context_rejected(self):
-        question = {"_id": "h1", "question": "Who?", "answer": "A",
-                    "context": [], "supporting_facts": [["A", 0]]}
+        question = {
+            "_id": "h1",
+            "question": "Who?",
+            "answer": "A",
+            "context": [],
+            "supporting_facts": [["A", 0]],
+        }
         with self.assertRaisesRegex(ValueError, "missing from context"):
             build_subset("hotpotqa", [question], [{"title": "A", "text": "A"}], 1, 1)
 
@@ -120,9 +159,14 @@ class SubsampleTests(unittest.TestCase):
 class DownloadIntegrityTests(unittest.TestCase):
     def test_hashes_and_corruption(self):
         payload = json.dumps([{"id": "q1"}]).encode()
-        entry = {"name": "test.json", "size": len(payload),
-                 "sha256": hashlib.sha256(payload).hexdigest(),
-                 "git_blob_sha1": hashlib.sha1(f"blob {len(payload)}\0".encode() + payload).hexdigest()}
+        entry = {
+            "name": "test.json",
+            "size": len(payload),
+            "sha256": hashlib.sha256(payload).hexdigest(),
+            "git_blob_sha1": hashlib.sha1(
+                f"blob {len(payload)}\0".encode() + payload
+            ).hexdigest(),
+        }
         self.assertEqual(verify(payload, entry), entry["sha256"])
         for bad in (payload[:-1], payload.replace(b"q1", b"q2")):
             with self.assertRaises(ValueError):

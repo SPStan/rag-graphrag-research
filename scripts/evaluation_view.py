@@ -6,21 +6,26 @@ from pathlib import Path
 
 
 def ordered_ids_sha256(question_ids):
-    payload = json.dumps(question_ids, ensure_ascii=False,
-                         separators=(",", ":")).encode("utf-8")
+    payload = json.dumps(
+        question_ids, ensure_ascii=False, separators=(",", ":")
+    ).encode("utf-8")
     return hashlib.sha256(payload).hexdigest()
 
 
 def load_view(path, dataset, labels_path):
     if labels_path is None:
-        raise ValueError("A separate pinned labels file is required for an evaluation view")
+        raise ValueError(
+            "A separate pinned labels file is required for an evaluation view"
+        )
     path = Path(path)
     view = json.loads(path.read_text(encoding="utf-8"))
     ids = view.get("question_ids")
     if view.get("dataset") != dataset:
         raise ValueError("Evaluation view dataset does not match the run")
     if not isinstance(ids, list) or not ids or any(not isinstance(i, str) for i in ids):
-        raise ValueError("Evaluation view must contain a non-empty string question_ids list")
+        raise ValueError(
+            "Evaluation view must contain a non-empty string question_ids list"
+        )
     if len(set(ids)) != len(ids):
         raise ValueError("Evaluation view contains duplicate question IDs")
     if ordered_ids_sha256(ids) != view.get("ordered_question_ids_sha256"):

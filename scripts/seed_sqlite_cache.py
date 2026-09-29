@@ -17,11 +17,13 @@ def sha256_file(path):
 def _table_row_counts(connection):
     counts = {}
     tables = connection.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
+        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+    )
     for (table_name,) in tables:
         escaped = table_name.replace('"', '""')
         counts[table_name] = connection.execute(
-            f'SELECT count(*) FROM "{escaped}"').fetchone()[0]
+            f'SELECT count(*) FROM "{escaped}"'
+        ).fetchone()[0]
     return counts
 
 
@@ -51,7 +53,9 @@ def seed_sqlite_cache(source, destination):
         ).fetchone()[0]
         copied_row_counts = _table_row_counts(dst)
         if source_row_counts != copied_row_counts:
-            raise ValueError("Copied LLM cache row counts do not match the read-only source")
+            raise ValueError(
+                "Copied LLM cache row counts do not match the read-only source"
+            )
     except Exception:
         dst.close()
         src.close()

@@ -41,10 +41,17 @@ class RepairJournalTests(unittest.TestCase):
         with self.assertRaises(FileExistsError):
             self.open_journal(schedule=schedule)
 
-        journal.complete(task, {
-            "passage_id": "p1", "stage": "openie_ner", "attempt": 2,
-            "status": "valid_nonempty", "usage": {"prompt_tokens": None},
-        }, ["new entity"])
+        journal.complete(
+            task,
+            {
+                "passage_id": "p1",
+                "stage": "openie_ner",
+                "attempt": 2,
+                "status": "valid_nonempty",
+                "usage": {"prompt_tokens": None},
+            },
+            ["new entity"],
+        )
         journal.close()
         resumed = self.open_journal(schedule=schedule)
         self.assertEqual(resumed.data["completed_task_keys"], ["p1|openie_ner|2"])
@@ -61,19 +68,30 @@ class RepairJournalTests(unittest.TestCase):
         task = {"passage_id": "p1", "stage": "openie_ner", "attempt": 2}
         journal.begin(task)
         with self.assertRaisesRegex(ValueError, "cannot persist"):
-            journal.complete(task, {
-                "passage_id": "p1", "stage": "openie_ner", "attempt": 2,
-                "response": "private text",
-            })
+            journal.complete(
+                task,
+                {
+                    "passage_id": "p1",
+                    "stage": "openie_ner",
+                    "attempt": 2,
+                    "response": "private text",
+                },
+            )
 
     def test_finish_requires_exact_ordered_schedule(self):
         journal = self.open_journal()
         task = {"passage_id": "p1", "stage": "openie_ner", "attempt": 2}
         journal.begin(task)
-        journal.complete(task, {
-            "passage_id": "p1", "stage": "openie_ner", "attempt": 2,
-            "status": "valid_empty",
-        }, [])
+        journal.complete(
+            task,
+            {
+                "passage_id": "p1",
+                "stage": "openie_ner",
+                "attempt": 2,
+                "status": "valid_empty",
+            },
+            [],
+        )
         with self.assertRaisesRegex(ValueError, "planned order"):
             journal.finish(expected_task_keys=["p2|openie_ner|2"])
         journal.finish(expected_task_keys=["p1|openie_ner|2"])
@@ -88,13 +106,20 @@ class RepairJournalTests(unittest.TestCase):
             self.open_journal()
 
     def test_begin_requires_next_frozen_task(self):
-        journal = self.open_journal(schedule=[
-            "p1|openie_ner|2", "p1|openie_triples|2",
-        ])
+        journal = self.open_journal(
+            schedule=[
+                "p1|openie_ner|2",
+                "p1|openie_triples|2",
+            ]
+        )
         with self.assertRaisesRegex(ValueError, "next in the frozen schedule"):
-            journal.begin({
-                "passage_id": "p1", "stage": "openie_triples", "attempt": 2,
-            })
+            journal.begin(
+                {
+                    "passage_id": "p1",
+                    "stage": "openie_triples",
+                    "attempt": 2,
+                }
+            )
 
     def test_failed_completion_write_keeps_durable_in_flight(self):
         journal = self.open_journal()

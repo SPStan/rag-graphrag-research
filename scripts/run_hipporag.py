@@ -21,7 +21,10 @@ import numpy as np
 import requests
 
 try:
-    from scripts.openie_protocol import build_openie_acceptance_gate, classify_openie_attempt
+    from scripts.openie_protocol import (
+        build_openie_acceptance_gate,
+        classify_openie_attempt,
+    )
 except ModuleNotFoundError:  # Direct script execution puts scripts/ on sys.path.
     from openie_protocol import build_openie_acceptance_gate, classify_openie_attempt
 
@@ -54,22 +57,37 @@ def sha256_file(path):
 
 
 def json_bytes(value):
-    return (json.dumps(value, ensure_ascii=False, separators=(",", ":")) + "\n").encode("utf-8")
+    return (json.dumps(value, ensure_ascii=False, separators=(",", ":")) + "\n").encode(
+        "utf-8"
+    )
 
 
-def build_index_identities(generation_digest, embedding_digest,
-                           embedding_pipeline, openie_protocol, upstream_commit):
+def build_index_identities(
+    generation_digest,
+    embedding_digest,
+    embedding_pipeline,
+    openie_protocol,
+    upstream_commit,
+):
     """Separate compatible index producer identity from run/storage policy."""
-    producer_identity = sha256_bytes(json_bytes({
-        "generation": generation_digest,
-        "embedding": embedding_digest,
-        "embedding_pipeline": embedding_pipeline,
-        "upstream": upstream_commit,
-    }))
-    storage_identity = sha256_bytes(json_bytes({
-        "producer_identity": producer_identity,
-        "openie_protocol": openie_protocol,
-    }))
+    producer_identity = sha256_bytes(
+        json_bytes(
+            {
+                "generation": generation_digest,
+                "embedding": embedding_digest,
+                "embedding_pipeline": embedding_pipeline,
+                "upstream": upstream_commit,
+            }
+        )
+    )
+    storage_identity = sha256_bytes(
+        json_bytes(
+            {
+                "producer_identity": producer_identity,
+                "openie_protocol": openie_protocol,
+            }
+        )
+    )
     return producer_identity, storage_identity
 
 
@@ -79,10 +97,12 @@ def reader_template_metadata():
     except ModuleNotFoundError:  # Direct script execution puts scripts/ on sys.path.
         from vendor.hipporag2_musique_template import prompt_template
 
-    messages = [{"role": item["role"], "content": item["content"]}
-                for item in prompt_template]
+    messages = [
+        {"role": item["role"], "content": item["content"]} for item in prompt_template
+    ]
     digest_payload = json.dumps(
-        [item["content"] for item in messages[:3]], ensure_ascii=False,
+        [item["content"] for item in messages[:3]],
+        ensure_ascii=False,
         separators=(",", ":"),
     ).encode("utf-8")
     return messages, sha256_bytes(digest_payload)
@@ -139,8 +159,11 @@ def write_json_atomic(path, value):
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(path.suffix + ".part")
-    temporary.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n",
-                         encoding="utf-8", newline="\n")
+    temporary.write_text(
+        json.dumps(value, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
     temporary.replace(path)
 
 
@@ -150,7 +173,9 @@ def write_jsonl_atomic(path, rows):
     temporary = path.with_suffix(path.suffix + ".part")
     with temporary.open("w", encoding="utf-8", newline="\n") as stream:
         for row in rows:
-            stream.write(json.dumps(row, ensure_ascii=False, separators=(",", ":")) + "\n")
+            stream.write(
+                json.dumps(row, ensure_ascii=False, separators=(",", ":")) + "\n"
+            )
     temporary.replace(path)
 
 
@@ -185,8 +210,11 @@ def normalize_ner_entities(values):
         elif isinstance(value, dict):
             # Common model variants wrap an entity with a type/label, or group
             # entities by category. Keep names only and ignore category labels.
-            candidates = ([value["entity"]] if isinstance(value.get("entity"), str)
-                          else [item for item in value.values() if isinstance(item, str)])
+            candidates = (
+                [value["entity"]]
+                if isinstance(value.get("entity"), str)
+                else [item for item in value.values() if isinstance(item, str)]
+            )
         else:
             raise ValueError("NER entities must be strings or supported entity objects")
         for candidate in candidates:
@@ -206,9 +234,12 @@ def recover_partial_openie_values(stage, values, *, parse_error=False):
         except ValueError:
             return None
     if stage == "openie_triples":
-        if all(isinstance(item, (list, tuple)) and len(item) == 3
-               and all(isinstance(value, str) for value in item)
-               for item in values):
+        if all(
+            isinstance(item, (list, tuple))
+            and len(item) == 3
+            and all(isinstance(value, str) for value in item)
+            for item in values
+        ):
             return [list(item) for item in values]
     return None
 
@@ -269,7 +300,9 @@ def normalize_inputs(corpus, queries, labels=None):
         if label is None:
             answer = query.get("answer", query.get("gold_ans"))
             if answer is None:
-                raise ValueError(f"No answer label for query {qid}; pass a separate labels file")
+                raise ValueError(
+                    f"No answer label for query {qid}; pass a separate labels file"
+                )
             if isinstance(answer, list):
                 answer, aliases = (answer[0], answer[1:]) if answer else ("", [])
             else:
@@ -279,15 +312,25 @@ def normalize_inputs(corpus, queries, labels=None):
             if "paragraphs" in query:
                 for paragraph in query["paragraphs"]:
                     if paragraph.get("is_supporting", True):
-                        key = canonical_key(paragraph.get("title"),
-                                            paragraph.get("text", paragraph.get("paragraph_text", "")))
+                        key = canonical_key(
+                            paragraph.get("title"),
+                            paragraph.get("text", paragraph.get("paragraph_text", "")),
+                        )
                         if key not in by_key:
-                            raise ValueError(f"Supporting passage for {qid} is absent from corpus")
+                            raise ValueError(
+                                f"Supporting passage for {qid} is absent from corpus"
+                            )
                         supporting_ids.add(by_key[key])
             if not supporting_ids:
-                raise ValueError(f"No supporting IDs for {qid}; pass a separate labels file")
-            label = {"id": qid, "answer": answer, "answer_aliases": aliases,
-                     "supporting_ids": sorted(supporting_ids)}
+                raise ValueError(
+                    f"No supporting IDs for {qid}; pass a separate labels file"
+                )
+            label = {
+                "id": qid,
+                "answer": answer,
+                "answer_aliases": aliases,
+                "supporting_ids": sorted(supporting_ids),
+            }
         derived_labels.append(label)
 
     if labels is not None:
@@ -303,10 +346,14 @@ def normalize_inputs(corpus, queries, labels=None):
             raise ValueError(f"No supporting passages in label {label['id']}")
         absent = set(supporting) - set(by_id)
         if absent:
-            raise ValueError(f"Supporting IDs absent from corpus for {label['id']}: {sorted(absent)[:3]}")
+            raise ValueError(
+                f"Supporting IDs absent from corpus for {label['id']}: {sorted(absent)[:3]}"
+            )
         answers = [label.get("answer"), *label.get("answer_aliases", [])]
         if not all(isinstance(answer, str) and answer.strip() for answer in answers):
-            raise ValueError(f"Label {label['id']} needs a non-empty answer and aliases")
+            raise ValueError(
+                f"Label {label['id']} needs a non-empty answer and aliases"
+            )
     return normalized, normalized_queries, derived_labels
 
 
@@ -319,8 +366,12 @@ def model_info(model_name, base_url=OLLAMA_BASE_URL):
     target = model_name if ":" in model_name else model_name + ":latest"
     for item in models:
         if item.get("name") == target or item.get("model") == target:
-            return {"name": item.get("name", target), "digest": item.get("digest"),
-                    "size_bytes": item.get("size"), "details": item.get("details", {})}
+            return {
+                "name": item.get("name", target),
+                "digest": item.get("digest"),
+                "size_bytes": item.get("size"),
+                "details": item.get("details", {}),
+            }
     raise RuntimeError(f"Model is not installed in Ollama: {target}")
 
 
@@ -350,21 +401,36 @@ def windows_safe_model_label(model_name):
 def git_snapshot():
     git = ["git", "-c", f"safe.directory={ROOT.as_posix()}"]
     try:
-        commit = subprocess.run([*git, "rev-parse", "HEAD"], cwd=ROOT, check=True,
-                                capture_output=True, text=True).stdout.strip()
-        dirty = bool(subprocess.run([*git, "status", "--porcelain"], cwd=ROOT, check=True,
-                                    capture_output=True, text=True).stdout.strip())
+        commit = subprocess.run(
+            [*git, "rev-parse", "HEAD"],
+            cwd=ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        dirty = bool(
+            subprocess.run(
+                [*git, "status", "--porcelain"],
+                cwd=ROOT,
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout.strip()
+        )
         snapshot = {"commit": commit, "dirty": dirty}
     except (OSError, subprocess.CalledProcessError):
         snapshot = {"commit": None, "dirty": None}
     source_files = (
-        "scripts/run_hipporag.py", "scripts/run_dense.py",
-        "scripts/evaluate_dense.py", "scripts/answer_parser.py",
+        "scripts/run_hipporag.py",
+        "scripts/run_dense.py",
+        "scripts/evaluate_dense.py",
+        "scripts/answer_parser.py",
         "scripts/vendor/hipporag2_musique_template.py",
         "requirements-hipporag2.txt",
     )
     snapshot["source_sha256"] = {
-        name: sha256_file(ROOT / name) for name in source_files
+        name: sha256_file(ROOT / name)
+        for name in source_files
         if (ROOT / name).is_file()
     }
     return snapshot
@@ -375,8 +441,9 @@ def ollama_api_base(base_url):
     return base[:-3] if base.endswith("/v1") else base
 
 
-def install_no_truncate_embedding_api(embedding_model, base_url, model_name,
-                                      post_json=None):
+def install_no_truncate_embedding_api(
+    embedding_model, base_url, model_name, post_json=None
+):
     """Use Ollama's native embed API so truncate=false is part of each request."""
     session = requests.Session() if post_json is None else None
     if session is not None:
@@ -404,7 +471,9 @@ def install_no_truncate_embedding_api(embedding_model, base_url, model_name,
                     right, right_usage = request_embeddings(prepared_texts[middle:])
                 except Exception as exc:
                     earlier = getattr(exc, "completed_embedding_usage", None)
-                    earlier_prompt = (earlier.get("prompt_tokens") or 0) if earlier else 0
+                    earlier_prompt = (
+                        (earlier.get("prompt_tokens") or 0) if earlier else 0
+                    )
                     earlier_total = (earlier.get("total_tokens") or 0) if earlier else 0
                     exc.completed_embedding_usage = {
                         "prompt_tokens": left_usage["prompt_tokens"] + earlier_prompt,
@@ -413,12 +482,15 @@ def install_no_truncate_embedding_api(embedding_model, base_url, model_name,
                         + ((earlier.get("total_duration_ns") or 0) if earlier else 0),
                         "load_duration_ns": (left_usage.get("load_duration_ns") or 0)
                         + ((earlier.get("load_duration_ns") or 0) if earlier else 0),
-                        "usage_unknown": True, "truncate": False,
+                        "usage_unknown": True,
+                        "truncate": False,
                     }
                     raise
                 usage = {
-                    "prompt_tokens": left_usage["prompt_tokens"] + right_usage["prompt_tokens"],
-                    "total_tokens": left_usage["total_tokens"] + right_usage["total_tokens"],
+                    "prompt_tokens": left_usage["prompt_tokens"]
+                    + right_usage["prompt_tokens"],
+                    "total_tokens": left_usage["total_tokens"]
+                    + right_usage["total_tokens"],
                     "total_duration_ns": (left_usage.get("total_duration_ns") or 0)
                     + (right_usage.get("total_duration_ns") or 0),
                     "load_duration_ns": (left_usage.get("load_duration_ns") or 0)
@@ -432,8 +504,14 @@ def install_no_truncate_embedding_api(embedding_model, base_url, model_name,
         if not isinstance(vectors, list) or len(vectors) != len(prepared_texts):
             raise RuntimeError("Ollama returned an incomplete embedding response")
         token_count = payload.get("prompt_eval_count")
-        if not isinstance(token_count, int) or isinstance(token_count, bool) or token_count < 0:
-            raise RuntimeError("Ollama embedding response omitted valid prompt_eval_count")
+        if (
+            not isinstance(token_count, int)
+            or isinstance(token_count, bool)
+            or token_count < 0
+        ):
+            raise RuntimeError(
+                "Ollama embedding response omitted valid prompt_eval_count"
+            )
         usage = {
             "prompt_tokens": token_count,
             "total_tokens": token_count,
@@ -454,16 +532,27 @@ def install_no_truncate_embedding_api(embedding_model, base_url, model_name,
         try:
             vectors, usage = request_embeddings(prepared_texts)
         except Exception as exc:
-            embedding_model.last_usage = getattr(exc, "completed_embedding_usage", {
-                "prompt_tokens": None, "total_tokens": None,
-                "usage_unknown": True, "truncate": False,
-            })
+            embedding_model.last_usage = getattr(
+                exc,
+                "completed_embedding_usage",
+                {
+                    "prompt_tokens": None,
+                    "total_tokens": None,
+                    "usage_unknown": True,
+                    "truncate": False,
+                },
+            )
             raise
         matrix = np.asarray(vectors, dtype=np.float32)
-        if (matrix.ndim != 2 or matrix.shape[0] != len(texts)
-                or not np.all(np.isfinite(matrix))
-                or np.any(np.linalg.norm(matrix, axis=1) <= 0)):
-            raise RuntimeError("Ollama returned invalid, non-finite, or zero embeddings")
+        if (
+            matrix.ndim != 2
+            or matrix.shape[0] != len(texts)
+            or not np.all(np.isfinite(matrix))
+            or np.any(np.linalg.norm(matrix, axis=1) <= 0)
+        ):
+            raise RuntimeError(
+                "Ollama returned invalid, non-finite, or zero embeddings"
+            )
         embedding_model.last_usage = usage
         # HippoRAG batch_encode normalizes rows along axis 1, including the
         # one-query case. Preserve a vector row for list inputs of length one.
@@ -480,11 +569,14 @@ def validate_pinned_dataset(dataset, corpus_path, queries, corpus, labels_path=N
         from scripts.run_dense import validate_processed_data
     except ModuleNotFoundError:  # Direct script execution puts scripts/ on sys.path.
         from run_dense import validate_processed_data
-    labels_path = Path(labels_path) if labels_path else Path(corpus_path).parent / "labels.json"
+    labels_path = (
+        Path(labels_path) if labels_path else Path(corpus_path).parent / "labels.json"
+    )
     if not labels_path.is_file():
         raise ValueError(f"Pinned dataset labels are required: {labels_path}")
     return validate_processed_data(
-        dataset, Path(corpus_path).parent, queries, corpus, labels_path)
+        dataset, Path(corpus_path).parent, queries, corpus, labels_path
+    )
 
 
 def runtime_metadata(base_url):
@@ -496,8 +588,12 @@ def runtime_metadata(base_url):
             packages[name] = importlib_metadata.version(name)
         except importlib_metadata.PackageNotFoundError:
             packages[name] = None
-    return {"python": platform.python_version(), "platform": platform.platform(),
-            "ollama": response.json().get("version"), "packages": packages}
+    return {
+        "python": platform.python_version(),
+        "platform": platform.platform(),
+        "ollama": response.json().get("version"),
+        "packages": packages,
+    }
 
 
 def _append_event(events, lock, event):
@@ -507,23 +603,45 @@ def _append_event(events, lock, event):
 
 def record_openie_failure(failures, lock, passage_id, exc, stage):
     """Record a skipped OpenIE step without retaining passage text."""
-    failure = {"stage": stage, "passage_id": passage_id,
-               "error_type": type(exc).__name__,
-               "error": str(exc)[:500]}
+    failure = {
+        "stage": stage,
+        "passage_id": passage_id,
+        "error_type": type(exc).__name__,
+        "error": str(exc)[:500],
+    }
     with lock:
         failures.append(failure)
     return failure
 
 
-def record_openie_attempt(attempts, lock, *, run_id, pid, passage, stage,
-                          attempt_number, response, metadata, values,
-                          model_digest, call_event=None, parse_error=False,
-                          request_error=False, retry_of_attempt=None):
+def record_openie_attempt(
+    attempts,
+    lock,
+    *,
+    run_id,
+    pid,
+    passage,
+    stage,
+    attempt_number,
+    response,
+    metadata,
+    values,
+    model_digest,
+    call_event=None,
+    parse_error=False,
+    request_error=False,
+    retry_of_attempt=None,
+):
     """Append safe per-attempt provenance; never retain prompts or response text."""
     raw = response.encode("utf-8") if isinstance(response, str) else None
-    finish_reason = metadata.get("finish_reason") if isinstance(metadata, dict) else None
+    finish_reason = (
+        metadata.get("finish_reason") if isinstance(metadata, dict) else None
+    )
     status = classify_openie_attempt(
-        response, finish_reason, values, parse_error=parse_error,
+        response,
+        finish_reason,
+        values,
+        parse_error=parse_error,
         request_error=request_error,
     )
     record = {
@@ -541,9 +659,11 @@ def record_openie_attempt(attempts, lock, *, run_id, pid, passage, stage,
         "prompt_sha256": call_event.get("prompt_sha256") if call_event else None,
         "cache_hit": call_event.get("cache_hit") if call_event else None,
         "cache_status": (
-            "hit" if call_event and call_event.get("cache_hit") is True else
-            "miss" if call_event and call_event.get("cache_hit") is False else
-            "not_observed_at_llm_layer"
+            "hit"
+            if call_event and call_event.get("cache_hit") is True
+            else "miss"
+            if call_event and call_event.get("cache_hit") is False
+            else "not_observed_at_llm_layer"
         ),
         "source_provenance_complete": call_event is not None,
         "finish_reason": finish_reason,
@@ -559,13 +679,21 @@ def record_openie_attempt(attempts, lock, *, run_id, pid, passage, stage,
         "response_bytes": len(raw) if raw is not None else None,
         "partial_recovery_succeeded": (
             values is not None and not parse_error
-            if finish_reason == "length" else None
+            if finish_reason == "length"
+            else None
         ),
-        "usage": ({key: call_event["usage"].get(key)
-                   for key in ("prompt_tokens", "completion_tokens")}
-                  if call_event and isinstance(call_event.get("usage"), dict) else None),
-        "usage_unknown": (not bool(call_event and isinstance(call_event.get("usage"), dict))
-                          or bool(call_event.get("usage_unknown"))),
+        "usage": (
+            {
+                key: call_event["usage"].get(key)
+                for key in ("prompt_tokens", "completion_tokens")
+            }
+            if call_event and isinstance(call_event.get("usage"), dict)
+            else None
+        ),
+        "usage_unknown": (
+            not bool(call_event and isinstance(call_event.get("usage"), dict))
+            or bool(call_event.get("usage_unknown"))
+        ),
         "client_seconds": call_event.get("client_seconds") if call_event else None,
     }
     with lock:
@@ -573,8 +701,9 @@ def record_openie_attempt(attempts, lock, *, run_id, pid, passage, stage,
     return record
 
 
-def bind_openie_thread_context(local, *, run_id, model_digest, attempts,
-                              attempts_lock, failures, failures_lock):
+def bind_openie_thread_context(
+    local, *, run_id, model_digest, attempts, attempts_lock, failures, failures_lock
+):
     """Bind run-wide ledgers to the worker thread before instrumented OpenIE calls."""
     local.run_id = run_id
     local.model_digest = model_digest
@@ -584,10 +713,18 @@ def bind_openie_thread_context(local, *, run_id, model_digest, attempts,
     local.openie_failures_lock = failures_lock
 
 
-def instrument_models(rag, corpus, query_text_to_id, events, lock,
-                     embedding_max_inputs_per_second=18.0,
-                     embedding_request_batch_size=4, run_id=None,
-                     model_digest=None, openie_retry_token_caps=None):
+def instrument_models(
+    rag,
+    corpus,
+    query_text_to_id,
+    events,
+    lock,
+    embedding_max_inputs_per_second=18.0,
+    embedding_request_batch_size=4,
+    run_id=None,
+    model_digest=None,
+    openie_retry_token_caps=None,
+):
     """Record SDK usage and cache state without storing any raw prompts or texts."""
     local = threading.local()
     openie_failures = []
@@ -601,7 +738,9 @@ def instrument_models(rag, corpus, query_text_to_id, events, lock,
     local.run_id = run_id
     local.model_digest = model_digest
     openie_retry_token_caps = openie_retry_token_caps or {}
-    passage_id_by_text = {item["title"] + "\n" + item["text"]: item["id"] for item in corpus}
+    passage_id_by_text = {
+        item["title"] + "\n" + item["text"]: item["id"] for item in corpus
+    }
     query_id_by_embedding = {text: qid for text, qid in query_text_to_id.items()}
 
     llm = rag.qa_llm
@@ -611,7 +750,9 @@ def instrument_models(rag, corpus, query_text_to_id, events, lock,
         messages = kwargs.get("messages", args[0] if args else None)
         if messages is None:
             raise ValueError("Missing messages for a tracked HippoRAG chat call")
-        serialized = json.dumps(messages, ensure_ascii=False, sort_keys=True, default=str)
+        serialized = json.dumps(
+            messages, ensure_ascii=False, sort_keys=True, default=str
+        )
         bypass_cache = kwargs.pop("_bypass_cache", False)
         started = time.perf_counter()
         try:
@@ -619,38 +760,51 @@ def instrument_models(rag, corpus, query_text_to_id, events, lock,
                 # The upstream decorator caches malformed JSON too. A targeted
                 # retry must go through its wrapped API method, bypassing SQLite.
                 response, metadata = original_infer.__func__.__wrapped__(
-                    llm, *args, **kwargs)
+                    llm, *args, **kwargs
+                )
                 cache_hit = False
             else:
                 response, metadata, cache_hit = original_infer(*args, **kwargs)
         except Exception as exc:
             stage = getattr(local, "stage", "unknown")
-            event = {"kind": "chat", "stage": stage,
-                     "passage_id": getattr(local, "passage_id", None),
-                     "question_id": getattr(local, "question_id", None),
-                     "prompt_sha256": sha256_bytes(serialized.encode("utf-8")),
-                     "usage_unknown": True, "error_type": type(exc).__name__,
-                     "attempt": getattr(local, "openie_attempt_number", None)}
+            event = {
+                "kind": "chat",
+                "stage": stage,
+                "passage_id": getattr(local, "passage_id", None),
+                "question_id": getattr(local, "question_id", None),
+                "prompt_sha256": sha256_bytes(serialized.encode("utf-8")),
+                "usage_unknown": True,
+                "error_type": type(exc).__name__,
+                "attempt": getattr(local, "openie_attempt_number", None),
+            }
             _append_event(events, lock, event)
             local.last_chat_event = event
             raise
-        complete_usage = all(isinstance(metadata.get(key), int)
-                             and not isinstance(metadata.get(key), bool)
-                             and metadata[key] >= 0
-                             for key in ("prompt_tokens", "completion_tokens"))
-        event = {"kind": "chat", "stage": getattr(local, "stage", "unknown"),
-                 "passage_id": getattr(local, "passage_id", None),
-                 "question_id": getattr(local, "question_id", None),
-                 "prompt_sha256": sha256_bytes(serialized.encode("utf-8")),
-                 "usage": metadata, "cache_hit": bool(cache_hit),
-                 "usage_unknown": not complete_usage,
-                 "client_seconds": time.perf_counter() - started,
-                 "finish_reason": metadata.get("finish_reason"),
-                 "response_sha256": sha256_bytes(response.encode("utf-8"))
-                 if isinstance(response, str) else None,
-                 "response_bytes": len(response.encode("utf-8"))
-                 if isinstance(response, str) else None,
-                 "attempt": getattr(local, "openie_attempt_number", None)}
+        complete_usage = all(
+            isinstance(metadata.get(key), int)
+            and not isinstance(metadata.get(key), bool)
+            and metadata[key] >= 0
+            for key in ("prompt_tokens", "completion_tokens")
+        )
+        event = {
+            "kind": "chat",
+            "stage": getattr(local, "stage", "unknown"),
+            "passage_id": getattr(local, "passage_id", None),
+            "question_id": getattr(local, "question_id", None),
+            "prompt_sha256": sha256_bytes(serialized.encode("utf-8")),
+            "usage": metadata,
+            "cache_hit": bool(cache_hit),
+            "usage_unknown": not complete_usage,
+            "client_seconds": time.perf_counter() - started,
+            "finish_reason": metadata.get("finish_reason"),
+            "response_sha256": sha256_bytes(response.encode("utf-8"))
+            if isinstance(response, str)
+            else None,
+            "response_bytes": len(response.encode("utf-8"))
+            if isinstance(response, str)
+            else None,
+            "attempt": getattr(local, "openie_attempt_number", None),
+        }
         _append_event(events, lock, event)
         local.last_chat_event = event
         return response, metadata, cache_hit
@@ -668,17 +822,25 @@ def instrument_models(rag, corpus, query_text_to_id, events, lock,
         results = []
         total_usage = {"prompt_tokens": 0, "total_tokens": 0}
         for offset in range(0, len(texts), embedding_request_batch_size):
-            batch = texts[offset:offset + embedding_request_batch_size]
-            items = [{"input_sha256": sha256_bytes(text.encode("utf-8")),
-                      "input_chars": len(text),
-                      "input_type": "passage" if text in passage_id_by_text else (
-                          "query" if text in query_id_by_embedding else "entity_or_fact"),
-                      "passage_id": passage_id_by_text.get(text),
-                      "question_id": query_id_by_embedding.get(text),
-                      "prepared_input_sha256": sha256_bytes(
-                          (text.replace("\n", " ") or " ").encode("utf-8")),
-                      "preprocessing": "replace-newlines-with-space-v1"}
-                     for text in batch]
+            batch = texts[offset : offset + embedding_request_batch_size]
+            items = [
+                {
+                    "input_sha256": sha256_bytes(text.encode("utf-8")),
+                    "input_chars": len(text),
+                    "input_type": "passage"
+                    if text in passage_id_by_text
+                    else (
+                        "query" if text in query_id_by_embedding else "entity_or_fact"
+                    ),
+                    "passage_id": passage_id_by_text.get(text),
+                    "question_id": query_id_by_embedding.get(text),
+                    "prepared_input_sha256": sha256_bytes(
+                        (text.replace("\n", " ") or " ").encode("utf-8")
+                    ),
+                    "preprocessing": "replace-newlines-with-space-v1",
+                }
+                for text in batch
+            ]
             minimum_batch_interval = len(batch) / embedding_max_inputs_per_second
             with embedding_gate:
                 wait = minimum_batch_interval - (
@@ -692,25 +854,41 @@ def instrument_models(rag, corpus, query_text_to_id, events, lock,
                     result = original_encode(batch)
                 except Exception:
                     usage = dict(embedding_model.last_usage or {})
-                    event = {"kind": "embedding", "stage": getattr(local, "stage", "unknown"),
-                             "items": items, "batch_size": len(batch), "usage_unknown": True,
-                             "error_type": "embedding_request_failed"}
+                    event = {
+                        "kind": "embedding",
+                        "stage": getattr(local, "stage", "unknown"),
+                        "items": items,
+                        "batch_size": len(batch),
+                        "usage_unknown": True,
+                        "error_type": "embedding_request_failed",
+                    }
                     if isinstance(usage.get("prompt_tokens"), int):
                         event["usage"] = usage
                         event.pop("usage_unknown", None)
                     _append_event(events, lock, event)
                     raise
                 usage = dict(embedding_model.last_usage or {})
-                if (not isinstance(usage.get("prompt_tokens"), int)
-                        or isinstance(usage.get("prompt_tokens"), bool)
-                        or usage["prompt_tokens"] < 0):
-                    raise RuntimeError("HippoRAG embedding response did not provide prompt token usage")
-                event = {"kind": "embedding", "stage": getattr(local, "stage", "unknown"),
-                         "items": items, "batch_size": len(batch), "usage": usage,
-                         "client_seconds": time.perf_counter() - started}
+                if (
+                    not isinstance(usage.get("prompt_tokens"), int)
+                    or isinstance(usage.get("prompt_tokens"), bool)
+                    or usage["prompt_tokens"] < 0
+                ):
+                    raise RuntimeError(
+                        "HippoRAG embedding response did not provide prompt token usage"
+                    )
+                event = {
+                    "kind": "embedding",
+                    "stage": getattr(local, "stage", "unknown"),
+                    "items": items,
+                    "batch_size": len(batch),
+                    "usage": usage,
+                    "client_seconds": time.perf_counter() - started,
+                }
                 _append_event(events, lock, event)
                 total_usage["prompt_tokens"] += usage["prompt_tokens"]
-                total_usage["total_tokens"] += usage.get("total_tokens", usage["prompt_tokens"])
+                total_usage["total_tokens"] += usage.get(
+                    "total_tokens", usage["prompt_tokens"]
+                )
                 results.append(result)
         embedding_model.last_usage = total_usage
         return np.concatenate(results, axis=0) if len(results) > 1 else results[0]
@@ -718,11 +896,16 @@ def instrument_models(rag, corpus, query_text_to_id, events, lock,
     embedding_model.encode = tracked_encode
 
     original_ner = rag.openie.ner
+
     def tracked_ner(chunk_key, passage):
         bind_openie_thread_context(
-            local, run_id=run_id, model_digest=model_digest,
-            attempts=openie_attempts, attempts_lock=openie_attempts_lock,
-            failures=openie_failures, failures_lock=openie_failures_lock,
+            local,
+            run_id=run_id,
+            model_digest=model_digest,
+            attempts=openie_attempts,
+            attempts_lock=openie_attempts_lock,
+            failures=openie_failures,
+            failures_lock=openie_failures_lock,
         )
         local.stage = "openie_ner"
         local.passage_id = passage_id_by_text.get(passage)
@@ -732,12 +915,21 @@ def instrument_models(rag, corpus, query_text_to_id, events, lock,
             try:
                 result = original_ner(chunk_key, passage)
             except Exception:
-                record_openie_attempt(openie_attempts, openie_attempts_lock,
-                                      run_id=local.run_id, pid=local.passage_id,
-                                      passage=passage, stage="openie_ner", attempt_number=1,
-                                      response=None, metadata={}, values=None,
-                                      model_digest=local.model_digest,
-                                      call_event=local.last_chat_event, request_error=True)
+                record_openie_attempt(
+                    openie_attempts,
+                    openie_attempts_lock,
+                    run_id=local.run_id,
+                    pid=local.passage_id,
+                    passage=passage,
+                    stage="openie_ner",
+                    attempt_number=1,
+                    response=None,
+                    metadata={},
+                    values=None,
+                    model_digest=local.model_digest,
+                    call_event=local.last_chat_event,
+                    request_error=True,
+                )
                 raise
             if not openie_needs_retry(result.metadata):
                 try:
@@ -749,108 +941,195 @@ def instrument_models(rag, corpus, query_text_to_id, events, lock,
                 else:
                     if entities == result.unique_entities:
                         record_openie_attempt(
-                            openie_attempts, openie_attempts_lock,
-                            run_id=local.run_id, pid=local.passage_id,
-                            passage=passage, stage="openie_ner", attempt_number=1,
-                            response=result.response, metadata=result.metadata,
-                            values=entities, model_digest=local.model_digest,
-                            call_event=local.last_chat_event)
+                            openie_attempts,
+                            openie_attempts_lock,
+                            run_id=local.run_id,
+                            pid=local.passage_id,
+                            passage=passage,
+                            stage="openie_ner",
+                            attempt_number=1,
+                            response=result.response,
+                            metadata=result.metadata,
+                            values=entities,
+                            model_digest=local.model_digest,
+                            call_event=local.last_chat_event,
+                        )
                         return result
                 record_openie_attempt(
-                    openie_attempts, openie_attempts_lock,
-                    run_id=local.run_id, pid=local.passage_id,
-                    passage=passage, stage="openie_ner", attempt_number=1,
-                    response=result.response, metadata=result.metadata, values=None,
-                    model_digest=local.model_digest, call_event=local.last_chat_event,
-                    parse_error=not bool(local.last_chat_event and
-                                         local.last_chat_event.get("error_type")),
-                    request_error=bool(local.last_chat_event and
-                                        local.last_chat_event.get("error_type")))
+                    openie_attempts,
+                    openie_attempts_lock,
+                    run_id=local.run_id,
+                    pid=local.passage_id,
+                    passage=passage,
+                    stage="openie_ner",
+                    attempt_number=1,
+                    response=result.response,
+                    metadata=result.metadata,
+                    values=None,
+                    model_digest=local.model_digest,
+                    call_event=local.last_chat_event,
+                    parse_error=not bool(
+                        local.last_chat_event
+                        and local.last_chat_event.get("error_type")
+                    ),
+                    request_error=bool(
+                        local.last_chat_event
+                        and local.last_chat_event.get("error_type")
+                    ),
+                )
             else:
-                partial_values = recover_partial_openie_values(
-                    "openie_ner", result.unique_entities,
-                    parse_error=bool(result.metadata.get("error")),
-                ) if result.metadata.get("finish_reason") == "length" else None
+                partial_values = (
+                    recover_partial_openie_values(
+                        "openie_ner",
+                        result.unique_entities,
+                        parse_error=bool(result.metadata.get("error")),
+                    )
+                    if result.metadata.get("finish_reason") == "length"
+                    else None
+                )
                 record_openie_attempt(
-                    openie_attempts, openie_attempts_lock,
-                    run_id=local.run_id, pid=local.passage_id,
-                    passage=passage, stage="openie_ner", attempt_number=1,
-                    response=result.response, metadata=result.metadata,
+                    openie_attempts,
+                    openie_attempts_lock,
+                    run_id=local.run_id,
+                    pid=local.passage_id,
+                    passage=passage,
+                    stage="openie_ner",
+                    attempt_number=1,
+                    response=result.response,
+                    metadata=result.metadata,
                     values=partial_values,
-                    model_digest=local.model_digest, call_event=local.last_chat_event,
-                    parse_error=(result.metadata.get("finish_reason") != "length"
-                                 and not bool(local.last_chat_event and
-                                              local.last_chat_event.get("error_type"))),
-                    request_error=bool(local.last_chat_event and
-                                        local.last_chat_event.get("error_type")))
+                    model_digest=local.model_digest,
+                    call_event=local.last_chat_event,
+                    parse_error=(
+                        result.metadata.get("finish_reason") != "length"
+                        and not bool(
+                            local.last_chat_event
+                            and local.last_chat_event.get("error_type")
+                        )
+                    ),
+                    request_error=bool(
+                        local.last_chat_event
+                        and local.last_chat_event.get("error_type")
+                    ),
+                )
 
             # Retry malformed/cut-off NER once without consulting the upstream
             # response cache. Successful cached passages remain untouched.
             from hipporag.prompts import PromptTemplateManager
             from hipporag.utils.llm_utils import fix_broken_generated_json
-            from hipporag.information_extraction.openie_openai import _extract_ner_from_response
+            from hipporag.information_extraction.openie_openai import (
+                _extract_ner_from_response,
+            )
 
-            messages = PromptTemplateManager(role_mapping={
-                "system": "system", "user": "user", "assistant": "assistant"
-            }).render(name="ner", passage=passage)
-            kwargs = {"max_new_tokens": openie_retry_token_caps.get(
-                          "openie_ner", rag.openie.ner_max_tokens * 2),
-                      "_bypass_cache": True}
-            response_format = getattr(getattr(rag.qa_llm, "global_config", None),
-                                      "response_format", None)
+            messages = PromptTemplateManager(
+                role_mapping={
+                    "system": "system",
+                    "user": "user",
+                    "assistant": "assistant",
+                }
+            ).render(name="ner", passage=passage)
+            kwargs = {
+                "max_new_tokens": openie_retry_token_caps.get(
+                    "openie_ner", rag.openie.ner_max_tokens * 2
+                ),
+                "_bypass_cache": True,
+            }
+            response_format = getattr(
+                getattr(rag.qa_llm, "global_config", None), "response_format", None
+            )
             if response_format is not None:
                 kwargs["response_format"] = response_format
             try:
                 local.openie_attempt_number = 2
                 local.last_chat_event = None
                 response, metadata, _ = rag.qa_llm.infer(messages=messages, **kwargs)
-                parsed = (fix_broken_generated_json(response)
-                          if metadata.get("finish_reason") == "length" else response)
+                parsed = (
+                    fix_broken_generated_json(response)
+                    if metadata.get("finish_reason") == "length"
+                    else response
+                )
                 entities = normalize_ner_entities(_extract_ner_from_response(parsed))
             except Exception as exc:
                 record_openie_attempt(
-                    openie_attempts, openie_attempts_lock,
-                    run_id=local.run_id, pid=local.passage_id,
-                    passage=passage, stage="openie_ner", attempt_number=2,
-                    response=locals().get("response"), metadata=locals().get("metadata", {}),
-                    values=None, model_digest=local.model_digest,
+                    openie_attempts,
+                    openie_attempts_lock,
+                    run_id=local.run_id,
+                    pid=local.passage_id,
+                    passage=passage,
+                    stage="openie_ner",
+                    attempt_number=2,
+                    response=locals().get("response"),
+                    metadata=locals().get("metadata", {}),
+                    values=None,
+                    model_digest=local.model_digest,
                     call_event=local.last_chat_event,
-                    parse_error=not bool(local.last_chat_event and
-                                         local.last_chat_event.get("error_type")),
-                    request_error=bool(local.last_chat_event and
-                                       local.last_chat_event.get("error_type")),
-                    retry_of_attempt=1)
-                record_openie_failure(openie_failures, openie_failures_lock,
-                                      local.passage_id, exc, "openie_ner")
-                return type(result)(chunk_id=chunk_key, response="",
-                                    unique_entities=[],
-                                    metadata={"extraction_failed": True,
-                                              "retry_without_cache": True})
+                    parse_error=not bool(
+                        local.last_chat_event
+                        and local.last_chat_event.get("error_type")
+                    ),
+                    request_error=bool(
+                        local.last_chat_event
+                        and local.last_chat_event.get("error_type")
+                    ),
+                    retry_of_attempt=1,
+                )
+                record_openie_failure(
+                    openie_failures,
+                    openie_failures_lock,
+                    local.passage_id,
+                    exc,
+                    "openie_ner",
+                )
+                return type(result)(
+                    chunk_id=chunk_key,
+                    response="",
+                    unique_entities=[],
+                    metadata={"extraction_failed": True, "retry_without_cache": True},
+                )
             record_openie_attempt(
-                openie_attempts, openie_attempts_lock,
-                run_id=local.run_id, pid=local.passage_id, passage=passage,
-                stage="openie_ner", attempt_number=2, response=response,
-                metadata=metadata, values=entities, model_digest=local.model_digest,
-                call_event=local.last_chat_event, retry_of_attempt=1)
+                openie_attempts,
+                openie_attempts_lock,
+                run_id=local.run_id,
+                pid=local.passage_id,
+                passage=passage,
+                stage="openie_ner",
+                attempt_number=2,
+                response=response,
+                metadata=metadata,
+                values=entities,
+                model_digest=local.model_digest,
+                call_event=local.last_chat_event,
+                retry_of_attempt=1,
+            )
             metadata = dict(metadata)
             metadata["retry_without_cache"] = True
             metadata["ner_object_items_normalized"] = True
-            return type(result)(chunk_id=chunk_key, response=response,
-                                unique_entities=entities, metadata=metadata)
+            return type(result)(
+                chunk_id=chunk_key,
+                response=response,
+                unique_entities=entities,
+                metadata=metadata,
+            )
         except Exception:
             raise
         finally:
             local.stage = "index_embedding"
             local.passage_id = None
             local.openie_attempt_number = None
+
     rag.openie.ner = tracked_ner
 
     original_triples = rag.openie.triple_extraction
+
     def tracked_triples(chunk_key, passage, named_entities):
         bind_openie_thread_context(
-            local, run_id=run_id, model_digest=model_digest,
-            attempts=openie_attempts, attempts_lock=openie_attempts_lock,
-            failures=openie_failures, failures_lock=openie_failures_lock,
+            local,
+            run_id=run_id,
+            model_digest=model_digest,
+            attempts=openie_attempts,
+            attempts_lock=openie_attempts_lock,
+            failures=openie_failures,
+            failures_lock=openie_failures_lock,
         )
         local.stage = "openie_triples"
         local.passage_id = passage_id_by_text.get(passage)
@@ -861,109 +1140,197 @@ def instrument_models(rag, corpus, query_text_to_id, events, lock,
                 result = original_triples(chunk_key, passage, named_entities)
             except Exception:
                 record_openie_attempt(
-                    openie_attempts, openie_attempts_lock,
-                    run_id=local.run_id, pid=local.passage_id, passage=passage,
-                    stage="openie_triples", attempt_number=1, response=None,
-                    metadata={}, values=None, model_digest=local.model_digest,
-                    call_event=local.last_chat_event, request_error=True)
+                    openie_attempts,
+                    openie_attempts_lock,
+                    run_id=local.run_id,
+                    pid=local.passage_id,
+                    passage=passage,
+                    stage="openie_triples",
+                    attempt_number=1,
+                    response=None,
+                    metadata={},
+                    values=None,
+                    model_digest=local.model_digest,
+                    call_event=local.last_chat_event,
+                    request_error=True,
+                )
                 raise
             if not openie_needs_retry(result.metadata):
                 record_openie_attempt(
-                    openie_attempts, openie_attempts_lock,
-                    run_id=local.run_id, pid=local.passage_id, passage=passage,
-                    stage="openie_triples", attempt_number=1,
-                    response=result.response, metadata=result.metadata,
-                    values=result.triples, model_digest=local.model_digest,
-                    call_event=local.last_chat_event)
+                    openie_attempts,
+                    openie_attempts_lock,
+                    run_id=local.run_id,
+                    pid=local.passage_id,
+                    passage=passage,
+                    stage="openie_triples",
+                    attempt_number=1,
+                    response=result.response,
+                    metadata=result.metadata,
+                    values=result.triples,
+                    model_digest=local.model_digest,
+                    call_event=local.last_chat_event,
+                )
                 return result
-            partial_values = recover_partial_openie_values(
-                "openie_triples", result.triples,
-                parse_error=bool(result.metadata.get("error")),
-            ) if result.metadata.get("finish_reason") == "length" else None
+            partial_values = (
+                recover_partial_openie_values(
+                    "openie_triples",
+                    result.triples,
+                    parse_error=bool(result.metadata.get("error")),
+                )
+                if result.metadata.get("finish_reason") == "length"
+                else None
+            )
             record_openie_attempt(
-                openie_attempts, openie_attempts_lock,
-                run_id=local.run_id, pid=local.passage_id, passage=passage,
-                stage="openie_triples", attempt_number=1,
-                response=result.response, metadata=result.metadata,
+                openie_attempts,
+                openie_attempts_lock,
+                run_id=local.run_id,
+                pid=local.passage_id,
+                passage=passage,
+                stage="openie_triples",
+                attempt_number=1,
+                response=result.response,
+                metadata=result.metadata,
                 values=partial_values,
-                model_digest=local.model_digest, call_event=local.last_chat_event,
-                parse_error=(result.metadata.get("finish_reason") != "length"
-                             and not bool(local.last_chat_event and
-                                          local.last_chat_event.get("error_type"))),
-                request_error=bool(local.last_chat_event and
-                                   local.last_chat_event.get("error_type")))
+                model_digest=local.model_digest,
+                call_event=local.last_chat_event,
+                parse_error=(
+                    result.metadata.get("finish_reason") != "length"
+                    and not bool(
+                        local.last_chat_event
+                        and local.last_chat_event.get("error_type")
+                    )
+                ),
+                request_error=bool(
+                    local.last_chat_event and local.last_chat_event.get("error_type")
+                ),
+            )
 
             # As with NER, a malformed cached answer must not poison retries.
             from hipporag.prompts import PromptTemplateManager
-            from hipporag.utils.llm_utils import fix_broken_generated_json, filter_invalid_triples
-            from hipporag.information_extraction.openie_openai import _extract_json_list_field
+            from hipporag.utils.llm_utils import (
+                fix_broken_generated_json,
+                filter_invalid_triples,
+            )
+            from hipporag.information_extraction.openie_openai import (
+                _extract_json_list_field,
+            )
 
-            messages = PromptTemplateManager(role_mapping={
-                "system": "system", "user": "user", "assistant": "assistant"
-            }).render(name="triple_extraction", passage=passage,
-                      named_entity_json=json.dumps({"named_entities": named_entities}))
-            kwargs = {"max_new_tokens": openie_retry_token_caps.get(
-                          "openie_triples", rag.openie.triple_max_tokens * 2),
-                      "_bypass_cache": True}
-            response_format = getattr(getattr(rag.qa_llm, "global_config", None),
-                                      "response_format", None)
+            messages = PromptTemplateManager(
+                role_mapping={
+                    "system": "system",
+                    "user": "user",
+                    "assistant": "assistant",
+                }
+            ).render(
+                name="triple_extraction",
+                passage=passage,
+                named_entity_json=json.dumps({"named_entities": named_entities}),
+            )
+            kwargs = {
+                "max_new_tokens": openie_retry_token_caps.get(
+                    "openie_triples", rag.openie.triple_max_tokens * 2
+                ),
+                "_bypass_cache": True,
+            }
+            response_format = getattr(
+                getattr(rag.qa_llm, "global_config", None), "response_format", None
+            )
             if response_format is not None:
                 kwargs["response_format"] = response_format
             try:
                 local.openie_attempt_number = 2
                 local.last_chat_event = None
                 response, metadata, _ = rag.qa_llm.infer(messages=messages, **kwargs)
-                parsed = (fix_broken_generated_json(response)
-                          if metadata.get("finish_reason") == "length" else response)
+                parsed = (
+                    fix_broken_generated_json(response)
+                    if metadata.get("finish_reason") == "length"
+                    else response
+                )
                 triples = filter_invalid_triples(
-                    triples=_extract_json_list_field(parsed, "triples"))
+                    triples=_extract_json_list_field(parsed, "triples")
+                )
             except Exception as exc:
                 record_openie_attempt(
-                    openie_attempts, openie_attempts_lock,
-                    run_id=local.run_id, pid=local.passage_id, passage=passage,
-                    stage="openie_triples", attempt_number=2,
-                    response=locals().get("response"), metadata=locals().get("metadata", {}),
-                    values=None, model_digest=local.model_digest,
+                    openie_attempts,
+                    openie_attempts_lock,
+                    run_id=local.run_id,
+                    pid=local.passage_id,
+                    passage=passage,
+                    stage="openie_triples",
+                    attempt_number=2,
+                    response=locals().get("response"),
+                    metadata=locals().get("metadata", {}),
+                    values=None,
+                    model_digest=local.model_digest,
                     call_event=local.last_chat_event,
-                    parse_error=not bool(local.last_chat_event and
-                                         local.last_chat_event.get("error_type")),
-                    request_error=bool(local.last_chat_event and
-                                       local.last_chat_event.get("error_type")),
-                    retry_of_attempt=1)
+                    parse_error=not bool(
+                        local.last_chat_event
+                        and local.last_chat_event.get("error_type")
+                    ),
+                    request_error=bool(
+                        local.last_chat_event
+                        and local.last_chat_event.get("error_type")
+                    ),
+                    retry_of_attempt=1,
+                )
                 # Ollama may abort one fragment on token repetition. Keep a
                 # partial graph, and disclose the omitted extraction explicitly.
-                record_openie_failure(openie_failures, openie_failures_lock,
-                                      local.passage_id, exc, "openie_triples")
-                return type(result)(chunk_id=chunk_key, response="",
-                                    metadata={"extraction_failed": True,
-                                              "retry_without_cache": True},
-                                    triples=[])
+                record_openie_failure(
+                    openie_failures,
+                    openie_failures_lock,
+                    local.passage_id,
+                    exc,
+                    "openie_triples",
+                )
+                return type(result)(
+                    chunk_id=chunk_key,
+                    response="",
+                    metadata={"extraction_failed": True, "retry_without_cache": True},
+                    triples=[],
+                )
             record_openie_attempt(
-                openie_attempts, openie_attempts_lock,
-                run_id=local.run_id, pid=local.passage_id, passage=passage,
-                stage="openie_triples", attempt_number=2, response=response,
-                metadata=metadata, values=triples, model_digest=local.model_digest,
-                call_event=local.last_chat_event, retry_of_attempt=1)
+                openie_attempts,
+                openie_attempts_lock,
+                run_id=local.run_id,
+                pid=local.passage_id,
+                passage=passage,
+                stage="openie_triples",
+                attempt_number=2,
+                response=response,
+                metadata=metadata,
+                values=triples,
+                model_digest=local.model_digest,
+                call_event=local.last_chat_event,
+                retry_of_attempt=1,
+            )
             metadata = dict(metadata)
             metadata["retry_without_cache"] = True
-            return type(result)(chunk_id=chunk_key, response=response,
-                                metadata=metadata, triples=triples)
+            return type(result)(
+                chunk_id=chunk_key,
+                response=response,
+                metadata=metadata,
+                triples=triples,
+            )
         finally:
             local.stage = "index_embedding"
             local.passage_id = None
             local.openie_attempt_number = None
+
     rag.openie.triple_extraction = tracked_triples
 
     original_index = rag.index
+
     def tracked_index(docs):
         local.stage = "index_embedding"
         try:
             return original_index(docs)
         finally:
             local.stage = "unknown"
+
     rag.index = tracked_index
 
     original_retrieve = rag.retrieve
+
     def tracked_retrieve(queries, *args, **kwargs):
         previous = getattr(local, "stage", "unknown")
         local.stage = "graph_retrieval"
@@ -971,9 +1338,11 @@ def instrument_models(rag, corpus, query_text_to_id, events, lock,
             return original_retrieve(queries, *args, **kwargs)
         finally:
             local.stage = previous
+
     rag.retrieve = tracked_retrieve
 
     original_qa = rag.qa
+
     def tracked_qa(solutions):
         local.stage = "qa"
         try:
@@ -982,6 +1351,7 @@ def instrument_models(rag, corpus, query_text_to_id, events, lock,
             return original_qa(solutions)
         finally:
             local.stage = "unknown"
+
     rag.qa = tracked_qa
 
     # Queries are mapped using their text when embedding instructions modify the input.
@@ -1007,29 +1377,45 @@ def collect_cache_counts(rag, before):
     }
     output = {}
     for kind, ids in after.items():
-        output[kind] = {"stored": len(ids), "new": len(ids - before[kind]),
-                        "reused": len(ids & before[kind])}
+        output[kind] = {
+            "stored": len(ids),
+            "new": len(ids - before[kind]),
+            "reused": len(ids & before[kind]),
+        }
     return output
 
 
 def summarize_usage(events, corpus):
-    by_passage = {item["id"]: {"passage_embedding_tokens": 0,
-                               "passage_embedding_usage_attributed": True,
-                               "embedding_batches": 0,
-                               "openie_prompt_tokens": 0,
-                               "openie_completion_tokens": 0,
-                               "openie_cached_prompt_tokens": 0,
-                               "openie_cached_completion_tokens": 0,
-                               "embedding_calls": 0, "openie_calls": 0}
-                  for item in corpus}
+    by_passage = {
+        item["id"]: {
+            "passage_embedding_tokens": 0,
+            "passage_embedding_usage_attributed": True,
+            "embedding_batches": 0,
+            "openie_prompt_tokens": 0,
+            "openie_completion_tokens": 0,
+            "openie_cached_prompt_tokens": 0,
+            "openie_cached_completion_tokens": 0,
+            "embedding_calls": 0,
+            "openie_calls": 0,
+        }
+        for item in corpus
+    }
     phases = {}
     for event in events:
         stage = event.get("stage", "unknown")
-        totals = phases.setdefault(stage, {"api_prompt_tokens": 0, "api_completion_tokens": 0,
-                                            "api_embedding_tokens": 0,
-                                            "cached_prompt_tokens": 0, "cached_completion_tokens": 0,
-                                            "calls": 0,
-                                            "cache_hits": 0, "usage_unknown_calls": 0})
+        totals = phases.setdefault(
+            stage,
+            {
+                "api_prompt_tokens": 0,
+                "api_completion_tokens": 0,
+                "api_embedding_tokens": 0,
+                "cached_prompt_tokens": 0,
+                "cached_completion_tokens": 0,
+                "calls": 0,
+                "cache_hits": 0,
+                "usage_unknown_calls": 0,
+            },
+        )
         totals["calls"] += 1
         if event.get("usage_unknown"):
             totals["usage_unknown_calls"] += 1
@@ -1088,38 +1474,71 @@ def load_hipporag_classes():
     return HippoRAG, CacheOpenAI, OpenAIEmbeddingModel, BaseConfig
 
 
-def build_rows(run_id, dataset, queries, solutions, raw_answers,
-               generation_metadata, corpus_by_text, query_usage, model_embedding,
-               model_generation, top_k, generation_options, index_fingerprint,
-               reader_info, query_embedding_seconds, retrieval_seconds,
-               generation_seconds, question_seconds):
+def build_rows(
+    run_id,
+    dataset,
+    queries,
+    solutions,
+    raw_answers,
+    generation_metadata,
+    corpus_by_text,
+    query_usage,
+    model_embedding,
+    model_generation,
+    top_k,
+    generation_options,
+    index_fingerprint,
+    reader_info,
+    query_embedding_seconds,
+    retrieval_seconds,
+    generation_seconds,
+    question_seconds,
+):
     rows = []
-    for query, solution, raw, metadata in zip(queries, solutions, raw_answers, generation_metadata):
+    for query, solution, raw, metadata in zip(
+        queries, solutions, raw_answers, generation_metadata
+    ):
         if not isinstance(raw, str) or not isinstance(solution.answer, str):
             raise RuntimeError(f"HippoRAG returned a missing answer for {query['id']}")
         finish_reason = metadata.get("finish_reason")
         if finish_reason not in ("stop", "length"):
-            raise RuntimeError(f"Generation for {query['id']} did not finish normally: {finish_reason}")
+            raise RuntimeError(
+                f"Generation for {query['id']} did not finish normally: {finish_reason}"
+            )
         docs = []
         scores = solution.doc_scores.tolist() if solution.doc_scores is not None else []
         for index, content in enumerate(solution.docs[:top_k]):
             passage = corpus_by_text.get(content)
             if passage is None:
-                raise RuntimeError("HippoRAG returned passage text absent from the indexed corpus")
-            docs.append({"id": passage["id"], "title": passage["title"], "text": passage["text"],
-                         "score": float(scores[index]) if index < len(scores) else None})
+                raise RuntimeError(
+                    "HippoRAG returned passage text absent from the indexed corpus"
+                )
+            docs.append(
+                {
+                    "id": passage["id"],
+                    "title": passage["title"],
+                    "text": passage["text"],
+                    "score": float(scores[index]) if index < len(scores) else None,
+                }
+            )
         qa_usage = metadata
         prompt_tokens = qa_usage.get("prompt_tokens")
         completion_tokens = qa_usage.get("completion_tokens")
         row = {
-            "run_id": run_id, "dataset": dataset, "mode": "local-poc",
-            "question_id": query["id"], "planned_question_ids": [q["id"] for q in queries],
-            "question": query["question"], "answer": solution.answer,
+            "run_id": run_id,
+            "dataset": dataset,
+            "mode": "local-poc",
+            "question_id": query["id"],
+            "planned_question_ids": [q["id"] for q in queries],
+            "question": query["question"],
+            "answer": solution.answer,
             "raw_answer": raw,
             "answer_extraction_status": metadata.get(
                 "answer_extraction_status",
-                "ok" if "Answer:" in raw else "missing_answer_marker"),
-            "done": True, "done_reason": finish_reason,
+                "ok" if "Answer:" in raw else "missing_answer_marker",
+            ),
+            "done": True,
+            "done_reason": finish_reason,
             "retrieved": docs,
             "top_k": top_k,
             "generation_model": model_generation,
@@ -1127,10 +1546,16 @@ def build_rows(run_id, dataset, queries, solutions, raw_answers,
             "reader_prompt_version": reader_info["version"],
             "reader_prompt_source": reader_info.get("source"),
             "reader_prompt_source_commit": reader_info.get("source_commit"),
-            "reader_prompt_sha256": hashlib.sha256(json.dumps(
-                build_shared_reader_messages(query["question"], docs),
-                ensure_ascii=False, sort_keys=True, separators=(",", ":")
-            ).encode("utf-8")).hexdigest() if dataset == "musique" else None,
+            "reader_prompt_sha256": hashlib.sha256(
+                json.dumps(
+                    build_shared_reader_messages(query["question"], docs),
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ).encode("utf-8")
+            ).hexdigest()
+            if dataset == "musique"
+            else None,
             "generation_options": generation_options,
             "index_fingerprint": index_fingerprint,
             "prompt_tokens": prompt_tokens,
@@ -1147,16 +1572,30 @@ def build_rows(run_id, dataset, queries, solutions, raw_answers,
 
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--dataset", default="musique", choices=("musique", "hotpotqa", "sample"))
+    parser.add_argument(
+        "--dataset", default="musique", choices=("musique", "hotpotqa", "sample")
+    )
     parser.add_argument("--corpus", type=Path, required=True)
     parser.add_argument("--queries", type=Path, required=True)
-    parser.add_argument("--labels", type=Path, help="Separate labels file; labels are read only after retrieval/generation")
-    parser.add_argument("--id-view", type=Path,
-                        help="Frozen ordered evaluation ID view; --limit must match its size")
-    parser.add_argument("--llm-cache-seed", type=Path,
-                        help="Copy a stopped, integrity-checked LLM cache into this new run namespace")
-    parser.add_argument("--llm-cache-seed-run-id",
-                        help="Run ID that produced the copied LLM cache, for provenance")
+    parser.add_argument(
+        "--labels",
+        type=Path,
+        help="Separate labels file; labels are read only after retrieval/generation",
+    )
+    parser.add_argument(
+        "--id-view",
+        type=Path,
+        help="Frozen ordered evaluation ID view; --limit must match its size",
+    )
+    parser.add_argument(
+        "--llm-cache-seed",
+        type=Path,
+        help="Copy a stopped, integrity-checked LLM cache into this new run namespace",
+    )
+    parser.add_argument(
+        "--llm-cache-seed-run-id",
+        help="Run ID that produced the copied LLM cache, for provenance",
+    )
     parser.add_argument("--limit", type=int, default=1, help="Question count (1-100)")
     parser.add_argument("--generation-model", default="qwen2.5:3b")
     parser.add_argument("--embedding-model", default="bge-m3:latest")
@@ -1179,22 +1618,31 @@ def parse_args(argv=None):
 def run(args):
     if not 1 <= args.limit <= 100:
         raise ValueError("--limit must be between 1 and 100 for this runner")
-    if (args.top_k < 1 or args.max_new_tokens < 1 or args.num_ctx < 1
-            or args.openie_ner_retry_max_tokens <= 512
-            or args.openie_triples_retry_max_tokens <= 2048
-            or args.num_ctx <= max(args.openie_ner_retry_max_tokens,
-                                   args.openie_triples_retry_max_tokens)
-            or not 1 <= args.embedding_batch_size <= 128
-            or not 1 <= args.embedding_request_batch_size <= 18
-            or args.embedding_max_inputs_per_second <= 0):
-        raise ValueError("top-k, max-new-tokens and num-ctx must be positive; embedding batch sizes must be 1-128 and 1-18")
+    if (
+        args.top_k < 1
+        or args.max_new_tokens < 1
+        or args.num_ctx < 1
+        or args.openie_ner_retry_max_tokens <= 512
+        or args.openie_triples_retry_max_tokens <= 2048
+        or args.num_ctx
+        <= max(args.openie_ner_retry_max_tokens, args.openie_triples_retry_max_tokens)
+        or not 1 <= args.embedding_batch_size <= 128
+        or not 1 <= args.embedding_request_batch_size <= 18
+        or args.embedding_max_inputs_per_second <= 0
+    ):
+        raise ValueError(
+            "top-k, max-new-tokens and num-ctx must be positive; embedding batch sizes must be 1-128 and 1-18"
+        )
     raw_corpus = read_json(args.corpus)
     raw_queries = read_json(args.queries)
     labels_path = args.labels
-    raw_labels = read_json(labels_path) if labels_path and labels_path.exists() else None
+    raw_labels = (
+        read_json(labels_path) if labels_path and labels_path.exists() else None
+    )
     corpus, queries, labels = normalize_inputs(raw_corpus, raw_queries, raw_labels)
     data_provenance = validate_pinned_dataset(
-        args.dataset, args.corpus, queries, corpus, args.labels)
+        args.dataset, args.corpus, queries, corpus, args.labels
+    )
     view_info = None
     if args.id_view:
         try:
@@ -1207,9 +1655,11 @@ def run(args):
         queries = select_in_view(queries, view_info["question_ids"], "query")
         labels = select_in_view(labels, view_info["question_ids"], "label")
     elif len(queries) < args.limit:
-        raise ValueError(f"Requested {args.limit} questions but only {len(queries)} are available")
-    queries = queries[:args.limit]
-    labels = labels[:args.limit]
+        raise ValueError(
+            f"Requested {args.limit} questions but only {len(queries)} are available"
+        )
+    queries = queries[: args.limit]
+    labels = labels[: args.limit]
     corpus_by_text = {item["title"] + "\n" + item["text"]: item for item in corpus}
     question_text_to_id = {query["question"]: query["id"] for query in queries}
     corpus_fingerprint = sha256_bytes(json_bytes(corpus))
@@ -1230,27 +1680,38 @@ def run(args):
     results_path = output / f"hipporag2-{args.dataset}-{run_id}.jsonl"
     metrics_path = results_path.with_suffix(".metrics.json")
     manifest_path = results_path.with_suffix(".manifest.json")
-    generation_options = {"temperature": args.temperature, "seed": args.seed,
-                          "num_predict": args.max_new_tokens, "max_new_tokens": args.max_new_tokens,
-                          "num_ctx": args.num_ctx}
+    generation_options = {
+        "temperature": args.temperature,
+        "seed": args.seed,
+        "num_predict": args.max_new_tokens,
+        "max_new_tokens": args.max_new_tokens,
+        "num_ctx": args.num_ctx,
+    }
     if args.dataset != "musique":
         generation_options["response_format"] = {"type": "json_object"}
     if args.dataset == "musique":
         _reader_template, reader_template_sha256 = reader_template_metadata()
-        reader_info = {"version": PROMPT_VERSION, "source": PROMPT_SOURCE,
-                       "source_commit": PROMPT_SOURCE_COMMIT,
-                       "source_path": PROMPT_SOURCE_PATH,
-                       "template_sha256": reader_template_sha256}
+        reader_info = {
+            "version": PROMPT_VERSION,
+            "source": PROMPT_SOURCE,
+            "source_commit": PROMPT_SOURCE_COMMIT,
+            "source_path": PROMPT_SOURCE_PATH,
+            "template_sha256": reader_template_sha256,
+        }
     else:
-        reader_info = {"version": UPSTREAM_READER_PROMPT_VERSION,
-                       "source": "HippoRAG upstream default reader",
-                       "source_commit": "1438aba3fc44ff10573e5a5e1e7cc3c7f9794aff",
-                       "source_path": None, "template_sha256": None}
+        reader_info = {
+            "version": UPSTREAM_READER_PROMPT_VERSION,
+            "source": "HippoRAG upstream default reader",
+            "source_commit": "1438aba3fc44ff10573e5a5e1e7cc3c7f9794aff",
+            "source_path": None,
+            "template_sha256": None,
+        }
     top_k = args.top_k
     local_alias = windows_safe_model_label(args.generation_model)
     embedding_alias = windows_safe_model_label(args.embedding_model)
     embedding_pipeline = {
-        "endpoint": "/api/embed", "truncate": False,
+        "endpoint": "/api/embed",
+        "truncate": False,
         "text_preprocessing": "replace-newlines-with-space-v1",
         "vector_validation": "finite-nonzero-row-v1",
     }
@@ -1265,46 +1726,76 @@ def run(args):
         "num_ctx": args.num_ctx,
     }
     producer_identity, storage_identity = build_index_identities(
-        model_generation["digest"], model_embedding["digest"], embedding_pipeline,
-        openie_protocol_identity, "1438aba3fc44ff10573e5a5e1e7cc3c7f9794aff")
+        model_generation["digest"],
+        model_embedding["digest"],
+        embedding_pipeline,
+        openie_protocol_identity,
+        "1438aba3fc44ff10573e5a5e1e7cc3c7f9794aff",
+    )
     index_storage = storage / f"index-{storage_identity[:12]}"
     index_storage.mkdir(parents=True, exist_ok=True)
     manifest = {
-        "schema_version": 2, "run_id": run_id, "dataset": args.dataset,
-        "status": "initializing", "created_at": timestamp,
-        "runner": RUNNER_VERSION, "source": git_snapshot(), "runtime": runtime,
-        "inputs": {"corpus_path": str(args.corpus), "corpus_sha256": sha256_file(args.corpus),
-                   "corpus_fingerprint": corpus_fingerprint,
-                   "queries_path": str(args.queries), "queries_sha256": sha256_file(args.queries),
-                   "queries_fingerprint": query_fingerprint,
-                   "labels_path": str(args.labels) if args.labels else None,
-                   "labels_sha256": sha256_file(args.labels) if args.labels else labels_fingerprint,
-                   "pinned_dataset_provenance": data_provenance,
-                   "evaluation_view": ({key: value for key, value in view_info.items()
-                                         if key != "question_ids"}
-                                        if view_info else None)},
+        "schema_version": 2,
+        "run_id": run_id,
+        "dataset": args.dataset,
+        "status": "initializing",
+        "created_at": timestamp,
+        "runner": RUNNER_VERSION,
+        "source": git_snapshot(),
+        "runtime": runtime,
+        "inputs": {
+            "corpus_path": str(args.corpus),
+            "corpus_sha256": sha256_file(args.corpus),
+            "corpus_fingerprint": corpus_fingerprint,
+            "queries_path": str(args.queries),
+            "queries_sha256": sha256_file(args.queries),
+            "queries_fingerprint": query_fingerprint,
+            "labels_path": str(args.labels) if args.labels else None,
+            "labels_sha256": sha256_file(args.labels)
+            if args.labels
+            else labels_fingerprint,
+            "pinned_dataset_provenance": data_provenance,
+            "evaluation_view": (
+                {
+                    key: value
+                    for key, value in view_info.items()
+                    if key != "question_ids"
+                }
+                if view_info
+                else None
+            ),
+        },
         "expected_question_ids": [query["id"] for query in queries],
-        "generation": {"model": model_generation, "endpoint": args.base_url,
-                       "reader_prompt_version": reader_info["version"],
-                       "reader_prompt_source": reader_info["source"],
-                       "reader_prompt_source_commit": reader_info["source_commit"],
-                       "reader_prompt_source_path": reader_info["source_path"],
-                       "reader_template_sha256": reader_info["template_sha256"],
-                       "options": generation_options},
+        "generation": {
+            "model": model_generation,
+            "endpoint": args.base_url,
+            "reader_prompt_version": reader_info["version"],
+            "reader_prompt_source": reader_info["source"],
+            "reader_prompt_source_commit": reader_info["source_commit"],
+            "reader_prompt_source_path": reader_info["source_path"],
+            "reader_template_sha256": reader_info["template_sha256"],
+            "options": generation_options,
+        },
         "openie_protocol": openie_protocol_identity,
         "index_producer_identity": producer_identity,
         "storage_namespace_identity": storage_identity,
-        "embedding": {"model": model_embedding, "endpoint": args.base_url,
-                      "batch_size": 1,
-                      "hipporag_outer_batch_size": args.embedding_batch_size,
-                      "max_inputs_per_second": args.embedding_max_inputs_per_second,
-                      "request_batch_size": args.embedding_request_batch_size,
-                      **embedding_pipeline},
+        "embedding": {
+            "model": model_embedding,
+            "endpoint": args.base_url,
+            "batch_size": 1,
+            "hipporag_outer_batch_size": args.embedding_batch_size,
+            "max_inputs_per_second": args.embedding_max_inputs_per_second,
+            "request_batch_size": args.embedding_request_batch_size,
+            **embedding_pipeline,
+        },
         "retrieval": {"top_k": args.top_k, "reader_context_top_k": args.top_k},
-        "upstream": {"repository": "OSU-NLP-Group/HippoRAG",
-                     "commit": "1438aba3fc44ff10573e5a5e1e7cc3c7f9794aff",
-                     "package": "hipporag==2.0.0a5"},
-        "storage_dir": str(index_storage), "storage_root": str(storage),
+        "upstream": {
+            "repository": "OSU-NLP-Group/HippoRAG",
+            "commit": "1438aba3fc44ff10573e5a5e1e7cc3c7f9794aff",
+            "package": "hipporag==2.0.0a5",
+        },
+        "storage_dir": str(index_storage),
+        "storage_root": str(storage),
         "results_file": results_path.name,
         "metrics_file": metrics_path.name,
     }
@@ -1347,34 +1838,49 @@ def run(args):
     llm.cache_file_name = str(llm_cache_path)
     llm.request_model_name = args.generation_model
     llm.llm_config.generate_params["model"] = args.generation_model
-    llm.llm_config.generate_params["extra_body"] = {"options": {"num_ctx": args.num_ctx}}
+    llm.llm_config.generate_params["extra_body"] = {
+        "options": {"num_ctx": args.num_ctx}
+    }
     embedding = OpenAIEmbeddingModel(global_config=config)
     embedding.request_model_name = args.embedding_model
     embedding.embedding_config.embedding_model_name = args.embedding_model
     rag = None
     local = None
     try:
-        rag = HippoRAG(global_config=config, extraction_llm=llm, qa_llm=llm,
-                       embedding_model=embedding, index_identity=f"ollama:{producer_identity}")
+        rag = HippoRAG(
+            global_config=config,
+            extraction_llm=llm,
+            qa_llm=llm,
+            embedding_model=embedding,
+            index_identity=f"ollama:{producer_identity}",
+        )
         manifest["embedding"]["native_endpoint"] = install_no_truncate_embedding_api(
-            embedding, args.base_url, args.embedding_model)
+            embedding, args.base_url, args.embedding_model
+        )
         write_json_atomic(manifest_path, manifest)
         if args.dataset == "musique":
             install_shared_reader_template(rag)
         # A previous interrupted indexing attempt may have persisted passage
         # vectors before producing a graph. Reuse those vectors and explicitly
         # rebuild the missing graph from cached OpenIE outputs.
-        if (not rag._graph_state_available
-                and rag.chunk_embedding_store.get_all_ids()):
+        if not rag._graph_state_available and rag.chunk_embedding_store.get_all_ids():
             config.force_index_from_scratch = True
-            manifest["recovery"] = "rebuild_missing_graph_reusing_persisted_passage_embeddings"
+            manifest["recovery"] = (
+                "rebuild_missing_graph_reusing_persisted_passage_embeddings"
+            )
             write_json_atomic(manifest_path, manifest)
-        local = instrument_models(rag, corpus, question_text_to_id, events, event_lock,
-                                  args.embedding_max_inputs_per_second,
-                                  args.embedding_request_batch_size,
-                                  run_id=run_id,
-                                  model_digest=model_generation["digest"],
-                                  openie_retry_token_caps=openie_retry_token_caps)
+        local = instrument_models(
+            rag,
+            corpus,
+            question_text_to_id,
+            events,
+            event_lock,
+            args.embedding_max_inputs_per_second,
+            args.embedding_request_batch_size,
+            run_id=run_id,
+            model_digest=model_generation["digest"],
+            openie_retry_token_caps=openie_retry_token_caps,
+        )
         before = {
             "passages": set(rag.chunk_embedding_store.get_all_ids()),
             "entities": set(rag.entity_embedding_store.get_all_ids()),
@@ -1386,13 +1892,16 @@ def run(args):
         index_seconds = time.perf_counter() - start
         cache_counts = collect_cache_counts(rag, before)
         index_gate = build_openie_acceptance_gate(
-            [item["id"] for item in corpus], local.openie_attempts)
+            [item["id"] for item in corpus], local.openie_attempts
+        )
         manifest["index"] = {
-            "build_seconds": round(index_seconds, 6), "cache": cache_counts,
+            "build_seconds": round(index_seconds, 6),
+            "cache": cache_counts,
             "openie_attempts": local.openie_attempts,
             "openie_acceptance_gate": index_gate,
             "openie_extraction_failures": sorted(
-                local.openie_failures, key=lambda item: item.get("passage_id") or ""),
+                local.openie_failures, key=lambda item: item.get("passage_id") or ""
+            ),
         }
         write_json_atomic(manifest_path, manifest)
         if not index_gate["eligible"]:
@@ -1422,45 +1931,80 @@ def run(args):
             solutions.extend(qa_solutions)
             raw_answers.extend(raw)
             generation_metadata.extend(metadata)
-            query_usage[query["id"]] = sum(
-                event["usage"].get("prompt_tokens", 0)
-                for event in events if event["kind"] == "embedding"
-                and event.get("stage") == "graph_retrieval"
-                and event.get("batch_size") == 1
-                and any(item.get("question_id") == query["id"] for item in event.get("items", []))
-            ) or None
-            query_embedding_seconds[query["id"]] = sum(
-                event.get("client_seconds", 0.0)
-                for event in events if event["kind"] == "embedding"
-                and event.get("stage") == "graph_retrieval"
-                and event.get("batch_size") == 1
-                and any(item.get("question_id") == query["id"] for item in event.get("items", []))
-            ) or None
+            query_usage[query["id"]] = (
+                sum(
+                    event["usage"].get("prompt_tokens", 0)
+                    for event in events
+                    if event["kind"] == "embedding"
+                    and event.get("stage") == "graph_retrieval"
+                    and event.get("batch_size") == 1
+                    and any(
+                        item.get("question_id") == query["id"]
+                        for item in event.get("items", [])
+                    )
+                )
+                or None
+            )
+            query_embedding_seconds[query["id"]] = (
+                sum(
+                    event.get("client_seconds", 0.0)
+                    for event in events
+                    if event["kind"] == "embedding"
+                    and event.get("stage") == "graph_retrieval"
+                    and event.get("batch_size") == 1
+                    and any(
+                        item.get("question_id") == query["id"]
+                        for item in event.get("items", [])
+                    )
+                )
+                or None
+            )
         actual_context = runtime_context_length(args.generation_model, args.base_url)
         if actual_context is not None and actual_context != args.num_ctx:
-            raise RuntimeError(f"Ollama runtime context is {actual_context}, expected {args.num_ctx}")
+            raise RuntimeError(
+                f"Ollama runtime context is {actual_context}, expected {args.num_ctx}"
+            )
         manifest["generation"]["runtime_context_length"] = actual_context
-        rows = build_rows(run_id, args.dataset, queries, solutions,
-                          raw_answers, generation_metadata, corpus_by_text,
-                          query_usage, model_embedding, model_generation, top_k,
-                          generation_options, corpus_fingerprint, reader_info,
-                          query_embedding_seconds, retrieval_seconds,
-                          generation_seconds, question_seconds)
+        rows = build_rows(
+            run_id,
+            args.dataset,
+            queries,
+            solutions,
+            raw_answers,
+            generation_metadata,
+            corpus_by_text,
+            query_usage,
+            model_embedding,
+            model_generation,
+            top_k,
+            generation_options,
+            corpus_fingerprint,
+            reader_info,
+            query_embedding_seconds,
+            retrieval_seconds,
+            generation_seconds,
+            question_seconds,
+        )
         write_jsonl_atomic(results_path, rows)
         results_hash = sha256_file(results_path)
         manifest["results_sha256"] = results_hash
-        manifest["index"] = {"build_seconds": round(index_seconds, 6), "cache": cache_counts,
-                              "usage": summarize_usage(events, corpus)}
+        manifest["index"] = {
+            "build_seconds": round(index_seconds, 6),
+            "cache": cache_counts,
+            "usage": summarize_usage(events, corpus),
+        }
         manifest["index"]["openie_attempts"] = local.openie_attempts
         manifest["index"]["openie_acceptance_gate"] = build_openie_acceptance_gate(
-            [item["id"] for item in corpus], local.openie_attempts)
+            [item["id"] for item in corpus], local.openie_attempts
+        )
         manifest["index"]["openie_extraction_failures"] = sorted(
-            local.openie_failures, key=lambda item: item.get("passage_id") or "")
+            local.openie_failures, key=lambda item: item.get("passage_id") or ""
+        )
         manifest["usage_events"] = events
         index_embedding_tokens = sum(
             event.get("usage", {}).get("prompt_tokens", 0)
-            for event in events if event["kind"] == "embedding"
-            and event.get("stage") == "index_embedding"
+            for event in events
+            if event["kind"] == "embedding" and event.get("stage") == "index_embedding"
         )
         manifest["index_embedding"] = {
             "embedding_prompt_tokens": index_embedding_tokens,
@@ -1472,22 +2016,34 @@ def run(args):
         manifest["completed_at"] = datetime.now(timezone.utc).isoformat()
         write_json_atomic(manifest_path, manifest)
         from scripts.evaluate_dense import evaluate, read_jsonl, validate_manifest_file
+
         parsed_rows = read_jsonl(results_path)
         validate_manifest_file(results_path, parsed_rows, manifest)
         metrics = evaluate(parsed_rows, labels, manifest=manifest)
         write_json_atomic(metrics_path, metrics)
-        print(json.dumps({"status": "verified", "run_id": run_id,
-                          "questions": len(rows), "metrics": metrics,
-                          "manifest": str(manifest_path), "results": str(results_path),
-                          "model_generation_digest": model_generation["digest"],
-                          "model_embedding_digest": model_embedding["digest"]},
-                         ensure_ascii=False, indent=2))
+        print(
+            json.dumps(
+                {
+                    "status": "verified",
+                    "run_id": run_id,
+                    "questions": len(rows),
+                    "metrics": metrics,
+                    "manifest": str(manifest_path),
+                    "results": str(results_path),
+                    "model_generation_digest": model_generation["digest"],
+                    "model_embedding_digest": model_embedding["digest"],
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
         return results_path
     except KeyboardInterrupt:
         if local is not None:
             manifest.setdefault("index", {})["openie_attempts"] = local.openie_attempts
             manifest["index"]["openie_acceptance_gate"] = build_openie_acceptance_gate(
-                [item["id"] for item in corpus], local.openie_attempts)
+                [item["id"] for item in corpus], local.openie_attempts
+            )
         persist_interrupted_run(manifest, manifest_path, events, event_lock)
         raise
     except Exception as exc:
@@ -1497,7 +2053,8 @@ def run(args):
         if local is not None:
             manifest.setdefault("index", {})["openie_attempts"] = local.openie_attempts
             manifest["index"]["openie_acceptance_gate"] = build_openie_acceptance_gate(
-                [item["id"] for item in corpus], local.openie_attempts)
+                [item["id"] for item in corpus], local.openie_attempts
+            )
         manifest["usage_events"] = events
         write_json_atomic(manifest_path, manifest)
         raise
@@ -1512,7 +2069,9 @@ def run(args):
 
 
 def main(argv=None):
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+    logging.basicConfig(
+        level=logging.INFO, format="%(levelname)s %(name)s: %(message)s"
+    )
     args = parse_args(argv)
     run(args)
 

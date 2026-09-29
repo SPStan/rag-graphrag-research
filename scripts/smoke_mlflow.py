@@ -20,13 +20,15 @@ def main() -> None:
         mlflow.set_tag("project", "rag-graphrag")
         mlflow.set_tag("purpose", "local-smoke-test")
 
-        print({
-            "status": "verified",
-            "experiment": EXPERIMENT_NAME,
-            "run_id": run.info.run_id,
-            "tracking_uri": TRACKING_URI,
-            "llm_calls": 0,
-        })
+        print(
+            {
+                "status": "verified",
+                "experiment": EXPERIMENT_NAME,
+                "run_id": run.info.run_id,
+                "tracking_uri": TRACKING_URI,
+                "llm_calls": 0,
+            }
+        )
 
 
 if __name__ == "__main__":

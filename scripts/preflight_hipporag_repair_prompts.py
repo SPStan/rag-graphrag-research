@@ -12,10 +12,18 @@ from pathlib import Path
 import statistics
 
 try:
-    from scripts.plan_hipporag_repair import SOURCE_RUN_ID, build_plan_report, load_source_inputs
+    from scripts.plan_hipporag_repair import (
+        SOURCE_RUN_ID,
+        build_plan_report,
+        load_source_inputs,
+    )
     from scripts.hipporag_repair_executor import render_openie_messages
 except ModuleNotFoundError:  # Direct script execution puts scripts/ on sys.path.
-    from plan_hipporag_repair import SOURCE_RUN_ID, build_plan_report, load_source_inputs
+    from plan_hipporag_repair import (
+        SOURCE_RUN_ID,
+        build_plan_report,
+        load_source_inputs,
+    )
     from hipporag_repair_executor import render_openie_messages
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -31,9 +39,13 @@ def validate_upstream_pin(version, direct_url_text):
         direct_url = json.loads(direct_url_text)
         commit = direct_url["vcs_info"]["commit_id"]
     except (TypeError, ValueError, KeyError):
-        raise ValueError("Installed HippoRAG package has no verifiable VCS commit") from None
+        raise ValueError(
+            "Installed HippoRAG package has no verifiable VCS commit"
+        ) from None
     if commit != UPSTREAM_COMMIT:
-        raise ValueError("Installed HippoRAG commit differs from the pinned prompt source")
+        raise ValueError(
+            "Installed HippoRAG commit differs from the pinned prompt source"
+        )
     return commit
 
 
@@ -43,17 +55,20 @@ def summarize_prompts(rows, *, model_digest, num_ctx, output_caps):
         raise ValueError("Both frozen stage output caps are required")
     by_stage = {}
     for stage in output_caps:
-        selected = sorted((row for row in rows if row["stage"] == stage),
-                          key=lambda row: row["order"])
+        selected = sorted(
+            (row for row in rows if row["stage"] == stage), key=lambda row: row["order"]
+        )
         lengths = [row["utf8_bytes"] for row in selected]
         by_stage[stage] = {
             "rendered_count": len(lengths),
             "max_rendered_prompt_utf8_bytes": max(lengths) if lengths else None,
             "median_rendered_prompt_utf8_bytes": (
-                statistics.median(lengths) if lengths else None),
+                statistics.median(lengths) if lengths else None
+            ),
             "max_output_tokens": output_caps[stage],
-            "prompt_sha256_set": hashlib.sha256("\n".join(
-                row["prompt_sha256"] for row in selected).encode("ascii")).hexdigest(),
+            "prompt_sha256_set": hashlib.sha256(
+                "\n".join(row["prompt_sha256"] for row in selected).encode("ascii")
+            ).hexdigest(),
         }
     return {
         "schema_version": 1,
@@ -88,7 +103,9 @@ def render_source_prompts(manifest, expected_ids, attempts, *, include_messages=
         from hipporag_repair import plan_openie_repairs
     targets = plan_openie_repairs(expected_ids, attempts)["targets"]
 
-    corpus = json.loads(Path(manifest["inputs"]["corpus_path"]).read_text(encoding="utf-8"))
+    corpus = json.loads(
+        Path(manifest["inputs"]["corpus_path"]).read_text(encoding="utf-8")
+    )
     passage_by_id = {}
     try:
         from scripts.run_hipporag import canonical_key, passage_id
@@ -112,12 +129,18 @@ def render_source_prompts(manifest, expected_ids, attempts, *, include_messages=
         if key not in latest or row["attempt"] > latest[key]["attempt"]:
             latest[key] = row
     failed_ner_ids = {
-        pid for pid in expected_ids
-        if latest[(pid, "openie_ner")]["status"] not in {"valid_empty", "valid_nonempty"}
+        pid
+        for pid in expected_ids
+        if latest[(pid, "openie_ner")]["status"]
+        not in {"valid_empty", "valid_nonempty"}
     }
-    manager = PromptTemplateManager(role_mapping={
-        "system": "system", "user": "user", "assistant": "assistant",
-    })
+    manager = PromptTemplateManager(
+        role_mapping={
+            "system": "system",
+            "user": "user",
+            "assistant": "assistant",
+        }
+    )
     rows = []
     pending_triples = 0
     for order, target in enumerate(targets):
@@ -133,12 +156,21 @@ def render_source_prompts(manifest, expected_ids, attempts, *, include_messages=
         else:
             entities = state_by_passage[passage].get("extracted_entities", [])
             messages = render_openie_messages(
-                stage, passage, entities, prompt_manager=manager)
-        serialized = json.dumps(messages, ensure_ascii=False, sort_keys=True,
-                                separators=(",", ":"), default=str).encode("utf-8")
-        row = {"order": order, "stage": stage,
-               "utf8_bytes": len(serialized),
-               "prompt_sha256": hashlib.sha256(serialized).hexdigest()}
+                stage, passage, entities, prompt_manager=manager
+            )
+        serialized = json.dumps(
+            messages,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            default=str,
+        ).encode("utf-8")
+        row = {
+            "order": order,
+            "stage": stage,
+            "utf8_bytes": len(serialized),
+            "prompt_sha256": hashlib.sha256(serialized).hexdigest(),
+        }
         if include_messages:
             row["messages"] = messages
         rows.append(row)
@@ -149,54 +181,80 @@ def render_source_prompts(manifest, expected_ids, attempts, *, include_messages=
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--manifest", type=Path,
-        default=ROOT / "results" / "raw" /
-        f"hipporag2-musique-{SOURCE_RUN_ID}.manifest.json",
+        "--manifest",
+        type=Path,
+        default=ROOT
+        / "results"
+        / "raw"
+        / f"hipporag2-musique-{SOURCE_RUN_ID}.manifest.json",
     )
     parser.add_argument(
-        "--output", type=Path,
-        default=ROOT / "results" / "summary" /
-        "hipporag-repair-prompt-preflight.json",
+        "--output",
+        type=Path,
+        default=ROOT / "results" / "summary" / "hipporag-repair-prompt-preflight.json",
     )
     args = parser.parse_args(argv)
     manifest, expected_ids, attempts, manifest_sha, corpus_sha = load_source_inputs(
-        args.manifest)
+        args.manifest
+    )
     distribution = importlib_metadata.distribution("hipporag")
     upstream_commit = validate_upstream_pin(
-        distribution.version, distribution.read_text("direct_url.json"))
+        distribution.version, distribution.read_text("direct_url.json")
+    )
     rows, pending = render_source_prompts(manifest, expected_ids, attempts)
     plan_report = build_plan_report(
-        manifest["run_id"], expected_ids, attempts,
-        manifest_sha256=manifest_sha, corpus_sha256=corpus_sha)
+        manifest["run_id"],
+        expected_ids,
+        attempts,
+        manifest_sha256=manifest_sha,
+        corpus_sha256=corpus_sha,
+    )
     report = summarize_prompts(
-        rows, model_digest=manifest["generation"]["model"]["digest"],
+        rows,
+        model_digest=manifest["generation"]["model"]["digest"],
         num_ctx=manifest["generation"]["options"]["num_ctx"],
         output_caps=PROPOSED_RETRY_CAPS,
     )
-    report["output_caps_source"] = "ADR-0008 retry-cap proposal; must be frozen before execution"
-    report.update({
-        "source_run_id": manifest["run_id"],
-        "hipporag_package_version": distribution.version,
-        "installed_upstream_commit": upstream_commit,
-        "source_manifest_sha256": manifest_sha,
-        "source_corpus_sha256": corpus_sha,
-        "plan_sha256": plan_report["plan_sha256"],
-        "not_renderable_yet": {"stage": "openie_triples", "count": pending,
-                                "reason": "Triple prompts depend on new NER repair outputs."},
-    })
+    report["output_caps_source"] = (
+        "ADR-0008 retry-cap proposal; must be frozen before execution"
+    )
+    report.update(
+        {
+            "source_run_id": manifest["run_id"],
+            "hipporag_package_version": distribution.version,
+            "installed_upstream_commit": upstream_commit,
+            "source_manifest_sha256": manifest_sha,
+            "source_corpus_sha256": corpus_sha,
+            "plan_sha256": plan_report["plan_sha256"],
+            "not_renderable_yet": {
+                "stage": "openie_triples",
+                "count": pending,
+                "reason": "Triple prompts depend on new NER repair outputs.",
+            },
+        }
+    )
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n",
-                           encoding="utf-8", newline="\n")
-    print(json.dumps({
-        "status": report["status"],
-        "preflight_status": report["preflight_status"],
-        "rendered_prompts": sum(item["rendered_count"]
-                                 for item in report["by_stage"].values()),
-        "pending_triple_prompts": pending,
-        "exact_prompt_token_counts": None,
-        "model_requests_made": 0,
-        "report": args.output.name,
-    }, ensure_ascii=False))
+    args.output.write_text(
+        json.dumps(report, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    print(
+        json.dumps(
+            {
+                "status": report["status"],
+                "preflight_status": report["preflight_status"],
+                "rendered_prompts": sum(
+                    item["rendered_count"] for item in report["by_stage"].values()
+                ),
+                "pending_triple_prompts": pending,
+                "exact_prompt_token_counts": None,
+                "model_requests_made": 0,
+                "report": args.output.name,
+            },
+            ensure_ascii=False,
+        )
+    )
 
 
 if __name__ == "__main__":

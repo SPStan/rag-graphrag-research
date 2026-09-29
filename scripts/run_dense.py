@@ -18,13 +18,17 @@ try:
     from scripts.evaluation_view import load_view, select_in_view
     from scripts.answer_parser import extract_reader_answer
     from scripts.vendor.hipporag2_musique_template import (
-        one_shot_rag_qa_input, one_shot_rag_qa_output, rag_qa_system,
+        one_shot_rag_qa_input,
+        one_shot_rag_qa_output,
+        rag_qa_system,
     )
 except ModuleNotFoundError:  # Direct execution puts the scripts directory on sys.path.
     from evaluation_view import load_view, select_in_view
     from answer_parser import extract_reader_answer
     from vendor.hipporag2_musique_template import (
-        one_shot_rag_qa_input, one_shot_rag_qa_output, rag_qa_system,
+        one_shot_rag_qa_input,
+        one_shot_rag_qa_output,
+        rag_qa_system,
     )
 
 
@@ -69,7 +73,7 @@ def top_k(query_vector, document_vectors, k=5):
     if not isinstance(k, int) or k <= 0:
         raise ValueError("k must be a positive integer")
     scores = documents @ query
-    indices = np.argsort(-scores, kind="stable")[:min(k, len(scores))]
+    indices = np.argsort(-scores, kind="stable")[: min(k, len(scores))]
     return [(int(index), float(scores[index])) for index in indices]
 
 
@@ -108,7 +112,9 @@ def model_info(session, model_name):
 
 
 def corpus_fingerprint(corpus):
-    content = json.dumps(corpus, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    content = json.dumps(corpus, ensure_ascii=False, separators=(",", ":")).encode(
+        "utf-8"
+    )
     return hashlib.sha256(content).hexdigest()
 
 
@@ -128,20 +134,23 @@ def recover_cache_build_provenance(cache_path, fingerprint, model_digest):
             manifest = read_json(manifest_path)
             embedding = manifest.get("embedding", {})
             model = embedding.get("model", {})
-            if (manifest.get("status") != "completed"
-                    or embedding.get("cache_file") != cache_relative
-                    or manifest.get("inputs", {}).get("corpus_fingerprint") != fingerprint
-                    or model.get("digest") != model_digest
-                    or embedding.get("text_version") != EMBED_TEXT_VERSION
-                    or embedding.get("truncate") is not EMBED_TRUNCATE
-                    or embedding.get("cache_schema") != EMBED_CACHE_SCHEMA_VERSION):
+            if (
+                manifest.get("status") != "completed"
+                or embedding.get("cache_file") != cache_relative
+                or manifest.get("inputs", {}).get("corpus_fingerprint") != fingerprint
+                or model.get("digest") != model_digest
+                or embedding.get("text_version") != EMBED_TEXT_VERSION
+                or embedding.get("truncate") is not EMBED_TRUNCATE
+                or embedding.get("cache_schema") != EMBED_CACHE_SCHEMA_VERSION
+            ):
                 continue
             result_path = manifest_path.parent / manifest["results_file"]
             if sha256_file(result_path) != manifest.get("results_sha256"):
                 continue
             old_index = manifest.get("index_embedding") or {}
             build_seconds = old_index.get(
-                "build_seconds_this_run", manifest.get("index_embedding_seconds_this_run")
+                "build_seconds_this_run",
+                manifest.get("index_embedding_seconds_this_run"),
             )
             if not isinstance(build_seconds, (int, float)) or build_seconds <= 0:
                 continue
@@ -199,26 +208,48 @@ def get_cache_build_provenance(cache_path, fingerprint, model_digest):
 def write_json_atomic(path, payload):
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(path.suffix + ".part")
-    temporary.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
-                         encoding="utf-8", newline="\n")
+    temporary.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
     temporary.replace(path)
 
 
 def git_snapshot():
     try:
-        commit = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT, check=True,
-                                capture_output=True, text=True).stdout.strip()
-        dirty = bool(subprocess.run(["git", "status", "--porcelain"], cwd=ROOT, check=True,
-                                    capture_output=True, text=True).stdout.strip())
+        commit = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        dirty = bool(
+            subprocess.run(
+                ["git", "status", "--porcelain"],
+                cwd=ROOT,
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout.strip()
+        )
     except (OSError, subprocess.CalledProcessError):
         commit, dirty = None, None
-    source_files = ("scripts/run_dense.py", "scripts/replay_reader.py",
-                    "scripts/evaluate_dense.py", "scripts/answer_parser.py")
+    source_files = (
+        "scripts/run_dense.py",
+        "scripts/replay_reader.py",
+        "scripts/evaluate_dense.py",
+        "scripts/answer_parser.py",
+    )
     return {
         "commit": commit,
         "working_tree_dirty": dirty,
-        "source_sha256": {name: sha256_file(ROOT / name) for name in source_files
-                          if (ROOT / name).is_file()},
+        "source_sha256": {
+            name: sha256_file(ROOT / name)
+            for name in source_files
+            if (ROOT / name).is_file()
+        },
     }
 
 
@@ -233,13 +264,17 @@ def validate_processed_data(dataset, data_dir, queries, corpus, labels_path=None
         actual_hashes[filename] = sha256_file(data_dir / filename)
         expected = dataset_report["output_sha256"].get(filename)
         if actual_hashes[filename] != expected:
-            raise ValueError(f"Processed {filename} does not match the pinned subsample report")
+            raise ValueError(
+                f"Processed {filename} does not match the pinned subsample report"
+            )
     labels_path = Path(labels_path) if labels_path else Path(data_dir) / "labels.json"
     if labels_path.is_file():
         actual_hashes["labels.json"] = sha256_file(labels_path)
         expected = dataset_report["output_sha256"].get("labels.json")
         if actual_hashes["labels.json"] != expected:
-            raise ValueError("Processed labels.json does not match the pinned subsample report")
+            raise ValueError(
+                "Processed labels.json does not match the pinned subsample report"
+            )
     query_ids = [row["id"] for row in queries]
     corpus_ids = [row["id"] for row in corpus]
     if query_ids != ids_manifest["question_ids"]:
@@ -254,8 +289,15 @@ def validate_processed_data(dataset, data_dir, queries, corpus, labels_path=None
     }
 
 
-def embed_corpus(session, corpus, cache_path, fingerprint, model_digest,
-                 dataset=None, build_run_id=None):
+def embed_corpus(
+    session,
+    corpus,
+    cache_path,
+    fingerprint,
+    model_digest,
+    dataset=None,
+    build_run_id=None,
+):
     ids = [row["id"] for row in corpus]
     if cache_path.exists():
         cache_started = time.perf_counter()
@@ -265,21 +307,45 @@ def embed_corpus(session, corpus, cache_path, fingerprint, model_digest,
                 saved_fingerprint = str(saved["fingerprint"].item())
                 saved_model = str(saved["model"].item())
                 saved_digest = str(saved["model_digest"].item())
-                saved_schema = int(saved["cache_schema"].item()) if "cache_schema" in saved else None
-                saved_text_version = str(saved["text_version"].item()) if "text_version" in saved else None
-                saved_truncate = bool(saved["truncate"].item()) if "truncate" in saved else None
+                saved_schema = (
+                    int(saved["cache_schema"].item())
+                    if "cache_schema" in saved
+                    else None
+                )
+                saved_text_version = (
+                    str(saved["text_version"].item())
+                    if "text_version" in saved
+                    else None
+                )
+                saved_truncate = (
+                    bool(saved["truncate"].item()) if "truncate" in saved else None
+                )
                 vectors = saved["vectors"]
-            if (saved_ids == ids and saved_fingerprint == fingerprint and saved_model == EMBED_MODEL
-                    and saved_digest == model_digest and saved_schema == EMBED_CACHE_SCHEMA_VERSION
-                    and saved_text_version == EMBED_TEXT_VERSION and saved_truncate is EMBED_TRUNCATE):
-                if (vectors.ndim == 2 and vectors.shape[0] == len(corpus)
-                        and np.all(np.isfinite(vectors)) and np.all(np.linalg.norm(vectors, axis=1) > 0)):
-                    print(f"Embeddings cache: {cache_path.relative_to(ROOT)} ({vectors.shape[0]} passages)")
+            if (
+                saved_ids == ids
+                and saved_fingerprint == fingerprint
+                and saved_model == EMBED_MODEL
+                and saved_digest == model_digest
+                and saved_schema == EMBED_CACHE_SCHEMA_VERSION
+                and saved_text_version == EMBED_TEXT_VERSION
+                and saved_truncate is EMBED_TRUNCATE
+            ):
+                if (
+                    vectors.ndim == 2
+                    and vectors.shape[0] == len(corpus)
+                    and np.all(np.isfinite(vectors))
+                    and np.all(np.linalg.norm(vectors, axis=1) > 0)
+                ):
+                    print(
+                        f"Embeddings cache: {cache_path.relative_to(ROOT)} ({vectors.shape[0]} passages)"
+                    )
                     build_provenance = get_cache_build_provenance(
                         cache_path, fingerprint, model_digest
                     )
                     if build_provenance is None:
-                        print("Original embedding build cost is unknown for this cache.")
+                        print(
+                            "Original embedding build cost is unknown for this cache."
+                        )
                     return vectors, {
                         "cache_hit": True,
                         "cache_read_seconds": time.perf_counter() - cache_started,
@@ -299,13 +365,17 @@ def embed_corpus(session, corpus, cache_path, fingerprint, model_digest,
     batch_results = []
     started = time.perf_counter()
     for offset in range(0, len(document_texts), BATCH_SIZE):
-        batch = document_texts[offset:offset + BATCH_SIZE]
-        result = post_json(session, "/api/embed", {
-            "model": EMBED_MODEL, "input": batch, "truncate": EMBED_TRUNCATE
-        })
+        batch = document_texts[offset : offset + BATCH_SIZE]
+        result = post_json(
+            session,
+            "/api/embed",
+            {"model": EMBED_MODEL, "input": batch, "truncate": EMBED_TRUNCATE},
+        )
         vectors = result.get("embeddings")
         if not isinstance(vectors, list) or len(vectors) != len(batch):
-            raise RuntimeError(f"Ollama returned an unexpected embedding batch at offset {offset}")
+            raise RuntimeError(
+                f"Ollama returned an unexpected embedding batch at offset {offset}"
+            )
         all_vectors.extend(vectors)
         batch_results.append(result)
         done = min(offset + len(batch), len(document_texts))
@@ -318,17 +388,27 @@ def embed_corpus(session, corpus, cache_path, fingerprint, model_digest,
     cache_path.parent.mkdir(parents=True, exist_ok=True)
     temporary = cache_path.with_suffix(".npz.part")
     with temporary.open("wb") as stream:
-        np.savez_compressed(stream, ids=np.asarray(ids), vectors=matrix,
-                            fingerprint=np.asarray(fingerprint), model=np.asarray(EMBED_MODEL),
-                            model_digest=np.asarray(model_digest),
-                            cache_schema=np.asarray(EMBED_CACHE_SCHEMA_VERSION),
-                            text_version=np.asarray(EMBED_TEXT_VERSION),
-                            truncate=np.asarray(EMBED_TRUNCATE))
+        np.savez_compressed(
+            stream,
+            ids=np.asarray(ids),
+            vectors=matrix,
+            fingerprint=np.asarray(fingerprint),
+            model=np.asarray(EMBED_MODEL),
+            model_digest=np.asarray(model_digest),
+            cache_schema=np.asarray(EMBED_CACHE_SCHEMA_VERSION),
+            text_version=np.asarray(EMBED_TEXT_VERSION),
+            truncate=np.asarray(EMBED_TRUNCATE),
+        )
     temporary.replace(cache_path)
     print(f"Embedded passages: {len(corpus)}/{len(corpus)}")
+
     def sum_if_complete(key):
         values = [item.get(key) for item in batch_results]
-        return sum(values) if values and all(value is not None for value in values) else None
+        return (
+            sum(values)
+            if values and all(value is not None for value in values)
+            else None
+        )
 
     index_stats = {
         "cache_hit": False,
@@ -364,8 +444,7 @@ def embed_corpus(session, corpus, cache_path, fingerprint, model_digest,
 
 def build_reader_messages(question, passages):
     context = "\n\n".join(
-        f"Wikipedia Title: {row['title']}\n{row['text']}"
-        for row in passages
+        f"Wikipedia Title: {row['title']}\n{row['text']}" for row in passages
     )
     return [
         {"role": "system", "content": READER_SYSTEM},
@@ -377,8 +456,11 @@ def build_reader_messages(question, passages):
 
 def reader_template_sha256():
     return hashlib.sha256(
-        json.dumps([READER_SYSTEM, DEMO_USER, DEMO_ASSISTANT], ensure_ascii=False,
-                   separators=(",", ":")).encode("utf-8")
+        json.dumps(
+            [READER_SYSTEM, DEMO_USER, DEMO_ASSISTANT],
+            ensure_ascii=False,
+            separators=(",", ":"),
+        ).encode("utf-8")
     ).hexdigest()
 
 
@@ -393,17 +475,21 @@ def safe_print(*values, **kwargs):
     print(*values, **kwargs)
 
 
-def run(dataset="musique", limit=10, top_n=5, generation_model=GEN_MODEL,
-        id_view_path=None):
+def run(
+    dataset="musique", limit=10, top_n=5, generation_model=GEN_MODEL, id_view_path=None
+):
     if dataset != "musique":
-        raise ValueError("The pinned HippoRAG one-shot reader is validated only for MuSiQue")
+        raise ValueError(
+            "The pinned HippoRAG one-shot reader is validated only for MuSiQue"
+        )
     data_dir = ROOT / "data" / "processed" / dataset
     queries_path = data_dir / "queries.json"
     corpus_path = data_dir / "corpus.json"
     queries = read_json(queries_path)
     corpus = read_json(corpus_path)
     data_provenance = validate_processed_data(
-        dataset, data_dir, queries, corpus, data_dir / "labels.json")
+        dataset, data_dir, queries, corpus, data_dir / "labels.json"
+    )
     labels_path = data_dir / "labels.json"
     view_info = load_view(id_view_path, dataset, labels_path) if id_view_path else None
     if view_info:
@@ -411,11 +497,15 @@ def run(dataset="musique", limit=10, top_n=5, generation_model=GEN_MODEL,
             raise ValueError("--limit must equal the frozen evaluation view size")
         queries = select_in_view(queries, view_info["question_ids"], "query")
     if not 1 <= limit <= 100:
-        raise ValueError("Local benchmark limit must be between 1 and 100; use a pinned view")
+        raise ValueError(
+            "Local benchmark limit must be between 1 and 100; use a pinned view"
+        )
     if not isinstance(top_n, int) or top_n <= 0:
         raise ValueError("top-k must be a positive integer")
     if len(queries) < limit:
-        raise ValueError(f"Requested {limit} questions but only {len(queries)} are available")
+        raise ValueError(
+            f"Requested {limit} questions but only {len(queries)} are available"
+        )
     queries = queries[:limit]
     planned_question_ids = [query["id"] for query in queries]
     if len(set(planned_question_ids)) != len(planned_question_ids):
@@ -444,8 +534,11 @@ def run(dataset="musique", limit=10, top_n=5, generation_model=GEN_MODEL,
             "corpus_fingerprint": fingerprint,
             **data_provenance,
         },
-        "evaluation_view": ({key: value for key, value in view_info.items()
-                              if key != "question_ids"} if view_info else None),
+        "evaluation_view": (
+            {key: value for key, value in view_info.items() if key != "question_ids"}
+            if view_info
+            else None
+        ),
         "code": git_snapshot(),
         "runtime": {
             "python": platform.python_version(),
@@ -486,13 +579,22 @@ def run(dataset="musique", limit=10, top_n=5, generation_model=GEN_MODEL,
         manifest["status"] = "running"
         write_json_atomic(manifest_path, manifest)
 
-        print(f"Dataset: {dataset}; questions: {len(queries)}; corpus passages: {len(corpus)}")
+        print(
+            f"Dataset: {dataset}; questions: {len(queries)}; corpus passages: {len(corpus)}"
+        )
         print(f"Embedding model: {embedding_info['name']} ({embedding_info['digest']})")
-        print(f"Generator: {generation_info['name']} ({generation_info['digest']}); "
-              f"prompt: {READER_PROMPT_VERSION}; top-k: {top_n}")
+        print(
+            f"Generator: {generation_info['name']} ({generation_info['digest']}); "
+            f"prompt: {READER_PROMPT_VERSION}; top-k: {top_n}"
+        )
         document_vectors, index_embedding = embed_corpus(
-            session, corpus, cache_path, fingerprint, embedding_info["digest"],
-            dataset=dataset, build_run_id=run_id,
+            session,
+            corpus,
+            cache_path,
+            fingerprint,
+            embedding_info["digest"],
+            dataset=dataset,
+            build_run_id=run_id,
         )
         manifest["index_embedding"] = index_embedding
         write_json_atomic(manifest_path, manifest)
@@ -501,29 +603,45 @@ def run(dataset="musique", limit=10, top_n=5, generation_model=GEN_MODEL,
             for position, query in enumerate(queries, start=1):
                 question_started = time.perf_counter()
                 query_embed_started = time.perf_counter()
-                query_result = post_json(session, "/api/embed", {
-                    "model": EMBED_MODEL, "input": query["question"], "truncate": EMBED_TRUNCATE
-                })
+                query_result = post_json(
+                    session,
+                    "/api/embed",
+                    {
+                        "model": EMBED_MODEL,
+                        "input": query["question"],
+                        "truncate": EMBED_TRUNCATE,
+                    },
+                )
                 query_embed_client_seconds = time.perf_counter() - query_embed_started
                 query_vectors = query_result.get("embeddings")
                 if not isinstance(query_vectors, list) or len(query_vectors) != 1:
-                    raise RuntimeError(f"Ollama returned an invalid query embedding for {query['id']}")
+                    raise RuntimeError(
+                        f"Ollama returned an invalid query embedding for {query['id']}"
+                    )
                 retrieval_started = time.perf_counter()
                 ranked = top_k(query_vectors[0], document_vectors, top_n)
                 passages = [corpus[index] for index, _score in ranked]
                 retrieval_seconds = time.perf_counter() - retrieval_started
                 messages = build_reader_messages(query["question"], passages)
                 prompt_sha256 = hashlib.sha256(
-                    json.dumps(messages, ensure_ascii=False, sort_keys=True,
-                               separators=(",", ":")).encode("utf-8")
+                    json.dumps(
+                        messages,
+                        ensure_ascii=False,
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    ).encode("utf-8")
                 ).hexdigest()
                 generation_started = time.perf_counter()
-                generation = post_json(session, "/api/chat", {
-                    "model": generation_model,
-                    "messages": messages,
-                    "stream": False,
-                    "options": GENERATION_OPTIONS,
-                })
+                generation = post_json(
+                    session,
+                    "/api/chat",
+                    {
+                        "model": generation_model,
+                        "messages": messages,
+                        "stream": False,
+                        "options": GENERATION_OPTIONS,
+                    },
+                )
                 generation_wall_seconds = time.perf_counter() - generation_started
                 raw_answer = generation.get("message", {}).get("content", "")
                 answer, answer_status = extract_reader_answer(raw_answer)
@@ -554,9 +672,15 @@ def run(dataset="musique", limit=10, top_n=5, generation_model=GEN_MODEL,
                     "raw_answer": raw_answer,
                     "prompt_tokens": generation.get("prompt_eval_count"),
                     "completion_tokens": generation.get("eval_count"),
-                    "query_embedding_prompt_tokens": query_result.get("prompt_eval_count"),
-                    "query_embedding_total_duration_ns": query_result.get("total_duration"),
-                    "query_embedding_load_duration_ns": query_result.get("load_duration"),
+                    "query_embedding_prompt_tokens": query_result.get(
+                        "prompt_eval_count"
+                    ),
+                    "query_embedding_total_duration_ns": query_result.get(
+                        "total_duration"
+                    ),
+                    "query_embedding_load_duration_ns": query_result.get(
+                        "load_duration"
+                    ),
                     "query_embedding_client_seconds": query_embed_client_seconds,
                     "retrieval_seconds": retrieval_seconds,
                     "generation_wall_seconds": generation_wall_seconds,
@@ -566,11 +690,16 @@ def run(dataset="musique", limit=10, top_n=5, generation_model=GEN_MODEL,
                     "generation_eval_duration_ns": generation.get("eval_duration"),
                     "generation_seconds": (
                         generation["total_duration"] / 1_000_000_000
-                        if generation.get("total_duration") is not None else None
+                        if generation.get("total_duration") is not None
+                        else None
                     ),
                     "generation_tokens_per_second": (
-                        generation["eval_count"] * 1_000_000_000 / generation["eval_duration"]
-                        if generation.get("eval_count") and generation.get("eval_duration") else None
+                        generation["eval_count"]
+                        * 1_000_000_000
+                        / generation["eval_duration"]
+                        if generation.get("eval_count")
+                        and generation.get("eval_duration")
+                        else None
                     ),
                     "done_reason": generation.get("done_reason"),
                     "done": generation.get("done"),
@@ -578,16 +707,22 @@ def run(dataset="musique", limit=10, top_n=5, generation_model=GEN_MODEL,
                 output.write(json.dumps(row, ensure_ascii=False) + "\n")
                 output.flush()
                 require_completed_generation(generation, query["id"])
-                safe_print(f"[{position}/{len(queries)}] {query['id']}: {row['answer']}")
+                safe_print(
+                    f"[{position}/{len(queries)}] {query['id']}: {row['answer']}"
+                )
         temporary.replace(output_path)
         manifest["status"] = "completed"
         manifest["completed_at"] = datetime.now(timezone.utc).isoformat()
         manifest["results_sha256"] = sha256_file(output_path)
         write_json_atomic(manifest_path, manifest)
         if index_embedding["build_seconds_this_run"] is not None:
-            safe_print(f"Corpus embedding seconds: {index_embedding['build_seconds_this_run']:.2f}")
+            safe_print(
+                f"Corpus embedding seconds: {index_embedding['build_seconds_this_run']:.2f}"
+            )
         else:
-            safe_print(f"Embeddings cache read seconds: {index_embedding['cache_read_seconds']:.4f}")
+            safe_print(
+                f"Embeddings cache read seconds: {index_embedding['cache_read_seconds']:.4f}"
+            )
         safe_print(f"Run ID: {run_id}")
         safe_print(f"Results: {output_path.relative_to(ROOT)}")
         safe_print(f"Manifest: {manifest_path.relative_to(ROOT)}")
@@ -603,19 +738,39 @@ def run(dataset="musique", limit=10, top_n=5, generation_model=GEN_MODEL,
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--dataset", choices=("musique",), default="musique",
-                        help="HippoRAG one-shot reader currently validated for MuSiQue only")
-    parser.add_argument("--limit", type=int, default=10,
-                        help="number of initial fixed-ID questions (1-100; baseline100 includes debug10)")
+    parser.add_argument(
+        "--dataset",
+        choices=("musique",),
+        default="musique",
+        help="HippoRAG one-shot reader currently validated for MuSiQue only",
+    )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=10,
+        help="number of initial fixed-ID questions (1-100; baseline100 includes debug10)",
+    )
     parser.add_argument("--top-k", type=int, default=5)
-    parser.add_argument("--id-view", type=Path,
-                        help="frozen ID view; --limit must equal its question count")
-    parser.add_argument("--generation-model", default=GEN_MODEL,
-                        help=f"installed Ollama generation model (default: {GEN_MODEL})")
+    parser.add_argument(
+        "--id-view",
+        type=Path,
+        help="frozen ID view; --limit must equal its question count",
+    )
+    parser.add_argument(
+        "--generation-model",
+        default=GEN_MODEL,
+        help=f"installed Ollama generation model (default: {GEN_MODEL})",
+    )
     args = parser.parse_args()
     try:
         run(args.dataset, args.limit, args.top_k, args.generation_model, args.id_view)
-    except (OSError, requests.RequestException, ValueError, RuntimeError, KeyError) as exc:
+    except (
+        OSError,
+        requests.RequestException,
+        ValueError,
+        RuntimeError,
+        KeyError,
+    ) as exc:
         safe_print(f"Dense RAG pilot failed: {exc}", file=sys.stderr)
         raise SystemExit(1)
 

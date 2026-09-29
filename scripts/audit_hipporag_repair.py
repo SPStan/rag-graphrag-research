@@ -36,7 +36,8 @@ def sha256_file(path):
 
 def producer_identity(manifest):
     pipeline = {
-        "endpoint": "/api/embed", "truncate": False,
+        "endpoint": "/api/embed",
+        "truncate": False,
         "text_preprocessing": "replace-newlines-with-space-v1",
         "vector_validation": "finite-nonzero-row-v1",
     }
@@ -47,8 +48,9 @@ def producer_identity(manifest):
         "upstream": manifest["upstream"]["commit"],
     }
     return "ollama:" + sha256_bytes(
-        (json.dumps(payload, ensure_ascii=False, separators=(",", ":")) + "\n")
-        .encode("utf-8")
+        (json.dumps(payload, ensure_ascii=False, separators=(",", ":")) + "\n").encode(
+            "utf-8"
+        )
     )
 
 
@@ -63,17 +65,22 @@ def summarize_attempts(attempts):
         latest[(passage_id, stage)] = rows[-1]
 
     unresolved = {
-        stage: {pid: row for (pid, row_stage), row in latest.items()
-                if row_stage == stage and row.get("status") not in VALID}
+        stage: {
+            pid: row
+            for (pid, row_stage), row in latest.items()
+            if row_stage == stage and row.get("status") not in VALID
+        }
         for stage in ("openie_ner", "openie_triples")
     }
     ner_ids = set(unresolved["openie_ner"])
     triple_ids = set(unresolved["openie_triples"])
     overlap = ner_ids & triple_ids
-    ner_retry_numbers = Counter(row.get("attempt")
-                                for row in unresolved["openie_ner"].values())
-    triple_retry_numbers = Counter(row.get("attempt")
-                                   for row in unresolved["openie_triples"].values())
+    ner_retry_numbers = Counter(
+        row.get("attempt") for row in unresolved["openie_ner"].values()
+    )
+    triple_retry_numbers = Counter(
+        row.get("attempt") for row in unresolved["openie_triples"].values()
+    )
     dependent_triple_refreshes = len(ner_ids - triple_ids)
     return {
         "unresolved_by_stage": {stage: len(rows) for stage, rows in unresolved.items()},
@@ -83,8 +90,10 @@ def summarize_attempts(attempts):
         },
         "passages_with_both_stages_unresolved": len(overlap),
         "ner_repairs_requiring_dependent_triple_refresh": dependent_triple_refreshes,
-        "estimated_targeted_generation_calls_if_dependency_refresh_is_required":
-            sum(map(len, unresolved.values())) + dependent_triple_refreshes,
+        "estimated_targeted_generation_calls_if_dependency_refresh_is_required": sum(
+            map(len, unresolved.values())
+        )
+        + dependent_triple_refreshes,
         "recorded_attempts": len(attempts),
     }
 
@@ -135,35 +144,42 @@ def audit_run(manifest_path):
         if name.endswith("embeddings"):
             item["rows"] = ParquetFile(path).metadata.num_rows
         artifact_summary[name] = item
-    row_counts = {name: artifact_summary[name]["rows"]
-                  for name in ("chunk_embeddings", "entity_embeddings", "fact_embeddings")}
+    row_counts = {
+        name: artifact_summary[name]["rows"]
+        for name in ("chunk_embeddings", "entity_embeddings", "fact_embeddings")
+    }
     if row_counts["chunk_embeddings"] != expected_passages:
         raise ValueError("Chunk vector count does not match expected passage count")
 
     index_manifest = read_json(artifact_paths["index_manifest"])
     current_ids = {
-        name: set(parquet.read_table(path, columns=["hash_id"])
-                  .column("hash_id").to_pylist())
-        for name, path in (("chunk", artifact_paths["chunk_embeddings"]),
-                           ("entity", artifact_paths["entity_embeddings"]),
-                           ("fact", artifact_paths["fact_embeddings"]))
+        name: set(
+            parquet.read_table(path, columns=["hash_id"]).column("hash_id").to_pylist()
+        )
+        for name, path in (
+            ("chunk", artifact_paths["chunk_embeddings"]),
+            ("entity", artifact_paths["entity_embeddings"]),
+            ("fact", artifact_paths["fact_embeddings"]),
+        )
     }
     expected_entity_ids, expected_fact_ids = expected_openie_vector_ids(state["docs"])
     expected_chunk_ids = {document["idx"] for document in state["docs"]}
-    index_identity_matches = (
-        index_manifest.get("components", {}).get("explicit_identity")
-        == producer_identity(manifest)
+    index_identity_matches = index_manifest.get("components", {}).get(
+        "explicit_identity"
+    ) == producer_identity(manifest)
+    expected_embedding_label = (
+        manifest["embedding"]["model"]["name"].replace(":", "_").replace("/", "_")
     )
-    expected_embedding_label = manifest["embedding"]["model"]["name"].replace(
-        ":", "_").replace("/", "_")
     embedding_identity_matches = (
-        index_manifest.get("embedding", {}).get("model_name") == expected_embedding_label
+        index_manifest.get("embedding", {}).get("model_name")
+        == expected_embedding_label
         and index_manifest.get("embedding", {}).get("normalized") is True
     )
     openie_identity = index_manifest.get("openie", {}).get("identity", {})
     options = manifest["generation"]["options"]
-    expected_generation_label = manifest["generation"]["model"]["name"].replace(
-        ":", "_").replace("/", "_")
+    expected_generation_label = (
+        manifest["generation"]["model"]["name"].replace(":", "_").replace("/", "_")
+    )
     openie_identity_matches = (
         openie_identity.get("model_name") == expected_generation_label
         and openie_identity.get("temperature") == options.get("temperature")
@@ -179,21 +195,27 @@ def audit_run(manifest_path):
         "fact_ids_match_openie_state": current_ids["fact"] == expected_fact_ids,
     }
     corpus_path = Path(manifest["inputs"]["corpus_path"])
-    corpus_hash_matches = (corpus_path.is_file()
-                           and sha256_file(corpus_path) == manifest["inputs"]["corpus_sha256"])
+    corpus_hash_matches = (
+        corpus_path.is_file()
+        and sha256_file(corpus_path) == manifest["inputs"]["corpus_sha256"]
+    )
     corpus = read_json(corpus_path) if corpus_hash_matches else []
     expected_passage_texts = {
         f"{title}\n{text}"
         for item in corpus
         for title, text in [canonical_key(item["title"], item["text"])]
     }
-    source_passages_match = (
-        len(expected_passage_texts) == len(state["docs"])
-        and expected_passage_texts == {item["passage"] for item in state["docs"]}
+    source_passages_match = len(expected_passage_texts) == len(
+        state["docs"]
+    ) and expected_passage_texts == {item["passage"] for item in state["docs"]}
+    compatible = (
+        index_identity_matches
+        and embedding_identity_matches
+        and openie_identity_matches
+        and source_passages_match
+        and corpus_hash_matches
+        and all(vector_match.values())
     )
-    compatible = (index_identity_matches and embedding_identity_matches
-                  and openie_identity_matches and source_passages_match
-                  and corpus_hash_matches and all(vector_match.values()))
 
     return {
         "schema_version": 1,
@@ -201,7 +223,8 @@ def audit_run(manifest_path):
         "source_status": manifest.get("status"),
         "index_eligible": False,
         "qa_started": bool(manifest.get("qa", {}).get("started"))
-            if isinstance(manifest.get("qa"), dict) else False,
+        if isinstance(manifest.get("qa"), dict)
+        else False,
         "expected_passages": expected_passages,
         "persisted_openie_passages": len(state["docs"]),
         "persisted_graph_present": True,
@@ -236,36 +259,56 @@ def audit_run(manifest_path):
                 "Only newly introduced entity/fact strings should need new embeddings after targeted extraction repair.",
                 "Corrected extractions can remove old entity/fact IDs. Filter cloned vector stores to the exact corrected OpenIE ID sets before graph construction; an unfiltered clone is not graph-ready.",
                 "The source diagnostic index must remain immutable; perform repair in a verified copy.",
-                "No QA run or benchmark is authorized by this audit."
-            ]
+                "No QA run or benchmark is authorized by this audit.",
+            ],
         },
-        "historical_build_wall_seconds": (manifest.get("index") or {}).get("build_seconds"),
+        "historical_build_wall_seconds": (manifest.get("index") or {}).get(
+            "build_seconds"
+        ),
         "interpretation": [
             "This is an artifact-readiness audit, not a repaired or eligible benchmark result.",
             "A corrected NER result requires refreshing its dependent triple extraction unless that triple is already being repaired.",
-            "Attempt estimates exclude retries if targeted calls fail and therefore are not a guaranteed upper bound."
-        ]
+            "Attempt estimates exclude retries if targeted calls fail and therefore are not a guaranteed upper bound.",
+        ],
     }
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run-id", default=DEFAULT_RUN_ID)
-    parser.add_argument("--output", type=Path,
-                        default=ROOT / "results" / "summary" /
-                                "hipporag-repair-readiness-candidate.json")
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=ROOT
+        / "results"
+        / "summary"
+        / "hipporag-repair-readiness-candidate.json",
+    )
     args = parser.parse_args(argv)
-    manifest_path = ROOT / "results" / "raw" / f"hipporag2-musique-{args.run_id}.manifest.json"
+    manifest_path = (
+        ROOT / "results" / "raw" / f"hipporag2-musique-{args.run_id}.manifest.json"
+    )
     report = audit_run(manifest_path)
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n",
-                           encoding="utf-8", newline="\n")
-    print(json.dumps({"status": "audited", "report": args.output.name,
-                      "source_run_id": report["source_run_id"],
-                      "existing_vectors": report["existing_embedding_rows"],
-                      "targeted_calls_estimate": report["repair_analysis"][
-                          "estimated_targeted_generation_calls_if_dependency_refresh_is_required"]},
-                     ensure_ascii=False))
+    args.output.write_text(
+        json.dumps(report, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    print(
+        json.dumps(
+            {
+                "status": "audited",
+                "report": args.output.name,
+                "source_run_id": report["source_run_id"],
+                "existing_vectors": report["existing_embedding_rows"],
+                "targeted_calls_estimate": report["repair_analysis"][
+                    "estimated_targeted_generation_calls_if_dependency_refresh_is_required"
+                ],
+            },
+            ensure_ascii=False,
+        )
+    )
 
 
 if __name__ == "__main__":

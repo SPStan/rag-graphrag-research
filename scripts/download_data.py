@@ -41,7 +41,9 @@ def main():
             continue
         url = f"https://huggingface.co/datasets/{lock['repository']}/resolve/{lock['revision']}/{name}"
         print(f"Downloading {name} ({entry['size']} bytes)...", flush=True)
-        request = urllib.request.Request(url, headers={"User-Agent": "rag-graphrag-research/1.0"})
+        request = urllib.request.Request(
+            url, headers={"User-Agent": "rag-graphrag-research/1.0"}
+        )
         with urllib.request.urlopen(request, timeout=60) as response:
             payload = response.read(entry["size"] + 1)
         digest = verify(payload, entry)

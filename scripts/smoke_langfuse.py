@@ -26,7 +26,11 @@ def main():
 
     base_url = settings["LANGFUSE_BASE_URL"].rstrip("/")
     parsed = urlparse(base_url)
-    if parsed.scheme != "http" or parsed.hostname not in ("localhost", "127.0.0.1", "::1"):
+    if parsed.scheme != "http" or parsed.hostname not in (
+        "localhost",
+        "127.0.0.1",
+        "::1",
+    ):
         raise SystemExit("This smoke test expects the local Langfuse HTTP server.")
 
     run_id = "smoke-" + uuid.uuid4().hex[:12]
@@ -49,7 +53,9 @@ def main():
     }
     try:
         if not client.auth_check():
-            raise RuntimeError("Langfuse authentication failed. Check the local project keys.")
+            raise RuntimeError(
+                "Langfuse authentication failed. Check the local project keys."
+            )
 
         with client.start_as_current_observation(
             as_type="span",
@@ -59,24 +65,37 @@ def main():
             with propagate_attributes(
                 trace_name=TRACE_NAME,
                 tags=["smoke-test", "mock", "no-llm"],
-                metadata={"run_id": run_id, "mode": "mock", "phase": "setup", "llm_calls": "0"},
+                metadata={
+                    "run_id": run_id,
+                    "mode": "mock",
+                    "phase": "setup",
+                    "llm_calls": "0",
+                },
             ):
                 with client.start_as_current_observation(
                     as_type="span",
                     name=CHILD_NAME,
                     input={"operation": "local arithmetic", "a": 2, "b": 2},
                 ) as child:
-                    child.update(output={"result": 2 + 2, "generated_by": "Python, not an LLM"})
-                root.update(output={"message": "Тестовая трасса отправлена", "mode": "mock"})
+                    child.update(
+                        output={"result": 2 + 2, "generated_by": "Python, not an LLM"}
+                    )
+                root.update(
+                    output={"message": "Тестовая трасса отправлена", "mode": "mock"}
+                )
                 result["trace_id"] = client.get_current_trace_id()
 
         # Delivery and query visibility are different: the worker processes data asynchronously.
         client.flush()
         result["status"] = "sent"
-        print("Trace sent. Waiting for it to become readable in Langfuse...", flush=True)
+        print(
+            "Trace sent. Waiting for it to become readable in Langfuse...", flush=True
+        )
         deadline = time.monotonic() + 45
         while time.monotonic() < deadline:
-            observations = client.api.observations.get_many(trace_id=result["trace_id"], limit=10)
+            observations = client.api.observations.get_many(
+                trace_id=result["trace_id"], limit=10
+            )
             names = {observation.name for observation in observations.data}
             if {TRACE_NAME, CHILD_NAME}.issubset(names):
                 result["status"] = "verified"
@@ -85,13 +104,17 @@ def main():
                 break
             time.sleep(2)
         else:
-            raise RuntimeError("Trace was sent, but both observations were not readable within 45 seconds.")
+            raise RuntimeError(
+                "Trace was sent, but both observations were not readable within 45 seconds."
+            )
     finally:
         # Write only test identifiers and results. Never serialize client settings or credentials.
         output_dir = ROOT / "results" / "smoke"
         output_dir.mkdir(parents=True, exist_ok=True)
         result_path = output_dir / f"{run_id}.json"
-        result_path.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        result_path.write_text(
+            json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        )
         client.shutdown()
 
     print(json.dumps(result, ensure_ascii=True, indent=2))

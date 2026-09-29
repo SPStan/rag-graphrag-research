@@ -13,7 +13,9 @@ class SeedSQLiteCacheTests(unittest.TestCase):
             source, destination = root / "source.sqlite", root / "new" / "copy.sqlite"
             conn = sqlite3.connect(source)
             conn.execute("CREATE TABLE cache (request_hash TEXT, response TEXT)")
-            conn.executemany("INSERT INTO cache VALUES (?, ?)", [("a", "one"), ("b", "two")])
+            conn.executemany(
+                "INSERT INTO cache VALUES (?, ?)", [("a", "one"), ("b", "two")]
+            )
             conn.commit()
             conn.close()
             original_hash = sha256_file(source)
@@ -27,7 +29,9 @@ class SeedSQLiteCacheTests(unittest.TestCase):
             self.assertEqual(info["sqlite_row_counts"], {"cache": 2})
             copied = sqlite3.connect(destination)
             try:
-                self.assertEqual(copied.execute("PRAGMA integrity_check").fetchone()[0], "ok")
+                self.assertEqual(
+                    copied.execute("PRAGMA integrity_check").fetchone()[0], "ok"
+                )
             finally:
                 copied.close()
 
