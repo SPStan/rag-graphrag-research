@@ -34,3 +34,15 @@ jobs:
       - name: Measure formatting debt
         continue-on-error: true
         run: python -m ruff format --check scripts data tests
+      - name: Prepare isolated formatting patch
+        if: matrix.os == 'ubuntu-latest'
+        shell: bash
+        run: |
+          git ls-files -z -- 'scripts/*.py' 'data/*.py' 'tests/*.py' ':!:scripts/resume_dense.py' ':!:scripts/vendor/hipporag2_musique_template.py' | xargs -0 python -m ruff format
+          git diff --binary -- scripts data tests > formatting.patch
+      - name: Upload formatting patch
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: formatting-patch
+          path: formatting.patch
