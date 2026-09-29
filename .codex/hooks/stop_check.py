@@ -21,7 +21,10 @@ def main():
         check=False,
     )
     if result.returncode:
-        print("Offline check failed. Run .venv-check Python -m scripts.check and fix it.", file=sys.stderr)
+        print(
+            "Offline check failed. Run .venv-check Python -m scripts.check and fix it.",
+            file=sys.stderr,
+        )
         return 2
     return 0
 

@@ -12,7 +12,16 @@ def main():
     env = dict(os.environ, PYTHONIOENCODING="utf-8", PYTEST_DISABLE_PLUGIN_AUTOLOAD="1")
     commands = [
         [sys.executable, "-m", "pip", "check"],
-        [sys.executable, "-m", "ruff", "check", "scripts", "data", "tests", ".codex/hooks"],
+        [
+            sys.executable,
+            "-m",
+            "ruff",
+            "check",
+            "scripts",
+            "data",
+            "tests",
+            ".codex/hooks",
+        ],
         [
             sys.executable,
             "-m",

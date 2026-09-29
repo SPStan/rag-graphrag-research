@@ -15,9 +15,14 @@ def main():
     )
     python = next((path for path in candidates if path.is_file()), None)
     if python is None:
-        print("Create .venv-check and install requirements-check.lock.txt first.", file=sys.stderr)
+        print(
+            "Create .venv-check and install requirements-check.lock.txt first.",
+            file=sys.stderr,
+        )
         return 1
-    return subprocess.run([str(python), "-m", "scripts.check"], cwd=ROOT, check=False).returncode
+    return subprocess.run(
+        [str(python), "-m", "scripts.check"], cwd=ROOT, check=False
+    ).returncode
 
 
 if __name__ == "__main__":
