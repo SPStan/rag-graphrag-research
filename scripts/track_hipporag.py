@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from scripts.track_dense import export_langfuse, export_mlflow
+from scripts.track_dense import export_langfuse, export_mlflow  # noqa: E402 - repo root is added above
 
 TRACE_NAME = "hipporag2-rag-run"
 

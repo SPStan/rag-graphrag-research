@@ -12,8 +12,7 @@ def main():
     env = dict(os.environ, PYTHONIOENCODING="utf-8", PYTEST_DISABLE_PLUGIN_AUTOLOAD="1")
     commands = [
         [sys.executable, "-m", "pip", "check"],
-        # Adopt fatal diagnostics first; do not reformat historical experiment code.
-        [sys.executable, "-m", "ruff", "check", "--select", "E9,F63,F7,F82",
+        [sys.executable, "-m", "ruff", "check",
          "scripts", "data", "tests"],
         [sys.executable, "-m", "pytest", "-q", "tests"],
     ]

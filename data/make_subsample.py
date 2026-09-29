@@ -9,7 +9,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from scripts.download_data import verify
+from scripts.download_data import verify  # noqa: E402 - repo root is added above
 
 
 def canonical_key(title, text):

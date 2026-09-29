@@ -1,0 +1,4 @@
+# scripts/resume_dense.py has preserved local edits in the shared workspace.
+# Its legacy unused imports are tracked separately until those edits are resolved.
+[lint.per-file-ignores]
+"scripts/resume_dense.py" = ["F401"]

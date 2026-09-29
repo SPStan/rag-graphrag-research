@@ -49,8 +49,6 @@ class HippoRAGRepairExecutorTests(unittest.TestCase):
             execute_openie_task(**kwargs)
         self.assertEqual(calls, [])
 
-        messages = render_openie_messages("openie_ner", "title\ntext",
-                                          prompt_manager=FakePromptManager())
         kwargs["context_preflight"] = {
             "status": "not_ready_for_model_calls",
             "protocol": {"num_ctx": 4096, "ner_max_new_tokens": 1024},

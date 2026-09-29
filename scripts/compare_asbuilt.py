@@ -259,7 +259,8 @@ def run(execute=False):
         metrics = evaluate(rows, labels, manifest=manifest)
         h.write_json_atomic(output.with_suffix('.metrics.json'), metrics)
         dense_metrics = evaluate(dense_rows, labels, manifest=dense)
-        safe_metrics = lambda m: {k: m[k] for k in ('run_id', 'em', 'token_f1', 'recall_at_k', 'generation_stopped_normally', 'usage')}
+        def safe_metrics(m):
+            return {k: m[k] for k in ('run_id', 'em', 'token_f1', 'recall_at_k', 'generation_stopped_normally', 'usage')}
         summary = {'kind': 'diagnostic-as-built-paired-comparison',
                    'independent_benchmark_eligible': False, 'questions': len(rows),
                    'corpus_passages': len(corpus), 'dense': safe_metrics(dense_metrics),

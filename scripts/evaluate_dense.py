@@ -205,7 +205,8 @@ def evaluate(rows, labels, expected_ids=None, manifest=None):
         })
 
     count = len(per_question)
-    mean = lambda key: sum(row[key] for row in per_question) / count
+    def mean(key):
+        return sum(row[key] for row in per_question) / count
     def known_sum(key):
         values = [row.get(key) for row in rows]
         if not all(isinstance(value, (int, float)) and not isinstance(value, bool)

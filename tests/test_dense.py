@@ -9,7 +9,7 @@ import numpy as np
 
 from scripts.answer_parser import extract_reader_answer
 from scripts.run_dense import (EMBED_CACHE_SCHEMA_VERSION, EMBED_TEXT_VERSION,
-                               EMBED_TRUNCATE, ROOT, build_reader_messages, corpus_fingerprint,
+                               EMBED_TRUNCATE, build_reader_messages, corpus_fingerprint,
                                embed_corpus, normalize_rows, recover_cache_build_provenance,
                                require_completed_generation, run, top_k, validate_processed_data,
                                DEMO_USER, DEMO_ASSISTANT, READER_SYSTEM, READER_PROMPT_VERSION,

@@ -12,7 +12,6 @@ import platform
 from pathlib import Path
 import re
 import subprocess
-import sys
 import threading
 import time
 import uuid
@@ -732,7 +731,7 @@ def instrument_models(rag, corpus, query_text_to_id, events, lock,
         try:
             try:
                 result = original_ner(chunk_key, passage)
-            except Exception as exc:
+            except Exception:
                 record_openie_attempt(openie_attempts, openie_attempts_lock,
                                       run_id=local.run_id, pid=local.passage_id,
                                       passage=passage, stage="openie_ner", attempt_number=1,
@@ -1212,7 +1211,6 @@ def run(args):
     queries = queries[:args.limit]
     labels = labels[:args.limit]
     corpus_by_text = {item["title"] + "\n" + item["text"]: item for item in corpus}
-    corpus_by_id = {item["id"]: item for item in corpus}
     question_text_to_id = {query["question"]: query["id"] for query in queries}
     corpus_fingerprint = sha256_bytes(json_bytes(corpus))
     query_fingerprint = sha256_bytes(json_bytes(queries))

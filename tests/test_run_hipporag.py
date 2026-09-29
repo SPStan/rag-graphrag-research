@@ -455,8 +455,8 @@ class HippoRAGRunnerTests(unittest.TestCase):
         }], corpus)
 
         self.assertEqual(summary["phases"]["index_embedding"]["api_embedding_tokens"], 17)
-        for passage_id in ("p1", "p2"):
-            row = summary["per_passage"][passage_id]
+        for pid in ("p1", "p2"):
+            row = summary["per_passage"][pid]
             self.assertIsNone(row["passage_embedding_tokens"])
             self.assertFalse(row["passage_embedding_usage_attributed"])
             self.assertEqual(row["embedding_batches"], 1)
@@ -497,8 +497,8 @@ class HippoRAGRunnerTests(unittest.TestCase):
         self.assertEqual(events[0]["batch_size"], 2)
         self.assertEqual(len(events[0]["items"]), 2)
         self.assertEqual(summary["phases"]["unknown"]["api_embedding_tokens"], 12)
-        for passage_id in ("p1", "p2"):
-            row = summary["per_passage"][passage_id]
+        for pid in ("p1", "p2"):
+            row = summary["per_passage"][pid]
             self.assertIsNone(row["passage_embedding_tokens"])
             self.assertFalse(row["passage_embedding_usage_attributed"])
             self.assertEqual(row["embedding_batches"], 1)
