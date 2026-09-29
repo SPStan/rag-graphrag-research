@@ -6,8 +6,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/stop_check.py\"",
-            "commandWindows": "powershell -NoProfile -Command \"$p=Join-Path (git rev-parse --show-toplevel) '.codex/hooks/stop_check.py'; python $p\"",
+            "command": "python3 .codex/hooks/stop_check.py",
+            "commandWindows": "python .codex/hooks/stop_check.py",
             "timeout": 60,
             "statusMessage": "Checking research code"
           }

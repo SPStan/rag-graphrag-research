@@ -9,8 +9,12 @@ F401 остались только в локально изменённом `scr
 из них 2 pinned-only skipped. Gitleaks v8.30.1 проверил Git history локально с `--redact`:
 exit code 0, находок нет. Новый [CI run](https://github.com/SPStan/rag-graphrag-research/actions/runs/36628383795)
 на `8b795df` прошёл полностью: `secrets`, `check (ubuntu-latest)` и
-`check (windows-latest)`. Локальный pre-commit ещё не установлен/проверен.
-Модельные вызовы не выполнялись.
+`check (windows-latest)`. Отдельная `.venv-check` установлена: `pip check` без
+конфликтов, Ruff lint/format успешны, offline pytest: **151 passed, 2 skipped**.
+Локальный pre-commit установлен в `.git/hooks/pre-commit` и
+`pre_commit run --all-files` завершился exit 0. Команда Codex Stop hook с
+синтетическим событием завершилась exit 0; автоматическую активацию в Codex
+это не подтверждает. Модельные вызовы не выполнялись.
 
 - Основная `.venv`: 153 unittest, OK, 2 pinned-only skips; pip check без конфликтов.
 - Новый синтетический тест retrieval → reader prompt → parser → evaluator прошёл.
