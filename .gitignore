@@ -2,11 +2,14 @@
 .env.*
 !.env.example
 .venv/
+.venv-check/
+.ruff_cache/
 __pycache__/
 *.py[cod]
 .pytest_cache/
 .cache/
 data/raw/
+data/processed/
 indexes/
 storage/
 results/raw/

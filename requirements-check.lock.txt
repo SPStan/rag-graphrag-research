@@ -1,0 +1,17 @@
+# Test-only pins for Python 3.12, not the experiment environment.
+# Used by the Windows/Linux offline CI, independently of local services.
+certifi==2026.7.22
+charset-normalizer==3.5.1
+colorama==0.4.6
+idna==3.20
+iniconfig==2.3.0
+numpy==2.2.6
+packaging==26.3
+pluggy==1.6.0
+pyarrow==19.0.1
+Pygments==2.21.0
+pytest==8.4.1
+python-dotenv==1.1.0
+requests==2.32.4
+ruff==0.11.13
+urllib3==2.8.0

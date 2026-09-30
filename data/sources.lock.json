@@ -1,0 +1,13 @@
+{
+  "repository": "osunlp/HippoRAG_2",
+  "original_repository": "osunlp/HippoRAG_v2",
+  "revision": "5ec05b38deecc3318bb432c69865959c56058990",
+  "files": [
+    {"name": "musique.json", "size": 12543629, "sha256": "98ed4e21d3076532f6388d42320fb809599c63a0d8dffca8ece5e41922be6b46"},
+    {"name": "musique_corpus.json", "size": 6239261, "git_blob_sha1": "01ebb7c8a513e64350768acb5679d8c4ebfde241", "sha256": "73157a03ce3f0b1a5673dd5dc12bb970c24976dbffc688af9eecdd758c97ffcb"},
+    {"name": "hotpotqa.json", "size": 8183058, "git_blob_sha1": "dcb199ffd41a96b5880c08c2948d07ecf4e09e44", "sha256": "3ad9c0bcbf93f41d7004ca6007049c904d2605046b314a2f7ecfb379c64cba6d"},
+    {"name": "hotpotqa_corpus.json", "size": 6414109, "git_blob_sha1": "69b0e793004d8f5ff1760f4ed363ab6f23aaa7d8", "sha256": "9333647b922382776cd2cb02893b390d77984df85a91bfa8be411284978aca7d"},
+    {"name": "2wikimultihopqa.json", "size": 6505789, "git_blob_sha1": "c87b01db53166b2b85b82d8773c6ed685bab2c16", "sha256": "895cba294064df0c3302c76847b1fc08d99b5619f7663dfaa3b65cd780f1cac4"},
+    {"name": "2wikimultihopqa_corpus.json", "size": 3083943, "git_blob_sha1": "d2e236375a97ee41d27287b9efb3ef9036d1e072", "sha256": "9d6e352952aafb18dab22bf8195039461321a44a949df902ae83bce134ad238a"}
+  ]
+}

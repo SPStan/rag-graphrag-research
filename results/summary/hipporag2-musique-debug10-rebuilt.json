@@ -1,0 +1,115 @@
+{
+  "configuration": {
+    "generation_options": {
+      "max_new_tokens": 512,
+      "num_ctx": 4096,
+      "num_predict": 512,
+      "seed": 42,
+      "temperature": 0.0
+    },
+    "reader_prompt_version": "hipporag2-musique-one-shot-v6",
+    "reader_template_sha256": "beb15da1f15193ee88f93cc25c96199d679ade1d652cd9c750cc10e63cbc6047",
+    "retrieval_method": "hipporag2-local-runner-v3",
+    "top_k": 5
+  },
+  "inputs": {
+    "corpus_fingerprint": "cf1a3cdfc85aa582910f777d168dd71e83d9254e05ce7179bf11b2f4a6eeb4dd",
+    "corpus_sha256": "054338e3803fbe69f67037c58d2a49438572ffe2e8c8a047148a2dcdc100e44b",
+    "labels_sha256": "76a36d30f3934c24ad5f7f5eaa6a67e4d26e30f2e29f7302f58d211ccb05da4a",
+    "queries_sha256": "a0fd193f34f153e51052b8346b0db7868c60d68affb6f3e54c56cce7c2c14fc3"
+  },
+  "kind": "local_rag_run_public_summary",
+  "limitations": [
+    "debug10 was used in development and is diagnostic only",
+    "original graph build usage is partly unknown"
+  ],
+  "metrics": {
+    "em": 0.3,
+    "generation_stopped_normally": 9,
+    "metric_version": "hipporag2-squad-normalization-answer-marker-v3",
+    "questions_evaluated": 10,
+    "recall_at_k": 0.7833333333333333,
+    "token_f1": 0.38,
+    "top_k": 5,
+    "usage": {
+      "generation_completion_tokens": 1330,
+      "generation_prompt_tokens": 15891,
+      "generation_server_seconds": null,
+      "generation_wall_seconds": null,
+      "index_embedding_api_total_duration_ns": null,
+      "index_embedding_build_seconds": null,
+      "index_embedding_cache_read_seconds": null,
+      "index_embedding_original_api_total_duration_ns": null,
+      "index_embedding_original_build_run_id": null,
+      "index_embedding_original_build_seconds": null,
+      "index_embedding_original_prompt_tokens": null,
+      "index_embedding_prompt_tokens": 0,
+      "mean_generation_tokens_per_second": null,
+      "note": "Index embedding usage is in the run manifest; null means unavailable, not zero. Reader replays do not repeat query embedding or retrieval; their source run is recorded separately.",
+      "query_embedding_client_seconds": null,
+      "query_embedding_prompt_tokens": 241,
+      "question_end_to_end_seconds": null,
+      "retrieval_seconds": 3.240079800001695
+    }
+  },
+  "models": {
+    "embedding": {
+      "details": {
+        "context_length": 8192,
+        "embedding_length": 1024,
+        "families": [
+          "bert"
+        ],
+        "family": "bert",
+        "format": "gguf",
+        "parameter_size": "566.70M",
+        "parent_model": "",
+        "quantization_level": "F16"
+      },
+      "digest": "7907646426070047a77226ac3e684fbbe8410524f7b4a74d02837e43f2146bab",
+      "name": "bge-m3:latest",
+      "size_bytes": 1157672605
+    },
+    "generation": {
+      "details": {
+        "context_length": 32768,
+        "embedding_length": 2048,
+        "families": [
+          "qwen2"
+        ],
+        "family": "qwen2",
+        "format": "gguf",
+        "parameter_size": "3.1B",
+        "parent_model": "",
+        "quantization_level": "Q4_K_M"
+      },
+      "digest": "357c53fb659c5076de1d65ccb0b397446227b71a42be9d1603d46168015c9e4b",
+      "name": "qwen2.5:3b",
+      "size_bytes": 1929912432
+    }
+  },
+  "privacy": "No raw answers, prompts, passages, local paths, secrets or tracker URLs are included.",
+  "run": {
+    "dataset": "musique",
+    "expected_questions": 10,
+    "manifest_sha256": "b9c6521d483234c6fddedad03cf1017105acbe34b0a49d7cd301298b50ae2636",
+    "metrics_sha256": "64e1dab0a87e5dd05b83ead1198b2eb0902b3d6ea54bd9feef593742a3fb5ca3",
+    "mode": "hipporag2-local-runner-v3",
+    "results_sha256": "8b49e2b030508f7c02bc9ed5171724b81521a1f06b131064a8adebb344fde4d4",
+    "run_id": "9cac28e5-2885-4510-b227-ecba06f1b3de",
+    "status": "completed"
+  },
+  "schema_version": 1,
+  "source": {
+    "commit": "216982db10b028e056665a67295dbd26b4d82745",
+    "dirty": true,
+    "source_sha256": {
+      "requirements-hipporag2.txt": "73d32425c4b06b21716c60887a830b97c6eb694125ca812c770177d931b7e0af",
+      "scripts/answer_parser.py": "70fcba402589b61440c75d77fafcb76bb43fa53581a2ee68d3a5185bb5a359bd",
+      "scripts/evaluate_dense.py": "841a290eedd7eda5922223077c40e0f1ca91d0073186065bb185e204bc206fa0",
+      "scripts/run_dense.py": "818c0f804625ef36f56370a538bf650d80737fd7a81ae127d7170722127c6762",
+      "scripts/run_hipporag.py": "6c1a21b98fa60cc039b503694a4ba5a427ea99df08501774c05f817be5f1b836",
+      "scripts/vendor/hipporag2_musique_template.py": "fada8f3cffcd2b657f2eec268f46e5deafc09471d609ba6292a58e3baea79c51"
+    }
+  }
+}

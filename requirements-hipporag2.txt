@@ -1,0 +1,2 @@
+# Install only into a dedicated environment. Do not combine with requirements.lock.txt.
+git+https://github.com/OSU-NLP-Group/HippoRAG.git@1438aba3fc44ff10573e5a5e1e7cc3c7f9794aff

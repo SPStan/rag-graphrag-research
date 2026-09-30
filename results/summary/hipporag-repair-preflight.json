@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "source_run_id": "e78eff08-532a-40b3-a359-49a6b08b32a7",
+  "status": "not_ready_for_model_calls",
+  "source_index_modified": false,
+  "llm_calls_during_preflight": 0,
+  "current_artifacts_match_original_openie_state": true,
+  "post_repair_vector_compatibility_verified": false,
+  "targeted_calls_first_pass_estimate": 196,
+  "source_artifacts": {
+    "openie_state": "728b93a078a28eee94267a9da0522c6460d535a66aa8cf55527ab69f12754f85",
+    "graph": "cc7d53101cd7fc53e95beaece956ed5ec6cc9e19cdb30b1ecf84221567d0fbe6",
+    "chunk_metadata": "7e8b519b809923a54483ec5377077332068f36d0e57c4206fc4cf886ffbd05d0",
+    "chunk_embeddings": "b9435c1b72271555cd1da3c91ad082f6b5ca167514e38d626c71bf6765260f84",
+    "entity_embeddings": "90ebde2437bed03a487aa95625025aaeb897fd32448e99d17c13b15a691ebf2c",
+    "fact_embeddings": "7fe8f81c07ce51aa915b6ae25333a6dd5ec9eb1c1e58114d3407c5bc2cbe85b6",
+    "index_manifest": "696eca0444d8818c9c62c1ab9c6855de8ecd86130431d3730eb4cd95ede2c79d"
+  },
+  "synthetic_preflight_checks": {
+    "hash_verified_copy_helper": "passed",
+    "attempt_ledger_merge": "passed",
+    "openie_state_patch_validation": "passed",
+    "vector_id_filter": "passed",
+    "dependency_refresh_gate": "passed",
+    "bounded_third_attempt_gate": "passed",
+    "truncated_partial_recovery_telemetry": "passed",
+    "one_task_executor": "passed with fake callbacks; no model requests",
+    "pinned_openie_parser": "passed in isolated HippoRAG environment; no model requests",
+    "uncached_adapter_guard": "requires zero SDK retries, explicit execution flag, and exact tokenizer context report",
+    "copy_only_clone_assembly": "passed with synthetic artifacts; not run on source index",
+    "unit_tests": "131 passed",
+    "repair_journal": "six synthetic checkpoint tests passed; primitive not integrated into a schedule runner",
+    "pip_check": "passed"
+  },
+  "repair_plan": {
+    "report": "hipporag-repair-plan.json",
+    "sha256": "f6ea09286136724f67621e24c4efc64913051a5fea1456d808a88ea1a6ec6d7e",
+    "scheduled_first_pass_requests": 196,
+    "ner_requests": 38,
+    "triple_requests": 158,
+    "dependent_triple_refreshes": 38,
+    "remedial_attempts": 2,
+    "model_requests_made": 0
+  },
+  "prompt_preflight": {
+    "report": "hipporag-repair-prompt-preflight.json",
+    "sha256": "9cbcb1311db62472da97792f3a437243db210d7e880143fe8bd36594ee0abf36",
+    "rendered_prompts": 158,
+    "pending_triple_prompts": 38,
+    "max_ner_prompt_utf8_bytes": 2184,
+    "max_known_triple_prompt_utf8_bytes": 4450,
+    "exact_token_counts_available": false,
+    "model_requests_made": 0
+  },
+  "blockers": [
+    "Ordered repair/resume integration is missing. Journal primitives do not yet persist accepted values or enforce a single writer. Reuse the existing embedding transport rather than adding a second one.",
+    "158 prompts were rendered with the pinned templates, but exact model-token counts remain unavailable; 38 dependent triple prompts also require repaired NER outputs before rendering.",
+    "Exact entity/fact vector sets can only be confirmed after repaired OpenIE outputs exist; exact reconciliation is tested synthetically but has not been exercised on a real clone.",
+    "The pinned HippoRAG force-index path has not been exercised against a repaired clone with filtered vector stores and the updated gate."
+  ],
+  "next_step": "Complete TASKS R1 with one offline repair/resume integration, then R2 graph/transport integration and R3 bounded context strategy. Stop before real requests/rebuild/QA.",
+  "scope_note": "This report contains no dataset passages, prompts, generated answers, local paths, secrets, or service URLs.",
+  "review": {
+    "code_commit": "e7a0367",
+    "report": "../../docs/REVIEW_2026-09-25.md",
+    "method": "code inspection and synthetic temporary journal checks; no model calls",
+    "full_suite_rerun": false,
+    "unresolved": [
+      "Successful extraction values are not durably bound to completed task records.",
+      "Two open journal writers can begin the same task; task fields bypass content validation.",
+      "Actual model request config is not bound to the context-fit report.",
+      "Clone assembly retains the old graph and manifest until graph integration."
+    ]
+  }
+}

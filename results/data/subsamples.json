@@ -1,0 +1,49 @@
+{
+  "source_repository": "osunlp/HippoRAG_2",
+  "source_revision": "5ec05b38deecc3318bb432c69865959c56058990",
+  "protocol": "s500-c5500-seed42-v1",
+  "datasets": {
+    "musique": {
+      "source_questions": 1000,
+      "source_passages": 11656,
+      "unique_source_passages": 11655,
+      "canonical_duplicates_removed": 1,
+      "selected_questions": 500,
+      "selected_passages": 5500,
+      "supporting_passages": 882,
+      "distractors": 4618,
+      "source_sha256": {
+        "musique.json": "98ed4e21d3076532f6388d42320fb809599c63a0d8dffca8ece5e41922be6b46",
+        "musique_corpus.json": "73157a03ce3f0b1a5673dd5dc12bb970c24976dbffc688af9eecdd758c97ffcb"
+      },
+      "ids_sha256": "02a926dab42e30f02b5a515d39204f83b02cd81ed42be97d46757dcbec53dd18",
+      "output_sha256": {
+        "queries.json": "a0fd193f34f153e51052b8346b0db7868c60d68affb6f3e54c56cce7c2c14fc3",
+        "labels.json": "76a36d30f3934c24ad5f7f5eaa6a67e4d26e30f2e29f7302f58d211ccb05da4a",
+        "corpus.json": "054338e3803fbe69f67037c58d2a49438572ffe2e8c8a047148a2dcdc100e44b"
+      },
+      "all_supporting_present": true
+    },
+    "hotpotqa": {
+      "source_questions": 1000,
+      "source_passages": 9811,
+      "unique_source_passages": 9811,
+      "canonical_duplicates_removed": 0,
+      "selected_questions": 500,
+      "selected_passages": 5500,
+      "supporting_passages": 996,
+      "distractors": 4504,
+      "source_sha256": {
+        "hotpotqa.json": "3ad9c0bcbf93f41d7004ca6007049c904d2605046b314a2f7ecfb379c64cba6d",
+        "hotpotqa_corpus.json": "9333647b922382776cd2cb02893b390d77984df85a91bfa8be411284978aca7d"
+      },
+      "ids_sha256": "9ebade7cdff6574da8f15c14030124275e41ca5f9edb155c9c93ac4277a52e81",
+      "output_sha256": {
+        "queries.json": "89ba1c856cb3c999dcc9e743779ed367375d0372cfb62727edb5558a5eb7f9aa",
+        "labels.json": "42df93c1491eb7e41d46e7b562c0bad4352488ca8587c09d35eedee362875535",
+        "corpus.json": "9b161e9bbfee6ecfe304816dcb847f8763c3d55b06dbf04d002726405e3e3c61"
+      },
+      "all_supporting_present": true
+    }
+  }
+}

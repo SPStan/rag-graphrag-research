@@ -1,0 +1,103 @@
+{
+  "schema_version": 1,
+  "run_type": "local_sample_smoke",
+  "checked_at": "2026-09-24",
+  "upstream": {
+    "repository": "https://github.com/OSU-NLP-Group/HippoRAG",
+    "commit": "1438aba3fc44ff10573e5a5e1e7cc3c7f9794aff",
+    "package_version": "2.0.0a5",
+    "sample_id": "sample/question_1.json",
+    "sample_sha256": "78EA468558731544FF0443CDAC1D278927F1DD24290E5F46A8C2590F50EAB5FC",
+    "corpus_sha256": "AE16A6889EE0E86ABEDEE57EFDC061ED0389720583DD66E77CA2A02C8A562F06"
+  },
+  "environment": {
+    "os": "Windows",
+    "python": "3.12.6",
+    "isolation": "separate temporary venv; project .venv unchanged",
+    "pip_check": "passed"
+  },
+  "models": {
+    "generation": {
+      "name": "qwen2.5:3b",
+      "digest": "357c53fb659c5076de1d65ccb0b397446227b71a42be9d1603d46168015c9e4b"
+    },
+    "embedding": {
+      "name": "bge-m3:latest",
+      "digest": "7907646426070047a77226ac3e684fbbe8410524f7b4a74d02837e43f2146bab",
+      "dimension": 1024
+    }
+  },
+  "configuration": {
+    "endpoint_kind": "Ollama OpenAI-compatible API",
+    "openie_response_format": {
+      "type": "json_object"
+    },
+    "embedding_batch_size": 1,
+    "dataset_documents": 3,
+    "query_count": 1
+  },
+  "graph": {
+    "phrase_nodes": 27,
+    "passage_nodes": 3,
+    "total_nodes": 30,
+    "extracted_triples": 24,
+    "total_edges": 56
+  },
+  "retrieval_and_reader": {
+    "question_id": "sample/question_1.json",
+    "retrieved_titles": [
+      "Karl Deisseroth",
+      "David Eagleman",
+      "Thomas C. Sudhof"
+    ],
+    "supporting_title_rank": 3,
+    "recall_at_5": 1.0,
+    "prediction": "Karl Alexander Deisseroth works on Alzheimer's.",
+    "gold_answer": "Thomas C. Sudhof",
+    "exact_match": 0.0,
+    "f1": 0.0,
+    "note": "One sample question only; not a quality benchmark. Gold labels are used after generation for evaluation."
+  },
+  "usage": {
+    "source": "usage fields returned by local Ollama API; no estimator used",
+    "embedding_tokens_total": 1293,
+    "embedding_requests": 55,
+    "chat_prompt_tokens_total": 6795,
+    "chat_completion_tokens_total": 1044,
+    "chat_requests": 8,
+    "passage_usage": [
+      {
+        "title": "Thomas C. Sudhof",
+        "passage_embedding_tokens": 108,
+        "openie_prompt_tokens": 883,
+        "openie_completion_tokens": 207
+      },
+      {
+        "title": "David Eagleman",
+        "passage_embedding_tokens": 125,
+        "openie_prompt_tokens": 922,
+        "openie_completion_tokens": 221
+      },
+      {
+        "title": "Karl Deisseroth",
+        "passage_embedding_tokens": 122,
+        "openie_prompt_tokens": 946,
+        "openie_completion_tokens": 369
+      }
+    ],
+    "shared_calls": {
+      "graph_retrieval_prompt_tokens": 2955,
+      "graph_retrieval_completion_tokens": 81,
+      "qa_prompt_tokens": 1089,
+      "qa_completion_tokens": 166
+    }
+  },
+  "cache_replay": {
+    "passage_embeddings_reused": 3,
+    "entity_embeddings_reused": 27,
+    "fact_embeddings_reused": 24,
+    "cached_chat_calls": 2,
+    "query_embedding_repeated_tokens": 12
+  },
+  "windows_compatibility": "Temporary upstream copy replaced ':' with '_' in working-directory labels; no source change to the pinned upstream commit and no project patch yet."
+}

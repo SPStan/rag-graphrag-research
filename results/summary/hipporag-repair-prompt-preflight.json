@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "status": "rendered_no_model_requests",
+  "preflight_status": "not_ready_for_model_calls",
+  "upstream_commit": "1438aba3fc44ff10573e5a5e1e7cc3c7f9794aff",
+  "model_digest": "357c53fb659c5076de1d65ccb0b397446227b71a42be9d1603d46168015c9e4b",
+  "num_ctx": 4096,
+  "exact_prompt_token_counts": null,
+  "by_stage": {
+    "openie_ner": {
+      "rendered_count": 38,
+      "max_rendered_prompt_utf8_bytes": 2184,
+      "median_rendered_prompt_utf8_bytes": 1551.0,
+      "max_output_tokens": 1024,
+      "prompt_sha256_set": "52028ad0c776ce0952bebb7d792ff1e696542b22977b53359fd01fb28c1cd780"
+    },
+    "openie_triples": {
+      "rendered_count": 120,
+      "max_rendered_prompt_utf8_bytes": 4450,
+      "median_rendered_prompt_utf8_bytes": 3125.5,
+      "max_output_tokens": 3072,
+      "prompt_sha256_set": "3488818ee144c2a39fce19df0f76602006958023516ad14fec7e22c4fa1f8367"
+    }
+  },
+  "not_renderable_yet": {
+    "stage": "openie_triples",
+    "count": 38,
+    "reason": "Triple prompts depend on new NER repair outputs."
+  },
+  "blocker": "UTF-8 byte lengths are diagnostics, not tokenizer counts. Exact input-token fit against num_ctx cannot be verified by this no-model-call preflight.",
+  "model_requests_made": 0,
+  "output_caps_source": "ADR-0008 retry-cap proposal; must be frozen before execution",
+  "source_run_id": "e78eff08-532a-40b3-a359-49a6b08b32a7",
+  "hipporag_package_version": "2.0.0a5",
+  "installed_upstream_commit": "1438aba3fc44ff10573e5a5e1e7cc3c7f9794aff",
+  "source_manifest_sha256": "35fbf63508e611366fee129f1ede0994f2c9954242d6e7e89a603aed456159f2",
+  "source_corpus_sha256": "054338e3803fbe69f67037c58d2a49438572ffe2e8c8a047148a2dcdc100e44b",
+  "plan_sha256": "f6ea09286136724f67621e24c4efc64913051a5fea1456d808a88ea1a6ec6d7e"
+}

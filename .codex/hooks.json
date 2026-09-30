@@ -1,0 +1,18 @@
+{
+  "description": "Check the research repository before a Codex turn ends.",
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .codex/hooks/stop_check.py",
+            "commandWindows": "python .codex/hooks/stop_check.py",
+            "timeout": 60,
+            "statusMessage": "Checking research code"
+          }
+        ]
+      }
+    ]
+  }
+}
