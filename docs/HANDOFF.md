@@ -34,7 +34,7 @@ LUNA_REVIEW_HANDOFF.md и пользовательские TEACHER_REPORT_2026-0
 
 ## Где остановились
 
-- Ветка `codex/local-rag-mvp`, Draft [PR #1](https://github.com/SPStan/rag-graphrag-research/pull/1).
+- Ветка `codex/local-rag-mvp`, [PR #1](https://github.com/SPStan/rag-graphrag-research/pull/1) открыт для ревью; `Resurrectiontent` назначен reviewer 30 сентября.
 - Dense candidate S500[200:300] уже завершён: `98d8b412-cec6-45e4-9c14-0e4ad85855bb`; EM 0,110, F1 0,1858, recall@5 0,6058. Его не надо повторять ради HippoRAG.
 - HippoRAG source `e78eff08-532a-40b3-a359-49a6b08b32a7`: 5500 passages, индекс диагностический; 160 unresolved OpenIE stage outcomes, QA нет.
 - План первого repair-прохода: 38 NER + 158 triples = 196 задач, включая 38 зависимых triple refresh и две attempt-3. Это не полный бюджет с будущими повторными попытками.
@@ -68,7 +68,7 @@ R1: checkpoint/resume, сохранение values/SHA, один writer, зав�
 При новом запуске проверить сервисы только тогда, когда они действительно нужны; offline-тестам они не нужны.
 На момент ревью локально изменены WORK_PLAN.md и scripts/resume_dense.py; docs/LUNA_REVIEW_HANDOFF.md untracked. Сохранить их байты, не добавлять автоматически.
 Старый LUNA_REVIEW_HANDOFF от 23 сентября — исторический аудит, не новая очередь; уже исправленный reader и evaluator не переделывать.
-Явно выбирать файлы для коммита; push в текущую ветку после завершённого блока. PR не сливать, Draft не снимать.
+Явно выбирать файлы для коммита; push в текущую ветку после завершённого блока. PR не сливать автоматически.
 
 ## Экономия и формат отчёта
 
