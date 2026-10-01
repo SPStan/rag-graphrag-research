@@ -1,6 +1,7 @@
 """Offline checks for the pinned comparison views and usage audit."""
 
 import json
+from pathlib import Path
 import pytest
 
 from scripts.freeze_comparison_protocol import audit_usage, freeze, make_split
@@ -95,7 +96,10 @@ def test_freeze_refuses_planned_signal_check_and_detects_tampering(tmp_path):
     )
     with pytest.raises(ValueError, match="Signal check IDs"):
         freeze(ids_dir, raw, summary)
-    (raw / "r.manifest.json").unlink()
+    dump(
+        raw / "r.manifest.json",
+        {"dataset": "musique", "run_id": "r", "expected_question_ids": ["musique-0"]},
+    )
     freeze(ids_dir, raw, summary)
     freeze(ids_dir, raw, summary, verify_only=True)
     split_path = ids_dir / "musique_comparison_split.json"
@@ -115,6 +119,64 @@ def test_freeze_refuses_signal_check_id_mentioned_in_tracked_doc(tmp_path):
         directory.mkdir(parents=True)
     for name in ("musique", "hotpotqa"):
         dump(ids_dir / f"{name}_s500.json", source(name))
+    dump(
+        raw / "r.manifest.json",
+        {"dataset": "musique", "run_id": "r", "expected_question_ids": ["musique-0"]},
+    )
     (docs / "example.md").write_text("musique-300", encoding="utf-8")
     with pytest.raises(ValueError, match="tracked docs"):
         freeze(ids_dir, raw, summary)
+
+
+def test_published_splits_verify_without_private_data():
+    root = Path(__file__).resolve().parents[1]
+    freeze(
+        root / "data/ids",
+        root / "results/raw",
+        root / "results/summary",
+        verify_only=True,
+        splits_only=True,
+    )
+
+
+def test_missing_raw_is_not_empty_history(tmp_path):
+    summary = tmp_path / "summary"
+    summary.mkdir()
+    with pytest.raises(ValueError, match="existing raw"):
+        audit_usage(
+            {name: source(name) for name in ("musique", "hotpotqa")},
+            tmp_path / "missing",
+            summary,
+        )
+
+
+def test_freeze_does_not_overwrite_history_implicitly(tmp_path):
+    ids_dir, raw, summary = (tmp_path / name for name in ("ids", "raw", "summary"))
+    for directory in (ids_dir, raw, summary):
+        directory.mkdir()
+    for name in ("musique", "hotpotqa"):
+        dump(ids_dir / f"{name}_s500.json", source(name))
+    with pytest.raises(ValueError, match="empty history"):
+        freeze(ids_dir, raw, summary)
+    manifest = {
+        "dataset": "musique",
+        "run_id": "r",
+        "expected_question_ids": ["musique-0"],
+    }
+    dump(raw / "r.manifest.json", manifest)
+    freeze(ids_dir, raw, summary)
+    snapshot = {
+        p: p.read_bytes()
+        for p in [*ids_dir.glob("*split.json"), summary / "question-usage-audit.json"]
+    }
+    manifest["expected_question_ids"] = ["musique-1"]
+    dump(raw / "r.manifest.json", manifest)
+    with pytest.raises(ValueError, match="Refusing to overwrite"):
+        freeze(ids_dir, raw, summary)
+    assert all(path.read_bytes() == value for path, value in snapshot.items())
+    freeze(ids_dir, raw, summary, refresh_audit=True)
+    freeze(ids_dir, raw, summary, verify_only=True)
+    split = ids_dir / "musique_comparison_split.json"
+    split.write_text("{}", encoding="utf-8")
+    with pytest.raises(ValueError, match="Refusing to overwrite"):
+        freeze(ids_dir, raw, summary, refresh_audit=True)

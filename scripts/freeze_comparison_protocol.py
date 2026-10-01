@@ -40,6 +40,12 @@ def referenced_run_ids(value):
 def make_split(source, source_sha256):
     ids = source["question_ids"]
     views = source["views"]
+    if source.get("dataset") not in DATASETS:
+        raise ValueError("Unsupported dataset")
+    if not isinstance(ids, list) or any(
+        not isinstance(qid, str) or not qid for qid in ids
+    ):
+        raise ValueError("Question IDs must be non-empty strings")
     if source["seed"] != 42 or len(ids) != 500 or len(set(ids)) != 500:
         raise ValueError("S500 must contain 500 unique IDs with seed 42")
     if views["pilot200"] != ids[:200] or views["holdout100"] != ids[400:]:
@@ -71,6 +77,8 @@ def make_split(source, source_sha256):
 
 def audit_usage(id_sources, raw_dir, summary_dir):
     """Store only ID positions, run IDs and hashes, never question/answer text."""
+    if not raw_dir.is_dir() or not summary_dir.is_dir():
+        raise ValueError("Audit requires existing raw and summary directories")
     positions = {
         dataset: {qid: i for i, qid in enumerate(source["question_ids"])}
         for dataset, source in id_sources.items()
@@ -86,8 +94,10 @@ def audit_usage(id_sources, raw_dir, summary_dir):
         expected = row.get("expected_question_ids")
         if not isinstance(run_id, str) or not isinstance(expected, list):
             raise ValueError(f"Invalid manifest metadata: {path.name}")
-        if any(not isinstance(qid, str) for qid in expected):
+        if any(not isinstance(qid, str) or not qid for qid in expected):
             raise ValueError(f"Invalid planned ID: {path.name}")
+        if len(expected) != len(set(expected)):
+            raise ValueError(f"Duplicate planned question ID: {path.name}")
         key = (dataset, run_id)
         if key in runs:
             raise ValueError(f"Duplicate manifest run ID: {run_id}")
@@ -239,12 +249,27 @@ def render_json(value):
     return json.dumps(value, ensure_ascii=False, indent=2) + "\n"
 
 
-def freeze(ids_dir, raw_dir, summary_dir, verify_only=False, splits_only=False):
+def freeze(
+    ids_dir,
+    raw_dir,
+    summary_dir,
+    verify_only=False,
+    splits_only=False,
+    refresh_audit=False,
+):
+    if splits_only and not verify_only:
+        raise ValueError("Splits-only mode is read-only")
+    if refresh_audit and (verify_only or splits_only):
+        raise ValueError(
+            "Audit refresh cannot be combined with verification or splits-only"
+        )
     sources = {}
     splits = {}
     for dataset in DATASETS:
         source_path = ids_dir / f"{dataset}_s500.json"
         sources[dataset] = read_json(source_path)
+        if sources[dataset].get("dataset") != dataset:
+            raise ValueError(f"Dataset does not match file: {source_path.name}")
         splits[dataset] = make_split(sources[dataset], sha256(source_path))
     outputs = {
         ids_dir / f"{dataset}_comparison_split.json": split
@@ -253,6 +278,10 @@ def freeze(ids_dir, raw_dir, summary_dir, verify_only=False, splits_only=False):
     audit = None
     if not splits_only:
         audit = audit_usage(sources, raw_dir, summary_dir)
+        if not audit["runs"]:
+            raise ValueError(
+                "No local run metadata found; cannot freeze an empty history"
+            )
         audit["source_sha256"] = {
             dataset: sha256(ids_dir / f"{dataset}_s500.json") for dataset in DATASETS
         }
@@ -267,14 +296,19 @@ def freeze(ids_dir, raw_dir, summary_dir, verify_only=False, splits_only=False):
         ):
             raise ValueError("Signal check IDs occur in tracked docs")
         outputs[summary_dir / "question-usage-audit.json"] = audit
+    # Validate every destination before writing any file. Existing splits are immutable.
     for path, value in outputs.items():
         expected = render_json(value)
         if verify_only:
             if not path.is_file() or path.read_text(encoding="utf-8") != expected:
                 raise ValueError(f"Frozen file differs: {path.name}")
-        else:
+        elif path.is_file() and path.read_text(encoding="utf-8") != expected:
+            if not (refresh_audit and path.name == "question-usage-audit.json"):
+                raise ValueError(f"Refusing to overwrite frozen file: {path.name}")
+    if not verify_only:
+        for path, value in outputs.items():
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(expected, encoding="utf-8", newline="\n")
+            path.write_text(render_json(value), encoding="utf-8", newline="\n")
     return audit["totals"] if audit is not None else "S500 splits verified"
 
 
@@ -283,7 +317,20 @@ def main():
     parser.add_argument("--ids-dir", type=Path, default=Path("data/ids"))
     parser.add_argument("--raw-dir", type=Path, default=Path("results/raw"))
     parser.add_argument("--summary-dir", type=Path, default=Path("results/summary"))
-    parser.add_argument("--verify-only", action="store_true")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
+        "--verify-only", action="store_true", help="Default: read-only verification"
+    )
+    mode.add_argument(
+        "--write",
+        action="store_true",
+        help="Create missing files; never replace different frozen files",
+    )
+    mode.add_argument(
+        "--refresh-audit",
+        action="store_true",
+        help="Explicitly update audit, preserving frozen splits",
+    )
     parser.add_argument("--splits-only", action="store_true")
     args = parser.parse_args()
     print(
@@ -292,8 +339,9 @@ def main():
                 args.ids_dir,
                 args.raw_dir,
                 args.summary_dir,
-                args.verify_only,
+                not (args.write or args.refresh_audit),
                 args.splits_only,
+                args.refresh_audit,
             ),
             indent=2,
         )
