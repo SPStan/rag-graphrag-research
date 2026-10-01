@@ -8,7 +8,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def main():
+def main() -> int:
     candidates = (
         ROOT / ".venv-check" / "Scripts" / "python.exe",
         ROOT / ".venv-check" / "bin" / "python",
@@ -16,7 +16,7 @@ def main():
     python = next((path for path in candidates if path.is_file()), None)
     if python is None:
         print(
-            "Create .venv-check and install requirements-check.lock.txt first.",
+            "Run uv sync --locked with UV_PROJECT_ENVIRONMENT=.venv-check first.",
             file=sys.stderr,
         )
         return 1

@@ -9,7 +9,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def main():
+def main() -> int:
     event = json.load(sys.stdin)
     if event.get("stop_hook_active"):
         return 0
