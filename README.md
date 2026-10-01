@@ -22,28 +22,27 @@ Windows и виртуализация подготовлены; Ubuntu рабо�
 
 ## Проверка кода без моделей и датасетов
 
-Для ревью достаточно Python 3.12 и отдельного окружения. Из корня чистого клона:
+Для ревью достаточно Python 3.12 и `uv`. Из корня чистого клона:
 
 ```powershell
-python -m venv .venv-check
-.\.venv-check\Scripts\python.exe -m pip install -r requirements-check.lock.txt
-.\.venv-check\Scripts\python.exe -m scripts.check
+$env:UV_PROJECT_ENVIRONMENT = '.venv-check'
+uv sync --locked
+uv run --locked python -m scripts.check
 ```
 
-На Linux путь к Python — `.venv-check/bin/python`. После активации окружения
-та же проверка доступна как `make check`, если установлен Make. CI использует
-`python -m scripts.check` на Windows и Linux. Команда проверяет зависимости,
-Ruff lint/format и тесты. Сохранённый локальный `scripts/resume_dense.py` и
+Та же проверка доступна как `make check`, если установлен Make. CI использует
+`uv run --locked python -m scripts.check` на Windows и Linux. Команда проверяет зависимости,
+Ruff lint/format, ограниченную область mypy и offline-тесты. Сохранённый локальный `scripts/resume_dense.py` и
 закреплённый vendor-шаблон имеют ограниченные исключения по ADR-0013.
 Pytest блокирует сетевые соединения тестов. Проверки реальных данных и закреплённого
 HippoRAG пропускаются без соответствующих данных/окружения. Синтетический smoke
 проверяет retrieval → reader prompt → parser → evaluator, но не качество модели.
 Docker, API-ключи и Ollama для этой проверки не нужны.
 
-`requirements-check.lock.txt` фиксирует только зависимости offline-проверок,
+`uv.lock` фиксирует только зависимости offline-проверок,
 не воспроизводит окружение экспериментов. Конфигурация pre-commit вызывает ту же
-команду. После установки `pre-commit` в `.venv-check` локальный hook ставится
-командой `.\.venv-check\Scripts\python.exe -m pre_commit install`. Он также
+команду. После `uv sync --locked` локальный hook ставится
+командой `uv run --locked pre-commit install`. Он также
 запускает Gitleaks через Docker; Docker Desktop должен быть открыт. CI отдельно
 сканирует историю Git. Проектный Codex Stop hook требует доверия к файлу
 `.codex/hooks.json` в интерфейсе Codex; одна конфигурация ещё не подтверждает

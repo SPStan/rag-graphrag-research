@@ -11,3 +11,11 @@ repos:
     rev: v8.30.1
     hooks:
       - id: gitleaks-docker
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: detect-private-key
+      - id: check-added-large-files
+        args: [--maxkb=10240]
+      - id: check-yaml
+      - id: check-toml

@@ -8,7 +8,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def main():
+def main() -> int:
     env = dict(os.environ, PYTHONIOENCODING="utf-8", PYTEST_DISABLE_PLUGIN_AUTOLOAD="1")
     commands = [
         [sys.executable, "-m", "pip", "check"],
@@ -37,7 +37,8 @@ def main():
             "tests",
             ".codex/hooks",
         ],
-        [sys.executable, "-m", "pytest", "-q", "tests"],
+        [sys.executable, "-m", "mypy"],
+        [sys.executable, "-m", "pytest", "-p", "no:cacheprovider", "-q", "tests"],
     ]
     for command in commands:
         print("+ " + " ".join(command[1:]), flush=True)

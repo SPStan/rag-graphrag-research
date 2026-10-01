@@ -1,0 +1,22 @@
+name: Experiment
+description: One hypothesis and one recorded outcome
+title: "exp: "
+projects: ["SPStan/1"]
+body:
+  - type: textarea
+    id: hypothesis
+    attributes:
+      label: Hypothesis
+    validations:
+      required: true
+  - type: textarea
+    id: setup
+    attributes:
+      label: Dataset, models and metrics
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Run ID, result and interpretation
+      description: Fill in after the run; link a safe public summary.
