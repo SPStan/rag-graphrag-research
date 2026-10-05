@@ -1,5 +1,9 @@
 # Текущая работа и критерии завершения
 
+## Активный блок 2 октября — issue #7: протокол сравнения и ID
+
+Зафиксировать для MuSiQue/HotpotQA исходные S500 и pilot200, таблицу общих условий трёх методов, историю planned/observed ID и отдельные части для сигнала задачи #21. Не выполнять LLM-вызовы и эксперименты. Проверка — `python scripts/freeze_comparison_protocol.py --verify-only --splits-only` в чистом checkout и `--verify-only` там, где есть локальные raw; затем offline check и CI. Критерии и границы — [issue #7](https://github.com/SPStan/rag-graphrag-research/issues/7), [ADR-0015](../.adr/0015-pinned-comparison-and-signal-split.md), [DATA](DATA.md). Прежние задачи ниже — история; после этого блока переход к issue #8 о целевом API.
+
 ## Активный блок 1 октября — лабораторный шаблон в существующем репозитории
 
 Руководитель слил PR #1. Следующий запрос: оставить этот же GitHub-репозиторий,
