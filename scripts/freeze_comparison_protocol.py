@@ -77,10 +77,14 @@ def make_split(source, source_sha256):
     }
 
 
-def audit_usage(id_sources, raw_dir, summary_dir):
+def audit_usage(id_sources, raw_dir, summary_dir, docs_dir=None):
     """Store only ID positions, run IDs and hashes, never question/answer text."""
     if not raw_dir.is_dir() or not summary_dir.is_dir():
         raise ValueError("Audit requires existing raw and summary directories")
+    if docs_dir is None:
+        docs_dir = Path(__file__).resolve().parents[1] / "docs"
+    if not docs_dir.is_dir():
+        raise ValueError("Audit requires existing docs directory")
     positions = {
         dataset: {qid: i for i, qid in enumerate(source["question_ids"])}
         for dataset, source in id_sources.items()
@@ -202,7 +206,6 @@ def audit_usage(id_sources, raw_dir, summary_dir):
         observed[entry["dataset"]].update(entry["observed_positions"])
         planned[entry["dataset"]].update(entry["planned_positions"])
     documented_exposures = []
-    docs_dir = summary_dir.parent.parent / "docs"
     for path in sorted(docs_dir.glob("*.md")):
         content = path.read_text(encoding="utf-8")
         for dataset in DATASETS:
@@ -258,6 +261,7 @@ def freeze(
     verify_only=False,
     splits_only=False,
     refresh_audit=False,
+    docs_dir=None,
 ):
     if splits_only and not verify_only:
         raise ValueError("Splits-only mode is read-only")
@@ -279,7 +283,7 @@ def freeze(
     }
     audit = None
     if not splits_only:
-        audit = audit_usage(sources, raw_dir, summary_dir)
+        audit = audit_usage(sources, raw_dir, summary_dir, docs_dir)
         if not audit["runs"]:
             raise ValueError(
                 "No local run metadata found; cannot freeze an empty history"
@@ -332,6 +336,9 @@ def main():
     parser.add_argument("--ids-dir", type=Path, default=Path("data/ids"))
     parser.add_argument("--raw-dir", type=Path, default=Path("results/raw"))
     parser.add_argument("--summary-dir", type=Path, default=Path("results/summary"))
+    parser.add_argument(
+        "--docs-dir", type=Path, default=None, help="Markdown directory to audit"
+    )
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument(
         "--verify-only", action="store_true", help="Default: read-only verification"
@@ -357,6 +364,7 @@ def main():
                 not (args.write or args.refresh_audit),
                 args.splits_only,
                 args.refresh_audit,
+                args.docs_dir,
             ),
             indent=2,
         )

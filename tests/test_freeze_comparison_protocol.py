@@ -2,10 +2,11 @@
 
 import hashlib
 import json
+import sys
 from pathlib import Path
 import pytest
 
-from scripts.freeze_comparison_protocol import audit_usage, freeze, make_split
+from scripts.freeze_comparison_protocol import audit_usage, freeze, main, make_split
 
 
 def source(dataset):
@@ -126,7 +127,54 @@ def test_freeze_refuses_signal_check_id_mentioned_in_tracked_doc(tmp_path):
     )
     (docs / "example.md").write_text("musique-300", encoding="utf-8")
     with pytest.raises(ValueError, match="tracked docs"):
-        freeze(ids_dir, raw, summary)
+        freeze(ids_dir, raw, summary, docs_dir=docs)
+
+
+def test_audit_rejects_missing_docs_directory(tmp_path):
+    raw, summary = (tmp_path / name for name in ("raw", "summary"))
+    raw.mkdir()
+    summary.mkdir()
+    with pytest.raises(ValueError, match="existing docs"):
+        audit_usage(
+            {name: source(name) for name in ("musique", "hotpotqa")},
+            raw,
+            summary,
+            docs_dir=tmp_path / "missing-docs",
+        )
+
+
+def test_cli_audits_explicit_docs_when_summary_is_elsewhere(tmp_path, monkeypatch):
+    ids_dir = tmp_path / "project" / "data" / "ids"
+    docs_dir = tmp_path / "project" / "docs"
+    raw = tmp_path / "elsewhere" / "raw"
+    summary = tmp_path / "elsewhere" / "summary"
+    for directory in (ids_dir, docs_dir, raw, summary):
+        directory.mkdir(parents=True)
+    for name in ("musique", "hotpotqa"):
+        dump(ids_dir / f"{name}_s500.json", source(name))
+    dump(
+        raw / "r.manifest.json",
+        {"dataset": "musique", "run_id": "r", "expected_question_ids": ["musique-0"]},
+    )
+    (docs_dir / "example.md").write_text("musique-300", encoding="utf-8")
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "freeze_comparison_protocol.py",
+            "--ids-dir",
+            str(ids_dir),
+            "--raw-dir",
+            str(raw),
+            "--summary-dir",
+            str(summary),
+            "--docs-dir",
+            str(docs_dir),
+        ],
+    )
+    with pytest.raises(ValueError, match="tracked docs"):
+        main()
+    assert not list(summary.glob("question-usage-audit*.json"))
 
 
 def test_published_splits_verify_without_private_data():
