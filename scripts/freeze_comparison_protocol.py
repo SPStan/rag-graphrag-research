@@ -7,6 +7,8 @@ from pathlib import Path
 
 
 DATASETS = ("musique", "hotpotqa")
+BASELINE_AUDIT = "question-usage-audit.json"
+CURRENT_AUDIT = "question-usage-audit-current.json"
 
 
 def sha256(path):
@@ -166,7 +168,7 @@ def audit_usage(id_sources, raw_dir, summary_dir):
             entry["results_sha256"] = sha256(path)
     summaries = []
     for path in sorted(summary_dir.glob("*.json")):
-        if path.name == "question-usage-audit.json":
+        if path.name in (BASELINE_AUDIT, CURRENT_AUDIT):
             continue
         row = read_json(path)
         if not isinstance(row, dict):
@@ -285,17 +287,30 @@ def freeze(
         audit["source_sha256"] = {
             dataset: sha256(ids_dir / f"{dataset}_s500.json") for dataset in DATASETS
         }
-        if any(
-            item["signal_check_observed"] or item["signal_check_planned"]
-            for item in audit["totals"].values()
-        ):
-            raise ValueError("Signal check IDs occur in local planned/observed runs")
-        if any(
-            300 <= item["position"] < 400
-            for item in audit["documented_non_run_exposures"]
-        ):
-            raise ValueError("Signal check IDs occur in tracked docs")
-        outputs[summary_dir / "question-usage-audit.json"] = audit
+        if refresh_audit:
+            baseline_path = summary_dir / BASELINE_AUDIT
+            if not baseline_path.is_file():
+                raise ValueError("Post-run audit requires frozen baseline audit")
+            baseline = read_json(baseline_path)
+            if baseline.get("source_sha256") != audit["source_sha256"]:
+                raise ValueError("Frozen baseline source hashes differ")
+            audit["audit_phase"] = "postrun"
+            audit["baseline_audit_sha256"] = sha256(baseline_path)
+            outputs[summary_dir / CURRENT_AUDIT] = audit
+        else:
+            if any(
+                item["signal_check_observed"] or item["signal_check_planned"]
+                for item in audit["totals"].values()
+            ):
+                raise ValueError(
+                    "Signal check IDs occur in local planned/observed runs"
+                )
+            if any(
+                300 <= item["position"] < 400
+                for item in audit["documented_non_run_exposures"]
+            ):
+                raise ValueError("Signal check IDs occur in tracked docs")
+            outputs[summary_dir / BASELINE_AUDIT] = audit
     # Validate every destination before writing any file. Existing splits are immutable.
     for path, value in outputs.items():
         expected = render_json(value)
@@ -303,7 +318,7 @@ def freeze(
             if not path.is_file() or path.read_text(encoding="utf-8") != expected:
                 raise ValueError(f"Frozen file differs: {path.name}")
         elif path.is_file() and path.read_text(encoding="utf-8") != expected:
-            if not (refresh_audit and path.name == "question-usage-audit.json"):
+            if not (refresh_audit and path.name == CURRENT_AUDIT):
                 raise ValueError(f"Refusing to overwrite frozen file: {path.name}")
     if not verify_only:
         for path, value in outputs.items():
@@ -329,7 +344,7 @@ def main():
     mode.add_argument(
         "--refresh-audit",
         action="store_true",
-        help="Explicitly update audit, preserving frozen splits",
+        help="Update post-run audit; preserve frozen baseline and splits",
     )
     parser.add_argument("--splits-only", action="store_true")
     args = parser.parse_args()

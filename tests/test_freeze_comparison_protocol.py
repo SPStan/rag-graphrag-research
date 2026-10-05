@@ -1,5 +1,6 @@
 """Offline checks for the pinned comparison views and usage audit."""
 
+import hashlib
 import json
 from pathlib import Path
 import pytest
@@ -175,8 +176,63 @@ def test_freeze_does_not_overwrite_history_implicitly(tmp_path):
         freeze(ids_dir, raw, summary)
     assert all(path.read_bytes() == value for path, value in snapshot.items())
     freeze(ids_dir, raw, summary, refresh_audit=True)
-    freeze(ids_dir, raw, summary, verify_only=True)
+    assert all(path.read_bytes() == value for path, value in snapshot.items())
+    current = json.loads(
+        (summary / "question-usage-audit-current.json").read_text(encoding="utf-8")
+    )
+    assert (
+        current["baseline_audit_sha256"]
+        == hashlib.sha256(snapshot[summary / "question-usage-audit.json"]).hexdigest()
+    )
+    assert current["runs"][0]["planned_positions"] == [1]
+    freeze(ids_dir, raw, summary, verify_only=True, splits_only=True)
     split = ids_dir / "musique_comparison_split.json"
     split.write_text("{}", encoding="utf-8")
     with pytest.raises(ValueError, match="Refusing to overwrite"):
         freeze(ids_dir, raw, summary, refresh_audit=True)
+
+
+def test_postrun_audit_records_signal_check_without_rewriting_precheck(tmp_path):
+    ids_dir, raw, summary = (tmp_path / name for name in ("ids", "raw", "summary"))
+    for directory in (ids_dir, raw, summary):
+        directory.mkdir()
+    for name in ("musique", "hotpotqa"):
+        dump(ids_dir / f"{name}_s500.json", source(name))
+    manifest = {
+        "dataset": "musique",
+        "run_id": "r",
+        "expected_question_ids": ["musique-0"],
+    }
+    dump(raw / "r.manifest.json", manifest)
+    freeze(ids_dir, raw, summary)
+    baseline_path = summary / "question-usage-audit.json"
+    baseline_bytes = baseline_path.read_bytes()
+
+    manifest["expected_question_ids"] = ["musique-0", "musique-300"]
+    dump(raw / "r.manifest.json", manifest)
+    (raw / "r.jsonl").write_text(
+        json.dumps(
+            {
+                "dataset": "musique",
+                "run_id": "r",
+                "question_id": "musique-300",
+                "answer": "PRIVATE ANSWER",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="Signal check IDs"):
+        freeze(ids_dir, raw, summary, verify_only=True)
+    freeze(ids_dir, raw, summary, refresh_audit=True)
+    current_path = summary / "question-usage-audit-current.json"
+    current = json.loads(current_path.read_text(encoding="utf-8"))
+    assert baseline_path.read_bytes() == baseline_bytes
+    assert current["audit_phase"] == "postrun"
+    assert (
+        current["baseline_audit_sha256"] == hashlib.sha256(baseline_bytes).hexdigest()
+    )
+    assert current["totals"]["musique"]["signal_check_planned"] == 1
+    assert current["totals"]["musique"]["signal_check_observed"] == 1
+    assert "PRIVATE" not in current_path.read_text(encoding="utf-8")
+    freeze(ids_dir, raw, summary, verify_only=True, splits_only=True)
