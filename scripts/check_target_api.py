@@ -124,13 +124,21 @@ def local_embedding(session, config):
     }
 
 
-def remote_generation(session, config):
+def thinking_parameters(thinking_switch):
+    if thinking_switch == "chat-template":
+        return {"chat_template_kwargs": {"enable_thinking": False}}
+    if thinking_switch == "top-level":
+        return {"enable_thinking": False}
+    raise ValueError("invalid_thinking_switch")
+
+
+def remote_generation(session, config, max_tokens=32, thinking_switch="chat-template"):
     payload = {
         "model": config["model"],
         "messages": [{"role": "user", "content": QUESTION}],
-        "max_tokens": 32,
+        "max_tokens": max_tokens,
         "stream": False,
-        "enable_thinking": False,
+        **thinking_parameters(thinking_switch),
     }
     started = time.perf_counter()
     response = session.post(
@@ -170,11 +178,17 @@ def remote_generation(session, config):
         "model_requested": config["model"],
         "model_returned": result.get("model"),
         "request_parameters": {
-            "max_tokens": 32,
+            "max_tokens": max_tokens,
             "stream": False,
-            "enable_thinking": False,
+            **thinking_parameters(thinking_switch),
         },
-        "thinking_mode_effect": "requested_not_independently_verified",
+        "thinking_mode_effect": (
+            "reported_zero_reasoning_tokens"
+            if token_count(details.get("reasoning_tokens")) == 0
+            else "reported_reasoning_tokens"
+            if token_count(details.get("reasoning_tokens")) is not None
+            else "unknown"
+        ),
         "answer": content if isinstance(content, str) and content else None,
         "finish_reason": choices[0].get("finish_reason") if choices else None,
         "response_id": result.get("id"),
@@ -219,42 +233,62 @@ def error_kind(exc):
     return "unexpected_error"
 
 
-def run(config, local_session, remote_session):
+def run(
+    config,
+    local_session,
+    remote_session,
+    generation_only=False,
+    max_tokens=32,
+    thinking_switch="chat-template",
+):
     report = {
         "checked_at_utc": datetime.now(timezone.utc).isoformat(),
         "script_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
-        "kind": "target_api_smoke_not_benchmark",
+        "kind": (
+            "target_api_generation_diagnostic_not_benchmark"
+            if generation_only
+            else "target_api_smoke_not_benchmark"
+        ),
         "remote_base_url": config["base_url"],
         "generation": {"status": "not_run"},
         "embeddings": {"status": "not_run"},
-        "request_attempts": {"local_embedding": None, "remote_generation": 0},
+        "request_attempts": {
+            "local_embedding": 0 if generation_only else None,
+            "remote_generation": 0,
+        },
         "daily_activity": "not_checked_endpoint_schema_unknown",
     }
-    stage = "embeddings"
+    stage = "generation" if generation_only else "embeddings"
     try:
-        report["embeddings"] = local_embedding(local_session, config)
-        report["request_attempts"]["local_embedding"] = 1
-        if report["embeddings"]["prompt_tokens"] is None:
-            raise ValueError("local_embedding_usage_missing")
+        if not generation_only:
+            report["embeddings"] = local_embedding(local_session, config)
+            report["request_attempts"]["local_embedding"] = 1
+            if report["embeddings"]["prompt_tokens"] is None:
+                raise ValueError("local_embedding_usage_missing")
         stage = "generation"
         report["request_attempts"]["remote_generation"] = 1
         report["generation"] = {
             "status": "started",
             "model_requested": config["model"],
             "request_parameters": {
-                "max_tokens": 32,
+                "max_tokens": max_tokens,
                 "stream": False,
-                "enable_thinking": False,
+                **thinking_parameters(thinking_switch),
             },
             "prompt_tokens": None,
             "completion_tokens": None,
             "wall_seconds": None,
         }
-        report["generation"] = remote_generation(remote_session, config)
+        report["generation"] = remote_generation(
+            remote_session,
+            config,
+            max_tokens=max_tokens,
+            thinking_switch=thinking_switch,
+        )
         report["status"] = report["generation"]["status"]
         if report["status"] == "blocked":
             report["error_kind"] = report["generation"]["error_kind"]
-        elif (
+        elif not generation_only and (
             report["embeddings"]["prompt_tokens"]
             + max(
                 report["generation"]["prompt_tokens"]
@@ -287,7 +321,24 @@ def safe_json(report, secret):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, default=OUTPUT)
+    parser.add_argument(
+        "--generation-only",
+        action="store_true",
+        help="One bounded diagnostic chat request",
+    )
+    parser.add_argument("--max-tokens", type=int, default=32)
+    parser.add_argument(
+        "--thinking-switch",
+        choices=("top-level", "chat-template"),
+        default="chat-template",
+    )
     args = parser.parse_args()
+    if not 1 <= args.max_tokens <= 256 or (
+        not args.generation_only and args.max_tokens != 32
+    ):
+        raise SystemExit("Diagnostic max_tokens must be 1-256; standard smoke uses 32")
+    if not args.generation_only and args.thinking_switch != "chat-template":
+        raise SystemExit("Legacy thinking switch requires --generation-only")
     if args.output.exists():
         raise SystemExit("Refusing to overwrite existing target API report")
     load_dotenv(Path.cwd() / ".env.target-api", override=False)
@@ -296,7 +347,14 @@ def main():
     except ValueError as exc:
         raise SystemExit(str(exc)) from None
     with requests.Session() as local_session, requests.Session() as remote_session:
-        report = run(config, local_session, remote_session)
+        report = run(
+            config,
+            local_session,
+            remote_session,
+            generation_only=args.generation_only,
+            max_tokens=args.max_tokens,
+            thinking_switch=args.thinking_switch,
+        )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(safe_json(report, config["key"]), encoding="utf-8")
     print(f"Target API smoke: {report['status']}; report: {args.output}")

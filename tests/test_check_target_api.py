@@ -60,20 +60,28 @@ class RemoteSession:
         content="четыре",
         prompt_tokens=20,
         total_tokens=None,
+        expected_max_tokens=32,
+        thinking_switch="chat-template",
     ):
         self.usage = usage
         self.status = status
         self.content = content
         self.prompt_tokens = prompt_tokens
         self.total_tokens = total_tokens
+        self.expected_max_tokens = expected_max_tokens
+        self.thinking_switch = thinking_switch
         self.post_count = 0
 
     def post(self, url, **kwargs):
         self.post_count += 1
         assert url == "https://example.test/v1/chat/completions"
         assert kwargs["allow_redirects"] is False
-        assert kwargs["json"]["enable_thinking"] is False
-        assert kwargs["json"]["max_tokens"] == 32
+        if self.thinking_switch == "chat-template":
+            assert kwargs["json"]["chat_template_kwargs"] == {"enable_thinking": False}
+            assert "enable_thinking" not in kwargs["json"]
+        else:
+            assert kwargs["json"]["enable_thinking"] is False
+        assert kwargs["json"]["max_tokens"] == self.expected_max_tokens
         if self.status != 200:
             return Reply(status=self.status)
         return Reply(
@@ -164,6 +172,54 @@ def test_reported_total_tokens_also_enforces_limit():
     result = run(config(), LocalSession(), RemoteSession(total_tokens=50_001))
     assert result["status"] == "blocked"
     assert result["error_kind"] == "remote_token_limit_exceeded"
+
+
+def test_bounded_generation_diagnostic_skips_local_embedding():
+    class NoLocalCalls:
+        def get(self, *args, **kwargs):
+            raise AssertionError("local GET is not allowed in generation-only mode")
+
+        def post(self, *args, **kwargs):
+            raise AssertionError("local POST is not allowed in generation-only mode")
+
+    remote = RemoteSession(expected_max_tokens=256)
+    result = run(config(), NoLocalCalls(), remote, generation_only=True, max_tokens=256)
+    assert result["status"] == "verified"
+    assert result["request_attempts"] == {"local_embedding": 0, "remote_generation": 1}
+    assert result["generation"]["request_parameters"]["max_tokens"] == 256
+    assert remote.post_count == 1
+
+
+def test_chat_template_switch_is_sent_without_top_level_switch():
+    remote = RemoteSession(expected_max_tokens=64, thinking_switch="chat-template")
+    result = run(
+        config(),
+        LocalSession(),
+        remote,
+        generation_only=True,
+        max_tokens=64,
+        thinking_switch="chat-template",
+    )
+    assert result["status"] == "verified"
+    assert result["generation"]["request_parameters"]["chat_template_kwargs"] == {
+        "enable_thinking": False
+    }
+    assert remote.post_count == 1
+
+
+def test_legacy_top_level_switch_remains_available_for_diagnostics():
+    remote = RemoteSession(expected_max_tokens=64, thinking_switch="top-level")
+    result = run(
+        config(),
+        LocalSession(),
+        remote,
+        generation_only=True,
+        max_tokens=64,
+        thinking_switch="top-level",
+    )
+    assert result["status"] == "verified"
+    assert result["generation"]["request_parameters"]["enable_thinking"] is False
+    assert remote.post_count == 1
 
 
 @pytest.mark.parametrize(
