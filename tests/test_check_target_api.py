@@ -165,6 +165,22 @@ def test_invalid_local_vectors_keep_known_usage_and_skip_remote(vectors, error):
     assert (local.post_count, remote.post_count) == (1, 0)
 
 
+def test_local_post_timeout_counts_attempt_and_unknown_usage_without_remote():
+    class TimeoutLocal(LocalSession):
+        def post(self, url, **kwargs):
+            self.post_count += 1
+            raise requests.Timeout("local embedding response timed out")
+
+    local, remote = TimeoutLocal(), RemoteSession()
+    result = run(config(), local, remote)
+    assert result["status"] == "blocked"
+    assert result["error_kind"] == "timeout"
+    assert result["request_attempts"] == {"local_embedding": 1, "remote_generation": 0}
+    assert result["embeddings"]["prompt_tokens"] is None
+    assert result["embeddings"]["usage_status"] == "unknown_not_captured"
+    assert (local.post_count, remote.post_count) == (1, 0)
+
+
 def test_success_has_one_local_and_one_remote_request_with_separate_usage():
     local, remote = LocalSession(), RemoteSession()
     result = run(config(), local, remote)

@@ -78,7 +78,7 @@ def token_count(value):
     )
 
 
-def local_embedding(session, config):
+def local_embedding(session, config, request_attempts):
     base = config["ollama_url"]
     tags = session.get(f"{base}/api/tags", timeout=(5, 15))
     tags.raise_for_status()
@@ -98,6 +98,7 @@ def local_embedding(session, config):
     if model is None:
         raise ValueError("local_embedding_model_missing")
     started = time.perf_counter()
+    request_attempts["local_embedding"] = 1
     response = session.post(
         f"{base}/api/embed",
         json={
@@ -286,7 +287,7 @@ def run(
         "generation": {"status": "not_run"},
         "embeddings": {"status": "not_run"},
         "request_attempts": {
-            "local_embedding": 0 if generation_only else None,
+            "local_embedding": 0,
             "remote_generation": 0,
         },
         "daily_activity": "not_checked_endpoint_schema_unknown",
@@ -294,8 +295,9 @@ def run(
     stage = "generation" if generation_only else "embeddings"
     try:
         if not generation_only:
-            report["embeddings"] = local_embedding(local_session, config)
-            report["request_attempts"]["local_embedding"] = 1
+            report["embeddings"] = local_embedding(
+                local_session, config, report["request_attempts"]
+            )
             if report["embeddings"]["status"] == "blocked":
                 report["status"] = "blocked"
                 report["error_kind"] = report["embeddings"]["error_kind"]
@@ -345,6 +347,9 @@ def run(
         report["error_kind"] = error_kind(exc)
         report[stage]["status"] = "blocked"
         report[stage]["error_kind"] = report["error_kind"]
+        if stage == "embeddings" and report["embeddings"].get("prompt_tokens") is None:
+            report["embeddings"]["prompt_tokens"] = None
+            report["embeddings"]["usage_status"] = "unknown_not_captured"
         if stage == "generation" and report["generation"].get("usage_status") is None:
             report["generation"]["usage_status"] = "unknown_not_captured"
     return report
