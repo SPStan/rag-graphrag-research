@@ -5,7 +5,13 @@ import json
 import pytest
 import requests
 
-from scripts.check_target_api import finite_embeddings, run, safe_json, settings
+from scripts.check_target_api import (
+    finite_embeddings,
+    run,
+    safe_json,
+    save_run,
+    settings,
+)
 
 
 def config():
@@ -91,13 +97,17 @@ class RemoteSession:
                 "choices": [
                     {"message": {"content": self.content}, "finish_reason": "stop"}
                 ],
-                "usage": {
-                    "prompt_tokens": self.prompt_tokens,
-                    "completion_tokens": 2,
-                    "total_tokens": self.total_tokens,
-                }
-                if self.usage
-                else None,
+                "usage": (
+                    self.usage
+                    if isinstance(self.usage, dict)
+                    else {
+                        "prompt_tokens": self.prompt_tokens,
+                        "completion_tokens": 2,
+                        "total_tokens": self.total_tokens,
+                    }
+                    if self.usage
+                    else None
+                ),
             }
         )
 
@@ -151,6 +161,15 @@ def test_missing_local_usage_stops_before_remote_request():
     assert remote.post_count == 0
 
 
+def test_excess_local_usage_stops_before_remote_request():
+    remote = RemoteSession()
+    result = run(config(), LocalSession(prompt_tokens=50_001), remote)
+    assert result["error_kind"] == "local_embedding_token_limit_exceeded"
+    assert result["embeddings"]["prompt_tokens"] == 50_001
+    assert result["request_attempts"]["remote_generation"] == 0
+    assert remote.post_count == 0
+
+
 def test_empty_remote_content_records_blocker_without_retry():
     remote = RemoteSession(content=None)
     result = run(config(), LocalSession(), remote)
@@ -172,6 +191,30 @@ def test_reported_total_tokens_also_enforces_limit():
     result = run(config(), LocalSession(), RemoteSession(total_tokens=50_001))
     assert result["status"] == "blocked"
     assert result["error_kind"] == "remote_token_limit_exceeded"
+    assert result["generation"]["prompt_tokens"] == 20
+    assert result["generation"]["completion_tokens"] == 2
+    assert result["generation"]["total_tokens_reported"] == 50_001
+    assert result["generation"]["usage_status"] == "complete"
+
+
+def test_partial_remote_usage_is_preserved_when_check_stops():
+    remote = RemoteSession(usage={"prompt_tokens": 17})
+    result = run(config(), LocalSession(), remote)
+    assert result["status"] == "blocked"
+    assert result["error_kind"] == "remote_usage_missing"
+    assert result["generation"]["prompt_tokens"] == 17
+    assert result["generation"]["completion_tokens"] is None
+    assert result["generation"]["usage_status"] == "partial"
+    assert remote.post_count == 1
+
+
+def test_known_partial_total_above_limit_is_preserved():
+    remote = RemoteSession(usage={"prompt_tokens": 17, "total_tokens": 50_001})
+    result = run(config(), LocalSession(), remote)
+    assert result["error_kind"] == "remote_token_limit_exceeded"
+    assert result["generation"]["prompt_tokens"] == 17
+    assert result["generation"]["total_tokens_reported"] == 50_001
+    assert result["generation"]["usage_status"] == "partial"
 
 
 def test_bounded_generation_diagnostic_skips_local_embedding():
@@ -239,3 +282,43 @@ def test_remote_failure_stops_without_retry_and_reports_safe_reason(remote, expe
 
 def test_report_redacts_secret_even_if_backend_echoes_it():
     assert "TEST-SECRET" not in safe_json({"answer": "TEST-SECRET"}, "TEST-SECRET")
+
+
+def test_existing_report_is_not_overwritten_or_followed_by_requests(tmp_path):
+    output = tmp_path / "report.json"
+    output.write_text("existing", encoding="utf-8")
+    local, remote = LocalSession(), RemoteSession()
+    with pytest.raises(FileExistsError):
+        save_run(output, config(), local, remote)
+    assert output.read_text(encoding="utf-8") == "existing"
+    assert (local.post_count, remote.post_count) == (0, 0)
+
+
+def test_unwritable_report_stops_before_requests(tmp_path, monkeypatch):
+    output = tmp_path / "report.json"
+    original_open = type(output).open
+
+    def denied_open(path, *args, **kwargs):
+        if path == output:
+            raise PermissionError("unwritable report")
+        return original_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(type(output), "open", denied_open)
+    local, remote = LocalSession(), RemoteSession()
+    with pytest.raises(PermissionError, match="unwritable report"):
+        save_run(output, config(), local, remote)
+    assert (local.post_count, remote.post_count) == (0, 0)
+
+
+def test_reserved_report_cannot_be_replaced_during_request(tmp_path):
+    output = tmp_path / "report.json"
+
+    class RacingRemote(RemoteSession):
+        def post(self, url, **kwargs):
+            with pytest.raises(FileExistsError):
+                output.open("x", encoding="utf-8")
+            return super().post(url, **kwargs)
+
+    result = save_run(output, config(), LocalSession(), RacingRemote())
+    assert result["status"] == "verified"
+    assert json.loads(output.read_text(encoding="utf-8"))["status"] == "verified"

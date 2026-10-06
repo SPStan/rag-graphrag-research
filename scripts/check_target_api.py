@@ -155,24 +155,33 @@ def remote_generation(session, config, max_tokens=32, thinking_switch="chat-temp
     if not isinstance(result, dict):
         raise ValueError("remote_invalid_response")
     duration = time.perf_counter() - started
-    usage = result.get("usage") or {}
+    usage = result.get("usage")
     if not isinstance(usage, dict):
-        raise ValueError("remote_invalid_response")
+        usage = {}
     input_tokens = token_count(usage.get("prompt_tokens"))
     output_tokens = token_count(usage.get("completion_tokens"))
     reported_total = token_count(usage.get("total_tokens"))
-    if input_tokens is None or output_tokens is None:
-        raise ValueError("remote_usage_missing")
-    if max(input_tokens + output_tokens, reported_total or 0) > TOKEN_LIMIT:
-        raise ValueError("remote_token_limit_exceeded")
     choices = result.get("choices") or []
-    if not isinstance(choices, list) or (choices and not isinstance(choices[0], dict)):
-        raise ValueError("remote_invalid_response")
+    valid_choices = isinstance(choices, list) and (
+        not choices or isinstance(choices[0], dict)
+    )
     details = usage.get("completion_tokens_details") or {}
     if not isinstance(details, dict):
         details = {}
-    message = choices[0].get("message") if choices else None
+    message = choices[0].get("message") if valid_choices and choices else None
     content = message.get("content") if isinstance(message, dict) else None
+    known_usage = [
+        value
+        for value in (input_tokens, output_tokens, reported_total)
+        if value is not None
+    ]
+    usage_status = (
+        "complete"
+        if input_tokens is not None and output_tokens is not None
+        else "partial"
+        if known_usage
+        else "unknown"
+    )
     record = {
         "status": "verified" if isinstance(content, str) and content else "blocked",
         "model_requested": config["model"],
@@ -190,16 +199,31 @@ def remote_generation(session, config, max_tokens=32, thinking_switch="chat-temp
             else "unknown"
         ),
         "answer": content if isinstance(content, str) and content else None,
-        "finish_reason": choices[0].get("finish_reason") if choices else None,
+        "finish_reason": choices[0].get("finish_reason")
+        if valid_choices and choices
+        else None,
         "response_id": result.get("id"),
         "wall_seconds": round(duration, 3),
         "prompt_tokens": input_tokens,
         "completion_tokens": output_tokens,
         "total_tokens_reported": reported_total,
         "reasoning_tokens": token_count(details.get("reasoning_tokens")),
+        "usage_status": usage_status,
     }
-    if record["status"] == "blocked":
+    if max(known_usage, default=0) > TOKEN_LIMIT or (
+        input_tokens is not None
+        and output_tokens is not None
+        and input_tokens + output_tokens > TOKEN_LIMIT
+    ):
+        record["error_kind"] = "remote_token_limit_exceeded"
+    elif input_tokens is None or output_tokens is None:
+        record["error_kind"] = "remote_usage_missing"
+    elif not valid_choices:
+        record["error_kind"] = "remote_invalid_response"
+    elif record["status"] == "blocked":
         record["error_kind"] = "remote_answer_missing"
+    if "error_kind" in record:
+        record["status"] = "blocked"
     return record
 
 
@@ -226,6 +250,7 @@ def error_kind(exc):
                 "remote_token_limit_exceeded",
                 "remote_answer_missing",
                 "local_embedding_usage_missing",
+                "local_embedding_token_limit_exceeded",
                 "remote_redirect_refused",
             }
             else "invalid_response"
@@ -265,6 +290,8 @@ def run(
             report["request_attempts"]["local_embedding"] = 1
             if report["embeddings"]["prompt_tokens"] is None:
                 raise ValueError("local_embedding_usage_missing")
+            if report["embeddings"]["prompt_tokens"] >= TOKEN_LIMIT:
+                raise ValueError("local_embedding_token_limit_exceeded")
         stage = "generation"
         report["request_attempts"]["remote_generation"] = 1
         report["generation"] = {
@@ -306,7 +333,7 @@ def run(
         report["error_kind"] = error_kind(exc)
         report[stage]["status"] = "blocked"
         report[stage]["error_kind"] = report["error_kind"]
-        if stage == "generation":
+        if stage == "generation" and report["generation"].get("usage_status") is None:
             report["generation"]["usage_status"] = "unknown_not_captured"
     return report
 
@@ -316,6 +343,23 @@ def safe_json(report, secret):
         json.dumps(report, ensure_ascii=False, indent=2).replace(secret, "[redacted]")
         + "\n"
     )
+
+
+def save_run(output, config, local_session, remote_session, **run_options):
+    output.parent.mkdir(parents=True, exist_ok=True)
+    # Reserve the final pathname before spending tokens; "x" rejects an existing file.
+    with output.open("x", encoding="utf-8") as file:
+        file.write(
+            safe_json({"status": "started", "kind": "target_api_check"}, config["key"])
+        )
+        file.flush()
+        report = run(config, local_session, remote_session, **run_options)
+        file.seek(0)
+        file.write(safe_json(report, config["key"]))
+        file.truncate()
+        file.flush()
+        os.fsync(file.fileno())
+    return report
 
 
 def main():
@@ -339,24 +383,26 @@ def main():
         raise SystemExit("Diagnostic max_tokens must be 1-256; standard smoke uses 32")
     if not args.generation_only and args.thinking_switch != "chat-template":
         raise SystemExit("Legacy thinking switch requires --generation-only")
-    if args.output.exists():
-        raise SystemExit("Refusing to overwrite existing target API report")
     load_dotenv(Path.cwd() / ".env.target-api", override=False)
     try:
         config = settings(os.environ)
     except ValueError as exc:
         raise SystemExit(str(exc)) from None
-    with requests.Session() as local_session, requests.Session() as remote_session:
-        report = run(
-            config,
-            local_session,
-            remote_session,
-            generation_only=args.generation_only,
-            max_tokens=args.max_tokens,
-            thinking_switch=args.thinking_switch,
-        )
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(safe_json(report, config["key"]), encoding="utf-8")
+    try:
+        with requests.Session() as local_session, requests.Session() as remote_session:
+            report = save_run(
+                args.output,
+                config,
+                local_session,
+                remote_session,
+                generation_only=args.generation_only,
+                max_tokens=args.max_tokens,
+                thinking_switch=args.thinking_switch,
+            )
+    except FileExistsError:
+        raise SystemExit("Refusing to overwrite existing target API report") from None
+    except OSError as exc:
+        raise SystemExit(f"Could not write target API report: {exc.strerror}") from None
     print(f"Target API smoke: {report['status']}; report: {args.output}")
     if report["status"] != "verified":
         raise SystemExit(1)
