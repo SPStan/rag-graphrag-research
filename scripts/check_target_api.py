@@ -78,7 +78,7 @@ def token_count(value):
     )
 
 
-def local_embedding(session, config, request_attempts):
+def local_embedding(session, config, request_attempts, record):
     base = config["ollama_url"]
     tags = session.get(f"{base}/api/tags", timeout=(5, 15))
     tags.raise_for_status()
@@ -97,34 +97,44 @@ def local_embedding(session, config, request_attempts):
     )
     if model is None:
         raise ValueError("local_embedding_model_missing")
+    record.update(
+        {
+            "status": "started",
+            "provider": "local_ollama",
+            "model": config["embedding_model"],
+            "digest": model.get("digest"),
+            "input_count": len(EMBED_INPUTS),
+            "prompt_tokens": None,
+            "wall_seconds": None,
+        }
+    )
     started = time.perf_counter()
     request_attempts["local_embedding"] = 1
-    response = session.post(
-        f"{base}/api/embed",
-        json={
-            "model": config["embedding_model"],
-            "input": EMBED_INPUTS,
-            "truncate": False,
-        },
-        timeout=(5, 120),
-    )
-    response.raise_for_status()
-    payload = response.json()
-    duration = time.perf_counter() - started
+    try:
+        response = session.post(
+            f"{base}/api/embed",
+            json={
+                "model": config["embedding_model"],
+                "input": EMBED_INPUTS,
+                "truncate": False,
+            },
+            timeout=(5, 120),
+        )
+        response.raise_for_status()
+        payload = response.json()
+    finally:
+        record["wall_seconds"] = round(time.perf_counter() - started, 3)
     vectors = payload.get("embeddings") if isinstance(payload, dict) else None
-    record = {
-        "status": "verified",
-        "provider": "local_ollama",
-        "model": config["embedding_model"],
-        "digest": model.get("digest"),
-        "input_count": len(EMBED_INPUTS),
-        "vector_count": len(vectors) if isinstance(vectors, list) else None,
-        "dimension": None,
-        "wall_seconds": round(duration, 3),
-        "prompt_tokens": token_count(payload.get("prompt_eval_count"))
-        if isinstance(payload, dict)
-        else None,
-    }
+    record.update(
+        {
+            "status": "verified",
+            "vector_count": len(vectors) if isinstance(vectors, list) else None,
+            "dimension": None,
+            "prompt_tokens": token_count(payload.get("prompt_eval_count"))
+            if isinstance(payload, dict)
+            else None,
+        }
+    )
     try:
         record["dimension"] = finite_embeddings(payload)
     except ValueError as exc:
@@ -141,7 +151,9 @@ def thinking_parameters(thinking_switch):
     raise ValueError("invalid_thinking_switch")
 
 
-def remote_generation(session, config, max_tokens=32, thinking_switch="chat-template"):
+def remote_generation(
+    session, config, record, max_tokens=32, thinking_switch="chat-template"
+):
     payload = {
         "model": config["model"],
         "messages": [{"role": "user", "content": QUESTION}],
@@ -150,20 +162,22 @@ def remote_generation(session, config, max_tokens=32, thinking_switch="chat-temp
         **thinking_parameters(thinking_switch),
     }
     started = time.perf_counter()
-    response = session.post(
-        f"{config['base_url']}/chat/completions",
-        headers={"Authorization": f"Bearer {config['key']}"},
-        json=payload,
-        timeout=(5, 120),
-        allow_redirects=False,
-    )
-    if 300 <= response.status_code < 400:
-        raise ValueError("remote_redirect_refused")
-    response.raise_for_status()
-    result = response.json()
+    try:
+        response = session.post(
+            f"{config['base_url']}/chat/completions",
+            headers={"Authorization": f"Bearer {config['key']}"},
+            json=payload,
+            timeout=(5, 120),
+            allow_redirects=False,
+        )
+        if 300 <= response.status_code < 400:
+            raise ValueError("remote_redirect_refused")
+        response.raise_for_status()
+        result = response.json()
+    finally:
+        record["wall_seconds"] = round(time.perf_counter() - started, 3)
     if not isinstance(result, dict):
         raise ValueError("remote_invalid_response")
-    duration = time.perf_counter() - started
     usage = result.get("usage")
     if not isinstance(usage, dict):
         usage = {}
@@ -191,34 +205,35 @@ def remote_generation(session, config, max_tokens=32, thinking_switch="chat-temp
         if known_usage
         else "unknown"
     )
-    record = {
-        "status": "verified" if isinstance(content, str) and content else "blocked",
-        "model_requested": config["model"],
-        "model_returned": result.get("model"),
-        "request_parameters": {
-            "max_tokens": max_tokens,
-            "stream": False,
-            **thinking_parameters(thinking_switch),
-        },
-        "thinking_mode_effect": (
-            "reported_zero_reasoning_tokens"
-            if token_count(details.get("reasoning_tokens")) == 0
-            else "reported_reasoning_tokens"
-            if token_count(details.get("reasoning_tokens")) is not None
-            else "unknown"
-        ),
-        "answer": content if isinstance(content, str) and content else None,
-        "finish_reason": choices[0].get("finish_reason")
-        if valid_choices and choices
-        else None,
-        "response_id": result.get("id"),
-        "wall_seconds": round(duration, 3),
-        "prompt_tokens": input_tokens,
-        "completion_tokens": output_tokens,
-        "total_tokens_reported": reported_total,
-        "reasoning_tokens": token_count(details.get("reasoning_tokens")),
-        "usage_status": usage_status,
-    }
+    record.update(
+        {
+            "status": "verified" if isinstance(content, str) and content else "blocked",
+            "model_requested": config["model"],
+            "model_returned": result.get("model"),
+            "request_parameters": {
+                "max_tokens": max_tokens,
+                "stream": False,
+                **thinking_parameters(thinking_switch),
+            },
+            "thinking_mode_effect": (
+                "reported_zero_reasoning_tokens"
+                if token_count(details.get("reasoning_tokens")) == 0
+                else "reported_reasoning_tokens"
+                if token_count(details.get("reasoning_tokens")) is not None
+                else "unknown"
+            ),
+            "answer": content if isinstance(content, str) and content else None,
+            "finish_reason": choices[0].get("finish_reason")
+            if valid_choices and choices
+            else None,
+            "response_id": result.get("id"),
+            "prompt_tokens": input_tokens,
+            "completion_tokens": output_tokens,
+            "total_tokens_reported": reported_total,
+            "reasoning_tokens": token_count(details.get("reasoning_tokens")),
+            "usage_status": usage_status,
+        }
+    )
     if max(known_usage, default=0) > TOKEN_LIMIT or (
         input_tokens is not None
         and output_tokens is not None
@@ -296,7 +311,10 @@ def run(
     try:
         if not generation_only:
             report["embeddings"] = local_embedding(
-                local_session, config, report["request_attempts"]
+                local_session,
+                config,
+                report["request_attempts"],
+                report["embeddings"],
             )
             if report["embeddings"]["status"] == "blocked":
                 report["status"] = "blocked"
@@ -323,6 +341,7 @@ def run(
         report["generation"] = remote_generation(
             remote_session,
             config,
+            report["generation"],
             max_tokens=max_tokens,
             thinking_switch=thinking_switch,
         )

@@ -177,8 +177,61 @@ def test_local_post_timeout_counts_attempt_and_unknown_usage_without_remote():
     assert result["error_kind"] == "timeout"
     assert result["request_attempts"] == {"local_embedding": 1, "remote_generation": 0}
     assert result["embeddings"]["prompt_tokens"] is None
+    assert isinstance(result["embeddings"]["wall_seconds"], float)
     assert result["embeddings"]["usage_status"] == "unknown_not_captured"
     assert (local.post_count, remote.post_count) == (1, 0)
+
+
+@pytest.mark.parametrize("failure", ["http", "json"])
+def test_local_failed_response_keeps_wall_time_and_unknown_usage(failure):
+    class InvalidJsonReply(Reply):
+        def json(self):
+            raise ValueError("invalid JSON")
+
+    class FailedLocal(LocalSession):
+        def post(self, url, **kwargs):
+            self.post_count += 1
+            return Reply(status=503) if failure == "http" else InvalidJsonReply()
+
+    local, remote = FailedLocal(), RemoteSession()
+    result = run(config(), local, remote)
+    assert result["status"] == "blocked"
+    assert result["error_kind"] == (
+        "http_503" if failure == "http" else "invalid_response"
+    )
+    assert isinstance(result["embeddings"]["wall_seconds"], float)
+    assert result["embeddings"]["usage_status"] == "unknown_not_captured"
+    assert result["request_attempts"] == {"local_embedding": 1, "remote_generation": 0}
+    assert (local.post_count, remote.post_count) == (1, 0)
+
+
+@pytest.mark.parametrize("failure", ["timeout", "http", "json"])
+def test_remote_failed_response_keeps_wall_time_and_unknown_usage(failure):
+    class InvalidJsonReply(Reply):
+        def json(self):
+            raise ValueError("invalid JSON")
+
+    class FailedRemote(RemoteSession):
+        def post(self, url, **kwargs):
+            self.post_count += 1
+            if failure == "timeout":
+                raise requests.Timeout("remote response timed out")
+            return Reply(status=503) if failure == "http" else InvalidJsonReply()
+
+    remote = FailedRemote()
+    result = run(config(), LocalSession(), remote)
+    assert result["status"] == "blocked"
+    assert (
+        result["error_kind"]
+        == {"timeout": "timeout", "http": "http_503", "json": "invalid_response"}[
+            failure
+        ]
+    )
+    assert isinstance(result["generation"]["wall_seconds"], float)
+    assert result["generation"]["usage_status"] == "unknown_not_captured"
+    assert result["generation"]["prompt_tokens"] is None
+    assert result["request_attempts"] == {"local_embedding": 1, "remote_generation": 1}
+    assert remote.post_count == 1
 
 
 def test_success_has_one_local_and_one_remote_request_with_separate_usage():
