@@ -141,6 +141,30 @@ def test_invalid_embeddings_stop_before_generation(payload, error):
         finite_embeddings(payload)
 
 
+@pytest.mark.parametrize(
+    "vectors,error",
+    [
+        ([[0.1, 0.2]], "embedding_count_mismatch"),
+        ([[0.1], [0.2, 0.3]], "embedding_dimension_mismatch"),
+    ],
+)
+def test_invalid_local_vectors_keep_known_usage_and_skip_remote(vectors, error):
+    class InvalidLocal(LocalSession):
+        def post(self, url, **kwargs):
+            self.post_count += 1
+            return Reply({"embeddings": vectors, "prompt_eval_count": 19})
+
+    local, remote = InvalidLocal(), RemoteSession()
+    result = run(config(), local, remote)
+    assert result["status"] == "blocked"
+    assert result["error_kind"] == error
+    assert result["embeddings"]["prompt_tokens"] == 19
+    assert result["embeddings"]["wall_seconds"] is not None
+    assert result["embeddings"]["dimension"] is None
+    assert result["request_attempts"] == {"local_embedding": 1, "remote_generation": 0}
+    assert (local.post_count, remote.post_count) == (1, 0)
+
+
 def test_success_has_one_local_and_one_remote_request_with_separate_usage():
     local, remote = LocalSession(), RemoteSession()
     result = run(config(), local, remote)

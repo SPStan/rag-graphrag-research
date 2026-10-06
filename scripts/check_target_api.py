@@ -110,18 +110,26 @@ def local_embedding(session, config):
     response.raise_for_status()
     payload = response.json()
     duration = time.perf_counter() - started
-    dimension = finite_embeddings(payload)
-    return {
+    vectors = payload.get("embeddings") if isinstance(payload, dict) else None
+    record = {
         "status": "verified",
         "provider": "local_ollama",
         "model": config["embedding_model"],
         "digest": model.get("digest"),
         "input_count": len(EMBED_INPUTS),
-        "vector_count": len(payload["embeddings"]),
-        "dimension": dimension,
+        "vector_count": len(vectors) if isinstance(vectors, list) else None,
+        "dimension": None,
         "wall_seconds": round(duration, 3),
-        "prompt_tokens": token_count(payload.get("prompt_eval_count")),
+        "prompt_tokens": token_count(payload.get("prompt_eval_count"))
+        if isinstance(payload, dict)
+        else None,
     }
+    try:
+        record["dimension"] = finite_embeddings(payload)
+    except ValueError as exc:
+        record["status"] = "blocked"
+        record["error_kind"] = str(exc)
+    return record
 
 
 def thinking_parameters(thinking_switch):
@@ -288,6 +296,10 @@ def run(
         if not generation_only:
             report["embeddings"] = local_embedding(local_session, config)
             report["request_attempts"]["local_embedding"] = 1
+            if report["embeddings"]["status"] == "blocked":
+                report["status"] = "blocked"
+                report["error_kind"] = report["embeddings"]["error_kind"]
+                return report
             if report["embeddings"]["prompt_tokens"] is None:
                 raise ValueError("local_embedding_usage_missing")
             if report["embeddings"]["prompt_tokens"] >= TOKEN_LIMIT:
