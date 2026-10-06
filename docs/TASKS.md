@@ -1,6 +1,10 @@
 # Текущая работа и критерии завершения
 
-## Активный блок 2 октября — issue #7: протокол сравнения и ID
+## Активный блок 6 октября — issue #8: проверка целевого API
+
+После слитого PR #24 проверить один локальный пакет BGE-M3 и один короткий запрос `iairlab/qwen3.8-27b` по условиям [issue #8](https://github.com/SPStan/rag-graphrag-research/issues/8). Получен локальный embedding результат; удалённая генерация остановилась без текстового ответа. Результат и команда — [TARGET_API](TARGET_API.md). Подготовить проверяемый PR с этим подтверждённым блокером; следующий модельный вызов только после уточнения формы ответа и учёта. Не начинать E1/E2.
+
+## Завершённый блок 2 октября — issue #7: протокол сравнения и ID
 
 Зафиксировать для MuSiQue/HotpotQA исходные S500 и pilot200, таблицу общих условий трёх методов, историю planned/observed ID и отдельные части для сигнала задачи #21. Не выполнять LLM-вызовы и эксперименты. Проверка — `python scripts/freeze_comparison_protocol.py --verify-only --splits-only` в чистом checkout и `--verify-only` там, где есть локальные raw; затем offline check и CI. Критерии и границы — [issue #7](https://github.com/SPStan/rag-graphrag-research/issues/7), [ADR-0015](../.adr/0015-pinned-comparison-and-signal-split.md), [DATA](DATA.md). Прежние задачи ниже — история; после этого блока переход к issue #8 о целевом API.
 
