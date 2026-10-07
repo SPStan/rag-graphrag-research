@@ -484,6 +484,12 @@ def export_langfuse(payload, base_dir=ROOT):
             raise RuntimeError("Langfuse authentication failed")
         system = payload.get("system", "dense")
         trace_name = payload.get("trace_name", "dense-rag-run")
+        accounting = payload.get("token_accounting", {})
+        summary = (
+            accounting.get("summary")
+            if accounting.get("status") == "verified"
+            else None
+        )
         with client.start_as_current_observation(
             as_type="chain",
             name=trace_name,
@@ -503,6 +509,15 @@ def export_langfuse(payload, base_dir=ROOT):
                 "token_journal_sha256": payload["manifest"]
                 .get("token_accounting", {})
                 .get("journal_sha256"),
+                "token_accounting_summary": summary,
+                "token_accounting_complete": (
+                    summary["complete"] if summary is not None else None
+                ),
+                "historical_cache_cost_complete": (
+                    summary["historical_cache_cost_complete"]
+                    if summary is not None
+                    else None
+                ),
                 **(
                     {
                         "context_source_run_id": payload["manifest"]["retrieval"][

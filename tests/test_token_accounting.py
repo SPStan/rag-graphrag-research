@@ -1,12 +1,14 @@
 """Offline contract checks for physical request accounting."""
 
 from types import SimpleNamespace
+import sys
 import threading
 
 import pytest
 import requests
 
 from scripts import check_target_api, run_dense, run_hipporag
+from scripts import track_dense
 from scripts.token_accounting import (
     Journal,
     recorded_call,
@@ -287,3 +289,137 @@ def test_explicit_retry_and_unfinished_attempt(tmp_path):
     assert summary["phases"][0]["unfinished"] == 1
     assert summary["known_subtotal"]["llm_input_tokens"] == 5
     assert not summary["complete"]
+
+
+def test_langfuse_root_exports_verified_incomplete_summary(tmp_path, monkeypatch):
+    log = journal(tmp_path)
+    known = log.start(
+        phase="reader",
+        operation="reader",
+        provider="target_api",
+        model="qwen",
+        kind="llm",
+    )
+    log.finish(
+        known, status="success", usage={"llm_input_tokens": 23, "llm_output_tokens": 4}
+    )
+    unknown = log.start(
+        phase="reader",
+        operation="reader",
+        provider="target_api",
+        model="qwen",
+        kind="llm",
+    )
+    log.finish(unknown, status="unknown", error_code="ReadTimeout")
+    manifest = {"run_id": "run-1", "token_accounting": log.reference()}
+    accounting = verified_reference(manifest, tmp_path / "run.manifest.json")
+    assert accounting["status"] == "verified"
+
+    class Observation:
+        def __init__(self, kwargs):
+            self.kwargs = kwargs
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def update(self, **_kwargs):
+            pass
+
+    class FakeClient:
+        def __init__(self, **_kwargs):
+            self.observations = []
+
+        def auth_check(self):
+            return True
+
+        def start_as_current_observation(self, **kwargs):
+            self.observations.append(kwargs)
+            return Observation(kwargs)
+
+        def get_current_trace_id(self):
+            return "trace-1"
+
+        def flush(self):
+            pass
+
+        def get_trace_url(self, **_kwargs):
+            return "http://localhost/trace-1"
+
+        def shutdown(self):
+            pass
+
+    client = FakeClient()
+    monkeypatch.setitem(
+        sys.modules, "langfuse", SimpleNamespace(Langfuse=lambda **_kwargs: client)
+    )
+    monkeypatch.setattr(
+        track_dense,
+        "dotenv_values",
+        lambda _path: {
+            "LANGFUSE_BASE_URL": "http://localhost:3000",
+            "LANGFUSE_PUBLIC_KEY": "fake",
+            "LANGFUSE_SECRET_KEY": "fake",
+        },
+    )
+    monkeypatch.setattr(
+        track_dense,
+        "get_all_langfuse_observations",
+        lambda *_args: [
+            SimpleNamespace(name=name)
+            for name in (
+                "dense-rag-run",
+                "question",
+                "query-embedding",
+                "retrieval",
+                "generation",
+            )
+        ],
+    )
+    monkeypatch.setattr(track_dense, "verify_langfuse_trace", lambda *_args: {})
+    row = {
+        "question_id": "q1",
+        "question": "question",
+        "top_k": 5,
+        "embedding_model": {"name": "bge"},
+        "generation_model": {"name": "qwen"},
+        "reader_prompt_version": "v1",
+        "prompt_tokens": 23,
+        "completion_tokens": 4,
+    }
+    payload = {
+        "run_id": "run-1",
+        "dataset": "synthetic",
+        "rows": [row],
+        "questions": [{"row": row, "retrieved_passages": []}],
+        "manifest": manifest,
+        "token_accounting": accounting,
+        "metrics": {"em": 0, "token_f1": 0, "recall_at_k": 0},
+    }
+    track_dense.export_langfuse(payload, base_dir=tmp_path)
+    root = client.observations[0]["metadata"]
+    assert root["token_accounting_status"] == "verified"
+    assert root["token_accounting_summary"]["known_subtotal"]["llm_input_tokens"] == 23
+    assert root["token_accounting_summary"]["attempts"] == 2
+    assert (
+        root["token_accounting_summary"]["phases"][0]["unknown_fields"][
+            "llm_input_tokens"
+        ]
+        == 1
+    )
+    assert root["token_accounting_complete"] is False
+    assert root["historical_cache_cost_complete"] is True
+    generation = next(
+        item for item in client.observations if item["name"] == "generation"
+    )
+    assert generation["usage_details"] == {"input": 23, "output": 4}
+
+
+def test_hipporag_runner_rejects_enabled_sdk_retries():
+    llm = SimpleNamespace(max_retries=0, openai_client=SimpleNamespace(max_retries=0))
+    run_hipporag.require_no_sdk_retries(llm)
+    llm.openai_client.max_retries = 2
+    with pytest.raises(RuntimeError, match="retries are not disabled"):
+        run_hipporag.require_no_sdk_retries(llm)

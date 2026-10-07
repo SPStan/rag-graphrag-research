@@ -718,6 +718,15 @@ def install_chat_accounting(llm, journal, context, model_name):
     completions.create = recorded_create
 
 
+def require_no_sdk_retries(llm):
+    """Fail before model calls if the installed HippoRAG/OpenAI client can retry."""
+    if (
+        getattr(llm, "max_retries", None) != 0
+        or getattr(getattr(llm, "openai_client", None), "max_retries", None) != 0
+    ):
+        raise RuntimeError("HippoRAG SDK transport retries are not disabled")
+
+
 def record_openie_failure(failures, lock, passage_id, exc, stage):
     """Record a skipped OpenIE step without retaining passage text."""
     failure = {
@@ -1959,6 +1968,7 @@ def run(args):
         max_retry_attempts=0,
     )
     llm = CacheOpenAI.from_experiment_config(config)
+    require_no_sdk_retries(llm)
     llm_cache_dir = storage / "llm_cache"
     llm_cache_dir.mkdir(parents=True, exist_ok=True)
     llm_cache_path = llm_cache_dir / f"{local_alias}_cache.sqlite"
