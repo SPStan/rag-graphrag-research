@@ -1,0 +1,39 @@
+{
+  "checked_at_utc": "2026-10-06T09:59:22.602318+00:00",
+  "script_sha256": "099b0c5b069d3b2673c43c81797579778071dd49cfe347da00534e7431c09ac1",
+  "kind": "target_api_smoke_not_benchmark",
+  "remote_base_url": "https://api.duckduck.cloud/v1",
+  "generation": {
+    "status": "blocked",
+    "model_requested": "iairlab/qwen3.8-27b",
+    "request_parameters": {
+      "max_tokens": 32,
+      "stream": false,
+      "enable_thinking": false
+    },
+    "prompt_tokens": null,
+    "completion_tokens": null,
+    "wall_seconds": null,
+    "error_kind": "remote_answer_missing",
+    "usage_status": "unknown_not_captured"
+  },
+  "embeddings": {
+    "status": "verified",
+    "provider": "local_ollama",
+    "model": "bge-m3:latest",
+    "digest": "7907646426070047a77226ac3e684fbbe8410524f7b4a74d02837e43f2146bab",
+    "input_count": 2,
+    "vector_count": 2,
+    "dimension": 1024,
+    "wall_seconds": 5.64,
+    "prompt_tokens": 19
+  },
+  "request_attempts": {
+    "local_embedding": 1,
+    "remote_generation": 1
+  },
+  "daily_activity": "not_checked_endpoint_schema_unknown",
+  "status": "blocked",
+  "error_kind": "remote_answer_missing",
+  "annotation": "Attempt counts reconstructed from the bounded script path after the run; original response body was not retained."
+}

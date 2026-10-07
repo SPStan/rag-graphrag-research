@@ -1,0 +1,36 @@
+{
+  "checked_at_utc": "2026-10-06T10:21:30.728837+00:00",
+  "script_sha256": "5f4c114d5e7134db9ef05e516997c6403f7a159b25bdcd1c1027146227d41034",
+  "kind": "target_api_generation_diagnostic_not_benchmark",
+  "remote_base_url": "https://api.duckduck.cloud/v1",
+  "generation": {
+    "status": "verified",
+    "model_requested": "iairlab/qwen3.8-27b",
+    "model_returned": "iairlab/qwen3.8-27b",
+    "request_parameters": {
+      "max_tokens": 64,
+      "stream": false,
+      "chat_template_kwargs": {
+        "enable_thinking": false
+      }
+    },
+    "thinking_mode_effect": "requested_not_independently_verified",
+    "answer": "Четыре",
+    "finish_reason": "stop",
+    "response_id": "chatcmpl-8587d234d28bb31c",
+    "wall_seconds": 0.927,
+    "prompt_tokens": 23,
+    "completion_tokens": 4,
+    "total_tokens_reported": 27,
+    "reasoning_tokens": 0
+  },
+  "embeddings": {
+    "status": "not_run"
+  },
+  "request_attempts": {
+    "local_embedding": 0,
+    "remote_generation": 1
+  },
+  "daily_activity": "not_checked_endpoint_schema_unknown",
+  "status": "verified"
+}
