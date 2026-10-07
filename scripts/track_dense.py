@@ -11,6 +11,11 @@ from urllib.parse import urlparse
 
 from dotenv import dotenv_values
 
+try:
+    from scripts.token_accounting import verified_reference
+except ModuleNotFoundError:  # Direct script execution.
+    from token_accounting import verified_reference
+
 ROOT = Path(__file__).resolve().parents[1]
 MLFLOW_URI = "http://127.0.0.1:5000"
 EXPERIMENT_NAME = "rag-graphrag-research"
@@ -167,6 +172,7 @@ def prepare_payload(run_path, metrics_path, manifest_path, corpus_path):
     ]
     metrics = read_json(metrics_path)
     manifest = read_json(manifest_path)
+    accounting = verified_reference(manifest, manifest_path)
     if not rows:
         raise ValueError("Run JSONL is empty")
     run_id = rows[0].get("run_id")
@@ -235,6 +241,7 @@ def prepare_payload(run_path, metrics_path, manifest_path, corpus_path):
         "questions": questions,
         "metrics": metrics,
         "manifest": manifest,
+        "token_accounting": accounting,
         "dataset": rows[0].get("dataset"),
     }
 
@@ -250,6 +257,17 @@ def export_mlflow(payload, mlflow):
     metrics = payload["metrics"]
     system = payload.get("system", "dense")
     trace_name = payload.get("trace_name", "dense-rag-run")
+    providers = {
+        phase["provider"]
+        for phase in (payload.get("token_accounting", {}).get("summary") or {}).get(
+            "phases", []
+        )
+    }
+    token_scope = (
+        "mixed_or_target_api_usage"
+        if "target_api" in providers
+        else "local_ollama_usage_not_billed_api_cost"
+    )
     with mlflow.start_run(
         run_name=f"{system}-{payload['dataset']}-{payload['run_id'][:8]}"
     ) as active:
@@ -261,7 +279,10 @@ def export_mlflow(payload, mlflow):
                 "rag.run_id": payload["run_id"],
                 "rag.dataset": payload["dataset"],
                 "rag.mode": manifest.get("mode", "local-poc"),
-                "rag.token_scope": "local_ollama_usage_not_billed_api_cost",
+                "rag.token_scope": token_scope,
+                "rag.token_accounting_status": payload.get("token_accounting", {}).get(
+                    "status", "legacy_unknown"
+                ),
             }
         )
         params = {
@@ -421,6 +442,9 @@ def export_mlflow(payload, mlflow):
         mlflow.flush_trace_async_logging()
         for name in ("run_path", "metrics_path", "manifest_path"):
             mlflow.log_artifact(str(payload[name]), artifact_path="run-data")
+        accounting_path = payload.get("token_accounting", {}).get("path")
+        if accounting_path is not None:
+            mlflow.log_artifact(str(accounting_path), artifact_path="run-data")
         experiment_id = active.info.experiment_id
         mlflow_run_id = active.info.run_id
 
@@ -473,6 +497,12 @@ def export_langfuse(payload, base_dir=ROOT):
                 "system": system,
                 "mode": payload["manifest"].get("mode", "local-poc"),
                 "recording_mode": "posthoc_export",
+                "token_accounting_status": payload.get("token_accounting", {}).get(
+                    "status", "legacy_unknown"
+                ),
+                "token_journal_sha256": payload["manifest"]
+                .get("token_accounting", {})
+                .get("journal_sha256"),
                 **(
                     {
                         "context_source_run_id": payload["manifest"]["retrieval"][

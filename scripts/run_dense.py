@@ -15,6 +15,11 @@ import numpy as np
 import requests
 
 try:
+    from scripts.token_accounting import Journal, recorded_call
+except ModuleNotFoundError:  # Direct script execution.
+    from token_accounting import Journal, recorded_call
+
+try:
     from scripts.evaluation_view import load_view, select_in_view
     from scripts.answer_parser import extract_reader_answer
     from scripts.vendor.hipporag2_musique_template import (
@@ -81,10 +86,15 @@ def read_json(path):
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def post_json(session, endpoint, payload, timeout=300):
-    response = session.post(f"{OLLAMA_URL}{endpoint}", json=payload, timeout=timeout)
-    response.raise_for_status()
-    return response.json()
+def post_json(session, endpoint, payload, timeout=300, accounting=None):
+    def send():
+        response = session.post(
+            f"{OLLAMA_URL}{endpoint}", json=payload, timeout=timeout
+        )
+        response.raise_for_status()
+        return response.json()
+
+    return recorded_call(accounting[0], send, **accounting[1]) if accounting else send()
 
 
 def require_completed_generation(generation, question_id):
@@ -297,6 +307,7 @@ def embed_corpus(
     model_digest,
     dataset=None,
     build_run_id=None,
+    journal=None,
 ):
     ids = [row["id"] for row in corpus]
     if cache_path.exists():
@@ -342,6 +353,18 @@ def embed_corpus(
                     build_provenance = get_cache_build_provenance(
                         cache_path, fingerprint, model_digest
                     )
+                    if journal:
+                        journal.cache_hit(
+                            phase="index",
+                            operation="index_embedding",
+                            provider="local_ollama",
+                            model=EMBED_MODEL,
+                            kind="embedding",
+                            object_id="corpus_cache",
+                            producer_run_id=(build_provenance or {}).get(
+                                "build_run_id"
+                            ),
+                        )
                     if build_provenance is None:
                         print(
                             "Original embedding build cost is unknown for this cache."
@@ -370,6 +393,19 @@ def embed_corpus(
             session,
             "/api/embed",
             {"model": EMBED_MODEL, "input": batch, "truncate": EMBED_TRUNCATE},
+            accounting=(
+                journal,
+                {
+                    "phase": "index",
+                    "operation": "index_embedding",
+                    "provider": "local_ollama",
+                    "model": EMBED_MODEL,
+                    "kind": "embedding",
+                    "object_id": f"batch:{offset}",
+                },
+            )
+            if journal
+            else None,
         )
         vectors = result.get("embeddings")
         if not isinstance(vectors, list) or len(vectors) != len(batch):
@@ -519,6 +555,12 @@ def run(
     output_path = output_dir / f"dense-{dataset}-{run_id}.jsonl"
     temporary = output_path.with_suffix(".jsonl.part")
     manifest_path = output_path.with_suffix(".manifest.json")
+    journal = Journal(
+        output_path.with_suffix(".tokens.jsonl"),
+        run_id=run_id,
+        method="dense",
+        dataset=dataset,
+    )
     prompt_template_sha256 = reader_template_sha256()
     manifest = {
         "schema_version": 1,
@@ -595,6 +637,7 @@ def run(
             embedding_info["digest"],
             dataset=dataset,
             build_run_id=run_id,
+            journal=journal,
         )
         manifest["index_embedding"] = index_embedding
         write_json_atomic(manifest_path, manifest)
@@ -611,6 +654,17 @@ def run(
                         "input": query["question"],
                         "truncate": EMBED_TRUNCATE,
                     },
+                    accounting=(
+                        journal,
+                        {
+                            "phase": "retrieval",
+                            "operation": "query_embedding",
+                            "provider": "local_ollama",
+                            "model": EMBED_MODEL,
+                            "kind": "embedding",
+                            "object_id": query["id"],
+                        },
+                    ),
                 )
                 query_embed_client_seconds = time.perf_counter() - query_embed_started
                 query_vectors = query_result.get("embeddings")
@@ -641,6 +695,17 @@ def run(
                         "stream": False,
                         "options": GENERATION_OPTIONS,
                     },
+                    accounting=(
+                        journal,
+                        {
+                            "phase": "reader",
+                            "operation": "reader",
+                            "provider": "local_ollama",
+                            "model": generation_model,
+                            "kind": "llm",
+                            "object_id": query["id"],
+                        },
+                    ),
                 )
                 generation_wall_seconds = time.perf_counter() - generation_started
                 raw_answer = generation.get("message", {}).get("content", "")
@@ -714,6 +779,7 @@ def run(
         manifest["status"] = "completed"
         manifest["completed_at"] = datetime.now(timezone.utc).isoformat()
         manifest["results_sha256"] = sha256_file(output_path)
+        manifest["token_accounting"] = journal.reference()
         write_json_atomic(manifest_path, manifest)
         if index_embedding["build_seconds_this_run"] is not None:
             safe_print(
@@ -730,6 +796,7 @@ def run(
         manifest["status"] = "failed"
         manifest["completed_at"] = datetime.now(timezone.utc).isoformat()
         manifest["error"] = {"type": type(exc).__name__, "message": str(exc)}
+        manifest["token_accounting"] = journal.reference()
         if temporary.exists():
             manifest["partial_results_file"] = temporary.name
         write_json_atomic(manifest_path, manifest)

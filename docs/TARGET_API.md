@@ -1,5 +1,24 @@
 # Целевой API: ограниченная проверка issue #8
 
+## Учёт попыток для issue #9 (offline-реализация)
+
+Новые запуски создают рядом с результатом `*.tokens.jsonl`. Каждая физическая попытка имеет `started` (сохранён и fsync до транспорта) и `finished` с общим `attempt_id`; `operation_id` связывает явные повторы. Журнал хранит run ID, метод, датасет, provider, модель, фазу (`index`, `retrieval`, `reader`), операцию, ID объекта, статус, время, безопасный код ошибки и раздельные `llm_input_tokens`, `llm_output_tokens`, `embedding_input_tokens`. Отсутствие поля usage означает `null` и неполный итог; неприменимое поле другого типа токенов также `null`, но при агрегации не считается пропуском. Записи не содержат prompt, response, ключей и заголовков. Таймаут имеет неизвестный исход и расход. `total_tokens` и reasoning входят в сведения ответа, но не прибавляются второй раз.
+
+| Путь вызова | Provider и фаза | Точка записи | Offline-проверка |
+|---|---|---|---|
+| `check_target_api.local_embedding` | local Ollama, index | вокруг `/api/embed` | `test_token_accounting` |
+| `check_target_api.remote_generation` | target API, reader | вокруг `/chat/completions` | `test_token_accounting`, `test_check_target_api` |
+| `run_dense.embed_corpus` | local Ollama, index | `post_json` каждого batch | `test_token_accounting`, `test_dense` |
+| `run_dense.run`: query/embed и chat | local Ollama, retrieval/reader | `post_json` до проверки вектора/ответа | `test_token_accounting`, `test_dense` |
+| `run_hipporag`: native embed | local Ollama, index/retrieval | каждый POST, включая split после HTTP 400 | `test_token_accounting`, `test_run_hipporag` |
+| `run_hipporag`: SDK chat | HippoRAG SDK, OpenIE/retrieval/reader | `chat.completions.create` ниже SQLite cache | fake SDK в `test_token_accounting` |
+
+HippoRAG SDK retries для этого runner отключены (`max_retry_attempts=0`); явные OpenIE retry остаются отдельными SDK вызовами. Cache hit фиксируется без новой физической попытки и без повторного прибавления исторических токенов. Если producer run неизвестен, `historical_cache_cost_complete=false`. Путь HippoRAG проверен fake SDK и старыми offline-тестами; реальное окружение и будущая целевая модель на нём не проверялись.
+
+Manifest хранит имя, SHA-256 и сводку журнала. Экспорт MLflow/Langfuse проверяет SHA, run ID и сумму до записи, экспортирует ссылку/артефакт с тем же run ID и помечает старые manifests как `legacy_unknown`. Post-hoc экспорт не является новым модельным расходом. Для проверки полноты: сверить количество `started` с транспортными попытками, отсутствие незавершённых записей, `complete` каждой фазы/provider, `historical_cache_cost_complete`, SHA в manifest и итог из `known_subtotal`. При `complete=false` subtotal нельзя называть полным total.
+
+Синтетический контроль: index embedding 19, retrieval embedding 7, reader LLM 23 input и 4 output дают раздельно 26/23/4. Дополнительный reader timeout без usage оставляет эти известные суммы, но полный итог неизвестен. Повторное чтение журнала не увеличивает числа. Это тестовый пример, не результат эксперимента.
+
 Статус на 6 октября 2026: **простая генерация и локальные эмбеддинги проверены вместе**. Первый короткий запрос к Qwen не вернул текст; отдельная ограниченная диагностика нашла рабочий способ выключить reasoning, после чего итоговый smoke прошёл с пределом 32 токена. Это проверка интерфейса, не benchmark качества и не проверка OpenIE.
 
 ## Подтверждённые условия и границы

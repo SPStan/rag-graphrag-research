@@ -21,6 +21,11 @@ import numpy as np
 import requests
 
 try:
+    from scripts.token_accounting import Journal, PHASES, token
+except ModuleNotFoundError:  # Direct script execution.
+    from token_accounting import Journal, PHASES, token
+
+try:
     from scripts.openie_protocol import (
         build_openie_acceptance_gate,
         classify_openie_attempt,
@@ -442,7 +447,7 @@ def ollama_api_base(base_url):
 
 
 def install_no_truncate_embedding_api(
-    embedding_model, base_url, model_name, post_json=None
+    embedding_model, base_url, model_name, post_json=None, journal=None, context=None
 ):
     """Use Ollama's native embed API so truncate=false is part of each request."""
     session = requests.Session() if post_json is None else None
@@ -453,14 +458,43 @@ def install_no_truncate_embedding_api(
     endpoint = f"{ollama_api_base(base_url)}/api/embed"
 
     def request_embeddings(prepared_texts):
-        response = post_json(
-            endpoint,
-            json={"model": model_name, "input": prepared_texts, "truncate": False},
-            timeout=embedding_model.global_config.embedding_request_timeout,
-        )
+        started = None
+        begun = time.perf_counter()
+        if journal:
+            stage = getattr(context, "stage", "index_embedding")
+            started = journal.start(
+                phase=PHASES.get(stage, "index"),
+                operation=stage,
+                provider="local_ollama",
+                model=model_name,
+                kind="embedding",
+                object_id=getattr(context, "question_id", None),
+            )
+        try:
+            response = post_json(
+                endpoint,
+                json={"model": model_name, "input": prepared_texts, "truncate": False},
+                timeout=embedding_model.global_config.embedding_request_timeout,
+            )
+        except Exception as exc:
+            if started:
+                journal.finish(
+                    started,
+                    status="unknown" if isinstance(exc, requests.Timeout) else "error",
+                    error_code=type(exc).__name__,
+                    wall_seconds=time.perf_counter() - begun,
+                )
+            raise
         try:
             response.raise_for_status()
         except requests.HTTPError:
+            if started:
+                journal.finish(
+                    started,
+                    status="error",
+                    error_code="HTTPError",
+                    wall_seconds=time.perf_counter() - begun,
+                )
             # Ollama can reject an otherwise small batch for one input. Split
             # only rejected multi-input batches so a single bad value is
             # isolated and recorded instead of discarding the whole index.
@@ -499,7 +533,28 @@ def install_no_truncate_embedding_api(
                 }
                 return left + right, usage
             raise
-        payload = response.json()
+        try:
+            payload = response.json()
+        except ValueError:
+            if started:
+                journal.finish(
+                    started,
+                    status="error",
+                    error_code="invalid_json",
+                    wall_seconds=time.perf_counter() - begun,
+                )
+            raise
+        if started:
+            journal.finish(
+                started,
+                status="success",
+                usage={
+                    "embedding_input_tokens": token(payload.get("prompt_eval_count"))
+                    if isinstance(payload, dict)
+                    else None,
+                },
+                wall_seconds=time.perf_counter() - begun,
+            )
         vectors = payload.get("embeddings")
         if not isinstance(vectors, list) or len(vectors) != len(prepared_texts):
             raise RuntimeError("Ollama returned an incomplete embedding response")
@@ -599,6 +654,68 @@ def runtime_metadata(base_url):
 def _append_event(events, lock, event):
     with lock:
         events.append(event)
+
+
+def install_chat_accounting(llm, journal, context, model_name):
+    """Wrap the actual SDK create call, below HippoRAG's SQLite cache."""
+    completions = llm.openai_client.chat.completions
+    original_create = completions.create
+
+    def recorded_create(*args, **kwargs):
+        stage = getattr(context, "stage", "unknown")
+        if stage not in PHASES:
+            raise RuntimeError("unmapped_hipporag_chat_stage")
+        started = journal.start(
+            phase=PHASES[stage],
+            operation=stage,
+            provider="hipporag_sdk",
+            model=model_name,
+            kind="llm",
+            object_id=getattr(context, "question_id", None)
+            or getattr(context, "passage_id", None),
+            operation_id=str(
+                uuid.uuid5(
+                    uuid.NAMESPACE_URL,
+                    ":".join(
+                        (
+                            journal.run_id,
+                            stage,
+                            str(
+                                getattr(context, "question_id", None)
+                                or getattr(context, "passage_id", None)
+                            ),
+                        )
+                    ),
+                )
+            ),
+            attempt_no=getattr(context, "openie_attempt_number", None) or 1,
+        )
+        begun = time.perf_counter()
+        try:
+            response = original_create(*args, **kwargs)
+        except Exception as exc:
+            journal.finish(
+                started,
+                status="unknown" if "Timeout" in type(exc).__name__ else "error",
+                error_code=type(exc).__name__,
+                wall_seconds=time.perf_counter() - begun,
+            )
+            raise
+        usage = getattr(response, "usage", None)
+        journal.finish(
+            started,
+            status="success",
+            usage={
+                "llm_input_tokens": token(getattr(usage, "prompt_tokens", None)),
+                "llm_output_tokens": token(getattr(usage, "completion_tokens", None)),
+            },
+            request_id=getattr(response, "_request_id", None)
+            or getattr(response, "id", None),
+            wall_seconds=time.perf_counter() - begun,
+        )
+        return response
+
+    completions.create = recorded_create
 
 
 def record_openie_failure(failures, lock, passage_id, exc, stage):
@@ -724,9 +841,11 @@ def instrument_models(
     run_id=None,
     model_digest=None,
     openie_retry_token_caps=None,
+    local_context=None,
+    journal=None,
 ):
     """Record SDK usage and cache state without storing any raw prompts or texts."""
-    local = threading.local()
+    local = local_context or threading.local()
     openie_failures = []
     openie_failures_lock = threading.Lock()
     local.openie_failures = openie_failures
@@ -807,6 +926,19 @@ def instrument_models(
         }
         _append_event(events, lock, event)
         local.last_chat_event = event
+        if cache_hit and journal:
+            stage = getattr(local, "stage", "unknown")
+            if stage not in PHASES:
+                raise RuntimeError("unmapped_hipporag_cache_stage")
+            journal.cache_hit(
+                phase=PHASES[stage],
+                operation=stage,
+                provider="hipporag_sdk",
+                model=getattr(llm, "request_model_name", "unknown"),
+                kind="llm",
+                object_id=getattr(local, "question_id", None)
+                or getattr(local, "passage_id", None),
+            )
         return response, metadata, cache_hit
 
     llm.infer = tracked_infer
@@ -1680,6 +1812,13 @@ def run(args):
     results_path = output / f"hipporag2-{args.dataset}-{run_id}.jsonl"
     metrics_path = results_path.with_suffix(".metrics.json")
     manifest_path = results_path.with_suffix(".manifest.json")
+    journal = Journal(
+        results_path.with_suffix(".tokens.jsonl"),
+        run_id=run_id,
+        method="hipporag2",
+        dataset=args.dataset,
+    )
+    accounting_context = threading.local()
     generation_options = {
         "temperature": args.temperature,
         "seed": args.seed,
@@ -1817,7 +1956,7 @@ def run(args):
         qa_top_k=args.top_k,
         dataset=args.dataset,
         save_dir=str(index_storage),
-        max_retry_attempts=1,
+        max_retry_attempts=0,
     )
     llm = CacheOpenAI.from_experiment_config(config)
     llm_cache_dir = storage / "llm_cache"
@@ -1855,7 +1994,11 @@ def run(args):
             index_identity=f"ollama:{producer_identity}",
         )
         manifest["embedding"]["native_endpoint"] = install_no_truncate_embedding_api(
-            embedding, args.base_url, args.embedding_model
+            embedding,
+            args.base_url,
+            args.embedding_model,
+            journal=journal,
+            context=accounting_context,
         )
         write_json_atomic(manifest_path, manifest)
         if args.dataset == "musique":
@@ -1880,7 +2023,10 @@ def run(args):
             run_id=run_id,
             model_digest=model_generation["digest"],
             openie_retry_token_caps=openie_retry_token_caps,
+            local_context=accounting_context,
+            journal=journal,
         )
+        install_chat_accounting(llm, journal, accounting_context, args.generation_model)
         before = {
             "passages": set(rag.chunk_embedding_store.get_all_ids()),
             "entities": set(rag.entity_embedding_store.get_all_ids()),
@@ -2001,6 +2147,7 @@ def run(args):
             local.openie_failures, key=lambda item: item.get("passage_id") or ""
         )
         manifest["usage_events"] = events
+        manifest["token_accounting"] = journal.reference()
         index_embedding_tokens = sum(
             event.get("usage", {}).get("prompt_tokens", 0)
             for event in events
@@ -2044,6 +2191,7 @@ def run(args):
             manifest["index"]["openie_acceptance_gate"] = build_openie_acceptance_gate(
                 [item["id"] for item in corpus], local.openie_attempts
             )
+        manifest["token_accounting"] = journal.reference()
         persist_interrupted_run(manifest, manifest_path, events, event_lock)
         raise
     except Exception as exc:
@@ -2056,6 +2204,7 @@ def run(args):
                 [item["id"] for item in corpus], local.openie_attempts
             )
         manifest["usage_events"] = events
+        manifest["token_accounting"] = journal.reference()
         write_json_atomic(manifest_path, manifest)
         raise
     finally:
