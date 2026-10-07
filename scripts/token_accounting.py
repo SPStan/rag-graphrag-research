@@ -68,6 +68,8 @@ class Journal:
             if not self.path.is_file():
                 raise FileNotFoundError(self.path)
             records = read_records(self.path)
+            if records.corrupt_tail:
+                raise ValueError("journal_corrupt_tail_cannot_resume")
             if not records or any(
                 row.get("run_id") != run_id
                 or row.get("method") != method
@@ -135,6 +137,7 @@ class Journal:
         wall_seconds=None,
         cache_hit=False,
         producer_run_id=None,
+        producer_usage_complete=False,
     ):
         if status not in ("success", "error", "unknown", "cache_hit"):
             raise ValueError("invalid_attempt_status")
@@ -155,6 +158,7 @@ class Journal:
             "error_code": error_code if isinstance(error_code, str) else None,
             "cache_hit": bool(cache_hit),
             "producer_run_id": producer_run_id,
+            "producer_usage_complete": producer_usage_complete is True,
             **values,
             "usage_status": "complete"
             if known == len(applicable)
@@ -178,6 +182,7 @@ class Journal:
         kind,
         object_id=None,
         producer_run_id=None,
+        producer_usage_complete=False,
     ):
         started = self.start(
             phase=phase,
@@ -188,7 +193,11 @@ class Journal:
             object_id=object_id,
         )
         return self.finish(
-            started, status="cache_hit", cache_hit=True, producer_run_id=producer_run_id
+            started,
+            status="cache_hit",
+            cache_hit=True,
+            producer_run_id=producer_run_id,
+            producer_usage_complete=producer_usage_complete,
         )
 
     def reference(self):
@@ -199,9 +208,29 @@ class Journal:
         }
 
 
+class JournalRecords(list):
+    def __init__(self, rows, *, corrupt_tail=False, corrupt_tail_bytes=0):
+        super().__init__(rows)
+        self.corrupt_tail = corrupt_tail
+        self.corrupt_tail_bytes = corrupt_tail_bytes
+
+
 def read_records(path):
-    with Path(path).open(encoding="utf-8") as stream:
-        return [json.loads(line) for line in stream if line.strip()]
+    """Keep valid rows if the final write was torn; reject earlier corruption."""
+    lines = Path(path).read_bytes().splitlines(keepends=True)
+    rows = []
+    for position, line in enumerate(lines):
+        if not line.strip():
+            continue
+        try:
+            rows.append(json.loads(line.decode("utf-8")))
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            if position == len(lines) - 1 and not line.endswith(b"\n"):
+                return JournalRecords(
+                    rows, corrupt_tail=True, corrupt_tail_bytes=len(line)
+                )
+            raise ValueError("journal_invalid_complete_record") from exc
+    return JournalRecords(rows)
 
 
 def verified_reference(manifest, manifest_path):
@@ -221,10 +250,15 @@ def verified_reference(manifest, manifest_path):
     summary = summarize(records)
     if summary != reference.get("summary"):
         raise ValueError("token_journal_summary_mismatch")
-    return {"status": "verified", "summary": summary, "path": path}
+    return {
+        "status": "corrupt_tail" if records.corrupt_tail else "verified",
+        "summary": summary,
+        "path": path,
+    }
 
 
 def summarize(records):
+    corrupt_tail = bool(getattr(records, "corrupt_tail", False))
     attempts = {}
     for row in records:
         key = row["attempt_id"]
@@ -256,7 +290,10 @@ def summarize(records):
         )
         if finished and finished["status"] == "cache_hit":
             item["cache_hits"] += 1
-            if not finished.get("producer_run_id"):
+            if not (
+                finished.get("producer_run_id")
+                and finished.get("producer_usage_complete")
+            ):
                 item["cache_provenance_unknown"] += 1
             continue
         item["attempts"] += 1
@@ -277,7 +314,7 @@ def summarize(records):
                 item["known_subtotal"][key] += value
     ordered = [phases[key] for key in sorted(phases)]
     for item in ordered:
-        item["complete"] = not any(item["unknown_fields"].values())
+        item["complete"] = not corrupt_tail and not any(item["unknown_fields"].values())
         item["total"] = item["known_subtotal"] if item["complete"] else None
     return {
         "schema_version": 1,
@@ -285,11 +322,12 @@ def summarize(records):
         "known_subtotal": {
             key: sum(p["known_subtotal"][key] for p in ordered) for key in TOKEN_FIELDS
         },
-        "complete": all(p["complete"] for p in ordered),
+        "complete": not corrupt_tail and all(p["complete"] for p in ordered),
         "attempts": sum(p["attempts"] for p in ordered),
-        "historical_cache_cost_complete": not any(
-            p["cache_provenance_unknown"] for p in ordered
-        ),
+        "historical_cache_cost_complete": not corrupt_tail
+        and not any(p["cache_provenance_unknown"] for p in ordered),
+        "journal_corrupt_tail": corrupt_tail,
+        "corrupt_tail_bytes": getattr(records, "corrupt_tail_bytes", 0),
     }
 
 

@@ -15,9 +15,9 @@ import numpy as np
 import requests
 
 try:
-    from scripts.token_accounting import Journal, recorded_call
+    from scripts.token_accounting import Journal, recorded_call, verified_reference
 except ModuleNotFoundError:  # Direct script execution.
-    from token_accounting import Journal, recorded_call
+    from token_accounting import Journal, recorded_call, verified_reference
 
 try:
     from scripts.evaluation_view import load_view, select_in_view
@@ -215,6 +215,58 @@ def get_cache_build_provenance(cache_path, fingerprint, model_digest):
     return provenance
 
 
+def verified_cache_producer_usage(provenance, cache_path):
+    """Require a completed, matching producer journal for historical index cost."""
+    if not isinstance(provenance, dict):
+        return False
+    run_id, dataset = provenance.get("build_run_id"), provenance.get("dataset")
+    if not isinstance(run_id, str) or not isinstance(dataset, str):
+        return False
+    manifest_path = ROOT / "results" / "raw" / f"dense-{dataset}-{run_id}.manifest.json"
+    try:
+        expected_manifest_sha = provenance.get("source_manifest_sha256")
+        if (
+            expected_manifest_sha
+            and sha256_file(manifest_path) != expected_manifest_sha
+        ):
+            return False
+        manifest = read_json(manifest_path)
+        if (
+            manifest.get("status") != "completed"
+            or manifest.get("run_id") != run_id
+            or manifest.get("dataset") != dataset
+            or manifest.get("embedding", {}).get("cache_file")
+            != cache_path.relative_to(ROOT).as_posix()
+            or manifest.get("inputs", {}).get("corpus_fingerprint")
+            != provenance.get("corpus_fingerprint")
+            or manifest.get("embedding", {}).get("model", {}).get("digest")
+            != provenance.get("model_digest")
+            or manifest.get("index_embedding", {}).get("cache_hit") is not False
+        ):
+            return False
+        result_path = manifest_path.parent / manifest["results_file"]
+        if sha256_file(result_path) != manifest.get("results_sha256"):
+            return False
+        accounting = verified_reference(manifest, manifest_path)
+        if accounting["status"] != "verified":
+            return False
+        phases = [
+            phase
+            for phase in accounting["summary"]["phases"]
+            if phase["phase"] == "index" and phase["provider"] == "local_ollama"
+        ]
+        return (
+            len(phases) == 1
+            and phases[0]["attempts"] > 0
+            and phases[0]["complete"]
+            and phases[0]["attempts"] == manifest["index_embedding"].get("api_batches")
+            and phases[0]["known_subtotal"]["embedding_input_tokens"]
+            == manifest["index_embedding"].get("embedding_prompt_tokens")
+        )
+    except (OSError, ValueError, KeyError, TypeError):
+        return False
+
+
 def write_json_atomic(path, payload):
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(path.suffix + ".part")
@@ -363,6 +415,9 @@ def embed_corpus(
                             object_id="corpus_cache",
                             producer_run_id=(build_provenance or {}).get(
                                 "build_run_id"
+                            ),
+                            producer_usage_complete=verified_cache_producer_usage(
+                                build_provenance, cache_path
                             ),
                         )
                     if build_provenance is None:

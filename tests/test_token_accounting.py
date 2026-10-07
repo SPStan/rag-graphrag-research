@@ -1,5 +1,7 @@
 """Offline contract checks for physical request accounting."""
 
+import hashlib
+import json
 from types import SimpleNamespace
 import sys
 import threading
@@ -252,6 +254,130 @@ def test_cache_hit_has_no_new_physical_cost(tmp_path):
     assert summary["known_subtotal"]["embedding_input_tokens"] == 0
     assert summary["phases"][0]["cache_hits"] == 1
     assert not summary["historical_cache_cost_complete"]
+
+
+def test_producer_id_alone_does_not_claim_historical_cost(tmp_path):
+    log = journal(tmp_path)
+    log.cache_hit(
+        phase="index",
+        operation="index_embedding",
+        provider="local_ollama",
+        model="bge",
+        kind="embedding",
+        producer_run_id="old-run",
+    )
+    assert not log.summary()["historical_cache_cost_complete"]
+    complete = journal(tmp_path / "complete")
+    complete.cache_hit(
+        phase="index",
+        operation="index_embedding",
+        provider="local_ollama",
+        model="bge",
+        kind="embedding",
+        producer_run_id="old-run",
+        producer_usage_complete=True,
+    )
+    assert complete.summary()["historical_cache_cost_complete"]
+
+
+def test_dense_cache_producer_requires_verified_complete_index(tmp_path, monkeypatch):
+    monkeypatch.setattr(run_dense, "ROOT", tmp_path)
+    run_id, dataset = "producer", "synthetic"
+    raw = tmp_path / "results" / "raw"
+    raw.mkdir(parents=True)
+    cache = tmp_path / "indexes" / "dense" / "cache.npz"
+    cache.parent.mkdir(parents=True)
+    cache.write_bytes(b"fake-cache")
+    result = raw / f"dense-{dataset}-{run_id}.jsonl"
+    result.write_text("row\n", encoding="utf-8")
+    log = Journal(
+        result.with_suffix(".tokens.jsonl"),
+        run_id=run_id,
+        method="dense",
+        dataset=dataset,
+    )
+    attempt = log.start(
+        phase="index",
+        operation="index_embedding",
+        provider="local_ollama",
+        model="bge",
+        kind="embedding",
+    )
+    log.finish(attempt, status="success", usage={"embedding_input_tokens": 19})
+    manifest = {
+        "status": "completed",
+        "run_id": run_id,
+        "dataset": dataset,
+        "results_file": result.name,
+        "results_sha256": hashlib.sha256(result.read_bytes()).hexdigest(),
+        "embedding": {
+            "cache_file": cache.relative_to(tmp_path).as_posix(),
+            "model": {"digest": "digest"},
+        },
+        "inputs": {"corpus_fingerprint": "fingerprint"},
+        "index_embedding": {
+            "cache_hit": False,
+            "api_batches": 1,
+            "embedding_prompt_tokens": 19,
+        },
+        "token_accounting": log.reference(),
+    }
+    manifest_path = result.with_suffix(".manifest.json")
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    provenance = {
+        "build_run_id": run_id,
+        "dataset": dataset,
+        "corpus_fingerprint": "fingerprint",
+        "model_digest": "digest",
+    }
+    assert run_dense.verified_cache_producer_usage(provenance, cache)
+    manifest["index_embedding"]["embedding_prompt_tokens"] = None
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    assert not run_dense.verified_cache_producer_usage(provenance, cache)
+
+
+def test_torn_journal_tail_preserves_failed_manifest_and_marks_unknown(tmp_path):
+    log = journal(tmp_path)
+    started = log.start(
+        phase="reader",
+        operation="reader",
+        provider="target_api",
+        model="qwen",
+        kind="llm",
+    )
+    log.finish(
+        started, status="success", usage={"llm_input_tokens": 7, "llm_output_tokens": 2}
+    )
+    with log.path.open("ab") as stream:
+        stream.write(b'{"event":"finished","attempt_id":"partial')
+    rows = read_records(log.path)
+    assert len(rows) == 2
+    assert rows.corrupt_tail
+    reference = log.reference()
+    summary = reference["summary"]
+    assert summary["known_subtotal"]["llm_input_tokens"] == 7
+    assert summary["journal_corrupt_tail"]
+    assert summary["corrupt_tail_bytes"] > 0
+    assert not summary["complete"]
+    assert summary["phases"][0]["total"] is None
+    assert not summary["historical_cache_cost_complete"]
+    manifest = {"run_id": "run-1", "status": "failed", "token_accounting": reference}
+    manifest_path = tmp_path / "run.manifest.json"
+    run_dense.write_json_atomic(manifest_path, manifest)
+    assert json.loads(manifest_path.read_text(encoding="utf-8"))["status"] == "failed"
+    assert verified_reference(manifest, manifest_path)["status"] == "corrupt_tail"
+    with pytest.raises(ValueError, match="cannot_resume"):
+        Journal(
+            log.path, run_id="run-1", method="dense", dataset="synthetic", resume=True
+        )
+
+
+def test_complete_invalid_journal_line_is_not_silently_skipped(tmp_path):
+    log = journal(tmp_path)
+    with log.path.open("ab") as stream:
+        stream.write(b"{invalid}\n")
+    with pytest.raises(ValueError, match="journal_invalid_complete_record"):
+        read_records(log.path)
 
 
 def test_explicit_retry_and_unfinished_attempt(tmp_path):
