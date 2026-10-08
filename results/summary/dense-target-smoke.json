@@ -1,0 +1,213 @@
+{
+  "schema_version": 1,
+  "kind": "dense_target_functionality_check",
+  "status": "stopped_on_reader_validation",
+  "code_commit": "afd60aba052ef92e9fb7670ce52b4d60e19b48dc",
+  "scope": "5 development questions per dataset; not a quality benchmark",
+  "datasets": [
+    {
+      "dataset": "musique",
+      "run_id": "0b41ddc1-9e9f-4243-8679-e91d86b085ee",
+      "manifest_file": "dense-musique-0b41ddc1-9e9f-4243-8679-e91d86b085ee.manifest.json",
+      "manifest_sha256": "5d7c6bec27cc7ccf1fc99f26464828ae68a7b010e5c61ebc8390f47c817d5dc8",
+      "results_file": "dense-musique-0b41ddc1-9e9f-4243-8679-e91d86b085ee.jsonl",
+      "results_sha256": "4778363fa7eb938144642446a653bf0a8cc09acf12e2e3d568f9e63bb1ff1a8f",
+      "expected_question_ids": [
+        "3hop1__593288_720914_27537",
+        "2hop__21104_16334",
+        "2hop__126306_396277",
+        "3hop1__9285_5188_86687",
+        "2hop__53147_7298"
+      ],
+      "accepted_question_ids": [
+        "3hop1__593288_720914_27537"
+      ],
+      "question_outcomes": [
+        {
+          "question_id": "3hop1__593288_720914_27537",
+          "status": "completed"
+        },
+        {
+          "question_id": "2hop__21104_16334",
+          "status": "failed"
+        },
+        {
+          "question_id": "2hop__126306_396277",
+          "status": "not_attempted_after_stop"
+        },
+        {
+          "question_id": "3hop1__9285_5188_86687",
+          "status": "not_attempted_after_stop"
+        },
+        {
+          "question_id": "2hop__53147_7298",
+          "status": "not_attempted_after_stop"
+        }
+      ],
+      "errors": [
+        {
+          "question_id": "2hop__21104_16334",
+          "code": "ValueError",
+          "reason": "reader_format_or_finish_reason_invalid"
+        }
+      ],
+      "started_at": "2026-10-08T00:45:07.442160+00:00",
+      "completed_at": "2026-10-08T00:45:17.161256+00:00",
+      "plan_sha256": "8b860d976bdf3c80c03db9c298de873ebe02c28e1ee2eb3ff84e0c051caa9d60",
+      "model": {
+        "requested_model": "iairlab/qwen3.8-27b",
+        "base_url": "https://api.duckduck.cloud/v1",
+        "options": {
+          "temperature": 0,
+          "seed": 42,
+          "max_tokens": 512,
+          "stream": false,
+          "chat_template_kwargs": {
+            "enable_thinking": false
+          }
+        },
+        "backend_revision": "unknown"
+      },
+      "embedding": {
+        "model": {
+          "name": "bge-m3:latest",
+          "model": "bge-m3:latest",
+          "modified_at": "2026-09-23T15:05:01.4618858+03:00",
+          "size": 1157672605,
+          "digest": "7907646426070047a77226ac3e684fbbe8410524f7b4a74d02837e43f2146bab",
+          "details": {
+            "parent_model": "",
+            "format": "gguf",
+            "family": "bert",
+            "families": [
+              "bert"
+            ],
+            "parameter_size": "566.70M",
+            "quantization_level": "F16",
+            "context_length": 8192,
+            "embedding_length": 1024
+          },
+          "capabilities": [
+            "embedding"
+          ]
+        },
+        "truncate": false,
+        "text_version": "title-newline-text-v1"
+      },
+      "token_accounting": {
+        "status": "verified",
+        "journal_file": "dense-musique-0b41ddc1-9e9f-4243-8679-e91d86b085ee.tokens.jsonl",
+        "journal_sha256": "b86e56faf6db4316305986506c7fb90b92b9e87b4787c4cc398a8ebd4c6f266a",
+        "summary": {
+          "schema_version": 1,
+          "phases": [
+            {
+              "phase": "index",
+              "provider": "local_ollama",
+              "attempts": 1,
+              "errors": 0,
+              "unfinished": 0,
+              "cache_hits": 0,
+              "cache_provenance_unknown": 0,
+              "known_subtotal": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 4215
+              },
+              "unknown_fields": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 0
+              },
+              "complete": true,
+              "total": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 4215
+              }
+            },
+            {
+              "phase": "reader",
+              "provider": "target_api",
+              "attempts": 2,
+              "errors": 0,
+              "unfinished": 0,
+              "cache_hits": 0,
+              "cache_provenance_unknown": 0,
+              "known_subtotal": {
+                "llm_input_tokens": 3226,
+                "llm_output_tokens": 505,
+                "embedding_input_tokens": 0
+              },
+              "unknown_fields": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 0
+              },
+              "complete": true,
+              "total": {
+                "llm_input_tokens": 3226,
+                "llm_output_tokens": 505,
+                "embedding_input_tokens": 0
+              }
+            },
+            {
+              "phase": "retrieval",
+              "provider": "local_ollama",
+              "attempts": 2,
+              "errors": 0,
+              "unfinished": 0,
+              "cache_hits": 0,
+              "cache_provenance_unknown": 0,
+              "known_subtotal": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 49
+              },
+              "unknown_fields": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 0
+              },
+              "complete": true,
+              "total": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 49
+              }
+            }
+          ],
+          "known_subtotal": {
+            "llm_input_tokens": 3226,
+            "llm_output_tokens": 505,
+            "embedding_input_tokens": 4264
+          },
+          "complete": true,
+          "attempts": 5,
+          "historical_cache_cost_complete": true,
+          "journal_corrupt_tail": false,
+          "corrupt_tail_bytes": 0
+        }
+      },
+      "metrics": null,
+      "limitations": [
+        "Only first answer accepted; full five-ID metrics not computed",
+        "Failed reader response content not retained in this first run; failure recorded without attributing a specific finish reason or parser status",
+        "Transport success and complete token usage do not imply reader format success"
+      ]
+    },
+    {
+      "dataset": "hotpotqa",
+      "status": "not_attempted_after_musique_stop",
+      "run_id": null,
+      "metrics": null,
+      "usage": null
+    }
+  ],
+  "offline_tests": {
+    "passed": 213,
+    "skipped": 4
+  },
+  "active_user_hours": "not_measured",
+  "merge_dependency": "PR #28 remains open"
+}

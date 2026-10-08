@@ -155,6 +155,11 @@ def test_invalid_reader_preserves_usage_before_stop(setup, monkeypatch):
     )
     assert manifest["status"] == "failed"
     assert (
+        manifest["failed_reader_response"]["answer_extraction_status"]
+        == "missing_answer_marker"
+    )
+    assert (path / manifest["failed_reader_response"]["file"]).is_file()
+    assert (
         manifest["token_accounting"]["summary"]["known_subtotal"]["llm_input_tokens"]
         == 23
     )

@@ -267,6 +267,17 @@ def execute(plan, queries, corpus, labels, config, local, remote, output_dir):
                 raw = choice["message"]["content"]
                 answer, status = dense.extract_reader_answer(raw)
                 if choice.get("finish_reason") != "stop" or status != "ok":
+                    response_path = output.with_name(
+                        f"{output.stem}-{digest(current)[:16]}.reader-error.json"
+                    )
+                    dense.write_json_atomic(response_path, response)
+                    manifest["failed_reader_response"] = {
+                        "question_id": current,
+                        "file": response_path.name,
+                        "sha256": dense.sha256_file(response_path),
+                        "finish_reason": choice.get("finish_reason"),
+                        "answer_extraction_status": status,
+                    }
                     raise ValueError("reader_format_or_finish_reason_invalid")
                 row = {
                     "run_id": run_id,
