@@ -21,11 +21,36 @@ Manifest хранит имя, SHA-256 и сводку журнала. Экспо
 
 Корневой Langfuse trace хранит проверенную `token_accounting_summary`, `token_accounting_complete` и `historical_cache_cost_complete`. `token_accounting_status=verified` подтверждает целостность журнала, **не** полноту затрат. Usage дочерней generation observation остаётся usage финального ответа из rows; дополнительные попытки и неизвестный расход видны в корневой summary и не прибавляются к нему второй раз.
 
-Для закреплённого HippoRAG commit `1438aba` проверено по исходному коду: `BaseConfig.max_retry_attempts=0` допускается и передаётся в `OpenAI(max_retries=0)`; OpenAI SDK документирует ноль как отключение retry. Runner дополнительно проверяет значения `llm.max_retries` и `llm.openai_client.max_retries` до вызовов. Перед первым разрешённым малым запуском ещё нужно подтвердить поведение фактической установленной версии SDK на подставном HTTP-транспорте; fake `create` в текущем offline-наборе этого не доказывает.
+Для закреплённого HippoRAG commit `1438aba` проверено по исходному коду: `BaseConfig.max_retry_attempts=0` допускается и передаётся в `OpenAI(max_retries=0)`; OpenAI SDK документирует ноль как отключение retry. Runner дополнительно проверяет значения `llm.max_retries` и `llm.openai_client.max_retries` до вызовов. 8 октября поведение установленного OpenAI `3.26.1` / HTTPX `0.28.1` с HippoRAG `1438aba3` подтверждено девятью тестами на `MockTransport`: retry=0 даёт одну физическую попытку на 408/409/429/500/connect/timeout; положительный контроль retry=1 даёт две. Проверены SQLite-кэш, отсутствующий usage, NER/triples в настоящем `batch_openie`, retrieval/reader и контекст потоков. Это проверка SDK-транспорта, а не живого модельного стенда.
 
 Синтетический контроль: index embedding 19, retrieval embedding 7, reader LLM 23 input и 4 output дают раздельно 26/23/4. Дополнительный reader timeout без usage оставляет эти известные суммы, но полный итог неизвестен. Повторное чтение журнала не увеличивает числа. Это тестовый пример, не результат эксперимента.
 
 Статус на 6 октября 2026: **простая генерация и локальные эмбеддинги проверены вместе**. Первый короткий запрос к Qwen не вернул текст; отдельная ограниченная диагностика нашла рабочий способ выключить reasoning, после чего итоговый smoke прошёл с пределом 32 токена. Это проверка интерфейса, не benchmark качества и не проверка OpenIE.
+
+## Изолированная проверка HippoRAG SDK без модельных вызовов
+
+`tests/test_hipporag_sdk_transport.py` использует реальные `CacheOpenAI`, OpenAI и `batch_openie` закреплённого HippoRAG, заменяя только HTTP-транспорт на `httpx.MockTransport`. Он проверяет 408/409/429/500, connect error и timeout, SQLite-кэш, отсутствующий usage, фазы и passage ID в рабочих потоках. Положительный контроль с одним разрешённым retry должен дать два HTTP-вызова. Проверка не запускает модель, индекс или embedding backend.
+
+Пакеты устанавливаются только в отдельное окружение из `requirements-hipporag-sdk-check.txt`: HippoRAG `1438aba3`, OpenAI `3.26.1`, HTTPX `0.28.1`. Для теста нужна также чистая исходная копия этой ревизии в `.cache/hipporag-sdk-1438aba3`; fixture сверяет её commit и исходник с установленным пакетом.
+
+```powershell
+git init .cache/hipporag-sdk-1438aba3
+git -C .cache/hipporag-sdk-1438aba3 fetch --depth 1 https://github.com/OSU-NLP-Group/HippoRAG.git 1438aba3fc44ff10573e5a5e1e7cc3c7f9794aff
+git -C .cache/hipporag-sdk-1438aba3 checkout --detach FETCH_HEAD
+uv venv --python 'C:\Program Files\Python312\python.exe' .cache/hipporag-sdk-venv
+uv pip install --python .cache/hipporag-sdk-venv/Scripts/python.exe -r requirements-hipporag-sdk-check.txt
+$env:HIPPORAG_SDK_SOURCE = (Resolve-Path .cache/hipporag-sdk-1438aba3).Path
+$env:HF_HUB_OFFLINE = '1'
+$env:TRANSFORMERS_OFFLINE = '1'
+$env:LITELLM_LOCAL_MODEL_COST_MAP = 'True'
+.cache/hipporag-sdk-venv/Scripts/python.exe -m pytest tests/test_hipporag_sdk_transport.py -q
+uv pip check --python .cache/hipporag-sdk-venv/Scripts/python.exe
+Remove-Item Env:HIPPORAG_SDK_SOURCE
+```
+
+Фактический результат 8 октября: **9 passed** (две upstream deprecation warnings), `uv pip check` — 77 пакетов совместимы. Общий offline gate: **207 passed, 13 skipped**, из них девять skips относятся к отдельному SDK-набору, который выполнен выше.
+
+Обычный `scripts.check` без `HIPPORAG_SDK_SOURCE` явно пропускает эти девять тестов. Такой пропуск не подтверждает SDK. Эта проверка устанавливает поведение указанной версии на подставном транспорте; живой HippoRAG, ответ сервера и расход реальной модели ею не проверяются. При изменении ревизии или версии SDK проверку повторить до нового модельного запуска.
 
 ## Подтверждённые условия и границы
 
