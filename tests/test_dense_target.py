@@ -221,3 +221,66 @@ def test_budget_blocks_before_transport(tmp_path):
             object_id="q",
         )
     assert journal.summary()["attempts"] == 0
+
+
+@pytest.mark.parametrize(
+    "payload, reason",
+    [
+        (
+            {"choices": [], "usage": {"prompt_tokens": 3, "completion_tokens": 2}},
+            "reader_response_structure_invalid",
+        ),
+        (
+            {
+                "choices": [{"message": {"content": None}, "finish_reason": "stop"}],
+                "usage": {"prompt_tokens": 3, "completion_tokens": 2},
+            },
+            "reader_response_structure_invalid",
+        ),
+        (
+            {
+                "choices": [
+                    {"message": {"content": "Answer: yes"}, "finish_reason": "stop"}
+                ]
+            },
+            "missing_usage_stop",
+        ),
+        (
+            {
+                "choices": [
+                    {"message": {"content": "Answer: yes"}, "finish_reason": "length"}
+                ],
+                "usage": {"prompt_tokens": 3, "completion_tokens": 2},
+            },
+            "reader_format_or_finish_reason_invalid",
+        ),
+    ],
+)
+def test_all_invalid_responses_saved_before_validation(
+    setup, monkeypatch, payload, reason
+):
+    plan, queries, corpus, labels, config, local, remote, path, _ = setup
+    calls = []
+
+    def send(*a, **k):
+        calls.append(1)
+        return response(payload)
+
+    monkeypatch.setattr(remote, "post", send)
+    manifest_path, manifest = target.execute(
+        plan, queries, corpus, labels, config, local, remote, path
+    )
+    assert manifest["status"] == "failed"
+    assert manifest["errors"][0]["reason"] == reason
+    assert len(calls) == 1
+    assert manifest["observed_question_ids"] == []
+    attempt = manifest["reader_attempts"][0]
+    assert json.loads((path / attempt["response_file"]).read_text()) == payload
+    assert json.loads((path / attempt["request_file"]).read_text())["payload"][
+        "messages"
+    ]
+    assert attempt["response_sha256"]
+    assert attempt["diagnostics"]["content_type"]
+    summary = verified_reference(manifest, manifest_path)["summary"]
+    assert summary["attempts"] == 3
+    assert summary["complete"] == ("usage" in payload)

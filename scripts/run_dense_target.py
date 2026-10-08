@@ -104,23 +104,35 @@ def checked_post(
     kind,
     object_id,
     headers=None,
+    response_path=None,
+    token_limit=TOKEN_LIMIT,
 ):
     # Conservative request reservation; no tokenizer/backend context limit is inferred.
     reserve = len(json.dumps(payload, ensure_ascii=False).encode()) + 2048
     if kind == "llm":
-        reserve += OPTIONS["max_tokens"]
+        reserve += payload.get("max_tokens", OPTIONS["max_tokens"])
     known = sum(journal.summary()["known_subtotal"].values())
-    if known + reserve > TOKEN_LIMIT:
+    if known + reserve > token_limit:
         raise ValueError("token_budget_reservation_exceeded")
 
     def send():
         response = session.post(
             url, json=payload, headers=headers, timeout=(5, 120), allow_redirects=False
         )
+        try:
+            body = response.json()
+        except ValueError:
+            body = {"unparsed_response_text": response.text}
+            if response_path is not None:
+                save_private_json(response_path, body, headers)
+            response.raise_for_status()
+            raise ValueError("invalid_response_json") from None
+        if response_path is not None:
+            save_private_json(response_path, body, headers)
         if 300 <= response.status_code < 400:
             raise ValueError("redirect_refused")
         response.raise_for_status()
-        return response.json()
+        return body
 
     result = recorded_call(
         journal,
@@ -135,9 +147,44 @@ def checked_post(
     summary = journal.summary()
     if not summary["complete"]:
         raise ValueError("missing_usage_stop")
-    if sum(summary["known_subtotal"].values()) > TOKEN_LIMIT:
+    if sum(summary["known_subtotal"].values()) > token_limit:
         raise ValueError("token_budget_exceeded")
     return result
+
+
+def save_private_json(path, body, headers=None):
+    """Store response/prompt locally without retaining the supplied credential."""
+    authorization = (headers or {}).get("Authorization", "")
+    secret = authorization.removeprefix("Bearer ")
+    text = json.dumps(body, ensure_ascii=False)
+    if secret:
+        text = text.replace(secret, "[redacted]")
+    dense.write_json_atomic(path, json.loads(text))
+
+
+def response_diagnostics(body):
+    choices = body.get("choices") if isinstance(body, dict) else None
+    choice = choices[0] if isinstance(choices, list) and choices else None
+    message = choice.get("message") if isinstance(choice, dict) else None
+    content = message.get("content") if isinstance(message, dict) else None
+    usage = body.get("usage") if isinstance(body, dict) else None
+    usage = usage if isinstance(usage, dict) else {}
+    details = usage.get("completion_tokens_details")
+    details = details if isinstance(details, dict) else {}
+    return {
+        "structure_status": "valid" if isinstance(message, dict) else "invalid",
+        "finish_reason": choice.get("finish_reason")
+        if isinstance(choice, dict)
+        else None,
+        "content_type": type(content).__name__,
+        "content_present": isinstance(content, str) and bool(content.strip()),
+        "answer_extraction_status": dense.extract_reader_answer(content)[1]
+        if isinstance(content, str)
+        else "content_not_string",
+        "prompt_tokens": api.token_count(usage.get("prompt_tokens")),
+        "completion_tokens": api.token_count(usage.get("completion_tokens")),
+        "reasoning_tokens": api.token_count(details.get("reasoning_tokens")),
+    }
 
 
 def execute(plan, queries, corpus, labels, config, local, remote, output_dir):
@@ -176,6 +223,11 @@ def execute(plan, queries, corpus, labels, config, local, remote, output_dir):
     dense.write_json_atomic(manifest_path, manifest)
     rows = []
     current = None
+    response_path = None
+    options = plan.get("generation_options", OPTIONS)
+    token_limit = plan.get("token_limit_per_dataset", TOKEN_LIMIT)
+    manifest["generation"]["options"] = options
+    manifest["reader_attempts"] = []
     try:
         for session, base in (
             (local, config["ollama_url"]),
@@ -206,6 +258,7 @@ def execute(plan, queries, corpus, labels, config, local, remote, output_dir):
                 model=model,
                 kind="embedding",
                 object_id=object_id,
+                token_limit=token_limit,
             )
             vectors = result.get("embeddings")
             if not isinstance(vectors, list) or len(vectors) != len(texts):
@@ -215,13 +268,24 @@ def execute(plan, queries, corpus, labels, config, local, remote, output_dir):
                 raise ValueError("bge_m3_dimension_mismatch")
             return matrix, result["prompt_eval_count"]
 
-        document_vectors, index_tokens = embed(
-            [f"{row['title']}\n{row['text']}" for row in corpus], "index", "corpus"
-        )
+        matrices, index_tokens = [], 0
+        for offset in range(0, len(corpus), 8):
+            matrix, tokens = embed(
+                [
+                    f"{row['title']}\n{row['text']}"
+                    for row in corpus[offset : offset + 8]
+                ],
+                "index",
+                f"corpus:{offset}",
+            )
+            matrices.append(matrix)
+            index_tokens += tokens
+        document_vectors = dense.np.concatenate(matrices)
         manifest["embedding"] = {
             "model": embedding_info,
             "truncate": False,
             "text_version": dense.EMBED_TEXT_VERSION,
+            "batch_size": 8,
         }
         manifest["runtime"] = {
             "python": platform.python_version(),
@@ -232,7 +296,7 @@ def execute(plan, queries, corpus, labels, config, local, remote, output_dir):
         )
         manifest["index_embedding"] = {
             "cache_hit": False,
-            "api_batches": 1,
+            "api_batches": len(matrices),
             "embedding_prompt_tokens": index_tokens,
         }
         with output.open("x", encoding="utf-8") as stream:
@@ -250,10 +314,46 @@ def execute(plan, queries, corpus, labels, config, local, remote, output_dir):
                     > INPUT_BYTE_LIMIT
                 ):
                     raise ValueError("reader_input_byte_limit_exceeded")
+                request_path = output.with_name(
+                    f"{output.stem}-{digest(current)[:16]}.reader-request.json"
+                )
+                response_path = output.with_name(
+                    f"{output.stem}-{digest(current)[:16]}.reader-response.json"
+                )
+                request_payload = {
+                    "model": config["model"],
+                    "messages": messages,
+                    **options,
+                }
+                save_private_json(
+                    request_path,
+                    {
+                        "payload": request_payload,
+                        "retrieved": [
+                            {
+                                "id": p["id"],
+                                "score": score,
+                                "title": p["title"],
+                                "text": p["text"],
+                            }
+                            for p, (_, score) in zip(passages, ranked)
+                        ],
+                    },
+                )
+                manifest["reader_attempts"].append(
+                    {
+                        "question_id": current,
+                        "request_file": request_path.name,
+                        "request_sha256": dense.sha256_file(request_path),
+                        "prompt_sha256": digest(messages),
+                        "response_file": response_path.name,
+                    }
+                )
+                dense.write_json_atomic(manifest_path, manifest)
                 response = checked_post(
                     remote,
                     f"{config['base_url']}/chat/completions",
-                    {"model": config["model"], "messages": messages, **OPTIONS},
+                    request_payload,
                     journal,
                     phase="reader",
                     operation="reader",
@@ -262,15 +362,19 @@ def execute(plan, queries, corpus, labels, config, local, remote, output_dir):
                     kind="llm",
                     object_id=current,
                     headers={"Authorization": f"Bearer {config['key']}"},
+                    response_path=response_path,
+                    token_limit=token_limit,
                 )
+                diagnostics = response_diagnostics(response)
+                if (
+                    diagnostics["structure_status"] != "valid"
+                    or not diagnostics["content_present"]
+                ):
+                    raise ValueError("reader_response_structure_invalid")
                 choice = response["choices"][0]
                 raw = choice["message"]["content"]
                 answer, status = dense.extract_reader_answer(raw)
                 if choice.get("finish_reason") != "stop" or status != "ok":
-                    response_path = output.with_name(
-                        f"{output.stem}-{digest(current)[:16]}.reader-error.json"
-                    )
-                    dense.write_json_atomic(response_path, response)
                     manifest["failed_reader_response"] = {
                         "question_id": current,
                         "file": response_path.name,
@@ -290,7 +394,7 @@ def execute(plan, queries, corpus, labels, config, local, remote, output_dir):
                     "model_returned": response.get("model"),
                     "reader_prompt_version": dense.READER_PROMPT_VERSION,
                     "reader_prompt_sha256": digest(messages),
-                    "generation_options": OPTIONS,
+                    "generation_options": options,
                     "top_k": 5,
                     "retrieved": [
                         {"id": p["id"], "score": score}
@@ -326,6 +430,13 @@ def execute(plan, queries, corpus, labels, config, local, remote, output_dir):
             }
         ]
     finally:
+        for attempt in manifest["reader_attempts"]:
+            saved_response = output.parent / attempt["response_file"]
+            if saved_response.exists():
+                attempt["response_sha256"] = dense.sha256_file(saved_response)
+                attempt["diagnostics"] = response_diagnostics(
+                    dense.read_json(saved_response)
+                )
         manifest["completed_at"] = datetime.now(timezone.utc).isoformat()
         manifest["observed_question_ids"] = [row["question_id"] for row in rows]
         manifest["uncompleted_question_ids"] = [
@@ -353,6 +464,15 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--data-root", type=Path, default=ROOT)
     parser.add_argument("--env-file", type=Path)
+    parser.add_argument("--dataset", choices=DATASETS, help="restrict to one dataset")
+    parser.add_argument(
+        "--diagnostic-question", help="one ID from the frozen five-question plan"
+    )
+    parser.add_argument(
+        "--diagnostic-prior-run",
+        type=Path,
+        help="verified first diagnostic manifest; cumulative budget 20000",
+    )
     parser.add_argument(
         "--execute",
         action="store_true",
@@ -365,6 +485,64 @@ def main():
     if plan_path.exists() and dense.read_json(plan_path) != plans:
         raise SystemExit("Refusing to change an existing smoke plan")
     dense.write_json_atomic(plan_path, plans)
+    if args.dataset:
+        prepared = [item for item in prepared if item[0]["dataset"] == args.dataset]
+    if args.diagnostic_question:
+        if not args.dataset:
+            raise SystemExit("Diagnostic requires --dataset")
+        plan, queries, corpus, labels = prepared[0]
+        if args.diagnostic_question not in plan["question_ids"]:
+            raise SystemExit(
+                "Diagnostic ID must belong to the frozen five-question plan"
+            )
+        parent_sha = digest(plan)
+        plan = dict(
+            plan,
+            kind="dense_target_reader_diagnostic",
+            parent_plan_sha256=parent_sha,
+            question_ids=[args.diagnostic_question],
+            token_limit_per_dataset=20000,
+        )
+        plan["ordered_question_ids_sha256"] = ordered_ids_sha256(plan["question_ids"])
+        plan["queries_sha256"] = digest(
+            select_in_view(queries, plan["question_ids"], "query")
+        )
+        if args.diagnostic_prior_run:
+            from scripts.token_accounting import verified_reference
+
+            prior = dense.read_json(args.diagnostic_prior_run)
+            prior_summary = verified_reference(prior, args.diagnostic_prior_run)[
+                "summary"
+            ]
+            if (
+                not prior_summary["complete"]
+                or prior["plan"].get("kind") != plan["kind"]
+                or prior["plan"].get("parent_plan_sha256") != parent_sha
+                or prior["expected_question_ids"] != plan["question_ids"]
+                or prior["plan"].get("diagnostic_prior_run_id")
+                or sum(
+                    p["attempts"]
+                    for p in prior_summary["phases"]
+                    if p["phase"] == "reader"
+                )
+                != 1
+                or any(p["errors"] for p in prior_summary["phases"])
+            ):
+                raise SystemExit("Prior diagnostic is not eligible for another attempt")
+            plan["diagnostic_prior_run_id"] = prior["run_id"]
+            plan["token_limit_per_dataset"] -= sum(
+                prior_summary["known_subtotal"].values()
+            )
+        prepared = [
+            (
+                plan,
+                select_in_view(queries, plan["question_ids"], "query"),
+                corpus,
+                select_in_view(labels, plan["question_ids"], "label"),
+            )
+        ]
+    elif args.diagnostic_prior_run:
+        raise SystemExit("Prior run requires --diagnostic-question")
     if not args.execute:
         print("Plan verified; no model requests.")
         return
