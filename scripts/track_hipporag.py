@@ -11,6 +11,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from scripts.track_dense import export_langfuse, export_mlflow  # noqa: E402 - repo root is added above
+from scripts.token_accounting import verified_reference  # noqa: E402
 
 TRACE_NAME = "hipporag2-rag-run"
 
@@ -38,6 +39,7 @@ def load_payload(run_path, metrics_path=None, manifest_path=None):
     ]
     metrics = read_json(metrics_path)
     manifest = read_json(manifest_path)
+    accounting = verified_reference(manifest, manifest_path)
     if not rows:
         raise ValueError("HippoRAG JSONL is empty")
     run_id = rows[0].get("run_id")
@@ -92,6 +94,7 @@ def load_payload(run_path, metrics_path=None, manifest_path=None):
         "questions": questions,
         "metrics": metrics,
         "manifest": manifest,
+        "token_accounting": accounting,
         "dataset": rows[0]["dataset"],
         "system": "hipporag2",
         "trace_name": TRACE_NAME,

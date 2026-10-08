@@ -14,6 +14,7 @@ data/processed/
 indexes/
 storage/
 results/raw/
+results/summary/*.tokens.jsonl
 *.log
 
 # Local MLflow state and artifacts; publish reviewed result exports instead.
