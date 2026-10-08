@@ -1,5 +1,26 @@
 # Целевой API: ограниченная проверка issue #8
 
+## Dense target smoke — issue #10
+
+План [dense-target-smoke-plan.json](../results/summary/dense-target-smoke-plan.json) фиксирует первые пять development ID каждого набора и SHA. Малый корпус: все supporting-пассажи этих вопросов плюс 20 фиксированных distractors; результаты являются проверкой работоспособности, не benchmark. Для MuSiQue и HotpotQA используется один неизменённый one-shot MuSiQue reader, cosine top-5 и общий answer parser/оценщик. Выбор и пределы — [ADR-0018](../.adr/0018-dense-target-functionality-smoke.md).
+
+Команды из корня новой рабочей копии; `<data-root>` содержит закреплённые `data/processed/{musique,hotpotqa}`. `<env-file>` — локальный игнорируемый файл с настройками из раздела «Повторение»; ключ не передавать в командной строке.
+
+```powershell
+python -m scripts.run_dense_target --data-root '<data-root>'
+python -m scripts.run_dense_target --data-root '<data-root>' --env-file '<env-file>' --execute
+```
+
+Первая команда проверяет данные и план без запросов к моделям. Вторая расходует токены: последовательно до пяти reader-запросов на набор, Qwen3.8-27b, max_tokens=512, temperature=0, seed=42, reasoning выключен. Лимит 100 000 суммарных local embedding / remote LLM токенов на набор; reader input ≤16 000 UTF-8 байт. Неизвестный usage, неподдерживаемый формат, неполный ответ или нарушение лимитов останавливают запуск; перед повтором разобрать failed manifest. Ни SDK, ни скрытого retry в этом пути нет; Requests adapter дополнительно проверяется на `max_retries.total=0`.
+
+Raw JSONL, `*.manifest.json`, `*.metrics.json`, `*.tokens.jsonl` сохраняются в игнорируемом `results/raw`. Failed manifest хранит наблюдаемые и незавершённые ID. Перед оценкой `evaluate_dense` проверяет порядок ID; локальная автоматическая оценка выполняется после успешного завершения всех пяти ответов. Отдельная проверка файла:
+
+```powershell
+python -m scripts.evaluate_dense '<raw-jsonl>' --labels '<data-root>/data/processed/<dataset>/labels.json'
+```
+
+SDK-проверка HippoRAG остаётся условием его будущего запуска, Dense использует непосредственно Requests. Draft #10 зависит от открытого PR #28; слияние и научное согласование не подразумеваются.
+
 ## Учёт попыток для issue #9 (offline-реализация)
 
 Новые запуски создают рядом с результатом `*.tokens.jsonl`. Каждая физическая попытка имеет `started` (сохранён и fsync до транспорта) и `finished` с общим `attempt_id`; `operation_id` связывает явные повторы. Журнал хранит run ID, метод, датасет, provider, модель, фазу (`index`, `retrieval`, `reader`), операцию, ID объекта, статус, время, безопасный код ошибки и раздельные `llm_input_tokens`, `llm_output_tokens`, `embedding_input_tokens`. Отсутствие поля usage означает `null` и неполный итог; неприменимое поле другого типа токенов также `null`, но при агрегации не считается пропуском. Записи не содержат prompt, response, ключей и заголовков. Таймаут имеет неизвестный исход и расход. `total_tokens` и reasoning входят в сведения ответа, но не прибавляются второй раз.

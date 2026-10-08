@@ -1,0 +1,154 @@
+{
+  "datasets": [
+    {
+      "schema_version": 1,
+      "kind": "dense_target_functionality_check",
+      "dataset": "musique",
+      "selection": "first 5 S500 IDs within signal_tuning; supporting union + first 20 other corpus IDs",
+      "question_ids": [
+        "3hop1__593288_720914_27537",
+        "2hop__21104_16334",
+        "2hop__126306_396277",
+        "3hop1__9285_5188_86687",
+        "2hop__53147_7298"
+      ],
+      "ordered_question_ids_sha256": "946889b3158f9f0a03fd349beab71bc96f75ee81a1033da27ca3905ea33ea93c",
+      "passage_ids": [
+        "sha256:173ae2f0ff18e0b2bb3434a909cd8781118aea363cb1527c80cb2aeeeb9f8d58",
+        "sha256:2702b4471863a83aa1c8305cb3cd8c84f7c9aaacfa16d5fb26a04e2a7d8440da",
+        "sha256:5de15ece4f11b6a5f4bdfb7c16ce1dcb826f6f306511141265375513c1390d8e",
+        "sha256:95b492b8c9c362c3bd747f9f07e8c22f618be9b6df4603823238de9e5e085c42",
+        "sha256:2ef60db68fc06544b740d351a35274454b9528be7c96d7aebf1324db4971192f",
+        "sha256:b75226cae9f4a36ee4869573a57cc703ecb04b78ec8f9b950e51f899708ae2f9",
+        "sha256:c8486102d4e4d178678b1f67cb0662a9d16f606a55090ee03b70a08eeb849ad8",
+        "sha256:2c6cf4990dc43b6920c4bc085b32a12d8f2a2fd132de0b292a683772f9d01807",
+        "sha256:a3c75c3bf08a131efefc8a79f9eae3d1c55f09ead2619b9735a208dc07be37c2",
+        "sha256:19f48fe044d9f6a3f2fc19fb2456413f7b773da075f17a699c55d5aab684edae",
+        "sha256:dc4c8632cce54a0f81863d6be9b8e147e2407f9409ee91f2d4b2df89b95cfce8",
+        "sha256:8ba35a296a556301b8926c3a53871670dee0a879fdff666e433751d3498cb043",
+        "sha256:5973d3ba019e3d113c0eed81d8e9944f5c771359e69559c8a45f159ef20ee670",
+        "sha256:ee406db4ccaa4964c926001ab5e0172f41b08fc71e3877ae2f1e31fc84949fdc",
+        "sha256:557b32e109e5d4c17b8a0b3253ce8210b895501d78799b6a3c990bcd16f6d7bb",
+        "sha256:df10753fdbe0ee925c03c791038cc119ed6a4caf6dfbd75cfe30c16bd31c81ba",
+        "sha256:f84b043040f20e9a0ef83efd33779952169528fd97b7a91af4e8df2f6110640e",
+        "sha256:661f39ff36cd867b8f1bfb47168cf72b343740042b9e9705c472599b2cdcc502",
+        "sha256:c9dfdcccda91bc0187e469d2643395690f25421eee995797dde6d293a3da1d65",
+        "sha256:517495d9d4fedd16368f9428ab25f6782ab3c0d5c6a02e58fc130be3b1ddecd4",
+        "sha256:fc7175a0d8b0e86a6075368ee248d130b98de8fa3e09779daf15accf4e196863",
+        "sha256:6e5251b0b5deae6a159c4197bd7b0aea71bb4d82be2274ccea7001acdafac326",
+        "sha256:944b81a9eb0f010040a4cc6f50ba78c93a322566ab31baebf6634d8188b6a6d1",
+        "sha256:d8b7a5a19a9fe301133dacc8804bfe2800ba4b79a48505f7d9b857efae30182d",
+        "sha256:cda796e8579a1506998ee3077b815ceb0dd9c29392ba5a8c6aadb5edd60639bd",
+        "sha256:d7ef8dd6c11c0cb649b9373c1ddde87eb8fa2855dbbb7f3ed887ed4d17347dd8",
+        "sha256:ae245efdee625eddfd310d1b4679e98373338be5f362e425536f8031be6b2d89",
+        "sha256:306df726d80289efb590c2e794b3ceacb7a79bac2acb52c4504f0646cc6b9822",
+        "sha256:a43a5d05048353d58ebd21957d79263d9129a655c8b0e51a7eaeee3897b7cfd3",
+        "sha256:cafcca1de606a152b8b0fd51931d5f7501de994fee78d299d2c45af86f88b067",
+        "sha256:1f553ee66436e9f348c262d29f075b2432f0ab341852d493c2c1e4331d7eefd1",
+        "sha256:7aaffc6047452cbfb70fb10a630a0097006965ca2e74331dc4f1f507e5e2f726"
+      ],
+      "corpus_sha256": "a41700095df71a414cc958b00c97ab6de03e334e17f80472d2eefa00f8f42d49",
+      "queries_sha256": "ee6b20a1bee10e81f907bb0bb5b195b29fa55206097b02e8b81c80856b467c9d",
+      "split_sha256": "4a89a6215282ce8c51a6704b6153f9df404c0ae645286d88eab5f531fb65d64b",
+      "inputs": {
+        "report_sha256": "c947e210a468ce62f64c29668480d6f32f884303fcf9edc8f1fc1b4edf99b483",
+        "ids_manifest_sha256": "82f5b26acedb39998398b0b4e9b4cb8f5fc9ec9bbb16420914dd66a4f058d33a",
+        "source_revision": "5ec05b38deecc3318bb432c69865959c56058990",
+        "output_sha256": {
+          "queries.json": "a0fd193f34f153e51052b8346b0db7868c60d68affb6f3e54c56cce7c2c14fc3",
+          "corpus.json": "054338e3803fbe69f67037c58d2a49438572ffe2e8c8a047148a2dcdc100e44b",
+          "labels.json": "76a36d30f3934c24ad5f7f5eaa6a67e4d26e30f2e29f7302f58d211ccb05da4a"
+        }
+      },
+      "reader_prompt_version": "hipporag2-musique-one-shot-v6",
+      "reader_template_sha256": "beb15da1f15193ee88f93cc25c96199d679ade1d652cd9c750cc10e63cbc6047",
+      "generation_options": {
+        "temperature": 0,
+        "seed": 42,
+        "max_tokens": 512,
+        "stream": false,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        }
+      },
+      "top_k": 5,
+      "token_limit_per_dataset": 100000,
+      "reader_input_byte_limit": 16000,
+      "limitations": "Development smoke; support-preserving small corpus, not a quality benchmark. MuSiQue reader template is shared unchanged with HotpotQA for this smoke."
+    },
+    {
+      "schema_version": 1,
+      "kind": "dense_target_functionality_check",
+      "dataset": "hotpotqa",
+      "selection": "first 5 S500 IDs within signal_tuning; supporting union + first 20 other corpus IDs",
+      "question_ids": [
+        "5abd882f55429924427fd045",
+        "5a78ed6855429970f5fffdd9",
+        "5a729cc25542991f9a20c532",
+        "5adc7f4a5542994650320d28",
+        "5a84e0a45542991dd0999e11"
+      ],
+      "ordered_question_ids_sha256": "647ea089affc4e7b637382fed9085369dea3443a97fe3e636864dc22952bf6f1",
+      "passage_ids": [
+        "sha256:d94600ee5211d0a3a133a3ef84402798ddf59bb3a26a80fcd1985d8e000544a1",
+        "sha256:b800f4ab171bb16fff90012dbf2603efbb5624ebeb864af8b464c6a5402346cd",
+        "sha256:523f405ed07dd627318cfe4f2991169ede20a57b5eef441683bc4070f647b067",
+        "sha256:31e7a4f849e3d65f198b9c03dd6444e1b6ee7c1297d0865e60e67f4ecb6ec40d",
+        "sha256:a0035dde9e0a46727680ac4b5a7e95695307b4cea5827e9bc58525596857c785",
+        "sha256:a559bc570ab80bd2604a6724c4e76f7a1a39eae26de20e0f9befe0dd98df1134",
+        "sha256:bbf8f29ff018792e7e3eb0d91013ec85b4b9a3a95740d0336fa04ac32bdc0f49",
+        "sha256:dc21a57703f2af0ee63c07c581ed885274f3fa27fe15f6c5f12f1128449c057a",
+        "sha256:763d8a76769d5e22a96905bd6e9e81b9fadfaff8f1ce4fe409e9259516c60bc0",
+        "sha256:157635d7789fb5671983dab375a862f239615f25aad6a9573ec5afde7085eb1a",
+        "sha256:590c0f548f204af882ebdbf4d53c4c869a19316aa214053683226273f12267c6",
+        "sha256:6b0cc5507df84a74549447dee367a3d765850d7533cac82b6a0a06eccaa87ea3",
+        "sha256:cf8ed96491a9518da7caa75d83ef40e86a3704d7d33951057a2deda26111acd2",
+        "sha256:e64ac66ed2c4299bb6a217627ab25e73689a1acd99f26eaf3b848171f0079c1c",
+        "sha256:16d36be75015c70507982564852498b84a8c3c71183a9aca78668a0f5d4ac9ef",
+        "sha256:3667155c860c2bd7cff1a4e97394179a79c591d63e30a6a32ff1a19e7d8a2289",
+        "sha256:a08b17e1d143d14bcb38a7962c20de96091974c10267cfd89044c21e26c85f01",
+        "sha256:1c3168df603dab8f796450037404a97ef94c5e9e0f8d0ddaf19a913c212d7570",
+        "sha256:6c6d263b5003a1247558967c2009e4bd20f649c44843195217405ced8940bda2",
+        "sha256:8722c4f0a74f536d8366c22a1ab8d698bb4a7ca434ba983e421c95199f177195",
+        "sha256:c1fa686b90da509b3720093145ecce83e47103d3128a5ac77abdad53116a23e9",
+        "sha256:67cc420b243401104ac7f16253759b20fd7991989c910ef3f3affe0656dd22e4",
+        "sha256:261a0a42bd6c217fd62ad1efdb8f20a8dfc209af1254febb5c721014cea2992f",
+        "sha256:1edd069d9af8d1129b460b9eb6f9fbe7f7070f432bdf5ac5f90f565968a6d8ad",
+        "sha256:e9a7e4ef9c86fae3acfb2bba9c487c2e0fdcb38b8d185cf2d3ccb522ac3be018",
+        "sha256:93242413f27406c247faf589ebbc7dfc7279e7615098ad62db159f9a91887c81",
+        "sha256:7759feb969e722ecc74f81ca099686af1155c21a72f73b3c2591dc6609c2e731",
+        "sha256:1dcf5d4084889edd98e33a3c90e6a8e33fe28673d0c8088b395748b99f9a2550",
+        "sha256:8bc30dfb74f2e4ec26d249731ba7d9110c453bc49130e00ce21cd599cac705dc",
+        "sha256:94e0ee7a9de548ea178971b1573586bda5db457891f0d31bcd55f5eee64fa26b"
+      ],
+      "corpus_sha256": "38e5a70e7b42dfa54c824998f1d3e73d6c67d748926fd23cbc57bbcd7b896453",
+      "queries_sha256": "dd558909e404eeebb9085b9598f103dbc1d5bacfb75e1e3d69bd89ecc04d1972",
+      "split_sha256": "197d0b06a78a799869538b012c3e01da7fb46b9d8c04815d1f5dd68fc7ffcb56",
+      "inputs": {
+        "report_sha256": "c947e210a468ce62f64c29668480d6f32f884303fcf9edc8f1fc1b4edf99b483",
+        "ids_manifest_sha256": "c967cbcd5bdb02a6954d66fa472fc4840e23d08fe13e31c635ad6b5427f04a46",
+        "source_revision": "5ec05b38deecc3318bb432c69865959c56058990",
+        "output_sha256": {
+          "queries.json": "89ba1c856cb3c999dcc9e743779ed367375d0372cfb62727edb5558a5eb7f9aa",
+          "corpus.json": "9b161e9bbfee6ecfe304816dcb847f8763c3d55b06dbf04d002726405e3e3c61",
+          "labels.json": "42df93c1491eb7e41d46e7b562c0bad4352488ca8587c09d35eedee362875535"
+        }
+      },
+      "reader_prompt_version": "hipporag2-musique-one-shot-v6",
+      "reader_template_sha256": "beb15da1f15193ee88f93cc25c96199d679ade1d652cd9c750cc10e63cbc6047",
+      "generation_options": {
+        "temperature": 0,
+        "seed": 42,
+        "max_tokens": 512,
+        "stream": false,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        }
+      },
+      "top_k": 5,
+      "token_limit_per_dataset": 100000,
+      "reader_input_byte_limit": 16000,
+      "limitations": "Development smoke; support-preserving small corpus, not a quality benchmark. MuSiQue reader template is shared unchanged with HotpotQA for this smoke."
+    }
+  ]
+}

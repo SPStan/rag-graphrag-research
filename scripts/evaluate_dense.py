@@ -166,7 +166,11 @@ def evaluate(rows, labels, expected_ids=None, manifest=None):
     if not isinstance(top_k, int) or top_k <= 0:
         raise ValueError("Run needs a positive top_k")
     options = first.get("generation_options")
-    required_options = ("temperature", "num_predict", "num_ctx")
+    required_options = (
+        ("temperature", "max_tokens", "seed", "chat_template_kwargs")
+        if first.get("mode") == "target-functionality-smoke"
+        else ("temperature", "num_predict", "num_ctx")
+    )
     prompt_version = re.search(r"-v(\d+)$", str(first["reader_prompt_version"]))
     if prompt_version and int(prompt_version.group(1)) >= 3:
         required_options += ("seed",)
