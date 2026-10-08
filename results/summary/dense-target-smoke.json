@@ -1,17 +1,107 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "kind": "dense_target_functionality_check",
-  "status": "stopped_on_reader_validation",
-  "code_commit": "afd60aba052ef92e9fb7670ce52b4d60e19b48dc",
+  "status": "completed_functionality_check",
+  "code_commit": "4a60f2d",
   "scope": "5 development questions per dataset; not a quality benchmark",
   "datasets": [
     {
       "dataset": "musique",
-      "run_id": "0b41ddc1-9e9f-4243-8679-e91d86b085ee",
-      "manifest_file": "dense-musique-0b41ddc1-9e9f-4243-8679-e91d86b085ee.manifest.json",
-      "manifest_sha256": "5d7c6bec27cc7ccf1fc99f26464828ae68a7b010e5c61ebc8390f47c817d5dc8",
-      "results_file": "dense-musique-0b41ddc1-9e9f-4243-8679-e91d86b085ee.jsonl",
-      "results_sha256": "4778363fa7eb938144642446a653bf0a8cc09acf12e2e3d568f9e63bb1ff1a8f",
+      "run_id": "2ef2397b-2ec2-4696-a5bd-d55542998b6a",
+      "status": "completed",
+      "code": {
+        "commit": "4a60f2d39b2788f655869543748f52d02cc3694a",
+        "working_tree_dirty": false,
+        "source_sha256": {
+          "scripts/run_dense.py": "b6cf8da3f987a1d7ad37ac16639ddf6a1f5523e8ccc0117ad015a423efaacaac",
+          "scripts/replay_reader.py": "9a8192bc38f70bbbe64b5cbefe31fd988ad6335b10e4140dc9f08f58f2c7edb8",
+          "scripts/evaluate_dense.py": "1e39159a7eb02bff83b7bd0fd04a6c062762e43554b7bf6e66caf7e95c47ccd7",
+          "scripts/answer_parser.py": "bed7477e2ca0ace452821e2adb13cf8b045aa6443617b141c13fadf18e56bf18",
+          "scripts/run_dense_target.py": "981a1cdc7f1372597a7e909bd9669b4c257a10ce720c507662438a61f72a33f4"
+        }
+      },
+      "plan": {
+        "schema_version": 1,
+        "kind": "dense_target_functionality_check",
+        "dataset": "musique",
+        "selection": "first 5 S500 IDs within signal_tuning; supporting union + first 20 other corpus IDs",
+        "question_ids": [
+          "3hop1__593288_720914_27537",
+          "2hop__21104_16334",
+          "2hop__126306_396277",
+          "3hop1__9285_5188_86687",
+          "2hop__53147_7298"
+        ],
+        "ordered_question_ids_sha256": "946889b3158f9f0a03fd349beab71bc96f75ee81a1033da27ca3905ea33ea93c",
+        "passage_ids": [
+          "sha256:173ae2f0ff18e0b2bb3434a909cd8781118aea363cb1527c80cb2aeeeb9f8d58",
+          "sha256:2702b4471863a83aa1c8305cb3cd8c84f7c9aaacfa16d5fb26a04e2a7d8440da",
+          "sha256:5de15ece4f11b6a5f4bdfb7c16ce1dcb826f6f306511141265375513c1390d8e",
+          "sha256:95b492b8c9c362c3bd747f9f07e8c22f618be9b6df4603823238de9e5e085c42",
+          "sha256:2ef60db68fc06544b740d351a35274454b9528be7c96d7aebf1324db4971192f",
+          "sha256:b75226cae9f4a36ee4869573a57cc703ecb04b78ec8f9b950e51f899708ae2f9",
+          "sha256:c8486102d4e4d178678b1f67cb0662a9d16f606a55090ee03b70a08eeb849ad8",
+          "sha256:2c6cf4990dc43b6920c4bc085b32a12d8f2a2fd132de0b292a683772f9d01807",
+          "sha256:a3c75c3bf08a131efefc8a79f9eae3d1c55f09ead2619b9735a208dc07be37c2",
+          "sha256:19f48fe044d9f6a3f2fc19fb2456413f7b773da075f17a699c55d5aab684edae",
+          "sha256:dc4c8632cce54a0f81863d6be9b8e147e2407f9409ee91f2d4b2df89b95cfce8",
+          "sha256:8ba35a296a556301b8926c3a53871670dee0a879fdff666e433751d3498cb043",
+          "sha256:5973d3ba019e3d113c0eed81d8e9944f5c771359e69559c8a45f159ef20ee670",
+          "sha256:ee406db4ccaa4964c926001ab5e0172f41b08fc71e3877ae2f1e31fc84949fdc",
+          "sha256:557b32e109e5d4c17b8a0b3253ce8210b895501d78799b6a3c990bcd16f6d7bb",
+          "sha256:df10753fdbe0ee925c03c791038cc119ed6a4caf6dfbd75cfe30c16bd31c81ba",
+          "sha256:f84b043040f20e9a0ef83efd33779952169528fd97b7a91af4e8df2f6110640e",
+          "sha256:661f39ff36cd867b8f1bfb47168cf72b343740042b9e9705c472599b2cdcc502",
+          "sha256:c9dfdcccda91bc0187e469d2643395690f25421eee995797dde6d293a3da1d65",
+          "sha256:517495d9d4fedd16368f9428ab25f6782ab3c0d5c6a02e58fc130be3b1ddecd4",
+          "sha256:fc7175a0d8b0e86a6075368ee248d130b98de8fa3e09779daf15accf4e196863",
+          "sha256:6e5251b0b5deae6a159c4197bd7b0aea71bb4d82be2274ccea7001acdafac326",
+          "sha256:944b81a9eb0f010040a4cc6f50ba78c93a322566ab31baebf6634d8188b6a6d1",
+          "sha256:d8b7a5a19a9fe301133dacc8804bfe2800ba4b79a48505f7d9b857efae30182d",
+          "sha256:cda796e8579a1506998ee3077b815ceb0dd9c29392ba5a8c6aadb5edd60639bd",
+          "sha256:d7ef8dd6c11c0cb649b9373c1ddde87eb8fa2855dbbb7f3ed887ed4d17347dd8",
+          "sha256:ae245efdee625eddfd310d1b4679e98373338be5f362e425536f8031be6b2d89",
+          "sha256:306df726d80289efb590c2e794b3ceacb7a79bac2acb52c4504f0646cc6b9822",
+          "sha256:a43a5d05048353d58ebd21957d79263d9129a655c8b0e51a7eaeee3897b7cfd3",
+          "sha256:cafcca1de606a152b8b0fd51931d5f7501de994fee78d299d2c45af86f88b067",
+          "sha256:1f553ee66436e9f348c262d29f075b2432f0ab341852d493c2c1e4331d7eefd1",
+          "sha256:7aaffc6047452cbfb70fb10a630a0097006965ca2e74331dc4f1f507e5e2f726"
+        ],
+        "corpus_sha256": "a41700095df71a414cc958b00c97ab6de03e334e17f80472d2eefa00f8f42d49",
+        "queries_sha256": "ee6b20a1bee10e81f907bb0bb5b195b29fa55206097b02e8b81c80856b467c9d",
+        "split_sha256": "4a89a6215282ce8c51a6704b6153f9df404c0ae645286d88eab5f531fb65d64b",
+        "inputs": {
+          "report_sha256": "c947e210a468ce62f64c29668480d6f32f884303fcf9edc8f1fc1b4edf99b483",
+          "ids_manifest_sha256": "82f5b26acedb39998398b0b4e9b4cb8f5fc9ec9bbb16420914dd66a4f058d33a",
+          "source_revision": "5ec05b38deecc3318bb432c69865959c56058990",
+          "output_sha256": {
+            "queries.json": "a0fd193f34f153e51052b8346b0db7868c60d68affb6f3e54c56cce7c2c14fc3",
+            "corpus.json": "054338e3803fbe69f67037c58d2a49438572ffe2e8c8a047148a2dcdc100e44b",
+            "labels.json": "76a36d30f3934c24ad5f7f5eaa6a67e4d26e30f2e29f7302f58d211ccb05da4a"
+          }
+        },
+        "reader_prompt_version": "hipporag2-musique-one-shot-v6",
+        "reader_template_sha256": "beb15da1f15193ee88f93cc25c96199d679ade1d652cd9c750cc10e63cbc6047",
+        "generation_options": {
+          "temperature": 0,
+          "seed": 42,
+          "max_tokens": 512,
+          "stream": false,
+          "chat_template_kwargs": {
+            "enable_thinking": false
+          }
+        },
+        "top_k": 5,
+        "token_limit_per_dataset": 100000,
+        "reader_input_byte_limit": 16000,
+        "limitations": "Development smoke; support-preserving small corpus, not a quality benchmark. MuSiQue reader template is shared unchanged with HotpotQA for this smoke.",
+        "answer_parser_version": "standalone-answer-line-v1",
+        "embedding_batch_size": 8
+      },
+      "manifest_file": "dense-musique-2ef2397b-2ec2-4696-a5bd-d55542998b6a.manifest.json",
+      "manifest_sha256": "fde5f81c7645cad25bc7895ffac6362ed6b18d753488e4ee7fb783aaa06c24ba",
+      "results_file": "dense-musique-2ef2397b-2ec2-4696-a5bd-d55542998b6a.jsonl",
+      "results_sha256": "e5a3521871422996bd3336c314cbbd74491b5acddd529067234ec5aa43bfe3a7",
       "expected_question_ids": [
         "3hop1__593288_720914_27537",
         "2hop__21104_16334",
@@ -19,8 +109,12 @@
         "3hop1__9285_5188_86687",
         "2hop__53147_7298"
       ],
-      "accepted_question_ids": [
-        "3hop1__593288_720914_27537"
+      "observed_question_ids": [
+        "3hop1__593288_720914_27537",
+        "2hop__21104_16334",
+        "2hop__126306_396277",
+        "3hop1__9285_5188_86687",
+        "2hop__53147_7298"
       ],
       "question_outcomes": [
         {
@@ -29,32 +123,23 @@
         },
         {
           "question_id": "2hop__21104_16334",
-          "status": "failed"
+          "status": "completed"
         },
         {
           "question_id": "2hop__126306_396277",
-          "status": "not_attempted_after_stop"
+          "status": "completed"
         },
         {
           "question_id": "3hop1__9285_5188_86687",
-          "status": "not_attempted_after_stop"
+          "status": "completed"
         },
         {
           "question_id": "2hop__53147_7298",
-          "status": "not_attempted_after_stop"
+          "status": "completed"
         }
       ],
-      "errors": [
-        {
-          "question_id": "2hop__21104_16334",
-          "code": "ValueError",
-          "reason": "reader_format_or_finish_reason_invalid"
-        }
-      ],
-      "started_at": "2026-10-08T00:45:07.442160+00:00",
-      "completed_at": "2026-10-08T00:45:17.161256+00:00",
-      "plan_sha256": "8b860d976bdf3c80c03db9c298de873ebe02c28e1ee2eb3ff84e0c051caa9d60",
-      "model": {
+      "errors": [],
+      "generation": {
         "requested_model": "iairlab/qwen3.8-27b",
         "base_url": "https://api.duckduck.cloud/v1",
         "options": {
@@ -92,19 +177,28 @@
           ]
         },
         "truncate": false,
-        "text_version": "title-newline-text-v1"
+        "text_version": "title-newline-text-v1",
+        "batch_size": 8
+      },
+      "started_at": "2026-10-08T01:04:03.667825+00:00",
+      "completed_at": "2026-10-08T01:04:14.309759+00:00",
+      "wall_seconds": 10.641934,
+      "transport_wall_seconds_by_phase": {
+        "index/local_ollama": 0.6082939999178052,
+        "retrieval/local_ollama": 0.22091740043833852,
+        "reader/target_api": 9.458821599837393
       },
       "token_accounting": {
         "status": "verified",
-        "journal_file": "dense-musique-0b41ddc1-9e9f-4243-8679-e91d86b085ee.tokens.jsonl",
-        "journal_sha256": "b86e56faf6db4316305986506c7fb90b92b9e87b4787c4cc398a8ebd4c6f266a",
+        "journal_file": "dense-musique-2ef2397b-2ec2-4696-a5bd-d55542998b6a.tokens.jsonl",
+        "journal_sha256": "51395f3f676877c33bb622a0e5a7f4b6d51f6e038c18b7628c47c4922ee26041",
         "summary": {
           "schema_version": 1,
           "phases": [
             {
               "phase": "index",
               "provider": "local_ollama",
-              "attempts": 1,
+              "attempts": 4,
               "errors": 0,
               "unfinished": 0,
               "cache_hits": 0,
@@ -129,14 +223,14 @@
             {
               "phase": "reader",
               "provider": "target_api",
-              "attempts": 2,
+              "attempts": 5,
               "errors": 0,
               "unfinished": 0,
               "cache_hits": 0,
               "cache_provenance_unknown": 0,
               "known_subtotal": {
-                "llm_input_tokens": 3226,
-                "llm_output_tokens": 505,
+                "llm_input_tokens": 7702,
+                "llm_output_tokens": 1170,
                 "embedding_input_tokens": 0
               },
               "unknown_fields": {
@@ -146,15 +240,15 @@
               },
               "complete": true,
               "total": {
-                "llm_input_tokens": 3226,
-                "llm_output_tokens": 505,
+                "llm_input_tokens": 7702,
+                "llm_output_tokens": 1170,
                 "embedding_input_tokens": 0
               }
             },
             {
               "phase": "retrieval",
               "provider": "local_ollama",
-              "attempts": 2,
+              "attempts": 5,
               "errors": 0,
               "unfinished": 0,
               "cache_hits": 0,
@@ -162,7 +256,7 @@
               "known_subtotal": {
                 "llm_input_tokens": 0,
                 "llm_output_tokens": 0,
-                "embedding_input_tokens": 49
+                "embedding_input_tokens": 154
               },
               "unknown_fields": {
                 "llm_input_tokens": 0,
@@ -173,41 +267,1023 @@
               "total": {
                 "llm_input_tokens": 0,
                 "llm_output_tokens": 0,
-                "embedding_input_tokens": 49
+                "embedding_input_tokens": 154
               }
             }
           ],
           "known_subtotal": {
-            "llm_input_tokens": 3226,
-            "llm_output_tokens": 505,
-            "embedding_input_tokens": 4264
+            "llm_input_tokens": 7702,
+            "llm_output_tokens": 1170,
+            "embedding_input_tokens": 4369
           },
           "complete": true,
-          "attempts": 5,
+          "attempts": 14,
           "historical_cache_cost_complete": true,
           "journal_corrupt_tail": false,
           "corrupt_tail_bytes": 0
         }
       },
-      "metrics": null,
-      "limitations": [
-        "Only first answer accepted; full five-ID metrics not computed",
-        "Failed reader response content not retained in this first run; failure recorded without attributing a specific finish reason or parser status",
-        "Transport success and complete token usage do not imply reader format success"
+      "reader_attempts": [
+        {
+          "question_id": "3hop1__593288_720914_27537",
+          "request_file": "dense-musique-2ef2397b-2ec2-4696-a5bd-d55542998b6a-241b18683494596d.reader-request.json",
+          "request_sha256": "613153d4a7dbe438224e40378e91aecb2c60e86432be53122ccbbf653e203bad",
+          "prompt_sha256": "d7f60e4baf989437a5b300d38b8519820c4b82fe730e3e07f42452661a6f67d6",
+          "response_file": "dense-musique-2ef2397b-2ec2-4696-a5bd-d55542998b6a-241b18683494596d.reader-response.json",
+          "response_sha256": "06d8d0d45caac6542ff8f75a75a172f3411b735c10df5e1f7b58715e44935c90",
+          "diagnostics": {
+            "structure_status": "valid",
+            "finish_reason": "stop",
+            "content_type": "str",
+            "content_present": true,
+            "answer_extraction_status": "ok",
+            "prompt_tokens": 1436,
+            "completion_tokens": 310,
+            "reasoning_tokens": 0
+          }
+        },
+        {
+          "question_id": "2hop__21104_16334",
+          "request_file": "dense-musique-2ef2397b-2ec2-4696-a5bd-d55542998b6a-e9eb13c8f2c0de50.reader-request.json",
+          "request_sha256": "2b26c3c1b5603d9843119dad6e0658a324405ae0e9eaa000da28080c80039736",
+          "prompt_sha256": "812e76549626a42cc56ed16376d76cfc9ff39c5a3581415b4d4e9c1f6e9861d9",
+          "response_file": "dense-musique-2ef2397b-2ec2-4696-a5bd-d55542998b6a-e9eb13c8f2c0de50.reader-response.json",
+          "response_sha256": "7809f079b6f851f4e298436e9fc091a5e2320f06cc83df3508e398288407532c",
+          "diagnostics": {
+            "structure_status": "valid",
+            "finish_reason": "stop",
+            "content_type": "str",
+            "content_present": true,
+            "answer_extraction_status": "ok",
+            "prompt_tokens": 1790,
+            "completion_tokens": 195,
+            "reasoning_tokens": 0
+          }
+        },
+        {
+          "question_id": "2hop__126306_396277",
+          "request_file": "dense-musique-2ef2397b-2ec2-4696-a5bd-d55542998b6a-956abb06ff9bd134.reader-request.json",
+          "request_sha256": "69b40bdd7906888eac94e40e2402e1746594d0560aff4c0c044a4a8fa97b23c4",
+          "prompt_sha256": "431f0f1462b4698b31ad55dad2edc00ce9cc9f44479fd22af09bf7f7c2972ab6",
+          "response_file": "dense-musique-2ef2397b-2ec2-4696-a5bd-d55542998b6a-956abb06ff9bd134.reader-response.json",
+          "response_sha256": "54fceeaa02bc58993de93bfaecbff984118bd814b33bf40064ee94438cdd0809",
+          "diagnostics": {
+            "structure_status": "valid",
+            "finish_reason": "stop",
+            "content_type": "str",
+            "content_present": true,
+            "answer_extraction_status": "ok",
+            "prompt_tokens": 1122,
+            "completion_tokens": 118,
+            "reasoning_tokens": 0
+          }
+        },
+        {
+          "question_id": "3hop1__9285_5188_86687",
+          "request_file": "dense-musique-2ef2397b-2ec2-4696-a5bd-d55542998b6a-d5dd2f7831df7d79.reader-request.json",
+          "request_sha256": "0e7e3abcfb3aa8dd531bd39a4fae0c1b7703e998216f4bdac9f6575901c3a87f",
+          "prompt_sha256": "163fb48756581a9ddae2b79967e8f376a6d3c73c55f5aebec52d734883efdd63",
+          "response_file": "dense-musique-2ef2397b-2ec2-4696-a5bd-d55542998b6a-d5dd2f7831df7d79.reader-response.json",
+          "response_sha256": "90061b6fc65c1353f90c1b3e751c00b7b2e75404e0c20c2484b0fa7234af2aba",
+          "diagnostics": {
+            "structure_status": "valid",
+            "finish_reason": "stop",
+            "content_type": "str",
+            "content_present": true,
+            "answer_extraction_status": "ok",
+            "prompt_tokens": 1763,
+            "completion_tokens": 350,
+            "reasoning_tokens": 0
+          }
+        },
+        {
+          "question_id": "2hop__53147_7298",
+          "request_file": "dense-musique-2ef2397b-2ec2-4696-a5bd-d55542998b6a-9813a55d617982b2.reader-request.json",
+          "request_sha256": "49882d5e7eca37bf8e5d82f2771e06a8cb592fb19373b4719301c5e6ff64d6c0",
+          "prompt_sha256": "c74b4c2282883ce9824ca8f3fd36ff9ea81c5eb5fb2505bf653198f8f3840c91",
+          "response_file": "dense-musique-2ef2397b-2ec2-4696-a5bd-d55542998b6a-9813a55d617982b2.reader-response.json",
+          "response_sha256": "cba88fc77dd328b6a6ec697ceb4c80b47f18ad0aaa9f18aa657f32b8291f791d",
+          "diagnostics": {
+            "structure_status": "valid",
+            "finish_reason": "stop",
+            "content_type": "str",
+            "content_present": true,
+            "answer_extraction_status": "ok",
+            "prompt_tokens": 1591,
+            "completion_tokens": 197,
+            "reasoning_tokens": 0
+          }
+        }
+      ],
+      "metrics_file": "dense-musique-2ef2397b-2ec2-4696-a5bd-d55542998b6a.metrics.json",
+      "metrics_sha256": "4458ad943aa2a30648125b911f4def0ae1910f8134cbe4125c716e6b4712a69c",
+      "metrics": {
+        "questions_evaluated": 5,
+        "em": 0.8,
+        "token_f1": 0.9333333333333332,
+        "recall_at_k": 1.0,
+        "metric_version": "hipporag2-squad-normalization-answer-marker-v3-standalone-answer-line-v1",
+        "answer_parser_version": "standalone-answer-line-v1"
+      },
+      "models_returned": [
+        "iairlab/qwen3.8-27b"
       ]
     },
     {
       "dataset": "hotpotqa",
-      "status": "not_attempted_after_musique_stop",
-      "run_id": null,
-      "metrics": null,
-      "usage": null
+      "run_id": "291f34e6-6c03-4a66-a0a7-e9e6519ee875",
+      "status": "completed",
+      "code": {
+        "commit": "4a60f2d39b2788f655869543748f52d02cc3694a",
+        "working_tree_dirty": false,
+        "source_sha256": {
+          "scripts/run_dense.py": "b6cf8da3f987a1d7ad37ac16639ddf6a1f5523e8ccc0117ad015a423efaacaac",
+          "scripts/replay_reader.py": "9a8192bc38f70bbbe64b5cbefe31fd988ad6335b10e4140dc9f08f58f2c7edb8",
+          "scripts/evaluate_dense.py": "1e39159a7eb02bff83b7bd0fd04a6c062762e43554b7bf6e66caf7e95c47ccd7",
+          "scripts/answer_parser.py": "bed7477e2ca0ace452821e2adb13cf8b045aa6443617b141c13fadf18e56bf18",
+          "scripts/run_dense_target.py": "981a1cdc7f1372597a7e909bd9669b4c257a10ce720c507662438a61f72a33f4"
+        }
+      },
+      "plan": {
+        "schema_version": 1,
+        "kind": "dense_target_functionality_check",
+        "dataset": "hotpotqa",
+        "selection": "first 5 S500 IDs within signal_tuning; supporting union + first 20 other corpus IDs",
+        "question_ids": [
+          "5abd882f55429924427fd045",
+          "5a78ed6855429970f5fffdd9",
+          "5a729cc25542991f9a20c532",
+          "5adc7f4a5542994650320d28",
+          "5a84e0a45542991dd0999e11"
+        ],
+        "ordered_question_ids_sha256": "647ea089affc4e7b637382fed9085369dea3443a97fe3e636864dc22952bf6f1",
+        "passage_ids": [
+          "sha256:d94600ee5211d0a3a133a3ef84402798ddf59bb3a26a80fcd1985d8e000544a1",
+          "sha256:b800f4ab171bb16fff90012dbf2603efbb5624ebeb864af8b464c6a5402346cd",
+          "sha256:523f405ed07dd627318cfe4f2991169ede20a57b5eef441683bc4070f647b067",
+          "sha256:31e7a4f849e3d65f198b9c03dd6444e1b6ee7c1297d0865e60e67f4ecb6ec40d",
+          "sha256:a0035dde9e0a46727680ac4b5a7e95695307b4cea5827e9bc58525596857c785",
+          "sha256:a559bc570ab80bd2604a6724c4e76f7a1a39eae26de20e0f9befe0dd98df1134",
+          "sha256:bbf8f29ff018792e7e3eb0d91013ec85b4b9a3a95740d0336fa04ac32bdc0f49",
+          "sha256:dc21a57703f2af0ee63c07c581ed885274f3fa27fe15f6c5f12f1128449c057a",
+          "sha256:763d8a76769d5e22a96905bd6e9e81b9fadfaff8f1ce4fe409e9259516c60bc0",
+          "sha256:157635d7789fb5671983dab375a862f239615f25aad6a9573ec5afde7085eb1a",
+          "sha256:590c0f548f204af882ebdbf4d53c4c869a19316aa214053683226273f12267c6",
+          "sha256:6b0cc5507df84a74549447dee367a3d765850d7533cac82b6a0a06eccaa87ea3",
+          "sha256:cf8ed96491a9518da7caa75d83ef40e86a3704d7d33951057a2deda26111acd2",
+          "sha256:e64ac66ed2c4299bb6a217627ab25e73689a1acd99f26eaf3b848171f0079c1c",
+          "sha256:16d36be75015c70507982564852498b84a8c3c71183a9aca78668a0f5d4ac9ef",
+          "sha256:3667155c860c2bd7cff1a4e97394179a79c591d63e30a6a32ff1a19e7d8a2289",
+          "sha256:a08b17e1d143d14bcb38a7962c20de96091974c10267cfd89044c21e26c85f01",
+          "sha256:1c3168df603dab8f796450037404a97ef94c5e9e0f8d0ddaf19a913c212d7570",
+          "sha256:6c6d263b5003a1247558967c2009e4bd20f649c44843195217405ced8940bda2",
+          "sha256:8722c4f0a74f536d8366c22a1ab8d698bb4a7ca434ba983e421c95199f177195",
+          "sha256:c1fa686b90da509b3720093145ecce83e47103d3128a5ac77abdad53116a23e9",
+          "sha256:67cc420b243401104ac7f16253759b20fd7991989c910ef3f3affe0656dd22e4",
+          "sha256:261a0a42bd6c217fd62ad1efdb8f20a8dfc209af1254febb5c721014cea2992f",
+          "sha256:1edd069d9af8d1129b460b9eb6f9fbe7f7070f432bdf5ac5f90f565968a6d8ad",
+          "sha256:e9a7e4ef9c86fae3acfb2bba9c487c2e0fdcb38b8d185cf2d3ccb522ac3be018",
+          "sha256:93242413f27406c247faf589ebbc7dfc7279e7615098ad62db159f9a91887c81",
+          "sha256:7759feb969e722ecc74f81ca099686af1155c21a72f73b3c2591dc6609c2e731",
+          "sha256:1dcf5d4084889edd98e33a3c90e6a8e33fe28673d0c8088b395748b99f9a2550",
+          "sha256:8bc30dfb74f2e4ec26d249731ba7d9110c453bc49130e00ce21cd599cac705dc",
+          "sha256:94e0ee7a9de548ea178971b1573586bda5db457891f0d31bcd55f5eee64fa26b"
+        ],
+        "corpus_sha256": "38e5a70e7b42dfa54c824998f1d3e73d6c67d748926fd23cbc57bbcd7b896453",
+        "queries_sha256": "dd558909e404eeebb9085b9598f103dbc1d5bacfb75e1e3d69bd89ecc04d1972",
+        "split_sha256": "197d0b06a78a799869538b012c3e01da7fb46b9d8c04815d1f5dd68fc7ffcb56",
+        "inputs": {
+          "report_sha256": "c947e210a468ce62f64c29668480d6f32f884303fcf9edc8f1fc1b4edf99b483",
+          "ids_manifest_sha256": "c967cbcd5bdb02a6954d66fa472fc4840e23d08fe13e31c635ad6b5427f04a46",
+          "source_revision": "5ec05b38deecc3318bb432c69865959c56058990",
+          "output_sha256": {
+            "queries.json": "89ba1c856cb3c999dcc9e743779ed367375d0372cfb62727edb5558a5eb7f9aa",
+            "corpus.json": "9b161e9bbfee6ecfe304816dcb847f8763c3d55b06dbf04d002726405e3e3c61",
+            "labels.json": "42df93c1491eb7e41d46e7b562c0bad4352488ca8587c09d35eedee362875535"
+          }
+        },
+        "reader_prompt_version": "hipporag2-musique-one-shot-v6",
+        "reader_template_sha256": "beb15da1f15193ee88f93cc25c96199d679ade1d652cd9c750cc10e63cbc6047",
+        "generation_options": {
+          "temperature": 0,
+          "seed": 42,
+          "max_tokens": 512,
+          "stream": false,
+          "chat_template_kwargs": {
+            "enable_thinking": false
+          }
+        },
+        "top_k": 5,
+        "token_limit_per_dataset": 100000,
+        "reader_input_byte_limit": 16000,
+        "limitations": "Development smoke; support-preserving small corpus, not a quality benchmark. MuSiQue reader template is shared unchanged with HotpotQA for this smoke.",
+        "answer_parser_version": "standalone-answer-line-v1",
+        "embedding_batch_size": 8
+      },
+      "manifest_file": "dense-hotpotqa-291f34e6-6c03-4a66-a0a7-e9e6519ee875.manifest.json",
+      "manifest_sha256": "9a01e3465610f303aab595100bc1e5fb2e166c0ae7d84ed1cba916c04062951c",
+      "results_file": "dense-hotpotqa-291f34e6-6c03-4a66-a0a7-e9e6519ee875.jsonl",
+      "results_sha256": "c59c71b0b12e51b55b4d729fc10f85cb4b2ac53d0719aeeec8ee392e7022a089",
+      "expected_question_ids": [
+        "5abd882f55429924427fd045",
+        "5a78ed6855429970f5fffdd9",
+        "5a729cc25542991f9a20c532",
+        "5adc7f4a5542994650320d28",
+        "5a84e0a45542991dd0999e11"
+      ],
+      "observed_question_ids": [
+        "5abd882f55429924427fd045",
+        "5a78ed6855429970f5fffdd9",
+        "5a729cc25542991f9a20c532",
+        "5adc7f4a5542994650320d28",
+        "5a84e0a45542991dd0999e11"
+      ],
+      "question_outcomes": [
+        {
+          "question_id": "5abd882f55429924427fd045",
+          "status": "completed"
+        },
+        {
+          "question_id": "5a78ed6855429970f5fffdd9",
+          "status": "completed"
+        },
+        {
+          "question_id": "5a729cc25542991f9a20c532",
+          "status": "completed"
+        },
+        {
+          "question_id": "5adc7f4a5542994650320d28",
+          "status": "completed"
+        },
+        {
+          "question_id": "5a84e0a45542991dd0999e11",
+          "status": "completed"
+        }
+      ],
+      "errors": [],
+      "generation": {
+        "requested_model": "iairlab/qwen3.8-27b",
+        "base_url": "https://api.duckduck.cloud/v1",
+        "options": {
+          "temperature": 0,
+          "seed": 42,
+          "max_tokens": 512,
+          "stream": false,
+          "chat_template_kwargs": {
+            "enable_thinking": false
+          }
+        },
+        "backend_revision": "unknown"
+      },
+      "embedding": {
+        "model": {
+          "name": "bge-m3:latest",
+          "model": "bge-m3:latest",
+          "modified_at": "2026-09-23T15:05:01.4618858+03:00",
+          "size": 1157672605,
+          "digest": "7907646426070047a77226ac3e684fbbe8410524f7b4a74d02837e43f2146bab",
+          "details": {
+            "parent_model": "",
+            "format": "gguf",
+            "family": "bert",
+            "families": [
+              "bert"
+            ],
+            "parameter_size": "566.70M",
+            "quantization_level": "F16",
+            "context_length": 8192,
+            "embedding_length": 1024
+          },
+          "capabilities": [
+            "embedding"
+          ]
+        },
+        "truncate": false,
+        "text_version": "title-newline-text-v1",
+        "batch_size": 8
+      },
+      "started_at": "2026-10-08T01:04:14.311784+00:00",
+      "completed_at": "2026-10-08T01:04:23.580742+00:00",
+      "wall_seconds": 9.268958,
+      "transport_wall_seconds_by_phase": {
+        "index/local_ollama": 0.7515439996495843,
+        "retrieval/local_ollama": 0.2417323999106884,
+        "reader/target_api": 7.953066300135106
+      },
+      "token_accounting": {
+        "status": "verified",
+        "journal_file": "dense-hotpotqa-291f34e6-6c03-4a66-a0a7-e9e6519ee875.tokens.jsonl",
+        "journal_sha256": "4d41fd35294cb5eab49094b765c657210fb67d00bff5fd0815da64c6759547df",
+        "summary": {
+          "schema_version": 1,
+          "phases": [
+            {
+              "phase": "index",
+              "provider": "local_ollama",
+              "attempts": 4,
+              "errors": 0,
+              "unfinished": 0,
+              "cache_hits": 0,
+              "cache_provenance_unknown": 0,
+              "known_subtotal": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 4300
+              },
+              "unknown_fields": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 0
+              },
+              "complete": true,
+              "total": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 4300
+              }
+            },
+            {
+              "phase": "reader",
+              "provider": "target_api",
+              "attempts": 5,
+              "errors": 0,
+              "unfinished": 0,
+              "cache_hits": 0,
+              "cache_provenance_unknown": 0,
+              "known_subtotal": {
+                "llm_input_tokens": 7593,
+                "llm_output_tokens": 883,
+                "embedding_input_tokens": 0
+              },
+              "unknown_fields": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 0
+              },
+              "complete": true,
+              "total": {
+                "llm_input_tokens": 7593,
+                "llm_output_tokens": 883,
+                "embedding_input_tokens": 0
+              }
+            },
+            {
+              "phase": "retrieval",
+              "provider": "local_ollama",
+              "attempts": 5,
+              "errors": 0,
+              "unfinished": 0,
+              "cache_hits": 0,
+              "cache_provenance_unknown": 0,
+              "known_subtotal": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 134
+              },
+              "unknown_fields": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 0
+              },
+              "complete": true,
+              "total": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 134
+              }
+            }
+          ],
+          "known_subtotal": {
+            "llm_input_tokens": 7593,
+            "llm_output_tokens": 883,
+            "embedding_input_tokens": 4434
+          },
+          "complete": true,
+          "attempts": 14,
+          "historical_cache_cost_complete": true,
+          "journal_corrupt_tail": false,
+          "corrupt_tail_bytes": 0
+        }
+      },
+      "reader_attempts": [
+        {
+          "question_id": "5abd882f55429924427fd045",
+          "request_file": "dense-hotpotqa-291f34e6-6c03-4a66-a0a7-e9e6519ee875-a6015c56e6e8eebf.reader-request.json",
+          "request_sha256": "ff1aecc1793fdeaf977447523d998652e93cfb32d72bdfe14bef951a302e8a96",
+          "prompt_sha256": "05ee917c6e5a52bd365ec6023991e0e56f5c9fd6b41df7f3fbbbc5e071cd6a73",
+          "response_file": "dense-hotpotqa-291f34e6-6c03-4a66-a0a7-e9e6519ee875-a6015c56e6e8eebf.reader-response.json",
+          "response_sha256": "67e1a9b24bede5adac215eb08855b848afdc43de4aaa3591521afaa83da99128",
+          "diagnostics": {
+            "structure_status": "valid",
+            "finish_reason": "stop",
+            "content_type": "str",
+            "content_present": true,
+            "answer_extraction_status": "ok",
+            "prompt_tokens": 1496,
+            "completion_tokens": 215,
+            "reasoning_tokens": 0
+          }
+        },
+        {
+          "question_id": "5a78ed6855429970f5fffdd9",
+          "request_file": "dense-hotpotqa-291f34e6-6c03-4a66-a0a7-e9e6519ee875-c4583dac30d577de.reader-request.json",
+          "request_sha256": "4a828eebbd81c650b75e8ac3e40ae81dd9fbcca869fb4233821f2bbb04644173",
+          "prompt_sha256": "02dc3f6c064e82e6e0cb1a5e7f81ac24719ed2f6f7dd5f168577216b31121751",
+          "response_file": "dense-hotpotqa-291f34e6-6c03-4a66-a0a7-e9e6519ee875-c4583dac30d577de.reader-response.json",
+          "response_sha256": "9fbc95e2a8369a490e58b64580a0036c68dd2e5b6ad1a6a577751e29ee017f62",
+          "diagnostics": {
+            "structure_status": "valid",
+            "finish_reason": "stop",
+            "content_type": "str",
+            "content_present": true,
+            "answer_extraction_status": "ok",
+            "prompt_tokens": 1451,
+            "completion_tokens": 118,
+            "reasoning_tokens": 0
+          }
+        },
+        {
+          "question_id": "5a729cc25542991f9a20c532",
+          "request_file": "dense-hotpotqa-291f34e6-6c03-4a66-a0a7-e9e6519ee875-c6f7be8ba42a855b.reader-request.json",
+          "request_sha256": "2c106a9fa130f22031910abbdf85b03fc1fed941112fb19cfaf539db502f1f47",
+          "prompt_sha256": "8d7346d7e788c715e9df77f7ccfff315ba5f02e65b8bdbb72d714e6d81837bab",
+          "response_file": "dense-hotpotqa-291f34e6-6c03-4a66-a0a7-e9e6519ee875-c6f7be8ba42a855b.reader-response.json",
+          "response_sha256": "e00b86377a3e3a40e5efd06c0c6ff70fb54122519a50f67c42f3613447b29ab4",
+          "diagnostics": {
+            "structure_status": "valid",
+            "finish_reason": "stop",
+            "content_type": "str",
+            "content_present": true,
+            "answer_extraction_status": "ok",
+            "prompt_tokens": 1452,
+            "completion_tokens": 147,
+            "reasoning_tokens": 0
+          }
+        },
+        {
+          "question_id": "5adc7f4a5542994650320d28",
+          "request_file": "dense-hotpotqa-291f34e6-6c03-4a66-a0a7-e9e6519ee875-2b36740994861ff2.reader-request.json",
+          "request_sha256": "9d8bf3196d51845e2da9383c7894c0850fd77914f5753c6b36ccdd8c14598e95",
+          "prompt_sha256": "3128bbb1e67f8754d6867ec59b9c4064ddd3e48fc8bc1c00e0965d579513eb95",
+          "response_file": "dense-hotpotqa-291f34e6-6c03-4a66-a0a7-e9e6519ee875-2b36740994861ff2.reader-response.json",
+          "response_sha256": "f75ce962321557a4a0abf4cbb4e07ec79a14160a2645f5b9021024e54a4a43b6",
+          "diagnostics": {
+            "structure_status": "valid",
+            "finish_reason": "stop",
+            "content_type": "str",
+            "content_present": true,
+            "answer_extraction_status": "ok",
+            "prompt_tokens": 1687,
+            "completion_tokens": 229,
+            "reasoning_tokens": 0
+          }
+        },
+        {
+          "question_id": "5a84e0a45542991dd0999e11",
+          "request_file": "dense-hotpotqa-291f34e6-6c03-4a66-a0a7-e9e6519ee875-5ca9229f54487ad8.reader-request.json",
+          "request_sha256": "61fc25a132248ae343bf2fb1f22947e36cae0d563db6a35b92fa4ff47a3156df",
+          "prompt_sha256": "439127c6321d08783a7d2294a1dfe5da0503d005fd28ccd9be528db8b8b0cbbe",
+          "response_file": "dense-hotpotqa-291f34e6-6c03-4a66-a0a7-e9e6519ee875-5ca9229f54487ad8.reader-response.json",
+          "response_sha256": "b3dc0883487a243bbfb78d7f8ada8741c742b3f574db2e0a3b58adb16e244af5",
+          "diagnostics": {
+            "structure_status": "valid",
+            "finish_reason": "stop",
+            "content_type": "str",
+            "content_present": true,
+            "answer_extraction_status": "ok",
+            "prompt_tokens": 1507,
+            "completion_tokens": 174,
+            "reasoning_tokens": 0
+          }
+        }
+      ],
+      "metrics_file": "dense-hotpotqa-291f34e6-6c03-4a66-a0a7-e9e6519ee875.metrics.json",
+      "metrics_sha256": "130b776484945445f23ab76163060a40c59555516f113fb28553e3459dd8ce38",
+      "metrics": {
+        "questions_evaluated": 5,
+        "em": 0.4,
+        "token_f1": 0.48,
+        "recall_at_k": 1.0,
+        "metric_version": "hipporag2-squad-normalization-answer-marker-v3-standalone-answer-line-v1",
+        "answer_parser_version": "standalone-answer-line-v1"
+      },
+      "models_returned": [
+        "iairlab/qwen3.8-27b"
+      ]
     }
   ],
   "offline_tests": {
-    "passed": 213,
+    "passed": 218,
     "skipped": 4
   },
   "active_user_hours": "not_measured",
-  "merge_dependency": "PR #28 remains open"
+  "merge_dependency": "PR #28 remains open",
+  "historical_failed_run": {
+    "dataset": "musique",
+    "run_id": "0b41ddc1-9e9f-4243-8679-e91d86b085ee",
+    "manifest_file": "dense-musique-0b41ddc1-9e9f-4243-8679-e91d86b085ee.manifest.json",
+    "manifest_sha256": "5d7c6bec27cc7ccf1fc99f26464828ae68a7b010e5c61ebc8390f47c817d5dc8",
+    "results_file": "dense-musique-0b41ddc1-9e9f-4243-8679-e91d86b085ee.jsonl",
+    "results_sha256": "4778363fa7eb938144642446a653bf0a8cc09acf12e2e3d568f9e63bb1ff1a8f",
+    "expected_question_ids": [
+      "3hop1__593288_720914_27537",
+      "2hop__21104_16334",
+      "2hop__126306_396277",
+      "3hop1__9285_5188_86687",
+      "2hop__53147_7298"
+    ],
+    "accepted_question_ids": [
+      "3hop1__593288_720914_27537"
+    ],
+    "question_outcomes": [
+      {
+        "question_id": "3hop1__593288_720914_27537",
+        "status": "completed"
+      },
+      {
+        "question_id": "2hop__21104_16334",
+        "status": "failed"
+      },
+      {
+        "question_id": "2hop__126306_396277",
+        "status": "not_attempted_after_stop"
+      },
+      {
+        "question_id": "3hop1__9285_5188_86687",
+        "status": "not_attempted_after_stop"
+      },
+      {
+        "question_id": "2hop__53147_7298",
+        "status": "not_attempted_after_stop"
+      }
+    ],
+    "errors": [
+      {
+        "question_id": "2hop__21104_16334",
+        "code": "ValueError",
+        "reason": "reader_format_or_finish_reason_invalid"
+      }
+    ],
+    "started_at": "2026-10-08T00:45:07.442160+00:00",
+    "completed_at": "2026-10-08T00:45:17.161256+00:00",
+    "plan_sha256": "8b860d976bdf3c80c03db9c298de873ebe02c28e1ee2eb3ff84e0c051caa9d60",
+    "model": {
+      "requested_model": "iairlab/qwen3.8-27b",
+      "base_url": "https://api.duckduck.cloud/v1",
+      "options": {
+        "temperature": 0,
+        "seed": 42,
+        "max_tokens": 512,
+        "stream": false,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        }
+      },
+      "backend_revision": "unknown"
+    },
+    "embedding": {
+      "model": {
+        "name": "bge-m3:latest",
+        "model": "bge-m3:latest",
+        "modified_at": "2026-09-23T15:05:01.4618858+03:00",
+        "size": 1157672605,
+        "digest": "7907646426070047a77226ac3e684fbbe8410524f7b4a74d02837e43f2146bab",
+        "details": {
+          "parent_model": "",
+          "format": "gguf",
+          "family": "bert",
+          "families": [
+            "bert"
+          ],
+          "parameter_size": "566.70M",
+          "quantization_level": "F16",
+          "context_length": 8192,
+          "embedding_length": 1024
+        },
+        "capabilities": [
+          "embedding"
+        ]
+      },
+      "truncate": false,
+      "text_version": "title-newline-text-v1"
+    },
+    "token_accounting": {
+      "status": "verified",
+      "journal_file": "dense-musique-0b41ddc1-9e9f-4243-8679-e91d86b085ee.tokens.jsonl",
+      "journal_sha256": "b86e56faf6db4316305986506c7fb90b92b9e87b4787c4cc398a8ebd4c6f266a",
+      "summary": {
+        "schema_version": 1,
+        "phases": [
+          {
+            "phase": "index",
+            "provider": "local_ollama",
+            "attempts": 1,
+            "errors": 0,
+            "unfinished": 0,
+            "cache_hits": 0,
+            "cache_provenance_unknown": 0,
+            "known_subtotal": {
+              "llm_input_tokens": 0,
+              "llm_output_tokens": 0,
+              "embedding_input_tokens": 4215
+            },
+            "unknown_fields": {
+              "llm_input_tokens": 0,
+              "llm_output_tokens": 0,
+              "embedding_input_tokens": 0
+            },
+            "complete": true,
+            "total": {
+              "llm_input_tokens": 0,
+              "llm_output_tokens": 0,
+              "embedding_input_tokens": 4215
+            }
+          },
+          {
+            "phase": "reader",
+            "provider": "target_api",
+            "attempts": 2,
+            "errors": 0,
+            "unfinished": 0,
+            "cache_hits": 0,
+            "cache_provenance_unknown": 0,
+            "known_subtotal": {
+              "llm_input_tokens": 3226,
+              "llm_output_tokens": 505,
+              "embedding_input_tokens": 0
+            },
+            "unknown_fields": {
+              "llm_input_tokens": 0,
+              "llm_output_tokens": 0,
+              "embedding_input_tokens": 0
+            },
+            "complete": true,
+            "total": {
+              "llm_input_tokens": 3226,
+              "llm_output_tokens": 505,
+              "embedding_input_tokens": 0
+            }
+          },
+          {
+            "phase": "retrieval",
+            "provider": "local_ollama",
+            "attempts": 2,
+            "errors": 0,
+            "unfinished": 0,
+            "cache_hits": 0,
+            "cache_provenance_unknown": 0,
+            "known_subtotal": {
+              "llm_input_tokens": 0,
+              "llm_output_tokens": 0,
+              "embedding_input_tokens": 49
+            },
+            "unknown_fields": {
+              "llm_input_tokens": 0,
+              "llm_output_tokens": 0,
+              "embedding_input_tokens": 0
+            },
+            "complete": true,
+            "total": {
+              "llm_input_tokens": 0,
+              "llm_output_tokens": 0,
+              "embedding_input_tokens": 49
+            }
+          }
+        ],
+        "known_subtotal": {
+          "llm_input_tokens": 3226,
+          "llm_output_tokens": 505,
+          "embedding_input_tokens": 4264
+        },
+        "complete": true,
+        "attempts": 5,
+        "historical_cache_cost_complete": true,
+        "journal_corrupt_tail": false,
+        "corrupt_tail_bytes": 0
+      }
+    },
+    "metrics": null,
+    "limitations": [
+      "Only first answer accepted; full five-ID metrics not computed",
+      "Failed reader response content not retained in this first run; failure recorded without attributing a specific finish reason or parser status",
+      "Transport success and complete token usage do not imply reader format success"
+    ]
+  },
+  "historical_hotpotqa_not_attempted": {
+    "dataset": "hotpotqa",
+    "status": "not_attempted_after_musique_stop",
+    "run_id": null,
+    "metrics": null,
+    "usage": null
+  },
+  "diagnostic_runs": [
+    {
+      "dataset": "musique",
+      "run_id": "418cc922-198f-49cd-a748-8a75cd272bae",
+      "status": "failed",
+      "code": {
+        "commit": "a63b6d2fbabac844f86560694c97bb8a19e13815",
+        "working_tree_dirty": false,
+        "source_sha256": {
+          "scripts/run_dense.py": "f3cb021b9bbcec023e5687527cd7104b2ac7632461c9514aa4b21b1a87c03b8b",
+          "scripts/replay_reader.py": "9a8192bc38f70bbbe64b5cbefe31fd988ad6335b10e4140dc9f08f58f2c7edb8",
+          "scripts/evaluate_dense.py": "ca25607f74c4881ef25f81fac96d7130247edfb3f417290307b02d8740d655c1",
+          "scripts/answer_parser.py": "bed7477e2ca0ace452821e2adb13cf8b045aa6443617b141c13fadf18e56bf18",
+          "scripts/run_dense_target.py": "8c405e63f6ce3a02797f25021dc78574351664c98cf98a1b664bd8caf2b52cd5"
+        }
+      },
+      "plan": {
+        "schema_version": 1,
+        "kind": "dense_target_reader_diagnostic",
+        "dataset": "musique",
+        "selection": "first 5 S500 IDs within signal_tuning; supporting union + first 20 other corpus IDs",
+        "question_ids": [
+          "2hop__21104_16334"
+        ],
+        "ordered_question_ids_sha256": "2d5dc6ab1c330484dbb0cc749ad73dee6cb1c8e294d840ec2074dfefb074fce0",
+        "passage_ids": [
+          "sha256:173ae2f0ff18e0b2bb3434a909cd8781118aea363cb1527c80cb2aeeeb9f8d58",
+          "sha256:2702b4471863a83aa1c8305cb3cd8c84f7c9aaacfa16d5fb26a04e2a7d8440da",
+          "sha256:5de15ece4f11b6a5f4bdfb7c16ce1dcb826f6f306511141265375513c1390d8e",
+          "sha256:95b492b8c9c362c3bd747f9f07e8c22f618be9b6df4603823238de9e5e085c42",
+          "sha256:2ef60db68fc06544b740d351a35274454b9528be7c96d7aebf1324db4971192f",
+          "sha256:b75226cae9f4a36ee4869573a57cc703ecb04b78ec8f9b950e51f899708ae2f9",
+          "sha256:c8486102d4e4d178678b1f67cb0662a9d16f606a55090ee03b70a08eeb849ad8",
+          "sha256:2c6cf4990dc43b6920c4bc085b32a12d8f2a2fd132de0b292a683772f9d01807",
+          "sha256:a3c75c3bf08a131efefc8a79f9eae3d1c55f09ead2619b9735a208dc07be37c2",
+          "sha256:19f48fe044d9f6a3f2fc19fb2456413f7b773da075f17a699c55d5aab684edae",
+          "sha256:dc4c8632cce54a0f81863d6be9b8e147e2407f9409ee91f2d4b2df89b95cfce8",
+          "sha256:8ba35a296a556301b8926c3a53871670dee0a879fdff666e433751d3498cb043",
+          "sha256:5973d3ba019e3d113c0eed81d8e9944f5c771359e69559c8a45f159ef20ee670",
+          "sha256:ee406db4ccaa4964c926001ab5e0172f41b08fc71e3877ae2f1e31fc84949fdc",
+          "sha256:557b32e109e5d4c17b8a0b3253ce8210b895501d78799b6a3c990bcd16f6d7bb",
+          "sha256:df10753fdbe0ee925c03c791038cc119ed6a4caf6dfbd75cfe30c16bd31c81ba",
+          "sha256:f84b043040f20e9a0ef83efd33779952169528fd97b7a91af4e8df2f6110640e",
+          "sha256:661f39ff36cd867b8f1bfb47168cf72b343740042b9e9705c472599b2cdcc502",
+          "sha256:c9dfdcccda91bc0187e469d2643395690f25421eee995797dde6d293a3da1d65",
+          "sha256:517495d9d4fedd16368f9428ab25f6782ab3c0d5c6a02e58fc130be3b1ddecd4",
+          "sha256:fc7175a0d8b0e86a6075368ee248d130b98de8fa3e09779daf15accf4e196863",
+          "sha256:6e5251b0b5deae6a159c4197bd7b0aea71bb4d82be2274ccea7001acdafac326",
+          "sha256:944b81a9eb0f010040a4cc6f50ba78c93a322566ab31baebf6634d8188b6a6d1",
+          "sha256:d8b7a5a19a9fe301133dacc8804bfe2800ba4b79a48505f7d9b857efae30182d",
+          "sha256:cda796e8579a1506998ee3077b815ceb0dd9c29392ba5a8c6aadb5edd60639bd",
+          "sha256:d7ef8dd6c11c0cb649b9373c1ddde87eb8fa2855dbbb7f3ed887ed4d17347dd8",
+          "sha256:ae245efdee625eddfd310d1b4679e98373338be5f362e425536f8031be6b2d89",
+          "sha256:306df726d80289efb590c2e794b3ceacb7a79bac2acb52c4504f0646cc6b9822",
+          "sha256:a43a5d05048353d58ebd21957d79263d9129a655c8b0e51a7eaeee3897b7cfd3",
+          "sha256:cafcca1de606a152b8b0fd51931d5f7501de994fee78d299d2c45af86f88b067",
+          "sha256:1f553ee66436e9f348c262d29f075b2432f0ab341852d493c2c1e4331d7eefd1",
+          "sha256:7aaffc6047452cbfb70fb10a630a0097006965ca2e74331dc4f1f507e5e2f726"
+        ],
+        "corpus_sha256": "a41700095df71a414cc958b00c97ab6de03e334e17f80472d2eefa00f8f42d49",
+        "queries_sha256": "7cd6e775e088c0588a6accea334b924f8e3c0fe6a0b1460446e6d7e4be841be8",
+        "split_sha256": "4a89a6215282ce8c51a6704b6153f9df404c0ae645286d88eab5f531fb65d64b",
+        "inputs": {
+          "report_sha256": "c947e210a468ce62f64c29668480d6f32f884303fcf9edc8f1fc1b4edf99b483",
+          "ids_manifest_sha256": "82f5b26acedb39998398b0b4e9b4cb8f5fc9ec9bbb16420914dd66a4f058d33a",
+          "source_revision": "5ec05b38deecc3318bb432c69865959c56058990",
+          "output_sha256": {
+            "queries.json": "a0fd193f34f153e51052b8346b0db7868c60d68affb6f3e54c56cce7c2c14fc3",
+            "corpus.json": "054338e3803fbe69f67037c58d2a49438572ffe2e8c8a047148a2dcdc100e44b",
+            "labels.json": "76a36d30f3934c24ad5f7f5eaa6a67e4d26e30f2e29f7302f58d211ccb05da4a"
+          }
+        },
+        "reader_prompt_version": "hipporag2-musique-one-shot-v6",
+        "reader_template_sha256": "beb15da1f15193ee88f93cc25c96199d679ade1d652cd9c750cc10e63cbc6047",
+        "generation_options": {
+          "temperature": 0,
+          "seed": 42,
+          "max_tokens": 512,
+          "stream": false,
+          "chat_template_kwargs": {
+            "enable_thinking": false
+          }
+        },
+        "top_k": 5,
+        "token_limit_per_dataset": 20000,
+        "reader_input_byte_limit": 16000,
+        "limitations": "Development smoke; support-preserving small corpus, not a quality benchmark. MuSiQue reader template is shared unchanged with HotpotQA for this smoke.",
+        "parent_plan_sha256": "8b860d976bdf3c80c03db9c298de873ebe02c28e1ee2eb3ff84e0c051caa9d60"
+      },
+      "manifest_file": "dense-musique-418cc922-198f-49cd-a748-8a75cd272bae.manifest.json",
+      "manifest_sha256": "f4a739f20a0453236f07aa66c25c90a29f34c61c56924465c10c7622fb5539f1",
+      "results_file": "dense-musique-418cc922-198f-49cd-a748-8a75cd272bae.jsonl",
+      "results_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "expected_question_ids": [
+        "2hop__21104_16334"
+      ],
+      "observed_question_ids": [],
+      "question_outcomes": [
+        {
+          "question_id": "2hop__21104_16334",
+          "status": "failed"
+        }
+      ],
+      "errors": [
+        {
+          "question_id": "2hop__21104_16334",
+          "code": "ValueError",
+          "reason": "reader_format_or_finish_reason_invalid"
+        }
+      ],
+      "generation": {
+        "requested_model": "iairlab/qwen3.8-27b",
+        "base_url": "https://api.duckduck.cloud/v1",
+        "options": {
+          "temperature": 0,
+          "seed": 42,
+          "max_tokens": 512,
+          "stream": false,
+          "chat_template_kwargs": {
+            "enable_thinking": false
+          }
+        },
+        "backend_revision": "unknown"
+      },
+      "embedding": {
+        "model": {
+          "name": "bge-m3:latest",
+          "model": "bge-m3:latest",
+          "modified_at": "2026-09-23T15:05:01.4618858+03:00",
+          "size": 1157672605,
+          "digest": "7907646426070047a77226ac3e684fbbe8410524f7b4a74d02837e43f2146bab",
+          "details": {
+            "parent_model": "",
+            "format": "gguf",
+            "family": "bert",
+            "families": [
+              "bert"
+            ],
+            "parameter_size": "566.70M",
+            "quantization_level": "F16",
+            "context_length": 8192,
+            "embedding_length": 1024
+          },
+          "capabilities": [
+            "embedding"
+          ]
+        },
+        "truncate": false,
+        "text_version": "title-newline-text-v1",
+        "batch_size": 8
+      },
+      "started_at": "2026-10-08T01:01:37.166376+00:00",
+      "completed_at": "2026-10-08T01:01:43.841453+00:00",
+      "wall_seconds": 6.675077,
+      "transport_wall_seconds_by_phase": {
+        "index/local_ollama": 4.23431279999204,
+        "retrieval/local_ollama": 0.04157199990004301,
+        "reader/target_api": 2.1913231001235545
+      },
+      "token_accounting": {
+        "status": "verified",
+        "journal_file": "dense-musique-418cc922-198f-49cd-a748-8a75cd272bae.tokens.jsonl",
+        "journal_sha256": "4155efd99d8eb9d415d8ca9609e5a84bf1560710307c516b17c96b350d8b7a96",
+        "summary": {
+          "schema_version": 1,
+          "phases": [
+            {
+              "phase": "index",
+              "provider": "local_ollama",
+              "attempts": 4,
+              "errors": 0,
+              "unfinished": 0,
+              "cache_hits": 0,
+              "cache_provenance_unknown": 0,
+              "known_subtotal": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 4215
+              },
+              "unknown_fields": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 0
+              },
+              "complete": true,
+              "total": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 4215
+              }
+            },
+            {
+              "phase": "reader",
+              "provider": "target_api",
+              "attempts": 1,
+              "errors": 0,
+              "unfinished": 0,
+              "cache_hits": 0,
+              "cache_provenance_unknown": 0,
+              "known_subtotal": {
+                "llm_input_tokens": 1790,
+                "llm_output_tokens": 195,
+                "embedding_input_tokens": 0
+              },
+              "unknown_fields": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 0
+              },
+              "complete": true,
+              "total": {
+                "llm_input_tokens": 1790,
+                "llm_output_tokens": 195,
+                "embedding_input_tokens": 0
+              }
+            },
+            {
+              "phase": "retrieval",
+              "provider": "local_ollama",
+              "attempts": 1,
+              "errors": 0,
+              "unfinished": 0,
+              "cache_hits": 0,
+              "cache_provenance_unknown": 0,
+              "known_subtotal": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 29
+              },
+              "unknown_fields": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 0
+              },
+              "complete": true,
+              "total": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 29
+              }
+            }
+          ],
+          "known_subtotal": {
+            "llm_input_tokens": 1790,
+            "llm_output_tokens": 195,
+            "embedding_input_tokens": 4244
+          },
+          "complete": true,
+          "attempts": 6,
+          "historical_cache_cost_complete": true,
+          "journal_corrupt_tail": false,
+          "corrupt_tail_bytes": 0
+        }
+      },
+      "reader_attempts": [
+        {
+          "question_id": "2hop__21104_16334",
+          "request_file": "dense-musique-418cc922-198f-49cd-a748-8a75cd272bae-e9eb13c8f2c0de50.reader-request.json",
+          "request_sha256": "2b26c3c1b5603d9843119dad6e0658a324405ae0e9eaa000da28080c80039736",
+          "prompt_sha256": "812e76549626a42cc56ed16376d76cfc9ff39c5a3581415b4d4e9c1f6e9861d9",
+          "response_file": "dense-musique-418cc922-198f-49cd-a748-8a75cd272bae-e9eb13c8f2c0de50.reader-response.json",
+          "response_sha256": "7809f079b6f851f4e298436e9fc091a5e2320f06cc83df3508e398288407532c",
+          "diagnostics": {
+            "structure_status": "valid",
+            "finish_reason": "stop",
+            "content_type": "str",
+            "content_present": true,
+            "answer_extraction_status": "ambiguous_answer_marker",
+            "prompt_tokens": 1790,
+            "completion_tokens": 195,
+            "reasoning_tokens": 0
+          }
+        }
+      ],
+      "offline_reparse": {
+        "answer_parser_version": "standalone-answer-line-v1",
+        "status": "ok",
+        "new_model_calls": 0,
+        "note": "Versioned standalone-line parser ignores the prose heading; original diagnostic remains failed under legacy parser."
+      }
+    }
+  ],
+  "cost_all_recorded_runs": {
+    "complete": true,
+    "known_subtotal": {
+      "llm_input_tokens": 20311,
+      "llm_output_tokens": 2753,
+      "embedding_input_tokens": 17311
+    },
+    "physical_attempts": 39,
+    "reader_attempts": 13,
+    "note": "Includes original failed run, one diagnostic, and both final runs. No cache reuse or second remote diagnostic."
+  },
+  "cost_final_runs_only": {
+    "known_subtotal": {
+      "llm_input_tokens": 15295,
+      "llm_output_tokens": 2053,
+      "embedding_input_tokens": 8803
+    },
+    "note": "Subset only; not the full cost of completing issue #10."
+  },
+  "limitations": [
+    "Five development questions per dataset in support-preserving small corpora; no scientific quality comparison",
+    "Shared MuSiQue one-shot prompt also used for HotpotQA",
+    "Backend revision and actual application of seed/temperature unknown",
+    "Original invalid response from afd60ab was lost; new diagnosis reproduces failure without claiming exact historical request identity",
+    "Legacy parser semantics preserved; new target parser/metric version recorded",
+    "Byte reservation is an estimate, not a proved server tokenizer cap",
+    "PR #28 remains open; curator approval and merge are separate"
+  ]
 }

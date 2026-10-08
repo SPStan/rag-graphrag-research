@@ -13,6 +13,10 @@ python -m scripts.run_dense_target --data-root '<data-root>' --env-file '<env-fi
 
 Первая команда проверяет данные и план без запросов к моделям. Вторая расходует токены: последовательно до пяти reader-запросов на набор, Qwen3.8-27b, max_tokens=512, temperature=0, seed=42, reasoning выключен. Лимит 100 000 суммарных local embedding / remote LLM токенов на набор; reader input ≤16 000 UTF-8 байт. Неизвестный usage, неподдерживаемый формат, неполный ответ или нарушение лимитов останавливают запуск; перед повтором разобрать failed manifest. Ни SDK, ни скрытого retry в этом пути нет; Requests adapter дополнительно проверяется на `max_retries.total=0`.
 
+Для отдельной диагностики разрешён один ID исходного плана: `--dataset musique --diagnostic-question 2hop__21104_16334 --execute`. Корпус остаётся тем же; запросы/контекст и ответы сохраняются локально до validation. Диагностический бюджет — 20 000 токенов; `--diagnostic-prior-run '<manifest>'` допускает вторую попытку только после проверенной первой, с остатком общего бюджета, без цепочки третьих попыток. Выбор следующей попытки требует конкретного обоснования по первому ответу. В выполненной диагностике понадобился только один remote POST.
+
+Новая execution version `standalone-answer-line-v1` сохранена в существующем plan отдельно от исходных datasets. Общий target parser `run_dense.extract_target_reader_answer` распознаёт `Answer:` в начале отдельной строки, отклоняя несколько финальных строк. Прежний parser сохраняет историческую семантику inline-маркеров. Новый parser version записан в rows/plan и суффиксе metric version; оценщик не смешивает версии. Reader prompt, cap=512 и параметры API не менялись. Index embedding отправляется batch по 8 пассажей; повторный расход полностью учитывается.
+
 Raw JSONL, `*.manifest.json`, `*.metrics.json`, `*.tokens.jsonl` сохраняются в игнорируемом `results/raw`. Failed manifest хранит наблюдаемые и незавершённые ID. Перед оценкой `evaluate_dense` проверяет порядок ID; локальная автоматическая оценка выполняется после успешного завершения всех пяти ответов. Отдельная проверка файла:
 
 ```powershell
@@ -26,6 +30,27 @@ SDK-проверка HippoRAG остаётся условием его буду�
 [Безопасная сводка](../results/summary/dense-target-smoke.json): MuSiQue run `0b41ddc1-9e9f-4243-8679-e91d86b085ee`, код `afd60ab`. Первый ответ принят; второй не прошёл проверку `finish_reason=stop` и однозначного `Answer:`. Запуск остановлен, три оставшихся вопроса не отправлены, HotpotQA не начинался. Файл failed manifest и journal находятся в `results/raw` рабочей копии `dense-target-smoke`; SHA опубликованы в сводке. Первоначальный invalid response не сохранён целиком, поэтому точная причина (finish reason либо parser) не устанавливается; для будущих запусков добавлено сохранение локального `*.reader-error.json` с SHA и обоими признаками. Повторных вызовов после остановки не было.
 
 Измеренный расход: index embedding 4215, query embedding 49; reader input 3226 / output 505. Все пять транспортных попыток имеют полный usage: один corpus embedding, два query embedding и два reader POST. Это полнота расхода выполненных попыток, не завершение плана на пяти вопросах. EM/F1/recall для полного плана не рассчитывались; критерии обоих завершённых датасетов ещё не выполнены. Дальнейший запуск — после отдельного решения о диагностике reader. Issue #10 и PR остаются открытыми/Draft с `Refs #10`.
+
+### Завершение после диагностики 8 октября
+
+Диагностический run `418cc922-198f-49cd-a748-8a75cd272bae` воспроизвёл ошибку: структура ответа валидна, `finish_reason=stop`, reasoning tokens=0, 1790 input / 195 output. Старый parser ошибочно считал фразу «Synthesize the answer:» внутри объяснения ещё одним финальным маркером. Новая версия выделяет отдельную строку `Answer:`; сохранённый diagnostic response успешно разобран offline без второго remote запроса. Старый run остаётся failed, утраченный исторический response не восстанавливается.
+
+Оба финальных run выполнены на `4a60f2d` с теми же five-ID/corpus планами, prompt и output cap:
+
+| Датасет | Run ID | Ответов | EM | F1 | recall@5 | Embedding tokens | LLM input / output |
+|---|---|---:|---:|---:|---:|---:|---:|
+| MuSiQue | `2ef2397b-2ec2-4696-a5bd-d55542998b6a` | 5 | 0,80 | 0,9333 | 1,0 | 4369 | 7702 / 1170 |
+| HotpotQA | `291f34e6-6c03-4a66-a0a7-e9e6519ee875` | 5 | 0,40 | 0,48 | 1,0 | 4434 | 7593 / 883 |
+
+Оба завершённых файла проверены существующим оценщиком: все пять ID в ожидаемом порядке, SHA результатов, journals и сохранённых reader request/response совпадают. Reasoning usage всех десяти reader-ответов — 0 по ответам API. Метрики относятся к малым development-корпусам с сохранёнными supporting-пассажами и не устанавливают научную эффективность метода.
+
+Полный расход работы включает исходный failed run, одну диагностику и два финальных run: **17 311 local embedding, 20 311 LLM input, 2753 output tokens**, 39 физических попыток, из них 13 reader POST. Все usage известны; не путать это с расходом только финальных ответов. Полные параметры, source hashes, длительности, метрики, исторические ошибки и файлы — в [обновлённой сводке](../results/summary/dense-target-smoke.json). Raw находятся в `results/raw` рабочей копии `dense-target-smoke`, ключ — в игнорируемом env основной папки. Команда реального повторения, использованная после коммита:
+
+```powershell
+.\.venv-check\Scripts\python.exe -m scripts.run_dense_target --data-root 'C:\Users\Elisei\Documents\ChatGPT\Rag, GraphRAG' --env-file 'C:\Users\Elisei\Documents\ChatGPT\Rag, GraphRAG\.env.target-api' --execute
+```
+
+Технический smoke завершён; PR #29 пока Draft/Refs #10 из-за открытой зависимости PR #28 и неподтверждённого актуального научного согласования. Merge отдельно; #11/#12 не запускались.
 
 ## Учёт попыток для issue #9 (offline-реализация)
 
