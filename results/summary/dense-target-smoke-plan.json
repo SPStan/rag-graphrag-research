@@ -150,5 +150,22 @@
       "reader_input_byte_limit": 16000,
       "limitations": "Development smoke; support-preserving small corpus, not a quality benchmark. MuSiQue reader template is shared unchanged with HotpotQA for this smoke."
     }
-  ]
+  ],
+  "execution_versions": {
+    "standalone-answer-line-v1": {
+      "answer_parser_version": "standalone-answer-line-v1",
+      "parent_plans_sha256": "a7fe4c93355a1044f6eb1de65149b332a9f9d7b388ac3a2fda716b6c54cc4572",
+      "embedding_batch_size": 8,
+      "generation_options": {
+        "temperature": 0,
+        "seed": 42,
+        "max_tokens": 512,
+        "stream": false,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        }
+      },
+      "reader_template_sha256": "beb15da1f15193ee88f93cc25c96199d679ade1d652cd9c750cc10e63cbc6047"
+    }
+  }
 }

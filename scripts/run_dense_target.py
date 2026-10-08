@@ -178,7 +178,7 @@ def response_diagnostics(body):
         else None,
         "content_type": type(content).__name__,
         "content_present": isinstance(content, str) and bool(content.strip()),
-        "answer_extraction_status": dense.extract_reader_answer(content)[1]
+        "answer_extraction_status": dense.extract_target_reader_answer(content)[1]
         if isinstance(content, str)
         else "content_not_string",
         "prompt_tokens": api.token_count(usage.get("prompt_tokens")),
@@ -373,7 +373,7 @@ def execute(plan, queries, corpus, labels, config, local, remote, output_dir):
                     raise ValueError("reader_response_structure_invalid")
                 choice = response["choices"][0]
                 raw = choice["message"]["content"]
-                answer, status = dense.extract_reader_answer(raw)
+                answer, status = dense.extract_target_reader_answer(raw)
                 if choice.get("finish_reason") != "stop" or status != "ok":
                     manifest["failed_reader_response"] = {
                         "question_id": current,
@@ -403,6 +403,7 @@ def execute(plan, queries, corpus, labels, config, local, remote, output_dir):
                     "answer": answer,
                     "raw_answer": raw,
                     "answer_extraction_status": status,
+                    "answer_parser_version": dense.TARGET_ANSWER_PARSER_VERSION,
                     "prompt_tokens": response["usage"]["prompt_tokens"],
                     "completion_tokens": response["usage"]["completion_tokens"],
                     "query_embedding_prompt_tokens": query_tokens,
@@ -482,9 +483,13 @@ def main():
     prepared = [prepare(dataset, args.data_root) for dataset in DATASETS]
     plan_path = ROOT / "results" / "summary" / "dense-target-smoke-plan.json"
     plans = {"datasets": [item[0] for item in prepared]}
-    if plan_path.exists() and dense.read_json(plan_path) != plans:
+    if (
+        plan_path.exists()
+        and dense.read_json(plan_path).get("datasets") != plans["datasets"]
+    ):
         raise SystemExit("Refusing to change an existing smoke plan")
-    dense.write_json_atomic(plan_path, plans)
+    if not plan_path.exists():
+        dense.write_json_atomic(plan_path, plans)
     if args.dataset:
         prepared = [item for item in prepared if item[0]["dataset"] == args.dataset]
     if args.diagnostic_question:
@@ -543,6 +548,35 @@ def main():
         ]
     elif args.diagnostic_prior_run:
         raise SystemExit("Prior run requires --diagnostic-question")
+    prepared = [
+        (
+            dict(
+                plan,
+                answer_parser_version=dense.TARGET_ANSWER_PARSER_VERSION,
+                embedding_batch_size=8,
+            ),
+            queries,
+            corpus,
+            labels,
+        )
+        for plan, queries, corpus, labels in prepared
+    ]
+    stored_plans = dense.read_json(plan_path)
+    version = {
+        "answer_parser_version": dense.TARGET_ANSWER_PARSER_VERSION,
+        "parent_plans_sha256": digest(stored_plans["datasets"]),
+        "embedding_batch_size": 8,
+        "generation_options": OPTIONS,
+        "reader_template_sha256": dense.reader_template_sha256(),
+    }
+    versions = stored_plans.setdefault("execution_versions", {})
+    if (
+        dense.TARGET_ANSWER_PARSER_VERSION in versions
+        and versions[dense.TARGET_ANSWER_PARSER_VERSION] != version
+    ):
+        raise SystemExit("Refusing to change a frozen execution version")
+    versions[dense.TARGET_ANSWER_PARSER_VERSION] = version
+    dense.write_json_atomic(plan_path, stored_plans)
     if not args.execute:
         print("Plan verified; no model requests.")
         return

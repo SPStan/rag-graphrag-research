@@ -284,3 +284,24 @@ def test_all_invalid_responses_saved_before_validation(
     summary = verified_reference(manifest, manifest_path)["summary"]
     assert summary["attempts"] == 3
     assert summary["complete"] == ("usage" in payload)
+
+
+def test_target_parser_distinguishes_prose_heading_from_answer_line():
+    raw = "Thought:\n4. **Synthesize the answer:** Use the passage.\n\nAnswer: example population\n"
+    assert target.dense.extract_reader_answer(raw)[1] == "ambiguous_answer_marker"
+    assert target.dense.extract_target_reader_answer(raw) == (
+        "example population",
+        "ok",
+    )
+    assert target.dense.extract_target_reader_answer("Reasoning. Answer: inline") == (
+        "",
+        "missing_answer_marker",
+    )
+    assert (
+        target.dense.extract_target_reader_answer("Answer: first\nAnswer: second")[1]
+        == "ambiguous_answer_marker"
+    )
+    assert (
+        target.dense.extract_target_reader_answer("Answer: \nNo final answer")[1]
+        == "missing_answer_marker"
+    )
