@@ -13,6 +13,11 @@ from urllib.parse import urlsplit
 from dotenv import load_dotenv
 import requests
 
+try:
+    from scripts.token_accounting import Journal, recorded_call
+except ModuleNotFoundError:  # Direct script execution.
+    from token_accounting import Journal, recorded_call
+
 
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / "results" / "summary" / "target-api-check.json"
@@ -78,7 +83,7 @@ def token_count(value):
     )
 
 
-def local_embedding(session, config, request_attempts, record):
+def local_embedding(session, config, request_attempts, record, journal=None):
     base = config["ollama_url"]
     tags = session.get(f"{base}/api/tags", timeout=(5, 15))
     tags.raise_for_status()
@@ -111,17 +116,34 @@ def local_embedding(session, config, request_attempts, record):
     started = time.perf_counter()
     request_attempts["local_embedding"] = 1
     try:
-        response = session.post(
-            f"{base}/api/embed",
-            json={
-                "model": config["embedding_model"],
-                "input": EMBED_INPUTS,
-                "truncate": False,
-            },
-            timeout=(5, 120),
+
+        def send():
+            response = session.post(
+                f"{base}/api/embed",
+                json={
+                    "model": config["embedding_model"],
+                    "input": EMBED_INPUTS,
+                    "truncate": False,
+                },
+                timeout=(5, 120),
+            )
+            response.raise_for_status()
+            return response.json()
+
+        payload = (
+            recorded_call(
+                journal,
+                send,
+                phase="index",
+                operation="smoke_embedding",
+                provider="local_ollama",
+                model=config["embedding_model"],
+                kind="embedding",
+                object_id="smoke_batch",
+            )
+            if journal
+            else send()
         )
-        response.raise_for_status()
-        payload = response.json()
     finally:
         record["wall_seconds"] = round(time.perf_counter() - started, 3)
     vectors = payload.get("embeddings") if isinstance(payload, dict) else None
@@ -152,7 +174,12 @@ def thinking_parameters(thinking_switch):
 
 
 def remote_generation(
-    session, config, record, max_tokens=32, thinking_switch="chat-template"
+    session,
+    config,
+    record,
+    max_tokens=32,
+    thinking_switch="chat-template",
+    journal=None,
 ):
     payload = {
         "model": config["model"],
@@ -163,17 +190,34 @@ def remote_generation(
     }
     started = time.perf_counter()
     try:
-        response = session.post(
-            f"{config['base_url']}/chat/completions",
-            headers={"Authorization": f"Bearer {config['key']}"},
-            json=payload,
-            timeout=(5, 120),
-            allow_redirects=False,
+
+        def send():
+            response = session.post(
+                f"{config['base_url']}/chat/completions",
+                headers={"Authorization": f"Bearer {config['key']}"},
+                json=payload,
+                timeout=(5, 120),
+                allow_redirects=False,
+            )
+            if 300 <= response.status_code < 400:
+                raise ValueError("remote_redirect_refused")
+            response.raise_for_status()
+            return response.json()
+
+        result = (
+            recorded_call(
+                journal,
+                send,
+                phase="reader",
+                operation="smoke_generation",
+                provider="target_api",
+                model=config["model"],
+                kind="llm",
+                object_id="smoke_question",
+            )
+            if journal
+            else send()
         )
-        if 300 <= response.status_code < 400:
-            raise ValueError("remote_redirect_refused")
-        response.raise_for_status()
-        result = response.json()
     finally:
         record["wall_seconds"] = round(time.perf_counter() - started, 3)
     if not isinstance(result, dict):
@@ -289,6 +333,7 @@ def run(
     generation_only=False,
     max_tokens=32,
     thinking_switch="chat-template",
+    journal=None,
 ):
     report = {
         "checked_at_utc": datetime.now(timezone.utc).isoformat(),
@@ -315,6 +360,7 @@ def run(
                 config,
                 report["request_attempts"],
                 report["embeddings"],
+                journal=journal,
             )
             if report["embeddings"]["status"] == "blocked":
                 report["status"] = "blocked"
@@ -344,6 +390,7 @@ def run(
             report["generation"],
             max_tokens=max_tokens,
             thinking_switch=thinking_switch,
+            journal=journal,
         )
         report["status"] = report["generation"]["status"]
         if report["status"] == "blocked":
@@ -389,7 +436,16 @@ def save_run(output, config, local_session, remote_session, **run_options):
             safe_json({"status": "started", "kind": "target_api_check"}, config["key"])
         )
         file.flush()
-        report = run(config, local_session, remote_session, **run_options)
+        journal = Journal(
+            output.with_suffix(".tokens.jsonl"),
+            run_id=output.stem,
+            method="target_api_smoke",
+            dataset="synthetic",
+        )
+        report = run(
+            config, local_session, remote_session, journal=journal, **run_options
+        )
+        report["token_accounting"] = journal.reference()
         file.seek(0)
         file.write(safe_json(report, config["key"]))
         file.truncate()
