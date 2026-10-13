@@ -155,6 +155,14 @@ def evaluate(rows, labels, expected_ids=None, manifest=None):
             for row in rows[1:]
         ):
             raise ValueError(f"Run rows have mixed {field}")
+    parser_versions = {
+        row.get("answer_parser_version", "legacy-inline-v3") for row in rows
+    }
+    if len(parser_versions) != 1:
+        raise ValueError("Run rows have mixed answer parser versions")
+    parser_version = next(iter(parser_versions))
+    if parser_version not in {"legacy-inline-v3", "standalone-answer-line-v1"}:
+        raise ValueError("Unsupported answer parser version")
     for field in ("context_source_run_id", "context_source_results_sha256"):
         value = json.dumps(first.get(field), sort_keys=True, ensure_ascii=False)
         if any(
@@ -166,7 +174,11 @@ def evaluate(rows, labels, expected_ids=None, manifest=None):
     if not isinstance(top_k, int) or top_k <= 0:
         raise ValueError("Run needs a positive top_k")
     options = first.get("generation_options")
-    required_options = ("temperature", "num_predict", "num_ctx")
+    required_options = (
+        ("temperature", "max_tokens", "seed", "chat_template_kwargs")
+        if first.get("mode") == "target-functionality-smoke"
+        else ("temperature", "num_predict", "num_ctx")
+    )
     prompt_version = re.search(r"-v(\d+)$", str(first["reader_prompt_version"]))
     if prompt_version and int(prompt_version.group(1)) >= 3:
         required_options += ("seed",)
@@ -207,7 +219,14 @@ def evaluate(rows, labels, expected_ids=None, manifest=None):
         if extraction_status == "missing_answer_marker" and isinstance(
             row.get("raw_answer"), str
         ):
-            prediction, extraction_status = extract_reader_answer(row["raw_answer"])
+            if parser_version == "standalone-answer-line-v1":
+                from scripts.run_dense import extract_target_reader_answer
+
+                prediction, extraction_status = extract_target_reader_answer(
+                    row["raw_answer"]
+                )
+            else:
+                prediction, extraction_status = extract_reader_answer(row["raw_answer"])
         scores = answer_scores(prediction, references)
         supporting = label.get("supporting_ids", [])
         retrieved = [passage["id"] for passage in row.get("retrieved", [])]
@@ -270,7 +289,10 @@ def evaluate(rows, labels, expected_ids=None, manifest=None):
         raise ValueError("Run rows disagree with manifest context replay source")
     return {
         "schema_version": 1,
-        "metric_version": METRIC_VERSION,
+        "metric_version": METRIC_VERSION
+        if parser_version == "legacy-inline-v3"
+        else METRIC_VERSION + "-standalone-answer-line-v1",
+        "answer_parser_version": parser_version,
         "mode": first.get("mode"),
         "run_id": next(iter(run_ids)),
         "dataset": next(iter(datasets)),

@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 import hashlib
 import json
 import platform
+import re
 from pathlib import Path
 import subprocess
 import sys
@@ -56,6 +57,17 @@ GENERATION_OPTIONS = {"temperature": 0, "seed": 42, "num_predict": 512, "num_ctx
 EMBED_TEXT_VERSION = "title-newline-text-v1"
 EMBED_TRUNCATE = False
 EMBED_CACHE_SCHEMA_VERSION = 2
+TARGET_ANSWER_PARSER_VERSION = "standalone-answer-line-v1"
+
+
+def extract_target_reader_answer(raw_response):
+    """The target contract uses a standalone Answer line, not prose headings."""
+    matches = re.findall(r"(?im)^[ \t]*Answer:[ \t]*([^\r\n]*)", raw_response)
+    if len(matches) > 1:
+        return "", "ambiguous_answer_marker"
+    if not matches or not matches[0].strip():
+        return "", "missing_answer_marker"
+    return matches[0].strip(), "ok"
 
 
 def normalize_rows(vectors):
