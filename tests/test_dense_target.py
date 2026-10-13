@@ -305,3 +305,218 @@ def test_target_parser_distinguishes_prose_heading_from_answer_line():
         target.dense.extract_target_reader_answer("Answer: \nNo final answer")[1]
         == "missing_answer_marker"
     )
+
+
+def test_cli_refuses_reusing_one_diagnostic_prior_manifest(setup, monkeypatch):
+    import itertools
+    import sys
+
+    base, queries, corpus, labels, config, local, remote, root, calls = setup
+    output = root / "results" / "raw"
+    first = dict(
+        base,
+        kind="dense_target_reader_diagnostic",
+        parent_plan_sha256=target.digest(base),
+        question_ids=["q0"],
+        token_limit_per_dataset=20000,
+    )
+    prior_path, prior = target.execute(
+        first, queries[:1], corpus, labels[:1], config, local, remote, output
+    )
+    monkeypatch.setattr(target, "ROOT", root)
+    monkeypatch.setattr(
+        target,
+        "prepare",
+        lambda dataset, _: (dict(base, dataset=dataset), queries, corpus, labels),
+    )
+    monkeypatch.setattr(target.api, "settings", lambda _: config)
+    sessions = itertools.cycle([local, remote])
+    monkeypatch.setattr(target.requests, "Session", lambda: next(sessions))
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "dense-target",
+            "--dataset",
+            "musique",
+            "--diagnostic-question",
+            "q0",
+            "--diagnostic-prior-run",
+            str(prior_path),
+            "--execute",
+        ],
+    )
+    target.main()
+    assert len(calls) == 2
+    children = [
+        json.loads(p.read_text())
+        for p in output.glob("*.manifest.json")
+        if json.loads(p.read_text()).get("plan", {}).get("diagnostic_prior_run_id")
+        == prior["run_id"]
+    ]
+    assert len(children) == 1
+    assert children[0]["plan"]["token_limit_per_dataset"] == (
+        20000 - sum(prior["token_accounting"]["summary"]["known_subtotal"].values())
+    )
+    # Delete only the synthetic claim to prove historical manifests alone stop reuse.
+    target.diagnostic_claim_path(output, prior["run_id"]).unlink()
+    with pytest.raises(SystemExit, match="already consumed"):
+        target.main()
+    assert len(calls) == 2
+    assert len(list(output.glob("*.manifest.json"))) == 2
+
+
+def synthetic_diagnostic(tmp_path, run_id, plan, tokens=None):
+    journal = Journal(
+        tmp_path / f"{run_id}.tokens.jsonl",
+        run_id=run_id,
+        method="dense",
+        dataset="musique",
+    )
+    start = journal.start(
+        phase="reader",
+        operation="reader",
+        provider="target_api",
+        model="fake",
+        kind="llm",
+    )
+    journal.finish(
+        start,
+        status="success",
+        usage={"llm_input_tokens": tokens, "llm_output_tokens": 0},
+    )
+    path = tmp_path / f"{run_id}.manifest.json"
+    manifest = {
+        "run_id": run_id,
+        "plan": plan,
+        "expected_question_ids": plan["question_ids"],
+        "token_accounting": journal.reference(),
+    }
+    target.dense.write_json_atomic(path, manifest)
+    return path
+
+
+@pytest.mark.parametrize("grandchild", [False, True])
+def test_diagnostic_budget_includes_all_children_and_descendants(tmp_path, grandchild):
+    plan = {
+        "kind": "dense_target_reader_diagnostic",
+        "parent_plan_sha256": "pinned",
+        "question_ids": ["q0"],
+    }
+    prior = synthetic_diagnostic(tmp_path, "prior", plan, 1000)
+    synthetic_diagnostic(
+        tmp_path, "child1", dict(plan, diagnostic_prior_run_id="prior"), 9500
+    )
+    synthetic_diagnostic(
+        tmp_path,
+        "child2",
+        dict(plan, diagnostic_prior_run_id="child1" if grandchild else "prior"),
+        9500,
+    )
+    with pytest.raises(SystemExit, match="budget exhausted"):
+        target.diagnostic_budget(prior, plan, tmp_path)
+
+
+def test_diagnostic_unknown_child_cost_refuses_continuation(tmp_path):
+    plan = {
+        "kind": "dense_target_reader_diagnostic",
+        "parent_plan_sha256": "pinned",
+        "question_ids": ["q0"],
+    }
+    prior = synthetic_diagnostic(tmp_path, "prior", plan, 1000)
+    synthetic_diagnostic(tmp_path, "child", dict(plan, diagnostic_prior_run_id="prior"))
+    with pytest.raises(SystemExit, match="incomplete or unverified cost"):
+        target.diagnostic_budget(prior, plan, tmp_path)
+
+
+def test_diagnostic_reservation_survives_crash_before_manifest(setup, monkeypatch):
+    base, queries, corpus, labels, config, local, remote, root, calls = setup
+    plan = dict(
+        base,
+        kind="dense_target_reader_diagnostic",
+        parent_plan_sha256="pinned",
+        question_ids=["q0"],
+    )
+    prior = synthetic_diagnostic(root, "prior", plan, 1000)
+    continuation = dict(
+        plan, diagnostic_prior_run_id="prior", token_limit_per_dataset=19000
+    )
+    monkeypatch.setattr(
+        target.dense,
+        "git_snapshot",
+        lambda: (_ for _ in ()).throw(RuntimeError("synthetic crash")),
+    )
+    with pytest.raises(RuntimeError, match="synthetic crash"):
+        target.execute(
+            continuation,
+            queries[:1],
+            corpus,
+            labels[:1],
+            config,
+            local,
+            remote,
+            root,
+            diagnostic_prior_path=prior,
+        )
+    with pytest.raises(SystemExit, match="already consumed"):
+        target.execute(
+            continuation,
+            queries[:1],
+            corpus,
+            labels[:1],
+            config,
+            local,
+            remote,
+            root,
+            diagnostic_prior_path=prior,
+        )
+    assert not calls
+    assert len(list(root.glob("*.manifest.json"))) == 1
+
+
+def test_parallel_continuations_allow_only_one_transport_attempt(setup, monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+    import threading
+
+    base, queries, corpus, labels, config, local, remote, root, calls = setup
+    plan = dict(
+        base,
+        kind="dense_target_reader_diagnostic",
+        parent_plan_sha256="pinned",
+        question_ids=["q0"],
+    )
+    prior = synthetic_diagnostic(root, "prior", plan, 1000)
+    continuation = dict(
+        plan, diagnostic_prior_run_id="prior", token_limit_per_dataset=19000
+    )
+    original = target.diagnostic_budget
+    barrier = threading.Barrier(2)
+
+    def both_preflights_pass(*args):
+        result = original(*args)
+        barrier.wait(timeout=10)
+        return result
+
+    monkeypatch.setattr(target, "diagnostic_budget", both_preflights_pass)
+
+    def launch(_):
+        try:
+            return target.execute(
+                continuation,
+                queries[:1],
+                corpus,
+                labels[:1],
+                config,
+                local,
+                remote,
+                root,
+                diagnostic_prior_path=prior,
+            )[1]["status"]
+        except SystemExit as exc:
+            assert "already consumed" in str(exc)
+            return "blocked"
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        outcomes = list(pool.map(launch, range(2)))
+    assert sorted(outcomes) == ["blocked", "completed"]
+    assert len(calls) == 1

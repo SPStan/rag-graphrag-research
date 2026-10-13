@@ -17,7 +17,7 @@ from scripts import check_target_api as api
 from scripts import evaluate_dense as evaluator
 from scripts import run_dense as dense
 from scripts.evaluation_view import ordered_ids_sha256, select_in_view
-from scripts.token_accounting import Journal, recorded_call
+from scripts.token_accounting import Journal, recorded_call, verified_reference
 
 ROOT = Path(__file__).resolve().parents[1]
 DATASETS = ("musique", "hotpotqa")
@@ -187,11 +187,101 @@ def response_diagnostics(body):
     }
 
 
-def execute(plan, queries, corpus, labels, config, local, remote, output_dir):
+def diagnostic_claim_path(output_dir, prior_run_id):
+    return Path(output_dir) / f".diagnostic-{digest(prior_run_id)}.second-attempt.json"
+
+
+def diagnostic_budget(prior_path, plan, output_dir):
+    """Verify the root and every descendant; only one child is permitted."""
+    prior_path = Path(prior_path)
+    prior = dense.read_json(prior_path)
+    reference = verified_reference(prior, prior_path)
+    summary = reference["summary"]
+    if (
+        reference["status"] != "verified"
+        or not summary["complete"]
+        or prior["plan"].get("kind") != "dense_target_reader_diagnostic"
+        or prior["plan"].get("parent_plan_sha256") != plan["parent_plan_sha256"]
+        or prior["expected_question_ids"] != plan["question_ids"]
+        or prior["plan"].get("diagnostic_prior_run_id")
+        or sum(p["attempts"] for p in summary["phases"] if p["phase"] == "reader") != 1
+        or any(p["errors"] for p in summary["phases"])
+    ):
+        raise SystemExit("Prior diagnostic is not eligible for another attempt")
+    root_id = prior["run_id"]
+    history = {}
+    for directory in {prior_path.parent.resolve(), Path(output_dir).resolve()}:
+        for path in directory.glob("*.manifest.json"):
+            record = dense.read_json(path)
+            run_id = record["run_id"]
+            if run_id in history and history[run_id][0] != record:
+                raise SystemExit("Conflicting diagnostic history for one run ID")
+            history[run_id] = record, path
+    descendants = set()
+    while True:
+        children = {
+            run_id
+            for run_id, (record, _) in history.items()
+            if record.get("plan", {}).get("diagnostic_prior_run_id")
+            in ({root_id} | descendants)
+        }
+        if children <= descendants:
+            break
+        descendants |= children
+    known = sum(summary["known_subtotal"].values())
+    for run_id in descendants:
+        record, path = history[run_id]
+        child = verified_reference(record, path)
+        if child["status"] != "verified" or not child["summary"]["complete"]:
+            raise SystemExit("Diagnostic child has incomplete or unverified cost")
+        known += sum(child["summary"]["known_subtotal"].values())
+    if known >= 20000:
+        raise SystemExit("Cumulative diagnostic token budget exhausted")
+    if descendants or diagnostic_claim_path(output_dir, root_id).exists():
+        raise SystemExit("Prior diagnostic already consumed its second attempt")
+    return root_id, 20000 - known
+
+
+def claim_diagnostic_attempt(prior_path, plan, output_dir, run_id):
+    root_id, remaining = diagnostic_budget(prior_path, plan, output_dir)
+    if (
+        plan.get("diagnostic_prior_run_id") != root_id
+        or plan["token_limit_per_dataset"] != remaining
+    ):
+        raise SystemExit("Diagnostic plan no longer matches verified history")
+    path = diagnostic_claim_path(output_dir, root_id)
+    try:
+        with path.open("x", encoding="utf-8") as stream:
+            json.dump({"prior_run_id": root_id, "child_run_id": run_id}, stream)
+            stream.flush()
+            os.fsync(stream.fileno())
+    except FileExistsError:
+        raise SystemExit(
+            "Prior diagnostic already consumed its second attempt"
+        ) from None
+    # Never release: a crash before the child manifest cannot enable a third call.
+
+
+def execute(
+    plan,
+    queries,
+    corpus,
+    labels,
+    config,
+    local,
+    remote,
+    output_dir,
+    *,
+    diagnostic_prior_path=None,
+):
     """No retry/replay; persist each accepted answer and all transport attempts."""
     dataset = plan["dataset"]
     run_id = str(uuid.uuid4())
     output_dir.mkdir(parents=True, exist_ok=True)
+    if plan.get("diagnostic_prior_run_id"):
+        if diagnostic_prior_path is None:
+            raise SystemExit("Diagnostic continuation requires its prior manifest")
+        claim_diagnostic_attempt(diagnostic_prior_path, plan, output_dir, run_id)
     output = output_dir / f"dense-{dataset}-{run_id}.jsonl"
     manifest_path = output.with_suffix(".manifest.json")
     journal = Journal(
@@ -513,31 +603,11 @@ def main():
             select_in_view(queries, plan["question_ids"], "query")
         )
         if args.diagnostic_prior_run:
-            from scripts.token_accounting import verified_reference
-
-            prior = dense.read_json(args.diagnostic_prior_run)
-            prior_summary = verified_reference(prior, args.diagnostic_prior_run)[
-                "summary"
-            ]
-            if (
-                not prior_summary["complete"]
-                or prior["plan"].get("kind") != plan["kind"]
-                or prior["plan"].get("parent_plan_sha256") != parent_sha
-                or prior["expected_question_ids"] != plan["question_ids"]
-                or prior["plan"].get("diagnostic_prior_run_id")
-                or sum(
-                    p["attempts"]
-                    for p in prior_summary["phases"]
-                    if p["phase"] == "reader"
-                )
-                != 1
-                or any(p["errors"] for p in prior_summary["phases"])
-            ):
-                raise SystemExit("Prior diagnostic is not eligible for another attempt")
-            plan["diagnostic_prior_run_id"] = prior["run_id"]
-            plan["token_limit_per_dataset"] -= sum(
-                prior_summary["known_subtotal"].values()
+            prior_id, remaining = diagnostic_budget(
+                args.diagnostic_prior_run, plan, ROOT / "results" / "raw"
             )
+            plan["diagnostic_prior_run_id"] = prior_id
+            plan["token_limit_per_dataset"] = remaining
         prepared = [
             (
                 plan,
@@ -599,6 +669,7 @@ def main():
                 local,
                 remote,
                 ROOT / "results" / "raw",
+                diagnostic_prior_path=args.diagnostic_prior_run,
             )
             print(f"{plan['dataset']}: {manifest['status']}; {path}")
             if manifest["status"] != "completed":
