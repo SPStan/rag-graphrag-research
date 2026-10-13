@@ -135,7 +135,7 @@ def test_summary_and_unknown_usage_preserve_known_cost(tmp_path, monkeypatch):
     assert len(list(tmp_path.glob("*.response.json"))) == 2
 
 
-def test_transport_retries_and_request_limit_stop_before_send(tmp_path):
+def test_transport_retries_and_request_limit_stop_before_send(tmp_path, monkeypatch):
     journal = Journal(
         tmp_path / "tokens.jsonl", run_id="r", method="raptor", dataset="musique"
     )
@@ -146,13 +146,20 @@ def test_transport_retries_and_request_limit_stop_before_send(tmp_path):
     with pytest.raises(ValueError, match="transport_retries"):
         transport.call({}, kind="llm", phase="index", operation="summary", object_id=0)
     assert journal.summary()["attempts"] == 0
+    monkeypatch.setitem(raptor.PARAMETERS, "request_limit", 0)
+    with pytest.raises(ValueError, match="request_limit_exceeded"):
+        transport.call({}, kind="llm", phase="index", operation="summary", object_id=0)
+    transport.summary_count = raptor.PARAMETERS["summary_limit"]
+    with pytest.raises(ValueError, match="summary_limit_exceeded"):
+        transport.summarize("unused", 512)
+    assert journal.summary()["attempts"] == 0
 
 
 @pytest.mark.skipif(
     not os.environ.get("RAPTOR_SOURCE"),
     reason="opt-in isolated official RAPTOR environment",
 )
-def test_official_50_leaf_tree_and_reload_without_network(tmp_path):
+def test_official_50_leaf_tree_and_reload_without_network(tmp_path, monkeypatch):
     sdk = raptor.load_source(Path(os.environ["RAPTOR_SOURCE"]))
     import numpy as np
 
@@ -215,3 +222,113 @@ def test_official_50_leaf_tree_and_reload_without_network(tmp_path):
     )
     assert len(selected) == 5 and context
     assert calls["embedding"] == before["embedding"] + 1
+
+    # Full adapter pipeline, including three shared-reader calls, remains offline.
+    # Synthetic UMAP/GMM can yield >20 summaries; expand test-only limits, while
+    # the separate guard regression checks production limits before transport.
+    monkeypatch.setitem(raptor.PARAMETERS, "summary_limit", 100)
+    monkeypatch.setitem(raptor.PARAMETERS, "request_limit", 300)
+    sent = []
+    fake_rng = np.random.RandomState(7)
+
+    class Response:
+        status_code = 200
+
+        def __init__(self, body):
+            self.body = body
+
+        def json(self):
+            return self.body
+
+        def raise_for_status(self):
+            pass
+
+    class Session:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+        def get_adapter(self, url):
+            return SimpleNamespace(max_retries=SimpleNamespace(total=0))
+
+        def get(self, url, **kwargs):
+            return Response({"models": [{"name": "bge", "digest": "mock-digest"}]})
+
+        def post(self, url, json, **kwargs):
+            sent.append(json)
+            if url.endswith("/api/embed"):
+                # Five topics, without prescribing UMAP/GMM's soft cluster count.
+                text = json["input"][0]
+                vector = fake_rng.normal(scale=0.001, size=1024)
+                topic = (
+                    int(text.splitlines()[0].split()[-1]) // 10
+                    if text.startswith("Topic ")
+                    else 0
+                )
+                vector[topic] += 1
+                return Response(
+                    {
+                        "embeddings": [vector.tolist()],
+                        "prompt_eval_count": 3,
+                    }
+                )
+            messages = json["messages"]
+            content = (
+                "A compact summary."
+                if len(messages) == 2
+                else "Thought: diagnostic\nAnswer: alpha"
+            )
+            return Response(
+                {
+                    "model": "mock-model",
+                    "choices": [
+                        {"finish_reason": "stop", "message": {"content": content}}
+                    ],
+                    "usage": {"prompt_tokens": 10, "completion_tokens": 4},
+                }
+            )
+
+    monkeypatch.setattr(raptor.requests, "Session", Session)
+    corpus = [
+        {"id": f"p{i}", "title": f"Topic {i}", "text": f"A short passage number {i}."}
+        for i in range(50)
+    ]
+    queries = [{"id": f"q{i}", "question": f"Question {i}?"} for i in range(3)]
+    labels = [
+        {"id": q["id"], "answer": "CANARY_GOLD_ONLY", "supporting_ids": ["p0"]}
+        for q in queries
+    ]
+    config = {
+        "base_url": "https://example.invalid/v1",
+        "ollama_url": "http://127.0.0.1:11434",
+        "embedding_model": "bge",
+        "model": "mock-model",
+        "key": "test",
+    }
+    manifest, directory = raptor.execute(
+        {"question_ids": [q["id"] for q in queries]},
+        queries,
+        corpus,
+        labels,
+        config,
+        sdk,
+        tmp_path,
+    )
+    assert manifest["status"] == "completed", manifest
+    assert manifest["completed_questions"] == 3
+    assert manifest["tree"]["leaves"] == 50
+    assert manifest["tree"]["reload_model_calls"] == 0
+    summary = manifest["token_accounting"]["summary"]
+    assert summary["complete"] and summary["attempts"] == len(sent)
+    assert (
+        sum(p.get("messages") is not None and len(p["messages"]) == 4 for p in sent)
+        == 3
+    )
+    assert "CANARY_GOLD_ONLY" not in str(sent)
+    assert (
+        sum(p.get("messages") is not None and len(p["messages"]) == 2 for p in sent)
+        == manifest["tree"]["summaries"]
+    )
+    assert (directory / "tree.json").is_file()

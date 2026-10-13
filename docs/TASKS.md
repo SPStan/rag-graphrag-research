@@ -1,5 +1,26 @@
 # Текущая работа и критерии завершения
 
+## Активный блок 13 октября — #12: малый RAPTOR
+
+#29 слит (`5e617fa`), #10 закрыта по команде пользователя. #11 отдельно в
+Draft PR #30: target context contract неизвестен, OpenIE generation не запускалась.
+#12 независима от #11; ветка `codex/raptor-small-corpus` от master. Протокол:
+[RAPTOR_SMOKE](RAPTOR_SMOKE.md), решение [ADR-0020](../.adr/0020-raptor-small-corpus-adapter.md).
+
+- Официальный RAPTOR закреплён; 50 synthetic leaves → tree → reload → retrieval
+  проверены в изолированном SDK без сети (11 passed).
+- Общий offline gate: 235 passed, 14 skipped; SDK test выполняется отдельно.
+- Реальный run `bb0b97d2-b0ca-4d09-926c-76d2309b0853` на `2b699a2` failed:
+  50 embeddings / 6399 локальных tokens; первый summary ReadTimeout 120 s,
+  удалённый usage неизвестен. Дерево/reload/три reader запроса реально не завершены.
+- [Сводка](../results/summary/raptor-smoke.json), [Draft PR #31](https://github.com/SPStan/rag-graphrag-research/pull/31), Refs #12.
+  Issue остаётся открытой/In Progress. Offline проверки не заменяют реальные
+  критерии приёмки; перед новым протоколом устранить timeout и разобраться с usage.
+- Далее техническое ревью и согласование O1/N1/R1/H1. Не сливать, не повторять
+  расходующие запросы и не запускать full corpus/следующую задачу автоматически.
+
+Статусы ниже — история.
+
 **13 октября: зависимость #28 разрешена, актуальное согласование #29 ожидается.** PR #28 слит в master (`edc5d28`), issue #9 закрыта, Projects Done. Master интегрирован в ветку #29 обычным merge, чтобы сохранить исходные commit ID фактических запусков и SHA provenance; модельные запросы и raw не повторяются/не изменяются. Итоговый diff относительно master содержит только блок #10. Последнее ревью бота пометило согласование карточки `1d9e259796f6f4e1f28694a8:1` устаревшим: текущие O1/N1/R1/H1 нужно повторно отправить `/research_submit https://github.com/SPStan/rag-graphrag-research/pull/29 10`, затем проверить `/research_status https://github.com/SPStan/rag-graphrag-research/pull/29`. Эти команды недоступны через текущие инструменты агента; согласие куратора не подменять. PR #29 сохранять Draft/Refs #10, issue #10 открытой до актуального согласования и полного технического ревью. Следующие #11/#12 и merge отдельно. Статусы ниже — история.
 
 ## Текущий статус 8 октября — issue #10: технический smoke завершён

@@ -54,6 +54,18 @@ Top-5 — узлы разных уровней; длина и тип запис�
 измерение reader input tokens и пересмотр неизвестного target context contract.
 
 Проверки: обычный `python -m scripts.check`; отдельно opt-in SDK test выше.
-Фактический smoke и стоимость будут опубликованы в
-`results/summary/raptor-smoke.json`. Активные часы человека не измерялись;
-автоматическое время запуска хранится отдельно в manifest.
+Общий gate: 235 passed / 14 skipped; изолированный SDK: 11 passed. Полный offline
+adapter flow строит официальный synthetic tree, reload и три shared-reader
+вызова на подставном HTTP. Только этот synthetic fixture расширяет summary/request
+guards до 100/300: его soft clustering создаёт больше 20 узлов. Production guards
+20/100 отдельно проверяются до отправки; реальный бюджет не увеличен.
+Фактический run `bb0b97d2-b0ca-4d09-926c-76d2309b0853` на `2b699a2`:
+50 leaf embeddings, 6399 локальных tokens; первый summary ReadTimeout через
+120 s без ответа/usage. Реальное дерево/reload/reader не завершены, расход
+удалённого запроса неизвестен. [Сводка](../results/summary/raptor-smoke.json)
+содержит SHA manifest/journal/request и явно неполный итог. PR #31 остаётся Draft,
+issue #12 открыта. Нельзя заменить неудачный запуск новым и считать затраты нулём.
+Следующий протокол должен сохранить эту попытку в общем учёте, определить
+бюджет при неизвестном usage и разрешить причину timeout. Увеличение timeout
+само по себе не восстанавливает потерянный usage и не доказывает совместимость.
+Активные часы человека не измерялись; автоматическое время хранится отдельно.

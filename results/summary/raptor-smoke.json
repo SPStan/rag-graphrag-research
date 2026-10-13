@@ -1,0 +1,347 @@
+{
+  "schema_version": 1,
+  "issue": 12,
+  "kind": "raptor_small_corpus_functionality_attempt",
+  "status": "failed",
+  "run_id": "bb0b97d2-b0ca-4d09-926c-76d2309b0853",
+  "code": {
+    "commit": "2b699a20b7151bf443d20e558e29f5232cb8c730",
+    "working_tree_dirty": false,
+    "source_sha256": {
+      "scripts/run_dense.py": "b6cf8da3f987a1d7ad37ac16639ddf6a1f5523e8ccc0117ad015a423efaacaac",
+      "scripts/replay_reader.py": "9a8192bc38f70bbbe64b5cbefe31fd988ad6335b10e4140dc9f08f58f2c7edb8",
+      "scripts/evaluate_dense.py": "1e39159a7eb02bff83b7bd0fd04a6c062762e43554b7bf6e66caf7e95c47ccd7",
+      "scripts/answer_parser.py": "bed7477e2ca0ace452821e2adb13cf8b045aa6443617b141c13fadf18e56bf18"
+    }
+  },
+  "adapter_sha256": "d96ff9998113148581082fef0278ae857b0479fa6e5ec645d59ae5c0419b5dbb",
+  "implementation": {
+    "repository": "https://github.com/parthsarthi03/raptor",
+    "commit": "7da1d48a7e1d7dec61a63c9d9aae84e2dfaa5767"
+  },
+  "plan": {
+    "schema_version": 1,
+    "kind": "raptor_small_corpus_functionality",
+    "dataset": "musique",
+    "selection": "first 3 development S500 IDs; supporting union + first other corpus IDs to 50",
+    "question_ids": [
+      "3hop1__593288_720914_27537",
+      "2hop__21104_16334",
+      "2hop__126306_396277"
+    ],
+    "passage_ids": [
+      "sha256:173ae2f0ff18e0b2bb3434a909cd8781118aea363cb1527c80cb2aeeeb9f8d58",
+      "sha256:2702b4471863a83aa1c8305cb3cd8c84f7c9aaacfa16d5fb26a04e2a7d8440da",
+      "sha256:5de15ece4f11b6a5f4bdfb7c16ce1dcb826f6f306511141265375513c1390d8e",
+      "sha256:95b492b8c9c362c3bd747f9f07e8c22f618be9b6df4603823238de9e5e085c42",
+      "sha256:2ef60db68fc06544b740d351a35274454b9528be7c96d7aebf1324db4971192f",
+      "sha256:b75226cae9f4a36ee4869573a57cc703ecb04b78ec8f9b950e51f899708ae2f9",
+      "sha256:c8486102d4e4d178678b1f67cb0662a9d16f606a55090ee03b70a08eeb849ad8",
+      "sha256:2c6cf4990dc43b6920c4bc085b32a12d8f2a2fd132de0b292a683772f9d01807",
+      "sha256:a3c75c3bf08a131efefc8a79f9eae3d1c55f09ead2619b9735a208dc07be37c2",
+      "sha256:19f48fe044d9f6a3f2fc19fb2456413f7b773da075f17a699c55d5aab684edae",
+      "sha256:dc4c8632cce54a0f81863d6be9b8e147e2407f9409ee91f2d4b2df89b95cfce8",
+      "sha256:8ba35a296a556301b8926c3a53871670dee0a879fdff666e433751d3498cb043",
+      "sha256:5973d3ba019e3d113c0eed81d8e9944f5c771359e69559c8a45f159ef20ee670",
+      "sha256:ee406db4ccaa4964c926001ab5e0172f41b08fc71e3877ae2f1e31fc84949fdc",
+      "sha256:557b32e109e5d4c17b8a0b3253ce8210b895501d78799b6a3c990bcd16f6d7bb",
+      "sha256:df10753fdbe0ee925c03c791038cc119ed6a4caf6dfbd75cfe30c16bd31c81ba",
+      "sha256:f84b043040f20e9a0ef83efd33779952169528fd97b7a91af4e8df2f6110640e",
+      "sha256:661f39ff36cd867b8f1bfb47168cf72b343740042b9e9705c472599b2cdcc502",
+      "sha256:c9dfdcccda91bc0187e469d2643395690f25421eee995797dde6d293a3da1d65",
+      "sha256:517495d9d4fedd16368f9428ab25f6782ab3c0d5c6a02e58fc130be3b1ddecd4",
+      "sha256:84f5853f75196ae4d7630d072b86d813f47324f11b2b92c932e41b3c11dd7eb5",
+      "sha256:2699e2e1f7302a6dc44f940d298b8e7ca3405b6ebe8d232bd78840cc26de9656",
+      "sha256:ab1178f283a4e3b9cd9474929ef35e4ff894e5a1b659f61ae71c0da62f39ac6f",
+      "sha256:f4199f419a86e97dc3fbca5632f7f32f7a75e4802bce96b6e2c8adfd9f8abfa7",
+      "sha256:5f93c562a6b68ee64b969079df893f15564379aa0d25ddfdfade35dd1e2efc4c",
+      "sha256:fec2422802deec2805beb6329bccd93cc2addd1aef57367d902f3ccf4efa1e54",
+      "sha256:38aa44771286fe1140ebbcaff15ba300d3aea0c6877b23608531a2f7bee3cda1",
+      "sha256:33e45543bffb5bf3aafd2eb4e79b7a8bdbe7274231d0b7bc228912c86b024469",
+      "sha256:767ece9a8eddd284572b8708c8f5c36b7516115ea4611ebd600e3f98a59bd987",
+      "sha256:86fde206d51bf048d95a9276dd5a10f8cb20f49481ad56cc3fdbb012facdd822",
+      "sha256:82f668708211ced10f4118a4ddc6a008c339c607571f624b3a2ed51fcf8b9e37",
+      "sha256:b3a72388bc72c0813201e49225447e02c714f148ae307384899b35017f38b8f1",
+      "sha256:6a80314c42bf79bdb38bf9dcb1dfcfea51ff73210786ec8e1e7c33df23005dd7",
+      "sha256:0bed8b8de83af181a1d1bd0e79351c1c8047df43d48a82cea772bcc88979329f",
+      "sha256:f1f27faa72b17b4facc83aa183ef7d685eb9e02667acc066c0cdf4b34213ee59",
+      "sha256:705753a58b84d6ef40d1392d62e7047d659b51044953d9452683fab4a7a1de87",
+      "sha256:3bb33c45da0c0382c69ad242bba45352a5f90fab05277841bca9c1bf69812558",
+      "sha256:d303dec7e9624605f14fba9da3cdc2458f9966b90a3073fc9ff12da490e50335",
+      "sha256:e1554977b26510ac92528ad065c71e3146260e61986e36a4445f84e42bd984ca",
+      "sha256:5761ee362fa7a9a788f1b97fffeeaa3fd7e9bdadda95509e02b8bccf8ba605df",
+      "sha256:352816be809900cdcab4b061b96db881c82634a54b876172fbe7600e1ffecbb8",
+      "sha256:ce416ae7f63c17c00755301f0a8728695f2693cd7420922a5e88963afc2bad87",
+      "sha256:9ce7061705e6f078252e84f6f6c52381ad14a27e06bf7cc2c211d776ae5cd1ad",
+      "sha256:6e5251b0b5deae6a159c4197bd7b0aea71bb4d82be2274ccea7001acdafac326",
+      "sha256:cda796e8579a1506998ee3077b815ceb0dd9c29392ba5a8c6aadb5edd60639bd",
+      "sha256:d7ef8dd6c11c0cb649b9373c1ddde87eb8fa2855dbbb7f3ed887ed4d17347dd8",
+      "sha256:ae245efdee625eddfd310d1b4679e98373338be5f362e425536f8031be6b2d89",
+      "sha256:306df726d80289efb590c2e794b3ceacb7a79bac2acb52c4504f0646cc6b9822",
+      "sha256:a43a5d05048353d58ebd21957d79263d9129a655c8b0e51a7eaeee3897b7cfd3",
+      "sha256:1f553ee66436e9f348c262d29f075b2432f0ab341852d493c2c1e4331d7eefd1"
+    ],
+    "corpus_sha256": "45f88adb4796e8ecb39218c44ee796d740a4a0f1dd3d98084a387c9200e49485",
+    "queries_sha256": "4759c3c4fd553596399d1c533d29ebcf7fdb7b4dac26bc5da28ee0497cae863d",
+    "split_sha256": "4a89a6215282ce8c51a6704b6153f9df404c0ae645286d88eab5f531fb65d64b",
+    "inputs": {
+      "report_sha256": "c947e210a468ce62f64c29668480d6f32f884303fcf9edc8f1fc1b4edf99b483",
+      "ids_manifest_sha256": "82f5b26acedb39998398b0b4e9b4cb8f5fc9ec9bbb16420914dd66a4f058d33a",
+      "source_revision": "5ec05b38deecc3318bb432c69865959c56058990",
+      "output_sha256": {
+        "queries.json": "a0fd193f34f153e51052b8346b0db7868c60d68affb6f3e54c56cce7c2c14fc3",
+        "corpus.json": "054338e3803fbe69f67037c58d2a49438572ffe2e8c8a047148a2dcdc100e44b",
+        "labels.json": "76a36d30f3934c24ad5f7f5eaa6a67e4d26e30f2e29f7302f58d211ccb05da4a"
+      }
+    },
+    "reader_prompt_version": "hipporag2-musique-one-shot-v6",
+    "reader_template_sha256": "beb15da1f15193ee88f93cc25c96199d679ade1d652cd9c750cc10e63cbc6047",
+    "generation_options": {
+      "temperature": 0,
+      "seed": 42,
+      "max_tokens": 512,
+      "stream": false,
+      "chat_template_kwargs": {
+        "enable_thinking": false
+      }
+    },
+    "top_k": 5,
+    "limitations": "Support-preserving development smoke, not effectiveness evidence. Summary provenance is leaf ancestry, not proof that a fact survives compression. Target context/tokenizer/revision unknown; byte reservations are accounting guards.",
+    "parameters": {
+      "seed": 42,
+      "num_layers": 2,
+      "reduction_dimension": 5,
+      "max_length_in_cluster": 3000,
+      "threshold": 0.1,
+      "summary_max_tokens": 512,
+      "summary_limit": 20,
+      "request_limit": 100,
+      "token_limit": 100000,
+      "input_byte_limit": 16000,
+      "retrieval_max_cl100k_tokens": 3000,
+      "top_k": 5,
+      "structural_tokenizer": "cl100k_base",
+      "embedding_alias": "BGE"
+    },
+    "implementation": {
+      "repository": "https://github.com/parthsarthi03/raptor",
+      "commit": "7da1d48a7e1d7dec61a63c9d9aae84e2dfaa5767"
+    }
+  },
+  "plan_sha256": "55400ad547d4a04b8c0b261d77b80d542a74340243c189bb32e00961d9744fd2",
+  "runtime": {
+    "annotated-types": "0.8.0",
+    "anyio": "3.7.1",
+    "certifi": "2026.7.22",
+    "charset-normalizer": "3.5.2",
+    "click": "8.5.0",
+    "cloudpickle": "3.1.2",
+    "colorama": "0.4.6",
+    "defusedxml": "0.7.1",
+    "distro": "1.9.0",
+    "faiss-cpu": "1.13.1",
+    "filelock": "4.1.1",
+    "fsspec": "2026.9.0",
+    "h11": "0.16.0",
+    "httpcore": "1.0.9",
+    "httpx": "0.27.2",
+    "huggingface-hub": "0.25.2",
+    "idna": "3.20",
+    "iniconfig": "2.3.1",
+    "Jinja2": "3.1.6",
+    "joblib": "1.6.0",
+    "llvmlite": "0.44.0",
+    "MarkupSafe": "3.0.4",
+    "mpmath": "1.3.0",
+    "networkx": "3.7",
+    "nltk": "3.10.3",
+    "numba": "0.61.2",
+    "numpy": "1.26.3",
+    "openai": "1.3.3",
+    "packaging": "24.2",
+    "pillow": "12.3.0",
+    "pluggy": "1.6.0",
+    "pydantic": "2.14.1",
+    "pydantic_core": "2.50.1",
+    "Pygments": "2.21.0",
+    "pynndescent": "0.6.0",
+    "pytest": "8.4.2",
+    "python-dotenv": "1.2.4",
+    "PyYAML": "6.0.3",
+    "regex": "2026.9.29",
+    "requests": "2.34.2",
+    "safetensors": "0.8.0",
+    "scikit-learn": "1.5.2",
+    "scipy": "1.16.3",
+    "sentencepiece": "0.2.2",
+    "sentence-transformers": "2.2.2",
+    "setuptools": "75.6.0",
+    "sniffio": "1.3.1",
+    "sympy": "1.13.1",
+    "tenacity": "8.2.3",
+    "threadpoolctl": "3.7.0",
+    "tiktoken": "0.7.0",
+    "tokenizers": "0.15.2",
+    "torch": "2.5.1",
+    "torchvision": "0.20.1",
+    "tqdm": "4.70.1",
+    "transformers": "4.38.1",
+    "typing_extensions": "4.12.2",
+    "typing-inspection": "0.4.4",
+    "umap-learn": "0.5.5",
+    "urllib3": "2.8.0",
+    "autocommand": "2.2.2",
+    "backports.tarfile": "1.2.0",
+    "importlib_metadata": "8.0.0",
+    "inflect": "7.3.1",
+    "jaraco.collections": "5.1.0",
+    "jaraco.context": "5.3.0",
+    "jaraco.functools": "4.0.1",
+    "jaraco.text": "3.12.1",
+    "more-itertools": "10.3.0",
+    "platformdirs": "4.2.2",
+    "tomli": "2.0.1",
+    "typeguard": "4.3.0",
+    "wheel": "0.43.0",
+    "zipp": "3.19.2"
+  },
+  "embedding": {
+    "name": "bge-m3:latest",
+    "model": "bge-m3:latest",
+    "modified_at": "2026-09-23T15:05:01.4618858+03:00",
+    "size": 1157672605,
+    "digest": "7907646426070047a77226ac3e684fbbe8410524f7b4a74d02837e43f2146bab",
+    "details": {
+      "parent_model": "",
+      "format": "gguf",
+      "family": "bert",
+      "families": [
+        "bert"
+      ],
+      "parameter_size": "566.70M",
+      "quantization_level": "F16",
+      "context_length": 8192,
+      "embedding_length": 1024,
+      "runner": "ggml"
+    },
+    "capabilities": [
+      "embedding"
+    ]
+  },
+  "generation": {
+    "model": "iairlab/qwen3.8-27b",
+    "base_url": "https://api.duckduck.cloud/v1",
+    "options": {
+      "temperature": 0,
+      "seed": 42,
+      "max_tokens": 512,
+      "stream": false,
+      "chat_template_kwargs": {
+        "enable_thinking": false
+      }
+    },
+    "backend_revision": "unknown"
+  },
+  "started_at": "2026-10-13T10:42:30.013058+00:00",
+  "finished_at": "2026-10-13T10:45:04.087267+00:00",
+  "automatic_wall_seconds": 154.074209,
+  "human_active_hours": null,
+  "outcome": {
+    "leaf_embeddings_completed": 50,
+    "summary_attempts": 1,
+    "summary_responses_received": 0,
+    "tree_built": false,
+    "tree_save_reload_real": false,
+    "reader_questions_completed": 0,
+    "error_type": "ReadTimeout",
+    "unknown_remote_usage": true
+  },
+  "token_accounting": {
+    "verified": true,
+    "journal_file": "tokens.jsonl",
+    "journal_sha256": "f076501ec65cbbc74524e85f95099a398096a9ddf839179b5d6c686ae840cf5f",
+    "summary": {
+      "schema_version": 1,
+      "phases": [
+        {
+          "phase": "index",
+          "provider": "local_ollama",
+          "attempts": 50,
+          "errors": 0,
+          "unfinished": 0,
+          "cache_hits": 0,
+          "cache_provenance_unknown": 0,
+          "known_subtotal": {
+            "llm_input_tokens": 0,
+            "llm_output_tokens": 0,
+            "embedding_input_tokens": 6399
+          },
+          "unknown_fields": {
+            "llm_input_tokens": 0,
+            "llm_output_tokens": 0,
+            "embedding_input_tokens": 0
+          },
+          "complete": true,
+          "total": {
+            "llm_input_tokens": 0,
+            "llm_output_tokens": 0,
+            "embedding_input_tokens": 6399
+          }
+        },
+        {
+          "phase": "index",
+          "provider": "target_api",
+          "attempts": 1,
+          "errors": 1,
+          "unfinished": 0,
+          "cache_hits": 0,
+          "cache_provenance_unknown": 0,
+          "known_subtotal": {
+            "llm_input_tokens": 0,
+            "llm_output_tokens": 0,
+            "embedding_input_tokens": 0
+          },
+          "unknown_fields": {
+            "llm_input_tokens": 1,
+            "llm_output_tokens": 1,
+            "embedding_input_tokens": 0
+          },
+          "complete": false,
+          "total": null
+        }
+      ],
+      "known_subtotal": {
+        "llm_input_tokens": 0,
+        "llm_output_tokens": 0,
+        "embedding_input_tokens": 6399
+      },
+      "complete": false,
+      "attempts": 51,
+      "historical_cache_cost_complete": true,
+      "journal_corrupt_tail": false,
+      "corrupt_tail_bytes": 0
+    }
+  },
+  "raw_location": "results/raw/raptor-smoke/bb0b97d2-b0ca-4d09-926c-76d2309b0853",
+  "artifacts": {
+    "manifest_sha256": "df94ab3ad360ed768386ce2ef5f80e606b5495b75bab79d88a8f7d9880e67447",
+    "journal_sha256": "f076501ec65cbbc74524e85f95099a398096a9ddf839179b5d6c686ae840cf5f",
+    "first_summary_request_sha256": "bb342926b8cd94a0ecc08326577c17d7da35dd3d204143897d6307b48d08663e"
+  },
+  "offline_checks": {
+    "common_gate": "235 passed, 14 skipped",
+    "official_sdk": "11 passed in isolated official SDK; synthetic 50-leaf tree/reload/retrieval and full adapter with three shared-reader calls on mock HTTP. Full synthetic pipeline widens only test summary/request guards to 100/300; production guards tested separately.",
+    "dependencies": "60 packages compatible"
+  },
+  "limitations": [
+    "Real smoke blocked on first summary ReadTimeout after 120 s; target may have processed tokens, usage unknown, not zero.",
+    "No real tree, reload or reader result is claimed. No effectiveness evidence.",
+    "Target context window, tokenizer and backend revision unknown.",
+    "No automatic retry or spending continuation; diagnose provider timeout and recover usage if available before defining another bounded protocol."
+  ],
+  "next_steps": [
+    "Review adapter and offline checks in Draft PR #31.",
+    "Resolve target timeout and unknown usage; a new real run requires an explicit bounded continuation protocol retaining this failed run in aggregate cost.",
+    "Scientific approval and technical review are separate; keep #12 open until acceptance criteria actually pass."
+  ]
+}
