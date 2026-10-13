@@ -27,7 +27,21 @@ $env:LITELLM_LOCAL_MODEL_COST_MAP = 'True'
 
 До: сохранённые truncated/request_error воспроизводятся существующим строгим классификатором. Синтаксически исправный или частично восстановленный JSON с finish_reason=length всё равно отвергается. После: целевая генерация **не выполнялась**, исправление качества извлечения **не подтверждено**. По этой причине issue #11 остаётся открытой с конкретным блокером, а PR — Draft/Refs #11. Сохранённый граф не объявляется пригодным для основного сравнения.
 
-Фактический новый run ID, пять строк до/после, SHA и результат проверки будут внесены после выполнения no-generation preflight. Machine waiting не считается активными часами пользователя; активные часы не измерялись.
+Фактический run `70d727d7-00ff-414e-aeb8-f61e49d7800f` на чистом коде `56da1da`: **blocked_target_context_contract**, 5 случаев. [Безопасная summary](../results/summary/openie-target-preflight.json). Проверены все 61 Python-файлов установленного HippoRAG относительно `1438aba3`; SHA исходных manifest/corpus/state/cache до/после совпали. Частный case snapshot и пустой модельный журнал также проверены по SHA. Все три metadata GET получили HTTP 200, но нужные поля null. Новых модельных попыток 0; полная модельная проверка и исправление OpenIE не выполнены.
+
+Исторический источник: qwen2.5:3b, Q4_K_M, num_ctx=4096, temperature=0, seed=42; NER truncated при 512 output tokens, triples при 2048. Новая модель iairlab/qwen3.8-27b: tokenizer/revision/context/output/quantization неизвестны. Output caps 1024/3072 в таблице — только предложение из прежнего stage-cap протокола, не подтверждённая конфигурация API.
+
+| Стадия / passage SHA prefix | До: status / форма | Prompt bytes | Предлагаемый output cap | После: target |
+|---|---|---:|---:|---|
+| openie_ner / af7c103c3e75 | truncated / non_json | 1818 | 1024 | Не отправлен: context-fit неизвестен |
+| openie_ner / 80c59521880e | truncated / non_json | 1589 | 1024 | Не отправлен: context-fit неизвестен |
+| openie_triples / f520187048cf | truncated / non_json | 2825 | 3072 | Не отправлен: context-fit неизвестен |
+| openie_triples / bf2985f3129a | truncated / non_json | 3051 | 3072 | Не отправлен: context-fit неизвестен |
+| openie_ner / 225264f9bf8f | request_error / absent | 993 | 1024 | Не отправлен: context-fit неизвестен |
+
+В отличие от полного расхода #10, эти нули означают отсутствие новых запросов модели, а не восстановление неизвестного старого расхода. Usage исторического request_error остаётся unknown; target usage не измерен. Индекс не изменялся и ready_for_indexing=false.
+
+Целевые offline-тесты preflight/plan: 10 passed. Общий gate: 231 passed, 13 skipped; девять skips — SDK-набор, проверенный отдельно в #9, четыре прежних integration skips. Активные часы пользователя не измерялись; machine waiting не приписывается его труду.
 
 ## Следующее необходимое действие
 
