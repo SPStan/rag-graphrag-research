@@ -68,3 +68,172 @@ class HippoRAGRepairPromptPreflightTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_target_selection_covers_real_failure_categories_deterministically():
+    from scripts.preflight_hipporag_repair_prompts import select_target_failure_cases
+
+    rows = [
+        {
+            "passage_id": f"{stage}-{i}",
+            "stage": stage,
+            "attempt": 1,
+            "status": "truncated",
+            "response_bytes": i * 10,
+        }
+        for stage in ("openie_ner", "openie_triples")
+        for i in range(1, 4)
+    ]
+    rows += [
+        {
+            "passage_id": "missing",
+            "stage": "openie_ner",
+            "attempt": 1,
+            "status": "request_error",
+            "response_bytes": 0,
+        }
+    ]
+    selected, failed = select_target_failure_cases(rows)
+    assert len(selected) == 5 and len(failed) == 7
+    assert [r["passage_id"] for r in selected] == [
+        "openie_ner-1",
+        "openie_ner-3",
+        "openie_triples-1",
+        "openie_triples-3",
+        "missing",
+    ]
+    assert select_target_failure_cases(list(reversed(rows)))[0] == selected
+    rows += [dict(rows[0], attempt=2, status="valid_nonempty")]
+    assert "openie_ner-1" not in {
+        r["passage_id"] for r in select_target_failure_cases(rows)[0]
+    }
+
+
+def test_target_selection_does_not_invent_missing_categories():
+    from scripts.preflight_hipporag_repair_prompts import select_target_failure_cases
+
+    assert select_target_failure_cases([]) == ([], [])
+    rows = [
+        {
+            "passage_id": "p",
+            "stage": "openie_ner",
+            "attempt": 1,
+            "status": "truncated",
+            "response_bytes": 1,
+        }
+    ]
+    assert len(select_target_failure_cases(rows)[0]) == 1
+
+
+def test_target_metadata_never_generates_or_serializes_credentials():
+    import json
+    from types import SimpleNamespace
+    from scripts.preflight_hipporag_repair_prompts import target_capabilities
+
+    calls = []
+
+    class MetadataOnly:
+        def get_adapter(self, _):
+            return SimpleNamespace(max_retries=SimpleNamespace(total=0))
+
+        def get(self, url, **kwargs):
+            calls.append(url)
+            assert kwargs["allow_redirects"] is False
+            return SimpleNamespace(
+                status_code=200,
+                json=lambda: {
+                    "data": [
+                        {
+                            "id": "test",
+                            "model_name": "test",
+                            "api_key": "private",
+                            "model_info": {
+                                "tokenizer": {"api_key": "private"},
+                                "revision": "private",
+                            },
+                        }
+                    ]
+                },
+            )
+
+        def post(self, *args, **kwargs):
+            raise AssertionError("Generation is forbidden")
+
+    result = target_capabilities(
+        MetadataOnly(),
+        {"base_url": "https://example.test/v1", "model": "test", "key": "private"},
+    )
+    assert len(calls) == 3
+    assert "private" not in json.dumps(result)
+    assert all(all(v is None for v in r["limits"].values()) for r in result)
+
+
+def test_metadata_timeout_is_recorded_without_secret_or_exception_text():
+    from types import SimpleNamespace
+    import requests
+    from scripts.preflight_hipporag_repair_prompts import target_capabilities
+
+    class Failed:
+        def get_adapter(self, _):
+            return SimpleNamespace(max_retries=SimpleNamespace(total=0))
+
+        def get(self, *_args, **_kwargs):
+            raise requests.Timeout("secret-key in upstream failure")
+
+    result = target_capabilities(
+        Failed(),
+        {"base_url": "https://example.test/v1", "model": "test", "key": "secret-key"},
+    )
+    assert all(r["error_type"] == "Timeout" for r in result)
+    assert "secret-key" not in str(result)
+
+
+def test_data_root_resolves_historical_relative_corpus(tmp_path):
+    import hashlib
+    from scripts.plan_hipporag_repair import SOURCE_RUN_ID, load_source_inputs
+
+    corpus = tmp_path / "data" / "corpus.json"
+    corpus.parent.mkdir()
+    corpus.write_text(
+        json.dumps([{"id": "p", "title": "T", "text": "text"}]), encoding="utf-8"
+    )
+    manifest = tmp_path / f"hipporag2-musique-{SOURCE_RUN_ID}.manifest.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "run_id": SOURCE_RUN_ID,
+                "inputs": {
+                    "corpus_path": "data/corpus.json",
+                    "corpus_sha256": hashlib.sha256(corpus.read_bytes()).hexdigest(),
+                },
+                "index": {
+                    "openie_acceptance_gate": {"expected_passages": 1},
+                    "openie_attempts": [],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    result = load_source_inputs(manifest, data_root=tmp_path)
+    assert result[1] == ["p"]
+    corpus.write_text("changed", encoding="utf-8")
+    import pytest
+
+    with pytest.raises(ValueError, match="differs"):
+        load_source_inputs(manifest, data_root=tmp_path)
+
+
+def test_target_check_does_not_accept_valid_json_when_finish_is_length():
+    from scripts.openie_protocol import classify_openie_attempt
+
+    assert (
+        classify_openie_attempt('{"named_entities": ["Alpha"]}', "length", ["Alpha"])
+        == "truncated"
+    )
+    assert (
+        classify_openie_attempt(None, None, None, request_error=True) == "request_error"
+    )
+    assert (
+        classify_openie_attempt("invalid JSON", "stop", None, parse_error=True)
+        == "parse_error"
+    )

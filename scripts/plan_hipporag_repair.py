@@ -44,7 +44,7 @@ def build_plan_report(
     }
 
 
-def load_source_inputs(manifest_path):
+def load_source_inputs(manifest_path, *, data_root=None):
     manifest_path = Path(manifest_path).resolve(strict=True)
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     run_id = manifest.get("run_id")
@@ -57,6 +57,8 @@ def load_source_inputs(manifest_path):
             "Manifest filename or run_id does not match the approved diagnostic source"
         )
     corpus_path = Path(manifest["inputs"]["corpus_path"])
+    if data_root is not None and not corpus_path.is_absolute():
+        corpus_path = Path(data_root) / corpus_path
     corpus_sha256 = manifest["inputs"]["corpus_sha256"]
     if not corpus_path.is_file() or sha256_file(corpus_path) != corpus_sha256:
         raise ValueError("Source corpus is missing or differs from the source manifest")
