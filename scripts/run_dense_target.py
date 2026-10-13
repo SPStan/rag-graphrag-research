@@ -187,13 +187,16 @@ def response_diagnostics(body):
     }
 
 
-def diagnostic_claim_path(output_dir, prior_run_id):
-    return Path(output_dir) / f".diagnostic-{digest(prior_run_id)}.second-attempt.json"
+def diagnostic_claim_path(prior_path, prior_run_id):
+    """One durable claim beside the canonical prior, independent of output/worktree."""
+    return Path(prior_path).resolve().parent / (
+        f".diagnostic-{digest(prior_run_id)}.second-attempt.json"
+    )
 
 
 def diagnostic_budget(prior_path, plan, output_dir):
     """Verify the root and every descendant; only one child is permitted."""
-    prior_path = Path(prior_path)
+    prior_path = Path(prior_path).resolve()
     prior = dense.read_json(prior_path)
     reference = verified_reference(prior, prior_path)
     summary = reference["summary"]
@@ -237,7 +240,7 @@ def diagnostic_budget(prior_path, plan, output_dir):
         known += sum(child["summary"]["known_subtotal"].values())
     if known >= 20000:
         raise SystemExit("Cumulative diagnostic token budget exhausted")
-    if descendants or diagnostic_claim_path(output_dir, root_id).exists():
+    if descendants or diagnostic_claim_path(prior_path, root_id).exists():
         raise SystemExit("Prior diagnostic already consumed its second attempt")
     return root_id, 20000 - known
 
@@ -249,7 +252,7 @@ def claim_diagnostic_attempt(prior_path, plan, output_dir, run_id):
         or plan["token_limit_per_dataset"] != remaining
     ):
         raise SystemExit("Diagnostic plan no longer matches verified history")
-    path = diagnostic_claim_path(output_dir, root_id)
+    path = diagnostic_claim_path(prior_path, root_id)
     try:
         with path.open("x", encoding="utf-8") as stream:
             json.dump({"prior_run_id": root_id, "child_run_id": run_id}, stream)

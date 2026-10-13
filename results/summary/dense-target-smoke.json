@@ -777,7 +777,7 @@
     "skipped": 4
   },
   "active_user_hours": "not_measured",
-  "merge_dependency": "PR #28 remains open",
+  "merge_dependency": "PR #28 merged into master on 2026-10-13 (edc5d28)",
   "historical_failed_run": {
     "dataset": "musique",
     "run_id": "0b41ddc1-9e9f-4243-8679-e91d86b085ee",
@@ -1284,6 +1284,6 @@
     "Original invalid response from afd60ab was lost; new diagnosis reproduces failure without claiming exact historical request identity",
     "Legacy parser semantics preserved; new target parser/metric version recorded",
     "Byte reservation is an estimate, not a proved server tokenizer cap",
-    "PR #28 remains open; curator approval and merge are separate"
+    "PR #28 merged into master on 2026-10-13 (edc5d28); current PR #29 curator approval and merge remain separate"
   ]
 }

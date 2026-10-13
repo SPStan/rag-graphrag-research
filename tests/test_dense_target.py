@@ -359,7 +359,7 @@ def test_cli_refuses_reusing_one_diagnostic_prior_manifest(setup, monkeypatch):
         20000 - sum(prior["token_accounting"]["summary"]["known_subtotal"].values())
     )
     # Delete only the synthetic claim to prove historical manifests alone stop reuse.
-    target.diagnostic_claim_path(output, prior["run_id"]).unlink()
+    target.diagnostic_claim_path(prior_path, prior["run_id"]).unlink()
     with pytest.raises(SystemExit, match="already consumed"):
         target.main()
     assert len(calls) == 2
@@ -499,7 +499,7 @@ def test_parallel_continuations_allow_only_one_transport_attempt(setup, monkeypa
 
     monkeypatch.setattr(target, "diagnostic_budget", both_preflights_pass)
 
-    def launch(_):
+    def launch(index):
         try:
             return target.execute(
                 continuation,
@@ -509,7 +509,7 @@ def test_parallel_continuations_allow_only_one_transport_attempt(setup, monkeypa
                 config,
                 local,
                 remote,
-                root,
+                root / f"worktree-{index}" / "results" / "raw",
                 diagnostic_prior_path=prior,
             )[1]["status"]
         except SystemExit as exc:
@@ -520,3 +520,51 @@ def test_parallel_continuations_allow_only_one_transport_attempt(setup, monkeypa
         outcomes = list(pool.map(launch, range(2)))
     assert sorted(outcomes) == ["blocked", "completed"]
     assert len(calls) == 1
+
+
+def test_one_prior_blocks_continuation_in_another_output_directory(setup):
+    base, queries, corpus, labels, config, local, remote, root, calls = setup
+    prior_dir = root / "A"
+    prior_dir.mkdir()
+    plan = dict(
+        base,
+        kind="dense_target_reader_diagnostic",
+        parent_plan_sha256="pinned",
+        question_ids=["q0"],
+    )
+    prior = synthetic_diagnostic(prior_dir, "prior", plan, 1000)
+    continuation = dict(
+        plan, diagnostic_prior_run_id="prior", token_limit_per_dataset=19000
+    )
+    output_b, output_c = root / "B" / "results" / "raw", root / "C" / "results" / "raw"
+    _, child = target.execute(
+        continuation,
+        queries[:1],
+        corpus,
+        labels[:1],
+        config,
+        local,
+        remote,
+        output_b,
+        diagnostic_prior_path=prior,
+    )
+    assert child["status"] == "completed"
+    claim = target.diagnostic_claim_path(prior, "prior")
+    assert claim.parent == prior_dir.resolve()
+    assert json.loads(claim.read_text())["child_run_id"] == child["run_id"]
+    assert not list(output_b.glob(".diagnostic-*"))
+    with pytest.raises(SystemExit, match="already consumed"):
+        target.execute(
+            continuation,
+            queries[:1],
+            corpus,
+            labels[:1],
+            config,
+            local,
+            remote,
+            output_c,
+            diagnostic_prior_path=root / "C" / ".." / "A" / prior.name,
+        )
+    assert len(calls) == 1
+    assert len(list(output_b.glob("*.manifest.json"))) == 1
+    assert not list(output_c.glob("*.manifest.json"))
