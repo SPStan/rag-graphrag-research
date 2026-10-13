@@ -1,5 +1,16 @@
 # Текущая работа и критерии завершения
 
+**13 октября: следующий шаг #11 по предварительному ревью PR #30.** Получить
+deployment context/output limits и точный tokenizer/chat-template либо серверный
+счётчик полного messages payload; проверить fit пяти выбранных cases. Публичные
+docs/OpenAPI GET — 404, генерация не запускалась. Текст запроса провайдеру и
+последовательность проверки — [OPENIE_TARGET_CHECK](OPENIE_TARGET_CHECK.md).
+Карточка `eb27b8fa5654329712648d28:0`: H1/N1/O1/R1 не утверждены;
+`/research_status https://github.com/SPStan/rag-graphrag-research/pull/30`
+выполняется через бота, текущие инструменты этой команды не предоставляют.
+Draft/Refs #11 и ready_for_indexing=false сохраняются. Нельзя закрывать issue
+или считать offline проверки реальной целевой генерацией.
+
 **13 октября: пользователь поручил issue #11 — ошибки OpenIE HippoRAG.** PR #29 слит (`5e617fa`), #10 закрыта/Projects Done, научное согласование #10 подтверждено пользователем ответом research_status. Текущий блок — до пяти сохранённых development-примеров #11, без возобновления старого repair и без пересборки корпуса. Ветка `codex/openie-target-check` использует существующий SDK-worktree. Read-only target preflight интегрируется в `preflight_hipporag_repair_prompts`; старые артефакты сохраняются. Пользователь подтвердил неизвестные context/output limits и tokenizer/backend revision; API metadata их не сообщает. Генерация OpenIE и индекс не запускаются до проверенного context-fit контракта. Итог и команды — [OPENIE_TARGET_CHECK](OPENIE_TARGET_CHECK.md). Научное согласование #11 отдельно; merge только отдельно. Предыдущие статусы ниже — история.
 
 **13 октября: зависимость #28 разрешена, актуальное согласование #29 ожидается.** PR #28 слит в master (`edc5d28`), issue #9 закрыта, Projects Done. Master интегрирован в ветку #29 обычным merge, чтобы сохранить исходные commit ID фактических запусков и SHA provenance; модельные запросы и raw не повторяются/не изменяются. Итоговый diff относительно master содержит только блок #10. Последнее ревью бота пометило согласование карточки `1d9e259796f6f4e1f28694a8:1` устаревшим: текущие O1/N1/R1/H1 нужно повторно отправить `/research_submit https://github.com/SPStan/rag-graphrag-research/pull/29 10`, затем проверить `/research_status https://github.com/SPStan/rag-graphrag-research/pull/29`. Эти команды недоступны через текущие инструменты агента; согласие куратора не подменять. PR #29 сохранять Draft/Refs #10, issue #10 открытой до актуального согласования и полного технического ревью. Следующие #11/#12 и merge отдельно. Статусы ниже — история.
