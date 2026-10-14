@@ -1,5 +1,15 @@
 # Текущая работа и критерии завершения
 
+**14 октября: контракт #11 уточнён пользователем.** Общий context 262144,
+output до остатка окна, native Qwen HF tokenizer/template, vLLM 0.29.0;
+отдельного server count endpoint нет. Пять исходных prompts проверены локально
+на закреплённом tokenizer (input+cap 1302–3793):
+[таблица/SHA](OPENIE_TARGET_CHECK.md). Старый blocked preflight сохраняется.
+Далее отдельный ограниченный OpenIE протокол со сверкой server usage и
+фактическим до/после; новых модельных вызовов в проверке counts нет.
+ready_for_indexing=false, PR Draft, согласование куратора отдельно. Для #12
+по-прежнему нужны исход timeout и usage неудачного summary.
+
 **13 октября: следующий шаг #11 по предварительному ревью PR #30.** Получить
 deployment context/output limits и точный tokenizer/chat-template либо серверный
 счётчик полного messages payload; проверить fit пяти выбранных cases. Публичные

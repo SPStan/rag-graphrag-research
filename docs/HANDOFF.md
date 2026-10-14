@@ -1,5 +1,15 @@
 # Передача контекста Sol / Luna
 
+**14 октября: получен контракт API.** Пользователь сообщил 262144 общий context,
+output до остатка окна, native Qwen/Qwen3.8-27B HF tokenizer/template,
+vLLM 0.29.0; отдельного count endpoint нет. Закреплён HF tokenizer revision
+`1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0`; все пять OpenIE prompts проверены
+локально: input+cap 1302–3793, fit проходит. Таблица/SHA и ограничения —
+[OPENIE_TARGET_CHECK](OPENIE_TARGET_CHECK.md). Серверные counts ещё не сверены,
+точный HF revision deployment отдельно не сообщён. Новых модельных запросов 0,
+ready_for_indexing=false. Исторический preflight не перезаписан. Для #12 отдельно
+остаётся невыясненный timeout/usage; эти параметры его не разрешают.
+
 **13 октября: обработано предварительное ревью PR #30 на `0038c096`.** Новых
 дефектов кода бот не сообщил; обязательны подтверждённый context/output contract,
 точный input token count, до пяти реальных OpenIE cases и согласие куратора.

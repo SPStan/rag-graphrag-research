@@ -1,5 +1,51 @@
 # Issue #11 — ограниченная проверка проблемных OpenIE случаев
 
+## Обновление 14 октября: контракт и локальный подсчёт
+
+Пользователь передал параметры deployment: context **262144** токена суммарно
+на вход и ответ, отдельного output cap нет (context минус input), backend
+**vLLM 0.29.0**. Tokenizer и chat template — родные `Qwen/Qwen3.8-27B` из HF;
+серверного count endpoint нет, только `usage.prompt_tokens` после генерации.
+Это переданный пользователем контракт, не значения из metadata GET.
+
+Родные tokenizer/template загружены без весов из
+[HF revision 1d4bf0f](https://huggingface.co/Qwen/Qwen3.8-27B/tree/1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0).
+Локально использован Qwen2TokenizerFast / transformers 4.45.2, явно выбран
+`chat_template.jinja`, `add_generation_prompt=true`, `enable_thinking=false`.
+`apply_chat_template(tokenize=true)` совпал с encode от полного rendered prompt
+при `add_special_tokens=false`. Сами messages взяты из исходного snapshot;
+его SHA `7a911365e515e9ce270a878684b9afc3de6ad2a6dd93b79f677a830cb52a0e29`
+совпал с исходным preflight. QA answers/support labels не читались.
+
+| Stage / passage SHA prefix | Native input tokens | Output cap | Input + cap | Fit 262144 |
+|---|---:|---:|---:|---|
+| NER / af7c103c3e75 | 489 | 1024 | 1513 | да |
+| NER / 80c59521880e | 383 | 1024 | 1407 | да |
+| triples / f520187048cf | 664 | 3072 | 3736 | да |
+| triples / bf2985f3129a | 721 | 3072 | 3793 | да |
+| NER / 225264f9bf8f | 278 | 1024 | 1302 | да |
+
+SHA256 файлов закреплённого tokenizer snapshot:
+
+```text
+tokenizer.json        0997f410c57a1f4e53b09e4be8f4a172d90edd9564368fb0847030937229b9f3
+tokenizer_config.json b11349aafa7cdc6a320767cf7ceb29ed82f7eda5d65e8e0819e76f0ce947bf27
+chat_template.jinja   c3cf9e34abf4f9e36c2d72165aa9c132d3e2a725b6c2586aaa3a8af9d7a81041
+```
+
+Локальные файлы — `.cache/qwen38-tokenizer/<revision>/`; диагностические
+rendered SHA и counts — `.cache/qwen38-context-fit.json` в SDK-worktree.
+Это локальная проверка по указанному контракту, не подтверждённые сервером
+counts: точный HF commit deployment отдельно не сообщён. При первом разрешённом
+OpenIE запросе нужно сопоставить `usage.prompt_tokens` с локальным счётом
+того же messages/options; несовпадение не скрывать и не выдавать за exact fit.
+
+Новых модельных попыток **0**. Исторический blocked preflight от 13 октября
+не перезаписан. Его таблица ниже описывает состояние до этого ответа пользователя.
+Генерация/качество OpenIE и готовность индекса по-прежнему не проверены,
+`ready_for_indexing=false`; научное согласование отдельно. Лимиты не объясняют
+ReadTimeout RAPTOR #12 и не восстанавливают расход его failed запроса.
+
 ## Текущая граница
 
 Источник: development run `e78eff08-532a-40b3-a359-49a6b08b32a7`, исходный граф из 5500 passages. Terminal outcomes: 37 NER truncated, 122 triples truncated, один NER request_error. Это 160 исходов стадий, не обязательно 160 документов. Отдельной terminal parse_error группы в этом источнике нет; broken JSON при length относится к усечению. 159 ответов доступны в неизменяемом историческом SQLite-кэше по SHA; request_error не имеет ответа и его исторический usage неизвестен.
