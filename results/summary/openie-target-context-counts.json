@@ -1,0 +1,73 @@
+{
+  "source": "user supplied API contract, 2026-10-14",
+  "context_window": 262144,
+  "output_limit": "context minus input",
+  "backend": "vLLM 0.29.0",
+  "hf_model": "Qwen/Qwen3.8-27B",
+  "hf_revision": "1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0",
+  "deployed_hf_revision": "not independently reported",
+  "tokenizer_class": "Qwen2TokenizerFast",
+  "runtime_transformers": "4.45.2",
+  "options": {
+    "add_generation_prompt": true,
+    "enable_thinking": false
+  },
+  "server_usage_verified": false,
+  "new_model_attempts": 0,
+  "source_snapshot_sha256": "7a911365e515e9ce270a878684b9afc3de6ad2a6dd93b79f677a830cb52a0e29",
+  "files": {
+    "tokenizer.json": "0997f410c57a1f4e53b09e4be8f4a172d90edd9564368fb0847030937229b9f3",
+    "tokenizer_config.json": "b11349aafa7cdc6a320767cf7ceb29ed82f7eda5d65e8e0819e76f0ce947bf27",
+    "chat_template.jinja": "c3cf9e34abf4f9e36c2d72165aa9c132d3e2a725b6c2586aaa3a8af9d7a81041"
+  },
+  "cases": [
+    {
+      "stage": "openie_ner",
+      "passage_id": "sha256:af7c103c3e75391f0ab94b159af505f6dc4667c055348ae406230cdd81e32056",
+      "input_tokens": 489,
+      "output_cap": 1024,
+      "total_reserved": 1513,
+      "fits_262144": true,
+      "rendered_sha256": "4745f478e22b9a12dfb306b0fc1f84015ddf32b5a73e34642e44bd5b05633205"
+    },
+    {
+      "stage": "openie_ner",
+      "passage_id": "sha256:80c59521880e2cd3f0e9795c3ba9796aac20ed7fb1a85616bba1d2473ff09de7",
+      "input_tokens": 383,
+      "output_cap": 1024,
+      "total_reserved": 1407,
+      "fits_262144": true,
+      "rendered_sha256": "274b9bcf8e915065935a7842026150e394eefc121cb5ed597b6388523c866171"
+    },
+    {
+      "stage": "openie_triples",
+      "passage_id": "sha256:f520187048cf66b03e422935bfcfa4f4a075b08ea5b530add3433ccfd920cc65",
+      "input_tokens": 664,
+      "output_cap": 3072,
+      "total_reserved": 3736,
+      "fits_262144": true,
+      "rendered_sha256": "98161a25e8ca00119ea421355a7087c7e1149052a0ec394aa07aa710a0c3b156"
+    },
+    {
+      "stage": "openie_triples",
+      "passage_id": "sha256:bf2985f3129a6f2ec21c9e119cc4a8b2f20b2b28b0d3dd8f2aa7117c646621a1",
+      "input_tokens": 721,
+      "output_cap": 3072,
+      "total_reserved": 3793,
+      "fits_262144": true,
+      "rendered_sha256": "6f60c867aa00f044234ae9cd6de0986e90a366004a4ba48c813ce2a4a5290460"
+    },
+    {
+      "stage": "openie_ner",
+      "passage_id": "sha256:225264f9bf8f8bc021f8b31859f996e64ae039e724674b5efbfd83d701af4993",
+      "input_tokens": 278,
+      "output_cap": 1024,
+      "total_reserved": 1302,
+      "fits_262144": true,
+      "rendered_sha256": "4cbf4d3993f2210dc26102b383391f356699e6e8479b670feccdadd2d30199d9"
+    }
+  ],
+  "schema_version": 1,
+  "ready_for_indexing": false,
+  "runtime_tokenizers": "0.20.3"
+}

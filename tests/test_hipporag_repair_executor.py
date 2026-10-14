@@ -366,6 +366,58 @@ class HippoRAGRepairExecutorTests(unittest.TestCase):
         self.assertIs(captured[0]["truncate"], False)
         self.assertEqual(captured[0]["format"], "json")
 
+    def test_invalid_task_never_invokes_measurement_callback(self):
+        task = {
+            "passage_id": "p1",
+            "stage": "openie_ner",
+            "attempt": 2,
+            "retry_of_attempt": 1,
+        }
+        calls = []
+
+        def request(*args, **kwargs):
+            calls.append((args, kwargs))
+            raise AssertionError("Invalid task must not reach the model callback")
+
+        request.frozen_protocol = {
+            "model_digest": "model-sha",
+            "ner_max_new_tokens": 1024,
+            "triples_max_new_tokens": 3072,
+        }
+        invalid_metadata = [
+            {"attempt": None},
+            {"attempt": True},
+            {"attempt": 1},
+            {"attempt": 3, "retry_of_attempt": 2},
+            {"retry_of_attempt": None},
+            {"retry_of_attempt": 0},
+            {"passage_id": ""},
+            {"passage_id": None},
+            {"passage_id": 123},
+            {"stage": "unknown"},
+            {
+                "stage": "openie_triples",
+                "operation": "dependency_refresh",
+                "dependency_stage": "openie_ner",
+                "dependency_attempt": 2,
+                "dependency_attempt_pending": True,
+            },
+        ]
+        for invalid in invalid_metadata:
+            with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                measure_then_execute_openie_task(
+                    {**task, **invalid},
+                    "title\ntext",
+                    None,
+                    request_fn=request,
+                    parse_fn=lambda *args, **kwargs: [],
+                    run_id="repair",
+                    model_digest="model-sha",
+                    model_requests_enabled=True,
+                    prompt_manager=FakePromptManager(),
+                )
+            self.assertEqual(calls, [])
+
     def test_native_context_gate_runs_measurement_before_extraction(self):
         protocol = {
             "model": "qwen-test",
