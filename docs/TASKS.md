@@ -1,5 +1,15 @@
 # Текущая работа и критерии завершения
 
+**14 октября: технический saved-case OpenIE smoke #11 выполнен.** На `2e46d0a`
+run `b1549680-6917-47e4-a614-3540fcda01a6` завершил 5/5 cases: valid_nonempty,
+stop, все server prompt_tokens совпали с native. Расход нового run 2535 input /
+784 output; 5 POST, без retry/коррекций. Исторический cache/state не изменён.
+[Сводка/SHA](../results/summary/openie-target-live-check.json), [до/после](OPENIE_TARGET_CHECK.md).
+Далее полное техническое ревью PR #30 и актуальное согласие куратора; PR пока
+Draft, #11 открыта. ready_for_indexing=false сохраняется: это не repair всей
+очереди/индекса и не оценка эффективности. Не возобновлять старый repair, не
+повторять cases/failed RAPTOR автоматически. Блоки ниже — история этапов.
+
 **14 октября: контракт #11 уточнён пользователем.** Общий context 262144,
 output до остатка окна, native Qwen HF tokenizer/template, vLLM 0.29.0;
 отдельного server count endpoint нет. Пять исходных prompts проверены локально

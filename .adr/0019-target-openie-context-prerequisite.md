@@ -2,8 +2,12 @@
 
 Статус на 14 октября: контракт deployment передан пользователем (262144 общий
 context, output до остатка окна, vLLM 0.29.0, native Qwen HF tokenizer/template).
-Пять prompts помещаются по локальному закреплённому tokenizer; сверка с
-server usage, генерация и пригодность конфигурации не проверены.
+Пять prompts помещаются по локальному закреплённому tokenizer; фактический
+run `b1549680-6917-47e4-a614-3540fcda01a6` на `2e46d0a` подтвердил 5/5
+server prompt counts и valid_nonempty/stop. 2535 input / 784 output, без retry
+и коррекций; исторические SHA не менялись. Это ограниченная проверка формата,
+не доказательство качества извлечения или готовности всего старого индекса;
+ready_for_indexing=false сохраняется. Результаты в docs/OPENIE_TARGET_CHECK.md.
 
 Обновление: HF tokenizer/template закреплены на
 `1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0`; counts с output caps 1024/3072

@@ -1,5 +1,17 @@
 # Передача контекста Sol / Luna
 
+**14 октября: пять реальных target OpenIE cases завершены.** Run
+`b1549680-6917-47e4-a614-3540fcda01a6` на чистом `2e46d0a`: 5/5
+valid_nonempty/stop, native input count совпал с server usage у каждого.
+2535 input + 784 output, 5 POST, без retry/коррекций; durable journal verified,
+complete=true только для этого run. Исходные manifest/corpus/state/cache SHA
+не изменились, 61 SDK Python-файл проверен. [Результаты/SHA](../results/summary/openie-target-live-check.json),
+[таблица до/после](OPENIE_TARGET_CHECK.md). ready_for_indexing=false: весь старый
+индекс не чинился; точность извлечения и эффективность не измерены. PR #30 Draft,
+научное согласование/полное ревью отдельно, merge только по команде. Общая claim
+по snapshot блокирует повтор через другую worktree/output; не удалять для retry.
+Более ранние утверждения о нуле новых запросов ниже — исторические.
+
 **14 октября: получен контракт API.** Пользователь сообщил 262144 общий context,
 output до остатка окна, native Qwen/Qwen3.8-27B HF tokenizer/template,
 vLLM 0.29.0; отдельного count endpoint нет. Закреплён HF tokenizer revision

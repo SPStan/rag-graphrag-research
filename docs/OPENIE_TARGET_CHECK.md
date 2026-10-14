@@ -1,5 +1,43 @@
 # Issue #11 — ограниченная проверка проблемных OpenIE случаев
 
+## Фактический target-run 14 октября
+
+Run **b1549680-6917-47e4-a614-3540fcda01a6**, чистый код **2e46d0a**:
+пять POST, все `finish_reason=stop` / `valid_nonempty` через pinned parser,
+без partial recovery, retry и коррекций. Для каждого запроса серверный
+`usage.prompt_tokens` **точно совпал** с закреплённым native count.
+[Безопасные результаты и SHA](../results/summary/openie-target-live-check.json).
+Локальный исходный counts artifact ниже сохраняется как pre-server snapshot;
+фактическая серверная сверка записана в новом live result, не задним числом.
+
+| Stage / passage SHA prefix | До | После | Input: native = server | Output tokens | Values |
+|---|---|---|---:|---:|---:|
+| NER / af7c103c3e75 | truncated, cap 512 | valid_nonempty, cap 1024 | 489 | 134 | 12 |
+| NER / 80c59521880e | truncated, cap 512 | valid_nonempty, cap 1024 | 383 | 165 | 20 |
+| triples / f520187048cf | truncated, cap 2048 | valid_nonempty, cap 3072 | 664 | 179 | 6 |
+| triples / bf2985f3129a | truncated, cap 2048 | valid_nonempty, cap 3072 | 721 | 194 | 10 |
+| NER / 225264f9bf8f | request_error, usage unknown | valid_nonempty, cap 1024 | 278 | 112 | 10 |
+
+Расход **этого run**: **2535 input + 784 output = 3319 target tokens**,
+в пределах бюджета 20000; reasoning tokens по всем пяти ответам 0.
+Журнал целостен/полон, пяти физическим POST соответствуют пять пар start/finish.
+Raw request/response, manifest и token journal:
+`results/raw/openie-target-live-b1549680-6917-47e4-a614-3540fcda01a6/`
+в SDK-worktree. В сводке — request/response/rendered SHA, response/client IDs,
+commit, параметры и journal/manifest SHA. Активные часы человека не измерялись,
+автоматический request span записан отдельно.
+
+Все 61 Python-файл установленного SDK сверены с `1438aba3`, исходные
+manifest/corpus/state/cache SHA до/после совпали. Старый индекс не исправлялся:
+**ready_for_indexing=false**. Это приёмка формата/завершения пяти development
+stage-prompts, не оценка точности извлечения или эффективности HippoRAG.
+Изменились и модель, и stage caps: нельзя приписать улучшение одной причине.
+Исторический request_error остаётся с неизвестным usage; complete=true относится
+только к пяти новым POST. Расход failed RAPTOR #12 не изменился и не восстановлен.
+Глобальная идентичность tokenizer/backend revision не доказана совпадением
+пяти input counts; точный HF commit deployment отдельно не сообщён.
+Научное согласование и полное техническое ревью отдельно; PR остаётся Draft.
+
 ## Обновление 14 октября: контракт и локальный подсчёт
 
 Пользователь передал параметры deployment: context **262144** токена суммарно
@@ -140,7 +178,7 @@ Gitleaks `generic-api-key` ошибочно классифицировал дв�
 `d2ae33e` с этим файлом/правилом/строками; правила и полный history scan не
 отключены, другие коммиты и значения не исключаются.
 
-## Текущая граница
+## Историческая граница preflight и отдельный live-протокол
 
 ### Отдельный ограниченный target-протокол 14 октября
 
