@@ -1,5 +1,46 @@
 # Передача контекста Sol / Luna
 
+**14 октября: опубликован обезличенный оператор диагностики по ревью 41b64eee.**
+[operator.py](operators/operator.py), [команда/SHA/ограничения](RAPTOR_SMOKE.md).
+Только две механические замены: env-file через переменную, ROOT по новой папке;
+исторические SHA/manifest не менялись. Offline-тесты исполняют этот файл с fake
+HTTP, проверяют один POST, запрет повтора и ошибки. Новых реальных запросов нет.
+Приёмка #12 не завершена; продолжение с prior unknown требует согласования
+куратора, PR Draft/Refs #12. research-команды инструментами не предоставлены.
+
+**14 октября: пользователь разрешил один повтор summary #12.** Диагностика
+`3525d53a-8a93-4e17-a784-6337feb520a7` завершена: тот же payload, read timeout
+300 s, retry=0, 350 input / 375 output, stop/nonempty. Server input = native350.
+[Сводка](../results/summary/raptor-summary-diagnostic.json): суммарно 52 attempts
+(50 embedding + 2 summaries), prior usage по-прежнему unknown, aggregate
+complete=false / total=null. Исходные raw не менялись. Дерево/reader не запускались,
+новый запуск не разрешён этой одной диагностикой; curator approval не заявляется.
+PR Draft/Refs #12. Более ранние «повторов нет» ниже — состояние до этого решения.
+
+**14 октября: пользователь уточнил API contract.** Context 262144 input+output,
+output до остатка окна, native Qwen/Qwen3.8-27B HF tokenizer/template,
+vLLM 0.29.0, без server count endpoint. Первый failed summary локально
+посчитан по закреплённому native tokenizer: 350 input + cap 512 = 862, fit есть.
+Серверный usage неизвестен и timeout не выяснен; это не разрешает слепой повтор.
+[Подробности](RAPTOR_SMOKE.md). Старые raw/summary не перезаписывались, новых
+модельных попыток нет. PR #31 Draft/Refs #12; куратор и техническая готовность
+проверяются отдельно. Статусы ниже описывают более ранние состояния.
+
+**13 октября: активна #12, RAPTOR на малом корпусе.** По команде пользователя
+#29 слит (`5e617fa`), #10 закрыта. #11 отдельно в Draft PR #30: target context
+contract неизвестен, генерация OpenIE не разрешена протоколом repair.
+#12 независима от этого блокера; ветка `codex/raptor-small-corpus` от master,
+официальный upstream закреплён, callbacks и reload проверены offline.
+Реальный run `bb0b97d2-b0ca-4d09-926c-76d2309b0853` на `2b699a2` остановился:
+50 leaf embeddings (6399 локальных tokens), первый target summary — ReadTimeout
+120 s, usage неизвестен. Реальное дерево и reader не завершены. Журнал целостен,
+затраты неполны; [сводка](../results/summary/raptor-smoke.json), raw в worktree
+`dense-target-smoke/results/raw/raptor-smoke/<run-id>/`. Draft [PR #31](https://github.com/SPStan/rag-graphrag-research/pull/31), Refs #12, Projects In Progress.
+Протокол и команды — [RAPTOR_SMOKE](RAPTOR_SMOKE.md). Перед новым расходующим
+протоколом разобраться с timeout/usage; сохранить failed run в суммарном учёте.
+Только 50 passages / три development-вопроса, не full corpus. Следующие задачи,
+повторные запросы и merge автоматически не начинать. Статусы ниже — история.
+
 **13 октября: зависимость #28 разрешена, актуальное согласование #29 ожидается.** PR #28 слит в master (`edc5d28`), issue #9 закрыта, Projects Done. Master интегрирован в ветку #29 обычным merge, чтобы сохранить исходные commit ID фактических запусков и SHA provenance; модельные запросы и raw не повторяются/не изменяются. Итоговый diff относительно master содержит только блок #10. Последнее ревью бота пометило согласование карточки `1d9e259796f6f4e1f28694a8:1` устаревшим: текущие O1/N1/R1/H1 нужно повторно отправить `/research_submit https://github.com/SPStan/rag-graphrag-research/pull/29 10`, затем проверить `/research_status https://github.com/SPStan/rag-graphrag-research/pull/29`. Эти команды недоступны через текущие инструменты агента; согласие куратора не подменять. PR #29 сохранять Draft/Refs #10, issue #10 открытой до актуального согласования и полного технического ревью. Следующие #11/#12 и merge отдельно. Статусы ниже — история.
 
 **8 октября: технический smoke #10 завершён.** После одной remote диагностики исправлен ложный ambiguous marker через версию `standalone-answer-line-v1`, legacy parser сохранён. На `4a60f2d` завершены пять MuSiQue и пять HotpotQA ID; raw/metrics/manifests/journals в `dense-target-smoke/results/raw`, [сводка](../results/summary/dense-target-smoke.json) включает исходную ошибку, диагностику, финальные метрики и весь расход. PR #29 остаётся Draft/Refs #10 до разрешения зависимости #28 и актуального научного согласования. Следующие #11/#12 не начинать автоматически; merge только отдельно. Историческая остановка ниже сохраняется.
