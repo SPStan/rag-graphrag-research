@@ -38,6 +38,31 @@ stage-prompts, не оценка точности извлечения или э
 пяти input counts; точный HF commit deployment отдельно не сообщён.
 Научное согласование и полное техническое ревью отдельно; PR остаётся Draft.
 
+### Исправление SDK-проверки после ревью dc7ae635
+
+Эталон файлов теперь читается из Git-объектов **1438aba3**: набор Python-файлов
+из `git ls-tree`, содержимое из `git cat-file blob <oid>`. Source checkout и
+installed package независимо сравниваются с этими blobs, включая полный набор
+файлов. Допускается только нормализация CRLF/LF. Одинаковые незакоммиченные
+изменения в обоих деревьях больше не проходят. Поиск installed package через
+distribution metadata и проверка выполняются **до импорта** его prompt-кода.
+Git-процессы не наследуют переменные выбора репозитория от внешнего hook;
+фикстуры также изолируют Git-окружение, чтобы не менять родительский checkout.
+
+Регрессия создаёт настоящий локальный Git-коммит, одинаково меняет source и
+installed, оставляя HEAD на pin, и проверяет отказ preflight до любого HTTP.
+Также проверены чистый CRLF checkout, изменённый installed и лишние Python-файлы
+в каждом дереве. Повторная проверка реального SDK этим способом подтвердила
+**61 файл**; новых модельных вызовов нет. Исходные raw/manifest и версия кода
+фактического run не перезаписывались. Воспроизведение в SDK env без генерации:
+
+```powershell
+$env:HF_HUB_OFFLINE = '1'
+$env:TRANSFORMERS_OFFLINE = '1'
+$env:LITELLM_LOCAL_MODEL_COST_MAP = 'True'
+.cache/hipporag-sdk-venv/Scripts/python.exe -c "from scripts.preflight_hipporag_repair_prompts import verify_target_prompt_installation; print(verify_target_prompt_installation('.cache/hipporag-sdk-1438aba3')[1])"
+```
+
 ## Обновление 14 октября: контракт и локальный подсчёт
 
 Пользователь передал параметры deployment: context **262144** токена суммарно

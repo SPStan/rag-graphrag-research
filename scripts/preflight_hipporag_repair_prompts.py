@@ -555,34 +555,68 @@ def target_capabilities(session, config):
 
 
 def verify_target_prompt_installation(source):
-    """Verify the actual installed prompt/parser package against the pinned checkout."""
-    from hipporag.prompts import PromptTemplateManager
-    from hipporag import __file__ as installed_file
-
+    """Compare source and installed Python trees with immutable pinned Git blobs."""
     source = Path(source).resolve(strict=True)
-    commit = subprocess.check_output(
-        [
-            "git",
-            "-c",
-            f"safe.directory={source.as_posix()}",
-            "-C",
-            str(source),
-            "rev-parse",
-            "HEAD",
-        ],
-        text=True,
-    ).strip()
+    repository_vars = {
+        "GIT_DIR",
+        "GIT_COMMON_DIR",
+        "GIT_WORK_TREE",
+        "GIT_INDEX_FILE",
+        "GIT_OBJECT_DIRECTORY",
+        "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+        "GIT_PREFIX",
+    }
+    git_env = {
+        key: value for key, value in os.environ.items() if key not in repository_vars
+    }
+
+    def git(*args):
+        return subprocess.check_output(
+            [
+                "git",
+                "-c",
+                f"safe.directory={source.as_posix()}",
+                "-C",
+                str(source),
+                *args,
+            ],
+            env=git_env,
+        )
+
+    commit = git("rev-parse", "HEAD").decode("ascii").strip()
     if commit != UPSTREAM_COMMIT:
         raise ValueError("SDK source revision mismatch")
-    installed = Path(installed_file).parent
-    files = list((source / "src" / "hipporag").rglob("*.py"))
-    for path in files:
-        relative = path.relative_to(source / "src" / "hipporag")
-        if path.read_bytes().replace(b"\r\n", b"\n") != (
-            installed / relative
-        ).read_bytes().replace(b"\r\n", b"\n"):
-            raise ValueError("Installed SDK file differs from pinned source")
-    return PromptTemplateManager, len(files)
+    prefix = "src/hipporag/"
+    blobs = {}
+    for entry in git("ls-tree", "-r", "-z", UPSTREAM_COMMIT, "--", prefix).split(b"\0"):
+        if not entry:
+            continue
+        metadata, name = entry.split(b"\t", 1)
+        path = name.decode("utf-8")
+        if path.endswith(".py"):
+            mode, kind, oid = metadata.decode("ascii").split()
+            if kind != "blob" or mode not in ("100644", "100755"):
+                raise ValueError("Pinned SDK Python file is not a regular blob")
+            blobs[path.removeprefix(prefix)] = oid
+    if not blobs:
+        raise ValueError("Pinned SDK Python tree is empty")
+    # Locate installed files without importing unverified package code first.
+    installed = Path(
+        importlib_metadata.distribution("hipporag").locate_file("hipporag")
+    )
+    roots = (("Source", source / "src/hipporag"), ("Installed", installed))
+    for label, root in roots:
+        actual = {path.relative_to(root).as_posix() for path in root.rglob("*.py")}
+        if actual != set(blobs):
+            raise ValueError(f"{label} SDK Python file set differs from pinned commit")
+    for relative, oid in blobs.items():
+        expected = git("cat-file", "blob", oid).replace(b"\r\n", b"\n")
+        for label, root in roots:
+            if (root / relative).read_bytes().replace(b"\r\n", b"\n") != expected:
+                raise ValueError(f"{label} SDK file differs from pinned Git blob")
+    from hipporag.prompts import PromptTemplateManager
+
+    return PromptTemplateManager, len(blobs)
 
 
 def run_target_preflight(args):

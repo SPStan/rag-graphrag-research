@@ -1,5 +1,11 @@
 # Передача контекста Sol / Luna
 
+**14 октября: исправлено should ревью dc7ae635.** SDK source и installed
+проверяются независимо по immutable Git tree/blobs `1438aba3`, до импорта
+prompt-кода; одинаковые dirty изменения отвергаются до HTTP. Регрессии и
+повторная проверка реальных 61 файлов прошли. Новых модельных запросов нет,
+raw фактического run не менялись. [Команда и детали](OPENIE_TARGET_CHECK.md).
+
 **14 октября: пять реальных target OpenIE cases завершены.** Run
 `b1549680-6917-47e4-a614-3540fcda01a6` на чистом `2e46d0a`: 5/5
 valid_nonempty/stop, native input count совпал с server usage у каждого.

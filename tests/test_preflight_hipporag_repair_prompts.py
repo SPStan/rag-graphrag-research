@@ -1,11 +1,140 @@
 import unittest
 import json
+import os
+import subprocess
+import sys
+from types import ModuleType, SimpleNamespace
+
+import pytest
 
 from scripts.preflight_hipporag_repair_prompts import (
     UPSTREAM_COMMIT,
     summarize_prompts,
     validate_upstream_pin,
 )
+
+
+@pytest.fixture
+def pinned_sdk_tree(tmp_path, monkeypatch):
+    from scripts import preflight_hipporag_repair_prompts as preflight
+
+    source = tmp_path / "source"
+    package = source / "src/hipporag"
+    installed = tmp_path / "installed/hipporag"
+    package.mkdir(parents=True)
+    installed.mkdir(parents=True)
+    content = b"PINNED_VALUE = 1\n"
+    for root in (package, installed):
+        (root / "__init__.py").write_bytes(content)
+
+    def git(*args):
+        # Hooks export GIT_DIR/GIT_INDEX_FILE for the parent checkout. Never let
+        # fixture init/add/commit operate on that repository.
+        env = {
+            key: value
+            for key, value in os.environ.items()
+            if not key.startswith("GIT_")
+        }
+        return subprocess.check_output(["git", "-C", str(source), *args], env=env)
+
+    git("init", "--quiet")
+    git("add", "src/hipporag/__init__.py")
+    git(
+        "-c",
+        "user.name=Test",
+        "-c",
+        "user.email=test@example.invalid",
+        "commit",
+        "--quiet",
+        "-m",
+        "Pinned SDK fixture",
+    )
+    pin = git("rev-parse", "HEAD").decode().strip()
+    monkeypatch.setattr(preflight, "UPSTREAM_COMMIT", pin)
+    monkeypatch.setattr(
+        preflight.importlib_metadata,
+        "distribution",
+        lambda name: SimpleNamespace(locate_file=lambda relative: installed),
+    )
+    # No SDK required in the general offline environment. Real Git blobs remain
+    # the baseline; fake imports merely stand in for the already verified class.
+    module, prompts = ModuleType("hipporag"), ModuleType("hipporag.prompts")
+    module.__file__ = str(installed / "__init__.py")
+    prompts.PromptTemplateManager = object()
+    monkeypatch.setitem(sys.modules, "hipporag", module)
+    monkeypatch.setitem(sys.modules, "hipporag.prompts", prompts)
+    return preflight, source, package, installed, git, prompts.PromptTemplateManager
+
+
+def test_sdk_is_verified_against_committed_blobs_with_crlf_checkout(pinned_sdk_tree):
+    preflight, source, package, installed, _, manager = pinned_sdk_tree
+    (package / "__init__.py").write_bytes(b"PINNED_VALUE = 1\r\n")
+    (installed / "__init__.py").write_bytes(b"PINNED_VALUE = 1\r\n")
+    assert preflight.verify_target_prompt_installation(source) == (manager, 1)
+
+
+def test_sdk_git_verification_ignores_parent_hook_repository(
+    pinned_sdk_tree, monkeypatch
+):
+    preflight, source, _, _, _, manager = pinned_sdk_tree
+    monkeypatch.setenv("GIT_DIR", str(source / "nonexistent-parent.git"))
+    monkeypatch.setenv("GIT_WORK_TREE", str(source / "other-worktree"))
+    monkeypatch.setenv("GIT_INDEX_FILE", str(source / "unrelated-index"))
+    assert preflight.verify_target_prompt_installation(source) == (manager, 1)
+
+
+def test_identical_uncommitted_source_and_install_changes_fail_before_http(
+    pinned_sdk_tree, monkeypatch
+):
+    preflight, source, package, installed, git, _ = pinned_sdk_tree
+    for root in (package, installed):
+        (root / "__init__.py").write_bytes(b"PINNED_VALUE = 999\n")
+    assert git("rev-parse", "HEAD").decode().strip() == preflight.UPSTREAM_COMMIT
+    assert git("status", "--porcelain").strip()
+    assert (package / "__init__.py").read_bytes() == (
+        installed / "__init__.py"
+    ).read_bytes()
+    monkeypatch.setattr(
+        preflight,
+        "load_source_inputs",
+        lambda *args, **kwargs: ({}, [], [], "manifest-sha", "corpus-sha"),
+    )
+    import requests
+
+    calls = []
+
+    def forbidden(*args, **kwargs):
+        calls.append(True)
+        raise AssertionError("HTTP must not be reached")
+
+    monkeypatch.setattr(requests.sessions.Session, "request", forbidden)
+    with pytest.raises(
+        ValueError, match="Source SDK file differs from pinned Git blob"
+    ):
+        preflight.run_target_preflight(
+            SimpleNamespace(
+                manifest=source / "unused.json", data_root=source, sdk_source=source
+            )
+        )
+    assert calls == []
+
+
+def test_changed_installed_file_is_rejected_even_with_clean_source(pinned_sdk_tree):
+    preflight, source, _, installed, _, _ = pinned_sdk_tree
+    (installed / "__init__.py").write_bytes(b"PINNED_VALUE = 999\n")
+    with pytest.raises(
+        ValueError, match="Installed SDK file differs from pinned Git blob"
+    ):
+        preflight.verify_target_prompt_installation(source)
+
+
+@pytest.mark.parametrize("tree", ["source", "installed"])
+def test_untracked_python_files_are_rejected(pinned_sdk_tree, tree):
+    preflight, source, package, installed, _, _ = pinned_sdk_tree
+    root = package if tree == "source" else installed
+    (root / "untracked.py").write_text("EXTRA = True\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="Python file set differs from pinned commit"):
+        preflight.verify_target_prompt_installation(source)
 
 
 class HippoRAGRepairPromptPreflightTests(unittest.TestCase):

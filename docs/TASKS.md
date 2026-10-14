@@ -1,5 +1,11 @@
 # Текущая работа и критерии завершения
 
+**14 октября: should ревью dc7ae635 закрыт.** Эталон SDK берётся из Git blobs
+закреплённого коммита, не рабочего дерева; одинаковые dirty source/installed
+регрессионно отвергаются до HTTP. Все 61 реальных SDK Python-файлов повторно
+подтверждены без API-вызовов. [Проверка](OPENIE_TARGET_CHECK.md). Draft,
+ready_for_indexing=false, актуальное согласование/полное ревью отдельно.
+
 **14 октября: технический saved-case OpenIE smoke #11 выполнен.** На `2e46d0a`
 run `b1549680-6917-47e4-a614-3540fcda01a6` завершил 5/5 cases: valid_nonempty,
 stop, все server prompt_tokens совпали с native. Расход нового run 2535 input /
