@@ -1,5 +1,8 @@
 # Передача контекста Sol / Luna
 
+
+**14 октября: обзор опубликованных методов #25.** Подготовлены [полная таблица](related-work-comparison.md#full-comparison) и [слайдовый вариант](related-work-comparison.md#slide-version) Dense RAG / HippoRAG 2 / RAPTOR с версиями первоисточников и ограничениями. Журнал чтения студента сохранён; новых модельных вызовов нет, реализация RAPTOR не менялась. Документный PR сохранять Draft до согласованного перехода в ревью; merge отдельно. Настройка доски #23 завершена [итогом в issue](https://github.com/SPStan/rag-graphrag-research/issues/23#issuecomment-6170587264), issue оставлена открытой. Текущая экспериментальная работа #12 продолжается отдельно; строки ниже описывают предшествующие этапы.
+
 **14 октября: исправлена проверка task до измерительного запроса.** Общая
 валидация attempt/remedial/retry_of_attempt/passage_id/dependency/stage вызывается
 до request_fn в measure_then_execute_openie_task и сохраняется в прямом
