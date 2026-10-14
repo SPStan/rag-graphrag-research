@@ -134,6 +134,12 @@ if ($LASTEXITCODE -ne 0) { throw 'Native token count verification failed' }
 проверка OpenIE. В безопасном артефакте `server_usage_verified=false`,
 `new_model_attempts=0`, `ready_for_indexing=false`.
 
+Gitleaks `generic-api-key` ошибочно классифицировал два публичных SHA256 в
+полях `tokenizer.json` / `tokenizer_config.json`. Их происхождение и значения
+приведены выше. `.gitleaksignore` содержит только два fingerprint коммита
+`d2ae33e` с этим файлом/правилом/строками; правила и полный history scan не
+отключены, другие коммиты и значения не исключаются.
+
 ## Текущая граница
 
 Источник: development run `e78eff08-532a-40b3-a359-49a6b08b32a7`, исходный граф из 5500 passages. Terminal outcomes: 37 NER truncated, 122 triples truncated, один NER request_error. Это 160 исходов стадий, не обязательно 160 документов. Отдельной terminal parse_error группы в этом источнике нет; broken JSON при length относится к усечению. 159 ответов доступны в неизменяемом историческом SQLite-кэше по SHA; request_error не имеет ответа и его исторический usage неизвестен.
