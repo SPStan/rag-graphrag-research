@@ -6,6 +6,8 @@ vLLM 0.29.0; отдельного count endpoint нет. Закреплён HF t
 `1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0`; все пять OpenIE prompts проверены
 локально: input+cap 1302–3793, fit проходит. Таблица/SHA и ограничения —
 [OPENIE_TARGET_CHECK](OPENIE_TARGET_CHECK.md). Серверные counts ещё не сверены,
+команда native count/SHA воспроизведена; безопасные counts/rendered SHA теперь
+в [публикуемом артефакте](../results/summary/openie-target-context-counts.json).
 точный HF revision deployment отдельно не сообщён. Новых модельных запросов 0,
 ready_for_indexing=false. Исторический preflight не перезаписан. Для #12 отдельно
 остаётся невыясненный timeout/usage; эти параметры его не разрешают.

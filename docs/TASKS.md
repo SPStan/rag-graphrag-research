@@ -5,6 +5,9 @@ output до остатка окна, native Qwen HF tokenizer/template, vLLM 0.2
 отдельного server count endpoint нет. Пять исходных prompts проверены локально
 на закреплённом tokenizer (input+cap 1302–3793):
 [таблица/SHA](OPENIE_TARGET_CHECK.md). Старый blocked preflight сохраняется.
+Замечание ревью a80e104 выполнено: команда воспроизведения проверена на пяти
+prompts; counts/rendered SHA опубликованы в
+[безопасном JSON](../results/summary/openie-target-context-counts.json), без текстов.
 Далее отдельный ограниченный OpenIE протокол со сверкой server usage и
 фактическим до/после; новых модельных вызовов в проверке counts нет.
 ready_for_indexing=false, PR Draft, согласование куратора отдельно. Для #12

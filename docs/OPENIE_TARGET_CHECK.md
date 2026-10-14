@@ -33,8 +33,12 @@ tokenizer_config.json b11349aafa7cdc6a320767cf7ceb29ed82f7eda5d65e8e0819e76f0ce9
 chat_template.jinja   c3cf9e34abf4f9e36c2d72165aa9c132d3e2a725b6c2586aaa3a8af9d7a81041
 ```
 
-Локальные файлы — `.cache/qwen38-tokenizer/<revision>/`; диагностические
-rendered SHA и counts — `.cache/qwen38-context-fit.json` в SDK-worktree.
+Локальные tokenizer файлы — `.cache/qwen38-tokenizer/<revision>/`.
+Проверяемые counts и rendered SHA опубликованы в
+[openie-target-context-counts.json](../results/summary/openie-target-context-counts.json):
+пять passage ID/stage, input/output reserve, SHA полного rendered prompt,
+SHA исходного case snapshot, HF revision и SHA tokenizer/template. Текстов,
+ответов и credentials в артефакте нет. Команда воспроизведения — ниже.
 Это локальная проверка по указанному контракту, не подтверждённые сервером
 counts: точный HF commit deployment отдельно не сообщён. При первом разрешённом
 OpenIE запросе нужно сопоставить `usage.prompt_tokens` с локальным счётом
@@ -45,6 +49,90 @@ OpenIE запросе нужно сопоставить `usage.prompt_tokens` с
 Генерация/качество OpenIE и готовность индекса по-прежнему не проверены,
 `ready_for_indexing=false`; научное согласование отдельно. Лимиты не объясняют
 ReadTimeout RAPTOR #12 и не восстанавливают расход его failed запроса.
+
+### Воспроизведение native counts и rendered SHA
+
+Запускать из корня worktree в изолированном SDK env. Фактически проверены
+`transformers==4.45.2`, `tokenizers==0.20.3`; эти версии команда проверяет явно.
+Используется только tokenizer, веса не нужны. В `<private-case-snapshot.json>`
+указать исходный `results/raw/openie-target-70d727d7-00ff-414e-aeb8-f61e49d7800f.cases.json`
+либо его побитовую копию. Snapshot не публикуется; его можно получить локальным
+preflight из раздела «Воспроизведение» при наличии исторических данных/SDK.
+Один только безопасный JSON не содержит исходных messages и не позволяет
+воссоздать их из SHA; отсутствие raw не считать успешной репродукцией.
+
+Команда проверяет input SHA и порядок cases, скачивает **только три tokenizer
+файла** с закреплённого публичного HF revision, если их нет в локальном cache,
+и проверяет их SHA. При заполненном cache работает без сети. Целевой API не
+используется; `.env`/API-ключ не нужны. Сравниваются **все** counts и rendered
+SHA с опубликованным артефактом, который команда не перезаписывает.
+
+```powershell
+$env:OPENIE_CASE_SNAPSHOT = '<private-case-snapshot.json>'
+$countCode = @'
+import hashlib
+import json
+import os
+from pathlib import Path
+import requests
+import tokenizers
+import transformers
+from transformers import AutoTokenizer
+
+def require(condition, reason):
+    if not condition:
+        raise ValueError(reason)
+
+def sha(data):
+    return hashlib.sha256(data).hexdigest()
+
+report = json.loads(Path('results/summary/openie-target-context-counts.json').read_text(encoding='utf-8'))
+require(transformers.__version__ == report['runtime_transformers'], 'transformers version mismatch')
+require(tokenizers.__version__ == report['runtime_tokenizers'], 'tokenizers version mismatch')
+source = Path(os.environ['OPENIE_CASE_SNAPSHOT']).read_bytes()
+require(sha(source) == report['source_snapshot_sha256'], 'case snapshot SHA mismatch')
+cases = json.loads(source)
+require(len(cases) == len(report['cases']) == 5, 'expected five cases')
+directory = Path('.cache/qwen38-tokenizer') / report['hf_revision']
+directory.mkdir(parents=True, exist_ok=True)
+for name, expected_sha in report['files'].items():
+    path = directory / name
+    if not path.exists():
+        url = f"https://huggingface.co/{report['hf_model']}/resolve/{report['hf_revision']}/{name}"
+        response = requests.get(url, timeout=(5, 60))
+        response.raise_for_status()
+        require(sha(response.content) == expected_sha, 'download SHA mismatch')
+        path.write_bytes(response.content)
+    require(sha(path.read_bytes()) == expected_sha, 'tokenizer file SHA mismatch')
+tokenizer = AutoTokenizer.from_pretrained(str(directory), local_files_only=True, trust_remote_code=False)
+require(type(tokenizer).__name__ == report['tokenizer_class'], 'tokenizer class mismatch')
+tokenizer.chat_template = (directory / 'chat_template.jinja').read_text(encoding='utf-8')
+caps = {'openie_ner': 1024, 'openie_triples': 3072}
+actual = []
+for case, expected in zip(cases, report['cases']):
+    source_case = case['source_attempt']
+    require((source_case['stage'], source_case['passage_id']) ==
+            (expected['stage'], expected['passage_id']), 'case identity/order mismatch')
+    ids = tokenizer.apply_chat_template(case['messages'], tokenize=True, **report['options'])
+    rendered = tokenizer.apply_chat_template(case['messages'], tokenize=False, **report['options'])
+    require(ids == tokenizer.encode(rendered, add_special_tokens=False), 'render/tokenize mismatch')
+    cap = caps[source_case['stage']]
+    actual.append({
+        'stage': source_case['stage'], 'passage_id': source_case['passage_id'],
+        'input_tokens': len(ids), 'output_cap': cap, 'total_reserved': len(ids) + cap,
+        'fits_262144': len(ids) + cap <= report['context_window'],
+        'rendered_sha256': sha(rendered.encode('utf-8')),
+    })
+require(actual == report['cases'], 'counts/rendered SHA differ from published artifact')
+print('Verified 5 native counts and rendered SHA; server_usage_verified=false; ready_for_indexing=false')
+'@
+$countCode | .cache/hipporag-sdk-venv/Scripts/python.exe -
+if ($LASTEXITCODE -ne 0) { throw 'Native token count verification failed' }
+```
+
+Это воспроизведение локального подсчёта, не серверная сверка или реальная
+проверка OpenIE. В безопасном артефакте `server_usage_verified=false`,
+`new_model_attempts=0`, `ready_for_indexing=false`.
 
 ## Текущая граница
 
