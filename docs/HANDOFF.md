@@ -1,5 +1,14 @@
 # Передача контекста Sol / Luna
 
+**14 октября: пользователь уточнил API contract.** Context 262144 input+output,
+output до остатка окна, native Qwen/Qwen3.8-27B HF tokenizer/template,
+vLLM 0.29.0, без server count endpoint. Первый failed summary локально
+посчитан по закреплённому native tokenizer: 350 input + cap 512 = 862, fit есть.
+Серверный usage неизвестен и timeout не выяснен; это не разрешает слепой повтор.
+[Подробности](RAPTOR_SMOKE.md). Старые raw/summary не перезаписывались, новых
+модельных попыток нет. PR #31 Draft/Refs #12; куратор и техническая готовность
+проверяются отдельно. Статусы ниже описывают более ранние состояния.
+
 **13 октября: активна #12, RAPTOR на малом корпусе.** По команде пользователя
 #29 слит (`5e617fa`), #10 закрыта. #11 отдельно в Draft PR #30: target context
 contract неизвестен, генерация OpenIE не разрешена протоколом repair.
