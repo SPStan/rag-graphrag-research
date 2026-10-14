@@ -1,5 +1,14 @@
 # Передача контекста Sol / Luna
 
+**14 октября: пользователь разрешил один повтор summary #12.** Диагностика
+`3525d53a-8a93-4e17-a784-6337feb520a7` завершена: тот же payload, read timeout
+300 s, retry=0, 350 input / 375 output, stop/nonempty. Server input = native350.
+[Сводка](../results/summary/raptor-summary-diagnostic.json): суммарно 52 attempts
+(50 embedding + 2 summaries), prior usage по-прежнему unknown, aggregate
+complete=false / total=null. Исходные raw не менялись. Дерево/reader не запускались,
+новый запуск не разрешён этой одной диагностикой; curator approval не заявляется.
+PR Draft/Refs #12. Более ранние «повторов нет» ниже — состояние до этого решения.
+
 **14 октября: пользователь уточнил API contract.** Context 262144 input+output,
 output до остатка окна, native Qwen/Qwen3.8-27B HF tokenizer/template,
 vLLM 0.29.0, без server count endpoint. Первый failed summary локально

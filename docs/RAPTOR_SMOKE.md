@@ -1,5 +1,35 @@
 # RAPTOR: малый корпус (#12)
 
+## Один повторный summary по разрешению пользователя, 14 октября
+
+Пользователь явно попросил попробовать отправить запрос ещё раз, не ожидая
+восстановления прежнего usage. Выполнена **одна** отдельная диагностика с тем
+же payload/SHA, model/seed/temperature и output cap 512; изменён read timeout
+на 300 s (connect 5 s), transport retry=0, redirects off. Отдельный предел новых
+tokens 5000 и максимум один POST. Exclusive/fsynced claim рядом с каноническим
+prior manifest блокирует повторное выполнение диагностики; дерево/reader и
+embedding не запускались. Это разрешение пользователя, не согласие куратора.
+
+Run `3525d53a-8a93-4e17-a784-6337feb520a7` на tracked HEAD `af954b7`:
+**completed**, nonempty summary, finish_reason=stop, **350 input + 375 output =
+725 target tokens**, reasoning 0. Server input совпал с локальными 350.
+[Безопасная сводка](../results/summary/raptor-summary-diagnostic.json) содержит
+ссылку на prior, manifest/request/response/script/journal SHA и оба учёта.
+Private raw и замороженный operator.py:
+`results/raw/raptor-summary-diagnostic/3525d53a-8a93-4e17-a784-6337feb520a7/`.
+Операторский скрипт использует существующие Journal/recorded_call и был
+выполнен из локальной `.cache`, его SHA фиксируется отдельно от tracked HEAD.
+
+Всего #12: 50 локальных embedding POST и 2 remote summary POST. Из remote
+один завершён с 725 tokens, исход прежнего запроса по-прежнему неизвестен.
+Совместный journal summary: **52 attempts**, known embedding subtotal 6399,
+known LLM input/output 350/375, **complete=false, aggregate_total=null**.
+Исходные raw/manifest не переписаны; прежний unknown не стал нулём.
+Один успешный ответ спустя время не устанавливает причину предыдущего timeout.
+Tree/save/reload и три reader-вопроса всё ещё не выполнены; дальнейших расходов
+эта диагностика не разрешает. PR остаётся Draft/Refs #12, научное согласование
+и принятие отклонения отдельно.
+
 ## Уточнение контракта 14 октября
 
 Пользователь сообщил: общий context 262144 токена, output до остатка окна,

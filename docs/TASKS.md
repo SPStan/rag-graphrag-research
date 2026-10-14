@@ -1,5 +1,13 @@
 # Текущая работа и критерии завершения
 
+**14 октября: один диагностический summary #12 по прямой просьбе пользователя.**
+Run `3525d53a-8a93-4e17-a784-6337feb520a7`: completed, 350 input + 375 output,
+read timeout 300 s, retry=0, один POST с исходным payload. [Сводка](../results/summary/raptor-summary-diagnostic.json).
+Общий расход по-прежнему неполон: прежний unknown не восстановлен, 52 attempts,
+aggregate total=null. Tree/save/reload/три reader-вопроса ещё не выполнены.
+Дальнейшие модельные запросы автоматически не запускать; PR Draft, #12 открыта,
+согласование куратора и принятие отклонения отдельно. Статусы ниже — история.
+
 **14 октября: #12, контракт уточнён.** Пользователь сообщил context 262144,
 output до остатка окна, native Qwen HF tokenizer/template, vLLM 0.29.0.
 Первый summary по локальному native tokenizer занимает 350 input + 512 cap,
