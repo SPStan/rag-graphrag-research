@@ -142,6 +142,41 @@ Gitleaks `generic-api-key` ошибочно классифицировал дв�
 
 ## Текущая граница
 
+### Отдельный ограниченный target-протокол 14 октября
+
+Режим `--target-openie-check` явно отправляет до пяти выбранных messages;
+`--target-api-check` остаётся metadata-only. Один запрос на случай, максимум
+пять HTTP POST и **20000** input+output tokens на этот run; planned native
+input+caps **11751**. Temperature 0, seed 42, thinking disabled, JSON-object,
+output caps 1024 NER / 3072 triples. Retry=0, redirects запрещены, connect/read
+timeout 5/120 s. Никаких автоматических исправлений; это меньше допустимых
+двух исправлений причины. Это новые OpenIE cases, не повтор failed RAPTOR.
+
+До отправки проверяются SHA snapshot и всех tokenizer файлов, identity/order
+cases, native count/rendered SHA, установленный pinned SDK и исходные
+manifest/corpus/state/cache SHA. После ответа usage записывается до проверки
+структуры; prompt_tokens должны совпасть с native count. Первый mismatch,
+неизвестный usage, request error или невалидный/truncated результат останавливает
+весь run. Parser — существующий `make_pinned_openie_parser`, partial recovery
+отключён. Фазы/операции и все попытки записаны в durable Journal. Для диагностики
+отправляется и сохраняется X-Client-Request-Id без credentials.
+
+```powershell
+.cache/hipporag-sdk-venv/Scripts/python.exe -m scripts.preflight_hipporag_repair_prompts --target-openie-check --data-root '<data-root>' --manifest '<source-manifest>' --env-file '<env-file>' --case-snapshot '<private-case-snapshot.json>' --sdk-source '<sdk-source>'
+```
+
+Claim создаётся через exclusive create/fsync в общем
+`<data-root>/results/raw/openie-target-claims/<snapshot-sha>.claim.json`, а не
+в output/worktree. Повтор того же snapshot блокируется и после ошибки; не
+удалять claim для обхода бюджета. Любое дальнейшее продолжение требует отдельного
+протокола с сохранением всех предыдущих попыток/неизвестных затрат.
+Raw нового run — `results/raw/openie-target-live-<uuid>/`: manifest, request/
+response JSON и token journal. Исторические SQLite/индексы не пишутся; source
+SHA проверяются до/после. Даже успешные пять cases не чинят весь старый индекс:
+`ready_for_indexing=false` сохраняется. Реальные результаты фиксируются после
+запуска, не подменяются offline-тестами. Общий gate до запуска: 243 passed /
+13 skipped; targeted offline tests preflight/execution: 21 passed.
+
 Источник: development run `e78eff08-532a-40b3-a359-49a6b08b32a7`, исходный граф из 5500 passages. Terminal outcomes: 37 NER truncated, 122 triples truncated, один NER request_error. Это 160 исходов стадий, не обязательно 160 документов. Отдельной terminal parse_error группы в этом источнике нет; broken JSON при length относится к усечению. 159 ответов доступны в неизменяемом историческом SQLite-кэше по SHA; request_error не имеет ответа и его исторический usage неизвестен.
 
 Протокол выбора и причины — [ADR-0019](../.adr/0019-target-openie-context-prerequisite.md). До пяти представителей: минимальный/максимальный размер сохранённого truncated response отдельно для NER/triples, один отсутствующий ответ. Bytes характеризуют примеры, а не дают число target tokens. Правильные QA-ответы и supporting labels не читаются для подготовки prompts.
