@@ -1,0 +1,5 @@
+# Two false positives: public HF tokenizer-file SHA256 digests, not credentials.
+# Exact historical findings only: other commits, files and values remain scanned.
+# Provenance: docs/OPENIE_TARGET_CHECK.md and its pinned HF revision/file hashes.
+d2ae33e5ec1a5a5a39b788824d64424ee494d978:results/summary/openie-target-context-counts.json:generic-api-key:19
+d2ae33e5ec1a5a5a39b788824d64424ee494d978:results/summary/openie-target-context-counts.json:generic-api-key:20
