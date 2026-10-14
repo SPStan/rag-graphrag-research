@@ -72,7 +72,9 @@ Top-5 — узлы разных уровней; длина и тип запис�
 считаются общими функциями после генерации. Три вопроса и support-preserving
 корпус не устанавливают эффективность; full corpus/holdout не запускаются.
 Для будущей задачи 7 нужны отдельный протокол, одинаковые data/reader/model,
-измерение reader input tokens и пересмотр неизвестного target context contract.
+измерение reader input tokens и сверка фактических параметров deployment с
+контрактом, переданным 14 октября. Отдельно остаются исход timeout и неизвестный
+server usage неудачного summary; локальный fit не закрывает эти вопросы.
 
 Проверки: обычный `python -m scripts.check`; отдельно opt-in SDK test выше.
 Общий gate: 235 passed / 14 skipped; изолированный SDK: 11 passed. Полный offline
