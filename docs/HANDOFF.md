@@ -1,5 +1,13 @@
 # Передача контекста Sol / Luna
 
+**14 октября: исправлена проверка task до измерительного запроса.** Общая
+валидация attempt/remedial/retry_of_attempt/passage_id/dependency/stage вызывается
+до request_fn в measure_then_execute_openie_task и сохраняется в прямом
+execute_openie_task. Регрессия некорректных задач подтверждает ноль callback;
+целевые executor/offline runner: 16 passed. Новых модельных запросов нет.
+PR #30 передан на полное ревью, научные формулировки согласованы карточкой
+`e818864b878ccf61af85ef16:1`; ready_for_indexing=false, issue открыта.
+
 **14 октября: исправлено should ревью dc7ae635.** SDK source и installed
 проверяются независимо по immutable Git tree/blobs `1438aba3`, до импорта
 prompt-кода; одинаковые dirty изменения отвергаются до HTTP. Регрессии и

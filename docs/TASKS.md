@@ -1,5 +1,13 @@
 # Текущая работа и критерии завершения
 
+**14 октября: исправлена проверка task до измерительного запроса.** Общая
+валидация attempt/remedial/retry_of_attempt/passage_id/dependency/stage вызывается
+до request_fn в measure_then_execute_openie_task и сохраняется в прямом
+execute_openie_task. Регрессия некорректных задач подтверждает ноль callback;
+целевые executor/offline runner: 16 passed. Новых модельных запросов нет.
+PR #30 передан на полное ревью, научные формулировки согласованы карточкой
+`e818864b878ccf61af85ef16:1`; ready_for_indexing=false, issue открыта.
+
 **14 октября: should ревью dc7ae635 закрыт.** Эталон SDK берётся из Git blobs
 закреплённого коммита, не рабочего дерева; одинаковые dirty source/installed
 регрессионно отвергаются до HTTP. Все 61 реальных SDK Python-файлов повторно
