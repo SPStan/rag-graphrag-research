@@ -30,6 +30,51 @@ Tree/save/reload и три reader-вопроса всё ещё не выполн
 эта диагностика не разрешает. PR остаётся Draft/Refs #12, научное согласование
 и принятие отклонения отдельно.
 
+### Опубликованный operator.py и команда диагностики
+
+По ревью `41b64eee` доступна [обезличенная копия operator.py](operators/operator.py).
+Это исторический одноразовый оператор, не библиотечный модуль: код выполняется
+при запуске/импорте. От выполненного private operator отличаются **только**:
+
+1. Личный абсолютный путь `.env` заменён на `TARGET_API_ENV_FILE`.
+2. `ROOT.parents[1]` заменён на `ROOT.parents[2]` из-за расположения в `docs/operators`.
+
+Остальные инструкции совпадают, включая claim до HTTP, отсутствие циклов,
+один `session.post`, timeout 5/300, retry=0, redirects off, reservation <=5000,
+cap512, durable journal и сохранение prior unknown в aggregate. Исторический
+SHA в исходных raw/summary остаётся прежним; публичная версия не объявляется
+побитовым оригиналом:
+
+```text
+historical operator.py SHA256 23d4d21262f0e9cf8fa9135f0dd22e3810be55f303b1a2beaeca01150ae4a299
+published operator.py SHA256  86b9712bc79794db53e4de0ce75e0a68d8f3f6d6563afca0c9b4adb94db4028e
+```
+
+Команда для обезличенной версии (требует исходные private prior/raw и settings;
+ключ в команду не вставляется):
+
+```powershell
+$env:TARGET_API_ENV_FILE = '<data-root>/<env-file>'
+.venv-check/Scripts/python.exe docs/operators/operator.py
+```
+
+Это команда **отправки** исторической диагностики, не разрешение повторять её.
+В нашей worktree claim уже израсходован: повтор завершается `FileExistsError`
+до HTTP. Не удалять claim и при переносе prior переносить его вместе с файлами;
+это локальная защита, не серверная идемпотентность. В другой worktree без private
+prior команда также не может выполнить запрос. Для проверки кода без API:
+
+```powershell
+.venv-check/Scripts/python.exe -m pytest tests/test_raptor_summary_operator.py -q
+```
+
+Тесты исполняют именно опубликованный файл с fake HTTP и отдельным временным
+prior: один POST и отказ повтора, timeout/missing usage с неполным итогом,
+SHA/budget guards до HTTP, отказ retry adapter. Исходные raw/claim не затрагиваются.
+Реальное дерево/три reader-вопроса не выполнены. Продолжение при неизвестном
+historical usage и актуальные O1/N1/R1/H1 должны быть согласованы отдельно;
+решение куратора не подменяется просьбой пользователя о разовом resend.
+
 ## Уточнение контракта 14 октября
 
 Пользователь сообщил: общий context 262144 токена, output до остатка окна,
