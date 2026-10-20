@@ -1,5 +1,11 @@
 # Текущая работа и критерии завершения
 
+**20октября: продолжение #13 после remote disconnect.** Сохранены1560 passages,
+3293 verified responses; расход оборванного POST неизвестен, резерв7922.
+Один дочерний Hippo Mu run с replay/новой папкой; прежний20M за вычетом known и
+резерва, остаток17150781. Остальные pending строки — из network plan, готовый
+Dense не повторяется. [Протокол](E1_INDEXING.md). Никаких E2/merge автоматически.
+
 **E1 status:** 2/6 indexes completed; physical known tokens=4301994; cost_complete=False. Last stage=hipporag2/musique. Raw/indexes remain local. PR Draft; E2 requires all six verified indexes.
 
 ## Активный блок20октября — #13: шесть индексов и E1

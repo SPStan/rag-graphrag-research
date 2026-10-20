@@ -1,5 +1,13 @@
 # Передача контекста Sol / Luna
 
+**20октября: ограниченное продолжение HippoRAG MuSiQue после RemoteDisconnected.**
+Первый run failed,1560 passages/3293 verified responses сохранены. Новая папка,
+replay по SHA и физическому usage; unknown7922 reserved, known2841297, остаток
+17150781 из прежних20M. Connection:close/retry0, один canonical claim; при новой
+ошибке стоп. [Протокол/команда](E1_INDEXING.md#продолжение-после-remotedisconnected).
+Готовые Dense не повторять; после Hippo Mu идут оставшиеся3конфигурации. Пока
+реальных шести готовых индексов нет — #13 открыта, PR #33 Draft, E2 блокирован.
+
 **E1 status:** 2/6 indexes completed; physical known tokens=4301994; cost_complete=False. Last stage=hipporag2/musique. Raw/indexes remain local. PR Draft; E2 requires all six verified indexes.
 
 **20 октября: активна #13, E1 на полном корпусе.** #31 слит eab5606, #12

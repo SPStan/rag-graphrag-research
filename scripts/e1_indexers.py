@@ -36,6 +36,7 @@ def raptor_index(corpus, transport, directory, source):
         not in (
             target.digest(transport.plan),
             transport.plan.get("parent_plan", {}).get("digest"),
+            *[p["digest"] for p in transport.plan.get("lineage", [])],
         )
     ):
         raise ValueError("dense_leaf_producer_not_verified")
@@ -162,7 +163,7 @@ def hipporag_index(corpus, transport, directory, source):
             )
             # Strict original response; SDK partial-JSON recovery cannot make it valid.
             parse(operation, text, recover_partial=False)
-            return text, metadata, False
+            return text, metadata, metadata.get("cache_hit", False)
 
     class Embedding:
         embedding_dim = 1024

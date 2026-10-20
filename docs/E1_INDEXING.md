@@ -1,5 +1,48 @@
 # E1: индексы полного корпуса (#13)
 
+## Продолжение после RemoteDisconnected
+
+20октября первый HippoRAG2 MuSiQue остановлен:1560 полностью проверенных
+passages, NER следующего passage сохранён, triple POST получил ConnectionError
+(сервер закрыл соединение без ответа). Причина удалённого разрыва не установлена;
+предыдущий долгий запрос завершился успешно. Автоматического retry не было.
+Failed manifest и6592 артефакта сохранены; journal verified, полная стоимость false.
+
+Проверены **3293 успешных ответа**:172 embedding batch,1561 NER,1560 triples.
+В них известны1531342 LLM input/625395 output/684560 embedding tokens.
+GET `/models` после остановки вернул200 и целевую модель; генерация в preflight
+не выполнялась. Новый протокол: один дочерний run в новой папке, replay только
+совпадающего SHA payload при совпадающих corpus/model/digest/seed/options.
+Проверяются immutable plan lineage, manifest/artifact SHA, physical attempt,
+response usage и checkpoint; оборванный ответ не попадает в кэш.
+
+Резерв неизвестного POST **7922** восстановлен из checkpoint до HTTP.
+Из20M вычитаются2841297 известных +7922 reserved; новый лимит **17150781**.
+Unknown не превращается в измеренный расход. Суммарные E1 known/attempts/time
+включают первый run; cost_complete остаётся false. Проверенная стоимость одного
+ответа не означает полную стоимость его producer run: cache hits сохраняют
+producer_usage_complete=false, соответствующее ограничение наследуется.
+
+Для новых remote POST задан `Connection: close`, чтобы не использовать старое
+keep-alive соединение. Это мера против возможного stale connection, а не
+подтверждение причины отказа. Transport retry0/timeout5/300/redirects=false прежние.
+При новой ошибке остановка; второй child по тому же prior запрещает claim рядом
+с каноническим failed manifest. Исторические файлы/планы не переписываются.
+
+```powershell
+$dataRoot = '<data-root>'
+$envFile = '<data-root>/<env-file>'
+$prior = "$dataRoot/indexes/e1/issue13-continuation-plan.json"
+$plan = "$dataRoot/indexes/e1/issue13-network-plan.json"
+./.venv-check/Scripts/python.exe -m scripts.run_e1 network-resume --prior-plan $prior --plan $plan
+& '<hipporag-venv>/Scripts/python.exe' -m scripts.run_e1 run --plan $plan --env-file $envFile --method hipporag2 --dataset musique --source '<pinned-hipporag-source>'
+# После успешного завершения — оставшиеся Hippo HotpotQA/RAPTOR строки этого plan.
+```
+
+Готовые Dense строки остаются прежними. RAPTOR проверяет producer Dense по всей
+цепочке закреплённых планов. Corpus, scientific O/N/R/H и общий потолок68M не меняются.
+Техническое продолжение не объявляется новым согласованием куратора.
+
 ## Протокол до запуска
 
 Три метода × MuSiQue/HotpotQA, по **5500 пассажей** из закреплённого
@@ -122,6 +165,8 @@ $plan = "$dataRoot/indexes/e1/issue13-plan.json"
 Сводки: `results/summary/e1-indexing.json` и `.md`.
 JSON содержит run ID, параметры, provenance, index path, per-operation суммы,
 физические POST, время, полноту и SHA private manifest со всеми artifact SHA.
+Для продолжения таблица показывает cumulative_seconds обоих run; новые физические
+затраты и полная цепочка сохраняются отдельно в JSON.
 Pending/failed не являются готовыми индексами. После ошибки команда не повторяется
 до разбора причины и отдельного решения о продолжении с сохранённым расходом.
 

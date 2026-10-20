@@ -121,6 +121,163 @@ def test_dense_reload_covers_ids(tmp_path):
     assert result == {"passages": 1, "dimension": 1024, "reload_model_calls": 0}
 
 
+def failed_remote_fixture(tmp_path):
+    directory = tmp_path / "indexes/e1/batch/hipporag2/musique"
+    directory.mkdir(parents=True)
+    original = {
+        "kind": "E1_full_corpus_indexing",
+        "batch_id": "batch",
+        "data_root": str(tmp_path),
+        "workspace": str(tmp_path.resolve()),
+        "model": "qwen",
+        "endpoint": "https://example.invalid/v1",
+        "embedding_model": "bge-m3:latest",
+        "embedding_digest": "digest",
+        "parameters": e1.PARAMETERS,
+        "combined_token_limit": 68000000,
+        "rows": [
+            {
+                "method": m,
+                "dataset": d,
+                "run_id": f"{m}-{d}",
+                "code_commit": "old",
+                "token_limit": e1.LIMITS[m],
+                "output": f"indexes/e1/batch/{m}/{d}",
+            }
+            for m in e1.METHODS
+            for d in e1.DATASETS
+        ],
+    }
+    row = original["rows"][2]
+    journal = Journal(
+        directory / "usage.jsonl",
+        run_id=row["run_id"],
+        method="hipporag2",
+        dataset="musique",
+    )
+    session = requests.Session()
+    body = {
+        "choices": [
+            {
+                "finish_reason": "stop",
+                "message": {"content": '{"named_entities":["Alice"]}'},
+            }
+        ],
+        "usage": {"prompt_tokens": 10, "completion_tokens": 5},
+    }
+    response = Mock(status_code=200)
+    response.json.return_value = body
+    session.post = Mock(return_value=response)
+    runner = e1.Transport(
+        original, row, {"LITELLM_API_KEY": "test-secret"}, directory, journal, session
+    )
+    messages = [{"role": "user", "content": "NER passage"}]
+    runner.generate(messages, 1024, "openie_ner")
+    session.post.side_effect = requests.ConnectionError("RemoteDisconnected")
+    with pytest.raises(requests.ConnectionError):
+        runner.generate(
+            [{"role": "user", "content": "triples passage"}], 3072, "openie_triples"
+        )
+    manifest = {
+        "status": "failed",
+        "run_id": row["run_id"],
+        "seconds": 1,
+        "token_accounting": journal.reference(),
+        "artifacts": {
+            p.relative_to(directory).as_posix(): dense.sha256_file(p)
+            for p in directory.rglob("*")
+            if p.is_file()
+        },
+    }
+    dense.write_json_atomic(directory / "manifest.json", manifest)
+    path = tmp_path / "prior-plan.json"
+    dense.write_json_atomic(path, original)
+    return path, directory, messages
+
+
+def test_network_resume_cache_budget_unknown_and_single_claim(tmp_path):
+    prior, parent, messages = failed_remote_fixture(tmp_path)
+    old_manifest_sha = dense.sha256_file(parent / "manifest.json")
+    with (
+        patch.object(e1, "ROOT", tmp_path),
+        patch.object(e1, "code_dirty", return_value=False),
+        patch.object(e1, "git", return_value="new"),
+    ):
+        plan = e1.network_resume_plan(prior)
+        row = plan["rows"][2]
+        assert row["verified_response_cache_count"] == 1
+        assert row["prior_run"]["summary"]["complete"] is False
+        assert row["token_limit"] + row["prior_budget_charge"] == 20000000
+        assert row["prior_budget_charge"] > 15
+        assert dense.sha256_file(parent / "manifest.json") == old_manifest_sha
+        with pytest.raises(FileExistsError):
+            e1.network_resume_plan(prior)
+        directory = tmp_path / row["output"]
+        directory.mkdir(parents=True)
+        journal = Journal(
+            directory / "usage.jsonl",
+            run_id=row["run_id"],
+            method="hipporag2",
+            dataset="musique",
+        )
+        session = requests.Session()
+        response = Mock(status_code=200)
+        response.json.return_value = {
+            "choices": [
+                {"finish_reason": "stop", "message": {"content": '{"triples":[]}'}}
+            ],
+            "usage": {"prompt_tokens": 20, "completion_tokens": 7},
+        }
+        session.post = Mock(return_value=response)
+        runner = e1.Transport(
+            plan, row, {"LITELLM_API_KEY": "test-secret"}, directory, journal, session
+        )
+        _, metadata = runner.generate(messages, 1024, "openie_ner")
+        assert metadata["cache_hit"] is True
+        session.post.assert_not_called()
+        assert journal.summary()["attempts"] == 0
+        assert journal.summary()["historical_cache_cost_complete"] is False
+        triples = [{"role": "user", "content": "triples passage"}]
+        runner.generate(triples, 3072, "openie_triples")
+        runner.generate(triples, 3072, "openie_triples")
+        assert session.post.call_count == 1
+        assert session.post.call_args.kwargs["headers"]["Connection"] == "close"
+        assert journal.summary()["known_subtotal"]["llm_input_tokens"] == 20
+        assert journal.summary()["attempts"] == 1
+        (tmp_path / "results/summary").mkdir(parents=True)
+        result = e1.export(plan, prior)
+        assert result["physical_known_tokens"] == 42
+        assert result["cost_complete"] is False
+        assert result["rows"][2]["cumulative_accounting"]["complete"] is False
+
+
+def test_changed_parent_response_rejected_before_http(tmp_path):
+    prior, parent, _ = failed_remote_fixture(tmp_path)
+    with (
+        patch.object(e1, "ROOT", tmp_path),
+        patch.object(e1, "code_dirty", return_value=False),
+        patch.object(e1, "git", return_value="new"),
+    ):
+        plan = e1.network_resume_plan(prior)
+        next((parent / "requests").glob("*.response.json")).write_text(
+            "{}", encoding="utf-8"
+        )
+        row = plan["rows"][2]
+        directory = tmp_path / row["output"]
+        directory.mkdir(parents=True)
+        journal = Journal(
+            directory / "usage.jsonl",
+            run_id=row["run_id"],
+            method="hipporag2",
+            dataset="musique",
+        )
+        session = requests.Session()
+        session.post = Mock()
+        with pytest.raises(ValueError, match="artifact_changed"):
+            e1.Transport(plan, row, {}, directory, journal, session)
+        session.post.assert_not_called()
+
+
 def test_local_failure_continuation_preserves_unknown_and_shared_claim(tmp_path):
     corpus = [{"id": str(i), "title": "Title", "text": f"text {i}"} for i in range(33)]
     rows = [
@@ -384,7 +541,11 @@ def test_real_raptor_sdk_index_reuses_dense_and_reloads(tmp_path):
             return "A short summary of the clustered research passages.", {}
 
     runner = Fake()
-    runner.plan = {**plan, "parent_plan": {"digest": e1.target.digest(plan)}}
+    runner.plan = {
+        **plan,
+        "parent_plan": {"digest": "another-plan"},
+        "lineage": [{"digest": e1.target.digest(plan)}],
+    }
     with (
         patch.object(e1_indexers, "ROOT", tmp_path),
         patch("requests.Session.request", side_effect=AssertionError("HTTP forbidden")),

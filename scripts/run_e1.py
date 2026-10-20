@@ -16,7 +16,12 @@ from dotenv import dotenv_values
 
 from scripts import run_dense as dense
 from scripts import run_dense_target as target
-from scripts.token_accounting import Journal, read_records
+from scripts.token_accounting import (
+    Journal,
+    extract_usage,
+    read_records,
+    verified_reference,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 METHODS = ("dense", "hipporag2", "raptor")
@@ -42,6 +47,7 @@ PARAMETERS = {
     "target_context": 262144,
     "thinking": False,
     "embedding_pacing_seconds_per_text": 0.1,
+    "target_connection_close": True,
 }
 
 
@@ -127,6 +133,9 @@ def make_plan(data_root, config, embedding_digest):
 
 
 def verify_plan(plan, row, config):
+    for item in plan.get("lineage", []):
+        if dense.sha256_file(Path(item["path"])) != item["sha256"]:
+            raise ValueError("lineage_plan_changed")
     if (
         plan.get("parent_plan")
         and dense.sha256_file(Path(plan["parent_plan"]["path"]))
@@ -150,7 +159,13 @@ def verify_plan(plan, row, config):
         or sorted(combinations) != sorted((m, d) for m in METHODS for d in DATASETS)
         or row["output"]
         != f"indexes/e1/{plan['batch_id']}/{row['method']}/{row['dataset']}"
-        + ("-continuation1" if row.get("prior_run") else "")
+        + (
+            "-network1"
+            if row.get("resume_from")
+            else "-continuation1"
+            if row.get("prior_run")
+            else ""
+        )
     ):
         raise ValueError("E1_plan_or_code_mismatch")
     response = requests.get("http://localhost:11434/api/tags", timeout=10)
@@ -195,6 +210,14 @@ class Transport:
         self.calls.mkdir(exist_ok=True)
         self.logical_calls = 0
         self.last_embedding_started = 0.0
+        self.last_cache_hit = False
+        self.parent_cache = {}
+        self.replayed_count = 0
+        if row.get("resume_from"):
+            parent = ROOT / row["resume_from"]["output"] / "manifest.json"
+            if dense.sha256_file(parent) != row["resume_from"]["manifest_sha256"]:
+                raise ValueError("resume_manifest_changed")
+            self.parent_cache, _, _ = verified_checkpoints(parent)
 
     def call(self, payload, *, kind, operation):
         key = target.digest({"payload": payload, "kind": kind, "operation": operation})
@@ -203,6 +226,30 @@ class Transport:
         summary = self.journal.summary()
         if not summary["complete"] or any(p["errors"] for p in summary["phases"]):
             raise ValueError("incomplete_or_failed_journal_cannot_continue")
+        if key in self.parent_cache and not checkpoint.exists():
+            item = self.parent_cache[key]
+            if item["operation"] != operation or item["kind"] != kind:
+                raise ValueError("parent_checkpoint_kind_mismatch")
+            if dense.sha256_file(item["path"]) != item["sha256"]:
+                raise ValueError("parent_response_changed")
+            self.journal.cache_hit(
+                phase="index",
+                operation=operation,
+                provider=item["provider"],
+                model=item["model"],
+                kind=kind,
+                object_id=key,
+                producer_run_id=item["run_id"],
+                producer_usage_complete=item["producer_complete"],
+            )
+            self.last_cache_hit = True
+            self.replayed_count += 1
+            if self.replayed_count % 250 == 0:
+                print(
+                    f"Verified response replay: {self.replayed_count}/{len(self.parent_cache)}",
+                    flush=True,
+                )
+            return dense.read_json(item["path"])
         if checkpoint.exists():
             saved = dense.read_json(checkpoint)
             records = read_records(self.journal.path)
@@ -243,6 +290,7 @@ class Transport:
                 producer_run_id=self.row.get("run_id", self.journal.run_id),
                 producer_usage_complete=True,
             )
+            self.last_cache_hit = True
             return dense.read_json(response)
         # UTF-8 byte upper bound plus framing and output reservation, before HTTP.
         input_bound = len(json.dumps(payload, ensure_ascii=False).encode()) + 2048
@@ -257,6 +305,7 @@ class Transport:
         saved["reserved_tokens"] = input_bound + payload.get("max_tokens", 0)
         dense.write_json_atomic(checkpoint, saved)
         remote = kind == "llm"
+        self.last_cache_hit = False
         if not remote:
             delay = len(payload["input"]) * PARAMETERS[
                 "embedding_pacing_seconds_per_text"
@@ -277,7 +326,10 @@ class Transport:
             model=self.plan["model"] if remote else self.plan["embedding_model"],
             kind=kind,
             object_id=key,
-            headers={"Authorization": f"Bearer {self.config['LITELLM_API_KEY']}"}
+            headers={
+                "Authorization": f"Bearer {self.config['LITELLM_API_KEY']}",
+                "Connection": "close",
+            }
             if remote
             else None,
             response_path=response,
@@ -334,7 +386,59 @@ class Transport:
         return body["choices"][0]["message"]["content"], {
             **body["usage"],
             "finish_reason": body["choices"][0]["finish_reason"],
+            "cache_hit": self.last_cache_hit,
         }
+
+
+def verified_checkpoints(manifest_path):
+    """Verify successful physical responses individually; never reuse a failed one."""
+    manifest = dense.read_json(manifest_path)
+    reference = verified_reference(manifest, manifest_path)
+    if reference["status"] != "verified":
+        raise ValueError("resume_journal_not_intact")
+    for name, sha in manifest["artifacts"].items():
+        if dense.sha256_file(manifest_path.parent / name) != sha:
+            raise ValueError("resume_artifact_changed")
+    records = read_records(reference["path"])
+    finished = {r["attempt_id"]: r for r in records if r["event"] == "finished"}
+    cache, failures = {}, []
+    for row in (r for r in records if r["event"] == "started"):
+        terminal = finished.get(row["attempt_id"])
+        if terminal is None or terminal.get("cache_hit"):
+            raise ValueError("resume_requires_terminal_physical_attempts")
+        key = row["object_id"]
+        checkpoint = manifest_path.parent / "requests" / f"{key}.json"
+        saved = dense.read_json(checkpoint)
+        if saved["request_sha256"] != key or saved["operation"] != row["operation"]:
+            raise ValueError("resume_checkpoint_identity_mismatch")
+        if terminal["status"] != "success":
+            failures.append((row, terminal, saved))
+            continue
+        response = checkpoint.with_name(f"{key}.response.json")
+        if (
+            saved["status"] != "complete"
+            or dense.sha256_file(response) != saved["response_sha256"]
+            or terminal["usage_status"] != "complete"
+        ):
+            raise ValueError("resume_success_checkpoint_invalid")
+        body = dense.read_json(response)
+        usage = extract_usage(body, row["kind"], row["provider"])
+        if any(terminal[field] != value for field, value in usage.items()):
+            raise ValueError("resume_response_usage_mismatch")
+        if key in cache:
+            raise ValueError("duplicate_resume_physical_request")
+        cache[key] = {
+            "path": response,
+            "sha256": saved["response_sha256"],
+            "run_id": row["run_id"],
+            "operation": row["operation"],
+            "kind": row["kind"],
+            "provider": row["provider"],
+            "model": row["model"],
+            # The response has complete usage, but the producing RUN has one unknown.
+            "producer_complete": reference["summary"]["complete"],
+        }
+    return cache, failures, reference
 
 
 def dense_index(corpus, transport, directory):
@@ -444,7 +548,7 @@ def export(plan, plan_path):
             "historical_cache_cost_complete", False
         )
         lines.append(
-            f"| {row['method']} | {row['dataset']} | {row['status']} | {known.get('llm_input_tokens', '—')}/{known.get('llm_output_tokens', '—')} | {known.get('embedding_input_tokens', '—')} (+cache {row.get('reused_leaf_build_cost', {}).get('embedding_input_tokens', 0)}) | {usage.get('attempts', '—')} | {row.get('seconds', '—')} | {completeness} | {row['run_id']} / `{row['output']}` |"
+            f"| {row['method']} | {row['dataset']} | {row['status']} | {known.get('llm_input_tokens', '—')}/{known.get('llm_output_tokens', '—')} | {known.get('embedding_input_tokens', '—')} (+cache {row.get('reused_leaf_build_cost', {}).get('embedding_input_tokens', 0)}) | {usage.get('attempts', '—')} | {row.get('cumulative_seconds', row.get('seconds', '—'))} | {completeness} | {row['run_id']} / `{row['output']}` |"
         )
     (ROOT / "results/summary/e1-indexing.md").write_text(
         "\n".join(lines) + "\n", encoding="utf-8"
@@ -567,6 +671,111 @@ def continuation_plan(prior_path):
     return plan
 
 
+def network_resume_plan(prior_path):
+    """One explicitly initiated continuation after a recorded remote disconnect."""
+    original = dense.read_json(prior_path)
+    if original.get("network_resume") or code_dirty():
+        raise ValueError("network_resume_requires_clean_original_stage")
+    plan = copy.deepcopy(original)
+    lineage, cursor, cursor_path = [], original, Path(prior_path)
+    while True:
+        descriptor = {
+            "path": str(cursor_path.resolve()),
+            "sha256": dense.sha256_file(cursor_path),
+            "digest": target.digest(cursor),
+        }
+        if descriptor["path"] in {p["path"] for p in lineage}:
+            raise ValueError("plan_lineage_cycle")
+        lineage.append(descriptor)
+        for key in ("model", "endpoint", "embedding_model", "embedding_digest"):
+            if cursor[key] != original[key]:
+                raise ValueError("lineage_model_changed")
+        if not cursor.get("parent_plan"):
+            break
+        parent = cursor["parent_plan"]
+        cursor_path = Path(parent["path"])
+        if dense.sha256_file(cursor_path) != parent["sha256"]:
+            raise ValueError("lineage_plan_changed")
+        cursor = dense.read_json(cursor_path)
+        if target.digest(cursor) != parent["digest"]:
+            raise ValueError("lineage_plan_digest_mismatch")
+    failed = []
+    for row in plan["rows"]:
+        manifest_path = ROOT / row["output"] / "manifest.json"
+        manifest = dense.read_json(manifest_path) if manifest_path.exists() else {}
+        if manifest.get("status") == "completed":
+            continue
+        if manifest.get("status") not in (None, "failed"):
+            raise ValueError("stage_must_be_stopped_before_network_resume")
+        row["code_commit"] = git("rev-parse", "HEAD")
+        if manifest.get("status") != "failed":
+            continue
+        if (row["method"], row["dataset"]) != ("hipporag2", "musique") or row.get(
+            "prior_run"
+        ):
+            raise ValueError("network_resume_scope_is_first_Hippo_MuSiQue_failure")
+        cache, errors, reference = verified_checkpoints(manifest_path)
+        if len(errors) != 1:
+            raise ValueError("network_resume_requires_one_error")
+        started, finished, checkpoint = errors[0]
+        if (
+            started["kind"] != "llm"
+            or started["provider"] != "target_api"
+            or finished["error_code"] != "ConnectionError"
+            or finished["usage_status"] != "unknown"
+        ):
+            raise ValueError("network_resume_requires_recorded_connection_error")
+        bound = checkpoint.get("reserved_tokens")
+        if type(bound) is not int or not 0 < bound <= PARAMETERS["target_context"]:
+            raise ValueError("unknown_request_reservation_missing")
+        known = sum(reference["summary"]["known_subtotal"].values())
+        if known + bound >= row["token_limit"]:
+            raise ValueError("no_remaining_network_resume_budget")
+        row["prior_run"] = {
+            "run_id": row["run_id"],
+            "output": row["output"],
+            "manifest_sha256": dense.sha256_file(manifest_path),
+            "summary": reference["summary"],
+            "unknown_reserved_upper_bound": bound,
+            "reason": "Remote disconnected without response; preserve unknown, reuse verified successful responses, one bounded continuation with fresh target connections.",
+        }
+        row["resume_from"] = {
+            key: row["prior_run"][key] for key in ("output", "manifest_sha256")
+        }
+        row["prior_budget_charge"] = known + bound
+        row["token_limit"] -= known + bound
+        row["run_id"] = str(uuid.uuid4())
+        row["output"] += "-network1"
+        row["verified_response_cache_count"] = len(cache)
+        failed.append((manifest_path, row["run_id"]))
+    if len(failed) != 1:
+        raise ValueError("expected_one_failed_network_stage")
+    manifest_path, child_id = failed[0]
+    with (manifest_path.parent / "network-resume-once.claim.json").open(
+        "x", encoding="utf-8"
+    ) as stream:
+        json.dump(
+            {
+                "parent_plan_sha256": dense.sha256_file(prior_path),
+                "child_run_id": child_id,
+            },
+            stream,
+        )
+        stream.flush()
+        os.fsync(stream.fileno())
+    plan.update(
+        parent_plan=lineage[0],
+        lineage=lineage,
+        network_resume=True,
+        parameters=PARAMETERS,
+        combined_token_limit=sum(r["token_limit"] for r in plan["rows"]),
+        original_combined_token_limit=original.get(
+            "original_combined_token_limit", original["combined_token_limit"]
+        ),
+    )
+    return plan
+
+
 def seal_unstarted_plan(path):
     """Rebind a rejected preflight to clean code before any new HTTP."""
     plan = dense.read_json(path)
@@ -681,7 +890,16 @@ def execute(plan, row, config, source=None):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "command", choices=("prepare", "continue", "seal", "run", "report", "verify")
+        "command",
+        choices=(
+            "prepare",
+            "continue",
+            "network-resume",
+            "seal",
+            "run",
+            "report",
+            "verify",
+        ),
     )
     parser.add_argument("--plan", type=Path, required=True)
     parser.add_argument("--data-root", type=Path)
@@ -713,6 +931,16 @@ def main():
         if args.plan.resolve() != canonical.resolve() or args.plan.exists():
             raise ValueError("continuation_requires_unused_canonical_plan")
         plan = continuation_plan(args.prior_plan)
+        with args.plan.open("x", encoding="utf-8") as stream:
+            json.dump(plan, stream, ensure_ascii=False, indent=2)
+    elif args.command == "network-resume":
+        canonical = (
+            Path(dense.read_json(args.prior_plan)["data_root"])
+            / "indexes/e1/issue13-network-plan.json"
+        )
+        if args.plan.resolve() != canonical.resolve() or args.plan.exists():
+            raise ValueError("network_resume_requires_unused_canonical_plan")
+        plan = network_resume_plan(args.prior_plan)
         with args.plan.open("x", encoding="utf-8") as stream:
             json.dump(plan, stream, ensure_ascii=False, indent=2)
     elif args.command == "seal":
