@@ -1,5 +1,7 @@
 # Передача контекста Sol / Luna
 
+**E1 status:** 2/6 indexes completed; physical known tokens=6403763; cost_complete=False. Last stage=raptor/musique. Raw/indexes remain local. PR Draft; E2 requires all six verified indexes.
+
 **21октября: Hippo Mu остановлен на2329/5500.** Исходный и corrective ответы
 снова повторяют4 triples до length3072; обе попытки известны (8273 tokens).
 Третьего запроса нет. Планируется независимый RAPTOR ×2 с прежними Dense/cache,

@@ -1,6 +1,6 @@
 {
   "batch_id": "edff74df-c567-49de-a834-f9f1fc6f7f74",
-  "plan_sha256": "1efe3e37ddeccd056bbfac7315354607c083ffbad6c7cd13ff1def78cda56b21",
+  "plan_sha256": "11b1c4e45cbee629ae5e0b3d3390d1d03c99db57bca5f992d599f16c2b8312e8",
   "models": {
     "model": "iairlab/qwen3.8-27b",
     "embedding_model": "bge-m3:latest",
@@ -911,10 +911,162 @@
         }
       },
       "corpus_fingerprint": "f726a739ff0def6f7517fe3185780fdc21e5d51a2cfcd83ce3f18fba277c9f9a",
-      "code_commit": "cec3cc026101be7a2cefb314627215f52d438f15",
+      "code_commit": "460fc400f2a69155d17ae2401446d167cd1e0e8d",
       "token_limit": 12000000,
       "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/raptor/musique",
-      "status": "pending",
+      "status": "failed",
+      "seconds": 3665.399,
+      "plan_sha256": "952bf729820e0ac2b03a795bda3222309c4acdc0a92d6f7312198f2898e97fc5",
+      "error_type": "HTTPError",
+      "token_accounting": {
+        "journal_file": "usage.jsonl",
+        "journal_sha256": "9a38bdfc1108520bcd3a1aaff07204ed8a15b188826c2a4a4fd775450d78149b",
+        "summary": {
+          "schema_version": 1,
+          "phases": [
+            {
+              "phase": "index",
+              "provider": "local_ollama",
+              "attempts": 501,
+              "errors": 1,
+              "unfinished": 0,
+              "cache_hits": 5500,
+              "cache_provenance_unknown": 0,
+              "known_subtotal": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 336446
+              },
+              "unknown_fields": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 1
+              },
+              "complete": false,
+              "total": null
+            },
+            {
+              "phase": "index",
+              "provider": "target_api",
+              "attempts": 501,
+              "errors": 0,
+              "unfinished": 0,
+              "cache_hits": 0,
+              "cache_provenance_unknown": 0,
+              "known_subtotal": {
+                "llm_input_tokens": 347055,
+                "llm_output_tokens": 333441,
+                "embedding_input_tokens": 0
+              },
+              "unknown_fields": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 0
+              },
+              "complete": true,
+              "total": {
+                "llm_input_tokens": 347055,
+                "llm_output_tokens": 333441,
+                "embedding_input_tokens": 0
+              }
+            }
+          ],
+          "known_subtotal": {
+            "llm_input_tokens": 347055,
+            "llm_output_tokens": 333441,
+            "embedding_input_tokens": 336446
+          },
+          "complete": false,
+          "attempts": 1002,
+          "historical_cache_cost_complete": true,
+          "journal_corrupt_tail": false,
+          "corrupt_tail_bytes": 0
+        }
+      },
+      "operations": {
+        "index_embedding": {
+          "schema_version": 1,
+          "phases": [
+            {
+              "phase": "index",
+              "provider": "local_ollama",
+              "attempts": 501,
+              "errors": 1,
+              "unfinished": 0,
+              "cache_hits": 5500,
+              "cache_provenance_unknown": 0,
+              "known_subtotal": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 336446
+              },
+              "unknown_fields": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 1
+              },
+              "complete": false,
+              "total": null
+            }
+          ],
+          "known_subtotal": {
+            "llm_input_tokens": 0,
+            "llm_output_tokens": 0,
+            "embedding_input_tokens": 336446
+          },
+          "complete": false,
+          "attempts": 501,
+          "historical_cache_cost_complete": true,
+          "journal_corrupt_tail": false,
+          "corrupt_tail_bytes": 0
+        },
+        "summary": {
+          "schema_version": 1,
+          "phases": [
+            {
+              "phase": "index",
+              "provider": "target_api",
+              "attempts": 501,
+              "errors": 0,
+              "unfinished": 0,
+              "cache_hits": 0,
+              "cache_provenance_unknown": 0,
+              "known_subtotal": {
+                "llm_input_tokens": 347055,
+                "llm_output_tokens": 333441,
+                "embedding_input_tokens": 0
+              },
+              "unknown_fields": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 0
+              },
+              "complete": true,
+              "total": {
+                "llm_input_tokens": 347055,
+                "llm_output_tokens": 333441,
+                "embedding_input_tokens": 0
+              }
+            }
+          ],
+          "known_subtotal": {
+            "llm_input_tokens": 347055,
+            "llm_output_tokens": 333441,
+            "embedding_input_tokens": 0
+          },
+          "complete": true,
+          "attempts": 501,
+          "historical_cache_cost_complete": true,
+          "journal_corrupt_tail": false,
+          "corrupt_tail_bytes": 0
+        }
+      },
+      "failure_diagnostic": {
+        "operation": "index_embedding",
+        "request_sha256": "f6deb464ae50c4fb94690686d8e7b734ff8713d65e7dfa96690535ad7b395f1f",
+        "usage_status": "unknown"
+      },
+      "artifact_manifest_sha256": "88f38b941f3d9c1647ec1affad26790986bf7ba15d16edcdddae86a338f3243f",
       "cost_semantics": "Physical new cost; replay is not charged twice."
     },
     {
@@ -933,7 +1085,7 @@
         }
       },
       "corpus_fingerprint": "1d6a33346c42cd2feae5cf71eb2c145121a74712eb51a86d95205983a4477634",
-      "code_commit": "cec3cc026101be7a2cefb314627215f52d438f15",
+      "code_commit": "460fc400f2a69155d17ae2401446d167cd1e0e8d",
       "token_limit": 12000000,
       "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/raptor/hotpotqa",
       "status": "pending",
@@ -943,8 +1095,8 @@
   "combined_token_limit": 64994532,
   "complete": false,
   "limitations": "E1 measures indexing cost/coverage, not retrieval or answer quality. Historical smoke unknowns are preserved outside these new runs.",
-  "physical_known_tokens": 5386821,
+  "physical_known_tokens": 6403763,
   "cost_complete": false,
-  "budget_charge_upper_bound": 5414342,
+  "budget_charge_upper_bound": 6431284,
   "original_combined_token_limit": 68000000
 }

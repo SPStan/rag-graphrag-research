@@ -1,5 +1,7 @@
 # Текущая работа и критерии завершения
 
+**E1 status:** 2/6 indexes completed; physical known tokens=6403763; cost_complete=False. Last stage=raptor/musique. Raw/indexes remain local. PR Draft; E2 requires all six verified indexes.
+
 **21октября — #13:** исправить Gitleaks false positive SHA, проверить offline;
 затем независимый RAPTOR musique/hotpotqa по `issue13-raptor-plan.json`.
 Hippo Mu failed2329/5500: второй cycle сохранился после коррекции, третьего POST нет.
