@@ -245,3 +245,22 @@ Offline: `python -m scripts.check`. Дополнительные проверк�
 `tests/test_e1.py -k real_hipporag` с `E1_HIPPO_SOURCE` в HippoRAG среде;
 `-k real_raptor` с `E1_RAPTOR_SOURCE` в RAPTOR среде. Пропуск этих тестов в
 общем gate не означает проверку SDK.
+
+
+## Уточнение отчётности после аудита 21 октября
+
+`physical_known_tokens` — новые физические затраты с историей, без двойной оплаты
+cache hits. `physical_usage_complete` — полнота этих журналов.
+`standalone_known_subtotal` каждой строки добавляет для RAPTOR историю Dense
+producer; `standalone_cost_complete` учитывает её unknown и историческую полноту.
+Общий `cost_complete` требует полноты самостоятельных стоимостей всех строк.
+`reused_leaf_build_cost` включает известные failed-попытки producer, а не только
+последний успешный запуск. Исходные журналы при атрибуции не изменяются.
+`measured_run_seconds` — длительность текущего run; `attributed_construction_seconds`
+— сумма историй метода и производителя. Последнее не измерено как новый cold run.
+
+Offline-аудит готовится в отдельном checkout: фоновая очередь использует закреплённый
+commit. До её окончания не заменять исходники/HEAD работающего checkout.
+Существующий restore валидирует topology; новая проверка дополнительно сравнивает
+весь сериализованный round-trip. Полный E1 artifact пока не объявляется проверенным.
+Диагностика HippoRAG описана как предложение в ADR-0022; новых POST аудит не выполняет.
