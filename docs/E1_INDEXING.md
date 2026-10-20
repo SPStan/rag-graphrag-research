@@ -1,5 +1,65 @@
 # E1: индексы полного корпуса (#13)
 
+## Offline-подготовка schema-пробы — 21 октября
+
+Подготовка выполнена в отдельном audit worktree, без изменения живого runner.
+Исходные payload двух cyclic cases восстановлены из pinned prompt manager,
+исходных title/text и NER из verified response cache. SHA исходных запросов
+совпали полностью; проверен61 файл SDK против pinned Git blobs. QA gold не используется.
+
+```powershell
+$prior = '<data-root>/indexes/e1/issue13-cycle-plan.json'
+$probe = '.cache/e1-schema-probe/plan.json'
+& '<hipporag-venv>/Scripts/python.exe' -m scripts.run_e1 prepare-schema-probe --prior-plan $prior --plan $probe --source '<pinned-hipporag-source>'
+```
+
+Команда только восстанавливает/проверяет и пишет private plan; маршрута запуска
+модельных запросов в ней нет. При воспроизведении использован запрет
+`requests.Session.request`; HTTP не выполнялся. Старые raw/manifest/plan неизменны.
+Payload остаются локальными, в Git публикуются только counts/SHA:
+
+| Case | Исходный request SHA256 | Schema request SHA256 | Резерв input+output |
+|---|---|---|---:|
+| 1 | `14160c662cfc367cb21f6185a132d7f6823f019b83057b4b5fcaa03b8e9373d5` | `19df1d19e21cba63469f9fb7776caa50274cfd2f56a7d5dbbe1e837018776871` | 8679 |
+| 2 | `735c0f400433b9ab032325dcd8475d353440213d217dcec21bfab7b9f2668e06` | `b59cb5484dccf8784dc1b0dbad465be45738ee8d2e9aa278f41c6348e02d4a28` | 8990 |
+
+Private plan SHA256: `443812bb6f72c57a1f22bbe53e248a8fabfeddd1c3ca3921a53528289c5312a1`.
+В новом payload меняется только response_format: json_schema/strict с triples,
+массивом3 непустых строк на тройку и uniqueItems=true. Модель, исходные messages,
+seed/temperature/thinking и cap3072 прежние. Никакой дедупликации partial JSON.
+
+Предел предложения: **2 POST**, NER0, retry0, остановка при первом отказе.
+Общий резерв **17669** = UTF-8 bytes сериализованных payload +2048 framing/case
++3072 output/case. Это верхняя оценка guard, не измеренные server input tokens;
+дополнительные server tokens пока неизвестны. Остаток Hippo **16065954** уже
+вычитает всю известную историю и прежний unknown reserve7922. Резерв пробы
+не прибавляется к physical_known_tokens до реальных ответов.
+
+Локальный валидатор отвергает length, неизвестный usage, partial JSON,
+дубли JSON fields/triples, лишние поля, неверную длину и пустые элементы.
+Семантическая поддержанность проверяется отдельно по passage. Успех2/2 не
+доказывает серверный enforcement uniqueItems и не разрешает полный rebuild.
+Синтаксис схемы проверен `jsonschema.Draft202012Validator.check_schema` в SDK-среде;
+локальные uniqueItems и длина tuple также проверены. Это не проверка backend.
+
+Статус: **подготовлено offline; отдельное согласие на эту пробу получено21октября**.
+Запуск отложен до завершения фоновой очереди и интеграции offline-исправлений в
+живую копию. Команда запрещает запуск из отдельного audit checkout либо при
+running manifest/lock индексатора. План сверяется повторной offline-реконструкцией;
+SHA согласованного private plan передаётся явно. Canonical claim при failed prior
+сохраняется после ошибки/аварии и запрещает второй запуск из другого каталога.
+
+```powershell
+# Только после остановки всей очереди, интеграции и offline gate в живой копии.
+& '<hipporag-venv>/Scripts/python.exe' -m scripts.run_e1 run-schema-probe --plan '<audit-worktree>/.cache/e1-schema-probe/plan.json' --prior-plan $prior --source '<pinned-hipporag-source>' --env-file '<data-root>/<env-file>' --approved-probe-sha256 443812bb6f72c57a1f22bbe53e248a8fabfeddd1c3ca3921a53528289c5312a1
+```
+
+Результат сохраняется отдельно в `hipporag2/musique-schema-probe1` с raw,
+journal, manifest/artifact SHA и full_index_authorized=false. Экспорт E1 добавляет
+физические попытки диагностики к Hippo history ровно один раз, включая unknown;
+их резерв отмечен отдельно от measured usage. Число triples не подтверждает факты:
+semantic_support остаётся not_reviewed до отдельной проверки по исходному passage.
+
 ## 21 октября: повторный цикл и независимый RAPTOR
 
 Cycle child остановлен после2329/5500 проверенных passages. На другом passage
