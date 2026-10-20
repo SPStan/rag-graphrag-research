@@ -1,5 +1,7 @@
 # Текущая работа и критерии завершения
 
+**E1 status:** 2/6 indexes completed; physical known tokens=4301994; cost_complete=False. Last stage=hipporag2/musique. Raw/indexes remain local. PR Draft; E2 requires all six verified indexes.
+
 ## Активный блок20октября — #13: шесть индексов и E1
 
 #10/#11/#12 закрыты. Ветка codex/e1-indexing от eab5606; scope до10файлов.

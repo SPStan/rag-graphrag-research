@@ -1,5 +1,7 @@
 # Передача контекста Sol / Luna
 
+**E1 status:** 2/6 indexes completed; physical known tokens=4301994; cost_complete=False. Last stage=hipporag2/musique. Raw/indexes remain local. PR Draft; E2 requires all six verified indexes.
+
 **20 октября: активна #13, E1 на полном корпусе.** #31 слит eab5606, #12
 закрыта; полного независимого технического ревью перед merge не было из-за
 недоступного diff шлюза. Новый блок: [протокол E1](E1_INDEXING.md), шесть

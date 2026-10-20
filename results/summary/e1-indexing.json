@@ -1,6 +1,6 @@
 {
   "batch_id": "edff74df-c567-49de-a834-f9f1fc6f7f74",
-  "plan_sha256": "cd0f638de8898743bab4e2c251fb7531cb2638e801d47dc8639e3421bb6cebcd",
+  "plan_sha256": "f3049921fb30be3e607578ca3f990a743402678fbe7cfcc8d192af0ddf7e11f6",
   "models": {
     "model": "iairlab/qwen3.8-27b",
     "embedding_model": "bge-m3:latest",
@@ -162,7 +162,7 @@
         }
       },
       "corpus_fingerprint": "1d6a33346c42cd2feae5cf71eb2c145121a74712eb51a86d95205983a4477634",
-      "code_commit": "04fe3b27c702db2bbe70dde8a04a0abc02529410",
+      "code_commit": "c61a025808d6196ddfa10c1422e2827f71b52898",
       "token_limit": 1971068,
       "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/dense/hotpotqa-continuation1",
       "prior_run": {
@@ -209,14 +209,107 @@
         "reason": "Local Ollama internal /tokenize socket exhaustion; endpoint allocations recovered during inspection. Add per-text pacing, one fresh attempt, preserve unknown."
       },
       "prior_budget_charge": 28932,
-      "status": "pending",
+      "status": "completed",
+      "seconds": 554.552,
+      "plan_sha256": "d8ca9a51107a17343d358574c01a783ec069a0fcb31f08089a12f61e60448385",
+      "validation": {
+        "passages": 5500,
+        "dimension": 1024,
+        "reload_model_calls": 0
+      },
+      "token_accounting": {
+        "journal_file": "usage.jsonl",
+        "journal_sha256": "3e504645d46a6f54f734e44c356d1f7ef3e84f4b1aca74785f8e171569c7dba3",
+        "summary": {
+          "schema_version": 1,
+          "phases": [
+            {
+              "phase": "index",
+              "provider": "local_ollama",
+              "attempts": 172,
+              "errors": 0,
+              "unfinished": 0,
+              "cache_hits": 0,
+              "cache_provenance_unknown": 0,
+              "known_subtotal": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 766804
+              },
+              "unknown_fields": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 0
+              },
+              "complete": true,
+              "total": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 766804
+              }
+            }
+          ],
+          "known_subtotal": {
+            "llm_input_tokens": 0,
+            "llm_output_tokens": 0,
+            "embedding_input_tokens": 766804
+          },
+          "complete": true,
+          "attempts": 172,
+          "historical_cache_cost_complete": true,
+          "journal_corrupt_tail": false,
+          "corrupt_tail_bytes": 0
+        }
+      },
+      "operations": {
+        "index_embedding": {
+          "schema_version": 1,
+          "phases": [
+            {
+              "phase": "index",
+              "provider": "local_ollama",
+              "attempts": 172,
+              "errors": 0,
+              "unfinished": 0,
+              "cache_hits": 0,
+              "cache_provenance_unknown": 0,
+              "known_subtotal": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 766804
+              },
+              "unknown_fields": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 0
+              },
+              "complete": true,
+              "total": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 766804
+              }
+            }
+          ],
+          "known_subtotal": {
+            "llm_input_tokens": 0,
+            "llm_output_tokens": 0,
+            "embedding_input_tokens": 766804
+          },
+          "complete": true,
+          "attempts": 172,
+          "historical_cache_cost_complete": true,
+          "journal_corrupt_tail": false,
+          "corrupt_tail_bytes": 0
+        }
+      },
       "cumulative_accounting": {
         "schema_version": 1,
         "phases": [
           {
             "phase": "index",
             "provider": "local_ollama",
-            "attempts": 3,
+            "attempts": 175,
             "errors": 1,
             "unfinished": 0,
             "cache_hits": 0,
@@ -224,7 +317,7 @@
             "known_subtotal": {
               "llm_input_tokens": 0,
               "llm_output_tokens": 0,
-              "embedding_input_tokens": 9333
+              "embedding_input_tokens": 776137
             },
             "unknown_fields": {
               "llm_input_tokens": 0,
@@ -238,15 +331,16 @@
         "known_subtotal": {
           "llm_input_tokens": 0,
           "llm_output_tokens": 0,
-          "embedding_input_tokens": 9333
+          "embedding_input_tokens": 776137
         },
         "complete": false,
-        "attempts": 3,
+        "attempts": 175,
         "historical_cache_cost_complete": true,
         "journal_corrupt_tail": false,
         "corrupt_tail_bytes": 0
       },
-      "cumulative_seconds": 3.725,
+      "cumulative_seconds": 558.277,
+      "artifact_manifest_sha256": "1d79a1efaaab5f1cf069011a235b3ee9959cdbfc1241455960efca1632760092",
       "cost_semantics": "Physical new cost; replay is not charged twice."
     },
     {
@@ -265,10 +359,197 @@
         }
       },
       "corpus_fingerprint": "f726a739ff0def6f7517fe3185780fdc21e5d51a2cfcd83ce3f18fba277c9f9a",
-      "code_commit": "04fe3b27c702db2bbe70dde8a04a0abc02529410",
+      "code_commit": "c61a025808d6196ddfa10c1422e2827f71b52898",
       "token_limit": 20000000,
       "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/hipporag2/musique",
-      "status": "pending",
+      "status": "failed",
+      "seconds": 6476.095,
+      "plan_sha256": "d8ca9a51107a17343d358574c01a783ec069a0fcb31f08089a12f61e60448385",
+      "error_type": "ValueError",
+      "token_accounting": {
+        "journal_file": "usage.jsonl",
+        "journal_sha256": "8316b77af29192c16b16f0926ce216608c1fc9d686737b41d26f630a20325393",
+        "summary": {
+          "schema_version": 1,
+          "phases": [
+            {
+              "phase": "index",
+              "provider": "local_ollama",
+              "attempts": 172,
+              "errors": 0,
+              "unfinished": 0,
+              "cache_hits": 0,
+              "cache_provenance_unknown": 0,
+              "known_subtotal": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 684560
+              },
+              "unknown_fields": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 0
+              },
+              "complete": true,
+              "total": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 684560
+              }
+            },
+            {
+              "phase": "index",
+              "provider": "target_api",
+              "attempts": 3122,
+              "errors": 1,
+              "unfinished": 0,
+              "cache_hits": 0,
+              "cache_provenance_unknown": 0,
+              "known_subtotal": {
+                "llm_input_tokens": 1531342,
+                "llm_output_tokens": 625395,
+                "embedding_input_tokens": 0
+              },
+              "unknown_fields": {
+                "llm_input_tokens": 1,
+                "llm_output_tokens": 1,
+                "embedding_input_tokens": 0
+              },
+              "complete": false,
+              "total": null
+            }
+          ],
+          "known_subtotal": {
+            "llm_input_tokens": 1531342,
+            "llm_output_tokens": 625395,
+            "embedding_input_tokens": 684560
+          },
+          "complete": false,
+          "attempts": 3294,
+          "historical_cache_cost_complete": true,
+          "journal_corrupt_tail": false,
+          "corrupt_tail_bytes": 0
+        }
+      },
+      "operations": {
+        "index_embedding": {
+          "schema_version": 1,
+          "phases": [
+            {
+              "phase": "index",
+              "provider": "local_ollama",
+              "attempts": 172,
+              "errors": 0,
+              "unfinished": 0,
+              "cache_hits": 0,
+              "cache_provenance_unknown": 0,
+              "known_subtotal": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 684560
+              },
+              "unknown_fields": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 0
+              },
+              "complete": true,
+              "total": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 684560
+              }
+            }
+          ],
+          "known_subtotal": {
+            "llm_input_tokens": 0,
+            "llm_output_tokens": 0,
+            "embedding_input_tokens": 684560
+          },
+          "complete": true,
+          "attempts": 172,
+          "historical_cache_cost_complete": true,
+          "journal_corrupt_tail": false,
+          "corrupt_tail_bytes": 0
+        },
+        "openie_ner": {
+          "schema_version": 1,
+          "phases": [
+            {
+              "phase": "index",
+              "provider": "target_api",
+              "attempts": 1561,
+              "errors": 0,
+              "unfinished": 0,
+              "cache_hits": 0,
+              "cache_provenance_unknown": 0,
+              "known_subtotal": {
+                "llm_input_tokens": 464528,
+                "llm_output_tokens": 140464,
+                "embedding_input_tokens": 0
+              },
+              "unknown_fields": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 0
+              },
+              "complete": true,
+              "total": {
+                "llm_input_tokens": 464528,
+                "llm_output_tokens": 140464,
+                "embedding_input_tokens": 0
+              }
+            }
+          ],
+          "known_subtotal": {
+            "llm_input_tokens": 464528,
+            "llm_output_tokens": 140464,
+            "embedding_input_tokens": 0
+          },
+          "complete": true,
+          "attempts": 1561,
+          "historical_cache_cost_complete": true,
+          "journal_corrupt_tail": false,
+          "corrupt_tail_bytes": 0
+        },
+        "openie_triples": {
+          "schema_version": 1,
+          "phases": [
+            {
+              "phase": "index",
+              "provider": "target_api",
+              "attempts": 1561,
+              "errors": 1,
+              "unfinished": 0,
+              "cache_hits": 0,
+              "cache_provenance_unknown": 0,
+              "known_subtotal": {
+                "llm_input_tokens": 1066814,
+                "llm_output_tokens": 484931,
+                "embedding_input_tokens": 0
+              },
+              "unknown_fields": {
+                "llm_input_tokens": 1,
+                "llm_output_tokens": 1,
+                "embedding_input_tokens": 0
+              },
+              "complete": false,
+              "total": null
+            }
+          ],
+          "known_subtotal": {
+            "llm_input_tokens": 1066814,
+            "llm_output_tokens": 484931,
+            "embedding_input_tokens": 0
+          },
+          "complete": false,
+          "attempts": 1561,
+          "historical_cache_cost_complete": true,
+          "journal_corrupt_tail": false,
+          "corrupt_tail_bytes": 0
+        }
+      },
+      "artifact_manifest_sha256": "62e0d3ee891fbc9139a8113c9df2cc372ea208ca30ef02954f6f317c60ca7d55",
       "cost_semantics": "Physical new cost; replay is not charged twice."
     },
     {
@@ -287,7 +568,7 @@
         }
       },
       "corpus_fingerprint": "1d6a33346c42cd2feae5cf71eb2c145121a74712eb51a86d95205983a4477634",
-      "code_commit": "04fe3b27c702db2bbe70dde8a04a0abc02529410",
+      "code_commit": "c61a025808d6196ddfa10c1422e2827f71b52898",
       "token_limit": 20000000,
       "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/hipporag2/hotpotqa",
       "status": "pending",
@@ -309,7 +590,7 @@
         }
       },
       "corpus_fingerprint": "f726a739ff0def6f7517fe3185780fdc21e5d51a2cfcd83ce3f18fba277c9f9a",
-      "code_commit": "04fe3b27c702db2bbe70dde8a04a0abc02529410",
+      "code_commit": "c61a025808d6196ddfa10c1422e2827f71b52898",
       "token_limit": 12000000,
       "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/raptor/musique",
       "status": "pending",
@@ -331,7 +612,7 @@
         }
       },
       "corpus_fingerprint": "1d6a33346c42cd2feae5cf71eb2c145121a74712eb51a86d95205983a4477634",
-      "code_commit": "04fe3b27c702db2bbe70dde8a04a0abc02529410",
+      "code_commit": "c61a025808d6196ddfa10c1422e2827f71b52898",
       "token_limit": 12000000,
       "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/raptor/hotpotqa",
       "status": "pending",
@@ -341,8 +622,8 @@
   "combined_token_limit": 67971068,
   "complete": false,
   "limitations": "E1 measures indexing cost/coverage, not retrieval or answer quality. Historical smoke unknowns are preserved outside these new runs.",
-  "physical_known_tokens": 693893,
+  "physical_known_tokens": 4301994,
   "cost_complete": false,
-  "budget_charge_upper_bound": 713492,
+  "budget_charge_upper_bound": 4321593,
   "original_combined_token_limit": 68000000
 }
