@@ -1,5 +1,33 @@
 # RAPTOR: малый корпус (#12)
 
+## Согласованное продолжение, 20 октября
+
+Пользователь передал ответ преподавателя на вопрос о продолжении при unknown
+historical usage: «Ну, я точно не против». Источник — сообщение пользователя
+в этом чате 20.10.2026; внешняя ссылка не предоставлена. Это принятие данного
+отклонения для ограниченного #12, не разрешение на full corpus или новые retry.
+
+Один свежий запуск на прежних 50 passages / 3 вопросах. Верхние guards сохранены:
+100000 **новых** combined tokens, 100 POST, 20 summary, cap512, input16000 bytes.
+Timeout 5/300 s, retry=0, redirects off; новая ошибка/unknown usage останавливают
+запуск. Исторический timeout не объяснён и не исправляется задним числом.
+Все старые 51 + 1 диагностическая попытка входят в aggregate; complete=false,
+total=null. Новый run имеет отдельный бюджет и journal. Старые embeddings и
+summary не переиспользуются: это свежая сборка, её стоимость учитывается заново.
+Исходные manifests/journals сверяются с опубликованными SHA; data/model/embedding
+digest проверяются до расходов. Exclusive/fsynced claim рядом с каноническим
+prior запрещает второй continuation независимо от output/worktree и остаётся
+при аварии. Старые raw/claims/summary не меняются.
+
+```powershell
+.cache/raptor-venv/Scripts/python.exe -m scripts.run_raptor_smoke --data-root '<data-root>' --env-file '<data-root>/<env-file>' --source .cache/raptor-source --continuation-prior 'results/raw/raptor-smoke/bb0b97d2-b0ca-4d09-926c-76d2309b0853/manifest.json' --continuation-diagnostic 'results/raw/raptor-summary-diagnostic/3525d53a-8a93-4e17-a784-6337feb520a7/manifest.json' --execute
+```
+
+Путь continuation — абсолютный или относительно текущей worktree. Это новая
+однократная команда с HTTP, не воспроизведение без расхода. Прежние запреты ниже
+описывают состояние до переданного согласия; O1/N1/R1/H1 не меняются. До фактического
+завершения дерева/reload/reader PR остаётся Draft, #12 открыта.
+
 ## Один повторный summary по разрешению пользователя, 14 октября
 
 Пользователь явно попросил попробовать отправить запрос ещё раз, не ожидая

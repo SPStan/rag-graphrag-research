@@ -65,3 +65,11 @@ reader запроса, usage всех summaries и embeddings. Seed 42 и оди
 повторяемости rebuild. Результат reload проверяется для фактически сохранённого
 дерева. Пересмотр нужен перед большим корпусом, comparative benchmark или
 изменением backend/dependencies/лимитов.
+
+## Дополнение 20 октября: продолжение после timeout
+
+Принятие unknown historical usage преподавателем передано пользователем в чате.
+Один свежий bounded run по [протоколу](../docs/RAPTOR_SMOKE.md): прежние guards,
+read timeout300 по успешной диагностике, все старые попытки в aggregate.
+Timeout cause и старый server usage не восстановлены; новых автоматических
+повторов нет. Согласие не переносится на full corpus или будущие расходы.

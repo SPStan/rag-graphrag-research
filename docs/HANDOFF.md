@@ -1,5 +1,12 @@
 # Передача контекста Sol / Luna
 
+**20 октября: преподаватель согласовал продолжение с historical unknown.**
+Пользователь передал: «Ну, я точно не против»; внешний URL не предоставлен.
+Один новый bounded smoke, guards 100000 новых tokens / 100 POST / 20 summary,
+timeout5/300, retry0. Старые failed + diagnostic остаются в aggregate с
+complete=false/total=null; hashes проверяются, shared claim запрещает повтор.
+[Протокол/команда](RAPTOR_SMOKE.md). O/N/R/H не меняются. PR Draft, #12 открыта.
+
 **14 октября: опубликован обезличенный оператор диагностики по ревью 41b64eee.**
 [operator.py](operators/operator.py), [команда/SHA/ограничения](RAPTOR_SMOKE.md).
 Только две механические замены: env-file через переменную, ROOT по новой папке;

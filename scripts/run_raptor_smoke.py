@@ -19,7 +19,12 @@ from scripts import check_target_api as api
 from scripts import evaluate_dense as evaluator
 from scripts import run_dense as dense
 from scripts import run_dense_target as target
-from scripts.token_accounting import Journal
+from scripts.token_accounting import (
+    Journal,
+    read_records,
+    summarize,
+    verified_reference,
+)
 
 SOURCE_COMMIT = "7da1d48a7e1d7dec61a63c9d9aae84e2dfaa5767"
 PARAMETERS = {
@@ -126,7 +131,7 @@ def prepare(data_root):
     plan["limitations"] = (
         "Support-preserving development smoke, not effectiveness evidence. "
         "Summary provenance is leaf ancestry, not proof that a fact survives compression. "
-        "Target context/tokenizer/revision unknown; byte reservations are accounting guards."
+        "Target contract supplied by operator; deployment HF revision unverified. Byte reservations are accounting guards."
     )
     return plan, queries, selected, labels
 
@@ -237,11 +242,14 @@ def restore_tree(payload, sdk):
 
 
 class Transport:
-    def __init__(self, config, journal, directory, local, remote):
+    def __init__(
+        self, config, journal, directory, local, remote, *, continuation=False
+    ):
         self.config, self.journal, self.directory = config, journal, directory
         self.local, self.remote = local, remote
         self.embedding_count, self.summary_count = 0, 0
         self.phase, self.object_id = "index", None
+        self.timeout = (5, 300) if continuation else (5, 120)
 
     def call(self, payload, *, kind, phase, operation, object_id):
         if self.journal.summary()["attempts"] >= PARAMETERS["request_limit"]:
@@ -271,6 +279,7 @@ class Transport:
             headers=headers,
             response_path=self.directory / f"{request_id}.response.json",
             token_limit=PARAMETERS["token_limit"],
+            timeout=self.timeout,
         )
 
     def embed(self, text):
@@ -336,8 +345,88 @@ class Transport:
         return content
 
 
-def execute(plan, queries, corpus, labels, config, sdk, output_dir):
+def verify_continuation(prior_path, diagnostic_path, plan, config):
+    """Verify immutable historical runs; their unknown usage remains unknown."""
+    prior_path, diagnostic_path = (
+        Path(prior_path).resolve(),
+        Path(diagnostic_path).resolve(),
+    )
+    baseline = dense.read_json(target.ROOT / "results/summary/raptor-smoke.json")
+    diagnostic_report = dense.read_json(
+        target.ROOT / "results/summary/raptor-summary-diagnostic.json"
+    )
+    expected = [
+        baseline["artifacts"]["manifest_sha256"],
+        diagnostic_report["raw_manifest_sha256"],
+    ]
+    records, sources = [], []
+    for path, sha in zip((prior_path, diagnostic_path), expected):
+        if dense.sha256_file(path) != sha:
+            raise ValueError("continuation_manifest_hash_mismatch")
+        manifest = dense.read_json(path)
+        reference = verified_reference(manifest, path)
+        if reference["status"] != "verified":
+            raise ValueError("continuation_journal_not_intact")
+        records.extend(read_records(reference["path"]))
+        sources.append(
+            {
+                "run_id": manifest["run_id"],
+                "manifest_sha256": sha,
+                "accounting": manifest["token_accounting"],
+            }
+        )
+    prior, diagnostic = dense.read_json(prior_path), dense.read_json(diagnostic_path)
+    for key in (
+        "question_ids",
+        "passage_ids",
+        "corpus_sha256",
+        "queries_sha256",
+        "parameters",
+    ):
+        if prior["plan"][key] != plan[key]:
+            raise ValueError("continuation_plan_mismatch")
+    if (
+        diagnostic["prior_run_id"] != prior["run_id"]
+        or diagnostic["prior_manifest_sha256"] != expected[0]
+        or diagnostic["status"] != "completed"
+        or not diagnostic["token_accounting"]["summary"]["complete"]
+    ):
+        raise ValueError("continuation_diagnostic_mismatch")
+    if (
+        config["model"] != prior["generation"]["model"]
+        or config["base_url"] != prior["generation"]["base_url"]
+        or diagnostic["model"] != config["model"]
+        or diagnostic["base_url"] != config["base_url"]
+    ):
+        raise ValueError("continuation_target_mismatch")
+    if config["embedding_model"] != prior["embedding"]["name"]:
+        raise ValueError("continuation_embedding_model_mismatch")
+    if summarize(records)["complete"]:
+        raise ValueError("continuation_expected_historical_unknown")
+    return prior_path, records, sources
+
+
+def execute(
+    plan, queries, corpus, labels, config, sdk, output_dir, *, continuation=None
+):
+    history, sources = [], []
+    if continuation is not None:
+        prior_path, history, sources = verify_continuation(*continuation, plan, config)
     run_id = str(uuid.uuid4())
+    if continuation is not None:
+        claim = prior_path.parent / "smoke-continuation-once.claim.json"
+        with claim.open("x", encoding="utf-8") as stream:
+            json.dump(
+                {
+                    "run_id": run_id,
+                    "prior_run_id": sources[0]["run_id"],
+                    "parameters": PARAMETERS,
+                    "authorization": "Teacher approval relayed by user in this chat 2026-10-20: Ну, я точно не против",
+                },
+                stream,
+            )
+            stream.flush()
+            os.fsync(stream.fileno())
     directory = Path(output_dir) / run_id
     directory.mkdir(parents=True, exist_ok=False)
     journal = Journal(
@@ -361,6 +450,17 @@ def execute(plan, queries, corpus, labels, config, sdk, output_dir):
             "backend_revision": "unknown",
         },
     }
+    if continuation is not None:
+        manifest["continuation"] = {
+            "authorization": "Teacher approval relayed by user in this chat 2026-10-20: Ну, я точно не против",
+            "authorization_scope": "One bounded continuation retaining historical unknown usage; no full corpus or automatic retry",
+            "source_link": None,
+            "source_link_note": "User supplied quotation in chat; no external message URL provided",
+            "prior_runs": sources,
+            "new_token_limit": PARAMETERS["token_limit"],
+            "timeout_seconds": {"connect": 5, "read": 300},
+            "rebuild": "Fresh run; historical embeddings/diagnostic summary are not reused or charged as free cache",
+        }
     rows = []
     try:
         with requests.Session() as local, requests.Session() as remote:
@@ -373,9 +473,20 @@ def execute(plan, queries, corpus, labels, config, sdk, output_dir):
             )
             if not model.get("digest"):
                 raise ValueError("embedding_digest_missing")
+            if continuation is not None:
+                original = dense.read_json(prior_path)
+                if model["digest"] != original["embedding"]["digest"]:
+                    raise ValueError("continuation_embedding_digest_mismatch")
             manifest["embedding"] = model
             dense.write_json_atomic(directory / "manifest.json", manifest)
-            transport = Transport(config, journal, directory, local, remote)
+            transport = Transport(
+                config,
+                journal,
+                directory,
+                local,
+                remote,
+                continuation=continuation is not None,
+            )
 
             class Embedding(sdk["embedding_base"]):
                 def create_embedding(self, text):
@@ -516,6 +627,10 @@ def execute(plan, queries, corpus, labels, config, sdk, output_dir):
     finally:
         manifest["completed_questions"] = len(rows)
         manifest["token_accounting"] = journal.reference()
+        if continuation is not None:
+            aggregate = summarize([*history, *read_records(journal.path)])
+            manifest["aggregate_accounting"] = aggregate
+            manifest["aggregate_total"] = None
         manifest["finished_at"] = datetime.now(timezone.utc).isoformat()
         dense.write_json_atomic(directory / "manifest.json", manifest)
     return manifest, directory
@@ -530,7 +645,16 @@ def main():
         "--output-dir", type=Path, default=target.ROOT / "results/raw/raptor-smoke"
     )
     parser.add_argument("--execute", action="store_true")
+    parser.add_argument("--continuation-prior", type=Path)
+    parser.add_argument("--continuation-diagnostic", type=Path)
     args = parser.parse_args()
+    if bool(args.continuation_prior) != bool(args.continuation_diagnostic):
+        parser.error("Both continuation manifests are required")
+    continuation = (
+        (args.continuation_prior, args.continuation_diagnostic)
+        if args.continuation_prior
+        else None
+    )
     plan, queries, corpus, labels = prepare(args.data_root)
     if not args.execute:
         print(json.dumps(plan, ensure_ascii=True, indent=2))
@@ -540,7 +664,14 @@ def main():
     load_dotenv(args.env_file, override=True)
     sdk = load_source(args.source)
     manifest, directory = execute(
-        plan, queries, corpus, labels, api.settings(os.environ), sdk, args.output_dir
+        plan,
+        queries,
+        corpus,
+        labels,
+        api.settings(os.environ),
+        sdk,
+        args.output_dir,
+        continuation=continuation,
     )
     print(
         json.dumps(

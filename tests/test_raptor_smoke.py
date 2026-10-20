@@ -332,3 +332,154 @@ def test_official_50_leaf_tree_and_reload_without_network(tmp_path, monkeypatch)
         == manifest["tree"]["summaries"]
     )
     assert (directory / "tree.json").is_file()
+
+
+@pytest.fixture
+def continuation_history(tmp_path, monkeypatch):
+    root = tmp_path / "history"
+    reports = root / "results/summary"
+    reports.mkdir(parents=True)
+    monkeypatch.setattr(raptor.target, "ROOT", root)
+    plan = {k: ["sample"] for k in ("question_ids", "passage_ids")}
+    plan.update(
+        corpus_sha256="corpus",
+        queries_sha256="queries",
+        parameters=dict(raptor.PARAMETERS),
+    )
+    config = {
+        "model": "model",
+        "base_url": "https://example.invalid/v1",
+        "embedding_model": "bge",
+    }
+    manifests = []
+    for name in ("prior", "diagnostic"):
+        directory = root / name
+        directory.mkdir()
+        journal = Journal(
+            directory / "tokens.jsonl", run_id=name, method="raptor", dataset="musique"
+        )
+        started = journal.start(
+            phase="index",
+            operation="summary",
+            provider="target_api",
+            model="model",
+            kind="llm",
+        )
+        if name == "prior":
+            journal.finish(started, status="unknown", error_code="ReadTimeout")
+        else:
+            journal.finish(
+                started,
+                status="success",
+                usage={"llm_input_tokens": 350, "llm_output_tokens": 375},
+            )
+        manifest = {
+            "run_id": name,
+            "plan": plan,
+            "generation": config,
+            "embedding": {"name": "bge", "digest": "mock"},
+            "status": "failed" if name == "prior" else "completed",
+            "token_accounting": journal.reference(),
+        }
+        if name == "diagnostic":
+            manifest.update(
+                prior_run_id="prior",
+                prior_manifest_sha256=raptor.dense.sha256_file(manifests[0]),
+                **config,
+            )
+        path = directory / "manifest.json"
+        raptor.dense.write_json_atomic(path, manifest)
+        manifests.append(path)
+    raptor.dense.write_json_atomic(
+        reports / "raptor-smoke.json",
+        {"artifacts": {"manifest_sha256": raptor.dense.sha256_file(manifests[0])}},
+    )
+    raptor.dense.write_json_atomic(
+        reports / "raptor-summary-diagnostic.json",
+        {"raw_manifest_sha256": raptor.dense.sha256_file(manifests[1])},
+    )
+    return manifests, plan, config
+
+
+def test_continuation_retains_known_cost_and_unknown(continuation_history):
+    paths, plan, config = continuation_history
+    _, records, sources = raptor.verify_continuation(*paths, plan, config)
+    combined = raptor.summarize(records)
+    assert combined["attempts"] == 2
+    assert combined["known_subtotal"]["llm_input_tokens"] == 350
+    assert combined["known_subtotal"]["llm_output_tokens"] == 375
+    assert not combined["complete"]
+    assert len(sources) == 2
+
+
+@pytest.mark.parametrize("defect", ["manifest", "journal", "plan", "target"])
+def test_continuation_rejects_changed_history_before_http(
+    continuation_history, monkeypatch, tmp_path, defect
+):
+    paths, plan, config = continuation_history
+
+    def forbidden():
+        raise AssertionError("No HTTP allowed")
+
+    monkeypatch.setattr(raptor.requests, "Session", forbidden)
+    if defect == "manifest":
+        paths[0].write_text("{}")
+    elif defect == "journal":
+        (paths[0].parent / "tokens.jsonl").write_text("{}")
+    elif defect == "plan":
+        plan = {**plan, "corpus_sha256": "different"}
+    else:
+        config = {**config, "model": "different"}
+    with pytest.raises(ValueError):
+        raptor.execute(
+            plan, [], [], [], config, {}, tmp_path / "out", continuation=paths
+        )
+
+
+def test_continuation_claim_survives_failure_across_output_directories(
+    continuation_history, monkeypatch, tmp_path
+):
+    paths, plan, config = continuation_history
+    calls = []
+
+    def offline():
+        calls.append(1)
+        raise RuntimeError("Simulated crash before any POST")
+
+    monkeypatch.setattr(raptor.requests, "Session", offline)
+    manifest, _ = raptor.execute(
+        plan, [], [], [], config, {}, tmp_path / "out-A", continuation=paths
+    )
+    assert manifest["status"] == "failed"
+    assert not manifest["aggregate_accounting"]["complete"]
+    assert manifest["aggregate_total"] is None
+    with pytest.raises(FileExistsError):
+        raptor.execute(
+            plan, [], [], [], config, {}, tmp_path / "out-B", continuation=paths
+        )
+    assert calls == [1]
+
+
+def test_continuation_transport_uses_300_second_timeout(tmp_path, monkeypatch):
+    journal = Journal(
+        tmp_path / "tokens.jsonl", run_id="new", method="raptor", dataset="musique"
+    )
+    captured = []
+
+    def post(*args, **kwargs):
+        captured.append(kwargs)
+        return {}
+
+    monkeypatch.setattr(raptor.target, "checked_post", post)
+    session = SimpleNamespace(
+        get_adapter=lambda url: SimpleNamespace(max_retries=SimpleNamespace(total=0))
+    )
+    config = {"key": "test", "base_url": "https://example.invalid/v1", "model": "model"}
+    transport = raptor.Transport(
+        config, journal, tmp_path, session, session, continuation=True
+    )
+    transport.call(
+        {"messages": []}, kind="llm", phase="index", operation="summary", object_id="0"
+    )
+    assert captured[0]["timeout"] == (5, 300)
+    assert captured[0]["token_limit"] == 100_000
