@@ -1,5 +1,17 @@
 # RAPTOR: малый корпус (#12)
 
+**20 октября: исправление cap по поручению пользователя «Сделай все что нужно».**
+Один remediation: summary cap4096, reader512; прежние50 passages/2levels/3QA.
+Offline21 first-layer clusters требуют guard больше20: выбран100summary/200POST.
+Общий бюджет continuation+remediation100000, остаток82544. 61 embedding/11 stop
+summary сверены по SHA и complete producer journal; partial/length исключён.
+Cache hit сохраняет producer/SHA, историческая стоимость не дублируется.
+Одна новая canonical-prior claim, retry0, timeout5/300; старые claims не удалять.
+Команда continuation дополнена --repair-from
+results/raw/raptor-smoke/3a48630b-72fe-46a9-99eb-309035ed1a0c/manifest.json.
+Новый HTTP только после offline-проверок; при ошибке/unknown/length остановка.
+O/N/R/H прежние; полный корпус не разрешён. До реального результата PR Draft.
+
 ## Результат продолжения 20 октября: остановка на truncated summary
 
 Run `3a48630b-72fe-46a9-99eb-309035ed1a0c`, чистый код `00f3e8a`,

@@ -483,3 +483,267 @@ def test_continuation_transport_uses_300_second_timeout(tmp_path, monkeypatch):
     )
     assert captured[0]["timeout"] == (5, 300)
     assert captured[0]["token_limit"] == 100_000
+
+
+@pytest.fixture
+def repair_history(continuation_history):
+    paths, plan, config = continuation_history
+    root = raptor.target.ROOT / "repair-source"
+    root.mkdir()
+    journal = Journal(
+        root / "tokens.jsonl",
+        run_id="repair-source",
+        method="raptor",
+        dataset="musique",
+    )
+    payloads = [
+        {"model": "bge", "input": ["leaf"], "truncate": False},
+        {
+            "model": "model",
+            "messages": [{"role": "user", "content": "complete"}],
+            **raptor.target.OPTIONS,
+        },
+        {
+            "model": "model",
+            "messages": [{"role": "user", "content": "truncated"}],
+            **raptor.target.OPTIONS,
+        },
+    ]
+    bodies = [
+        {"embeddings": [[1.0] + [0.0] * 1023], "prompt_eval_count": 3},
+        {
+            "choices": [
+                {"finish_reason": "stop", "message": {"content": "Saved summary"}}
+            ],
+            "usage": {"prompt_tokens": 350, "completion_tokens": 375},
+        },
+        {
+            "choices": [
+                {"finish_reason": "length", "message": {"content": "UNUSABLE_PARTIAL"}}
+            ],
+            "usage": {"prompt_tokens": 897, "completion_tokens": 512},
+        },
+    ]
+    for i, (payload, body) in enumerate(zip(payloads, bodies)):
+        kind = "embedding" if i == 0 else "llm"
+        operation = "embedding" if i == 0 else "summary"
+        provider = "local_ollama" if i == 0 else "target_api"
+        started = journal.start(
+            phase="index",
+            operation=operation,
+            provider=provider,
+            model=payload["model"],
+            kind=kind,
+        )
+        usage = (
+            {"embedding_input_tokens": 3}
+            if i == 0
+            else {
+                "llm_input_tokens": body["usage"]["prompt_tokens"],
+                "llm_output_tokens": body["usage"]["completion_tokens"],
+            }
+        )
+        journal.finish(started, status="success", usage=usage)
+        stem = f"index-{operation}-{i}"
+        raptor.dense.write_json_atomic(root / (stem + ".request.json"), payload)
+        raptor.dense.write_json_atomic(root / (stem + ".response.json"), body)
+    manifest = {
+        "run_id": "repair-source",
+        "status": "failed",
+        "error_code": "generation_format_or_finish_reason_invalid",
+        "plan": plan,
+        "generation": config,
+        "embedding": {"name": "bge", "digest": "mock"},
+        "token_accounting": journal.reference(),
+    }
+    path = root / "manifest.json"
+    raptor.dense.write_json_atomic(path, manifest)
+    report = {
+        "artifacts": {
+            p.name: raptor.dense.sha256_file(p)
+            for p in root.iterdir()
+            if p.suffix == ".json"
+        }
+    }
+    raptor.dense.write_json_atomic(
+        raptor.target.ROOT / "results/summary/raptor-continuation.json", report
+    )
+    return paths, plan, config, path, payloads
+
+
+def test_repair_cache_keeps_only_complete_outputs_and_remaining_budget(repair_history):
+    _, plan, config, path, payloads = repair_history
+    records, source, cache, remaining = raptor.verify_repair(path, plan, config)
+    assert len(cache) == 2
+    assert source["run_id"] == "repair-source"
+    assert remaining == 100_000 - 3 - 350 - 375 - 897 - 512
+    assert len(records) == 6
+    assert raptor.cache_key(payloads[2], "llm", "index", "summary") not in cache
+    assert "UNUSABLE_PARTIAL" not in str(cache)
+
+
+def test_repair_cache_replays_without_post_and_keeps_producer_cost(
+    repair_history, tmp_path, monkeypatch
+):
+    _, plan, config, path, payloads = repair_history
+    _, _, cache, remaining = raptor.verify_repair(path, plan, config)
+    journal = Journal(
+        tmp_path / "cache.jsonl", run_id="cached", method="raptor", dataset="musique"
+    )
+    session = SimpleNamespace(
+        get_adapter=lambda url: SimpleNamespace(max_retries=SimpleNamespace(total=0))
+    )
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("Cached output must not send HTTP")
+
+    monkeypatch.setattr(raptor.target, "checked_post", forbidden)
+    config = {**config, "ollama_url": "http://localhost", "embedding_model": "bge"}
+    transport = raptor.Transport(
+        config,
+        journal,
+        tmp_path,
+        session,
+        session,
+        parameters={**raptor.REPAIR_PARAMETERS, "token_limit": remaining},
+        cache=cache,
+    )
+    assert (
+        transport.call(
+            {**payloads[1], "max_tokens": 4096},
+            kind="llm",
+            phase="index",
+            operation="summary",
+            object_id=1,
+        )["choices"][0]["message"]["content"]
+        == "Saved summary"
+    )
+    assert (
+        transport.call(
+            payloads[0],
+            kind="embedding",
+            phase="index",
+            operation="embedding",
+            object_id=0,
+        )["embeddings"][0][0]
+        == 1
+    )
+    summary = journal.summary()
+    assert (
+        summary["attempts"] == 0
+        and summary["complete"]
+        and summary["historical_cache_cost_complete"]
+    )
+    assert sum(summary["known_subtotal"].values()) == 0
+    assert len(transport.cache_provenance) == 2
+    changed = {**payloads[1], "messages": [{"role": "user", "content": "different"}]}
+    assert raptor.cache_key(changed, "llm", "index", "summary") not in cache
+
+
+@pytest.mark.parametrize("defect", ["request", "response", "manifest", "journal"])
+def test_repair_corrupt_artifact_prevents_http(
+    repair_history, tmp_path, monkeypatch, defect
+):
+    paths, plan, config, source, _ = repair_history
+    filenames = {
+        "request": "index-summary-1.request.json",
+        "response": "index-summary-1.response.json",
+        "manifest": "manifest.json",
+        "journal": "tokens.jsonl",
+    }
+    (source.parent / filenames[defect]).write_text("{}")
+
+    def forbidden():
+        raise AssertionError("No session before source verification")
+
+    monkeypatch.setattr(raptor.requests, "Session", forbidden)
+    with pytest.raises(ValueError):
+        raptor.execute(
+            plan,
+            [],
+            [],
+            [],
+            config,
+            {},
+            tmp_path / "out",
+            continuation=paths,
+            repair_from=source,
+        )
+
+
+def test_repair_claim_and_aggregate_span_output_directories(
+    repair_history, tmp_path, monkeypatch
+):
+    paths, plan, config, source, _ = repair_history
+    _, _, _, remaining = raptor.verify_repair(source, plan, config)
+    new_plan = {
+        **plan,
+        "parameters": {**raptor.REPAIR_PARAMETERS, "token_limit": remaining},
+    }
+
+    def offline():
+        raise RuntimeError("Fake failure before POST")
+
+    monkeypatch.setattr(raptor.requests, "Session", offline)
+    manifest, _ = raptor.execute(
+        new_plan,
+        [],
+        [],
+        [],
+        config,
+        {},
+        tmp_path / "one",
+        continuation=paths,
+        repair_from=source,
+    )
+    assert manifest["status"] == "failed"
+    assert manifest["aggregate_accounting"]["attempts"] == 5
+    assert not manifest["aggregate_accounting"]["complete"]
+    assert manifest["aggregate_total"] is None
+    assert manifest["repair"]["new_budget_remaining"] == remaining
+    with pytest.raises(FileExistsError):
+        raptor.execute(
+            new_plan,
+            [],
+            [],
+            [],
+            config,
+            {},
+            tmp_path / "two",
+            continuation=paths,
+            repair_from=source,
+        )
+
+
+def test_summary_repair_cap_does_not_change_shared_reader(tmp_path, monkeypatch):
+    journal = Journal(
+        tmp_path / "tokens.jsonl", run_id="caps", method="raptor", dataset="musique"
+    )
+    captured = []
+
+    def post(*args, **kwargs):
+        captured.append(args[2])
+        return {
+            "choices": [{"finish_reason": "stop", "message": {"content": "complete"}}]
+        }
+
+    monkeypatch.setattr(raptor.target, "checked_post", post)
+    session = SimpleNamespace(
+        get_adapter=lambda url: SimpleNamespace(max_retries=SimpleNamespace(total=0))
+    )
+    transport = raptor.Transport(
+        {"model": "model", "key": "test", "base_url": "https://example.invalid"},
+        journal,
+        tmp_path,
+        session,
+        session,
+        parameters=raptor.REPAIR_PARAMETERS,
+    )
+    assert transport.summarize("context", 4096) == "complete"
+    transport.generate(
+        [{"role": "user", "content": "reader"}], "reader", "reader", "q1"
+    )
+    assert [p["max_tokens"] for p in captured] == [4096, 512]
+    assert [p["chat_template_kwargs"] for p in captured] == [
+        {"enable_thinking": False}
+    ] * 2

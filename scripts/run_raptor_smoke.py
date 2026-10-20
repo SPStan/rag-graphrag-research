@@ -45,6 +45,21 @@ PARAMETERS = {
 }
 
 
+REPAIR_PARAMETERS = {
+    **PARAMETERS,
+    "summary_max_tokens": 4096,
+    "summary_limit": 100,
+    "request_limit": 200,
+}
+
+
+def cache_key(payload, kind, phase, operation):
+    normalized = dict(payload)
+    if kind == "llm" and operation == "summary":
+        normalized.pop("max_tokens", None)
+    return target.digest([kind, phase, operation, normalized])
+
+
 def load_source(source):
     """Check every imported Python file against the pinned Git blob."""
     source = Path(source).resolve()
@@ -243,16 +258,28 @@ def restore_tree(payload, sdk):
 
 class Transport:
     def __init__(
-        self, config, journal, directory, local, remote, *, continuation=False
+        self,
+        config,
+        journal,
+        directory,
+        local,
+        remote,
+        *,
+        continuation=False,
+        parameters=None,
+        cache=None,
     ):
         self.config, self.journal, self.directory = config, journal, directory
+        self.parameters = PARAMETERS if parameters is None else parameters
+        self.cache = cache or {}
+        self.cache_provenance = []
         self.local, self.remote = local, remote
         self.embedding_count, self.summary_count = 0, 0
         self.phase, self.object_id = "index", None
         self.timeout = (5, 300) if continuation else (5, 120)
 
     def call(self, payload, *, kind, phase, operation, object_id):
-        if self.journal.summary()["attempts"] >= PARAMETERS["request_limit"]:
+        if self.journal.summary()["attempts"] >= self.parameters["request_limit"]:
             raise ValueError("request_limit_exceeded")
         config = self.config
         is_llm = kind == "llm"
@@ -260,6 +287,25 @@ class Transport:
         base = config["base_url"] if is_llm else config["ollama_url"]
         if session.get_adapter(base).max_retries.total != 0:
             raise ValueError("transport_retries_must_be_zero")
+        cached = self.cache.get(cache_key(payload, kind, phase, operation))
+        if cached is not None:
+            self.journal.cache_hit(
+                phase=phase,
+                operation=operation,
+                provider="target_api" if is_llm else "local_ollama",
+                model=config["model"] if is_llm else config["embedding_model"],
+                kind=kind,
+                object_id=str(object_id),
+                producer_run_id=cached["producer_run_id"],
+                producer_usage_complete=True,
+            )
+            self.cache_provenance.append(
+                {k: v for k, v in cached.items() if k != "body"}
+            )
+            dense.write_json_atomic(
+                self.directory / "cache-provenance.json", self.cache_provenance
+            )
+            return copy.deepcopy(cached["body"])
         request_id = f"{phase}-{operation}-{self.journal.summary()['attempts']}"
         headers = {"Authorization": f"Bearer {config['key']}"} if is_llm else None
         target.save_private_json(
@@ -278,7 +324,7 @@ class Transport:
             object_id=str(object_id),
             headers=headers,
             response_path=self.directory / f"{request_id}.response.json",
-            token_limit=PARAMETERS["token_limit"],
+            token_limit=self.parameters["token_limit"],
             timeout=self.timeout,
         )
 
@@ -307,11 +353,14 @@ class Transport:
     def generate(self, messages, phase, operation, object_id):
         if (
             len(json.dumps(messages, ensure_ascii=False).encode())
-            > PARAMETERS["input_byte_limit"]
+            > self.parameters["input_byte_limit"]
         ):
             raise ValueError("generation_input_byte_limit_exceeded")
+        options = dict(target.OPTIONS)
+        if operation == "summary":
+            options["max_tokens"] = self.parameters["summary_max_tokens"]
         body = self.call(
-            {"model": self.config["model"], "messages": messages, **target.OPTIONS},
+            {"model": self.config["model"], "messages": messages, **options},
             kind="llm",
             phase=phase,
             operation=operation,
@@ -329,8 +378,8 @@ class Transport:
 
     def summarize(self, context, max_tokens):
         if (
-            max_tokens != PARAMETERS["summary_max_tokens"]
-            or self.summary_count >= PARAMETERS["summary_limit"]
+            max_tokens != self.parameters["summary_max_tokens"]
+            or self.summary_count >= self.parameters["summary_limit"]
         ):
             raise ValueError("summary_limit_exceeded")
         messages = [
@@ -406,21 +455,138 @@ def verify_continuation(prior_path, diagnostic_path, plan, config):
     return prior_path, records, sources
 
 
+def verify_repair(path, plan, config):
+    """Reuse only intact, complete, successful outputs; never reuse truncated text."""
+    path = Path(path).resolve()
+    report = dense.read_json(target.ROOT / "results/summary/raptor-continuation.json")
+    if dense.sha256_file(path) != report["artifacts"]["manifest.json"]:
+        raise ValueError("repair_manifest_hash_mismatch")
+    manifest = dense.read_json(path)
+    ref = verified_reference(manifest, path)
+    if ref["status"] != "verified" or not ref["summary"]["complete"]:
+        raise ValueError("repair_producer_usage_not_complete")
+    if (
+        manifest["status"] != "failed"
+        or manifest["error_code"] != "generation_format_or_finish_reason_invalid"
+        or manifest["generation"]["model"] != config["model"]
+        or manifest["generation"]["base_url"] != config["base_url"]
+    ):
+        raise ValueError("repair_source_contract_mismatch")
+    for key in ("question_ids", "passage_ids", "corpus_sha256", "queries_sha256"):
+        if manifest["plan"][key] != plan[key]:
+            raise ValueError("repair_plan_mismatch")
+    if manifest["plan"]["parameters"] != PARAMETERS:
+        raise ValueError("repair_original_parameters_mismatch")
+    for name, sha in report["artifacts"].items():
+        if Path(name).name != name or dense.sha256_file(path.parent / name) != sha:
+            raise ValueError("repair_artifact_hash_mismatch")
+    records = read_records(ref["path"])
+    finished = {r["attempt_id"]: r for r in records if r["event"] == "finished"}
+    cache, truncated = {}, 0
+    started = [r for r in records if r["event"] == "started"]
+    for index, row in enumerate(started):
+        last = finished.get(row["attempt_id"], {})
+        if last.get("status") != "success" or last.get("usage_status") != "complete":
+            raise ValueError("repair_incomplete_physical_attempt")
+        stem = f"{row['phase']}-{row['operation']}-{index}"
+        request_path, response_path = (
+            path.parent / (stem + ".request.json"),
+            path.parent / (stem + ".response.json"),
+        )
+        # Every reused request/response must be independently anchored in the public report.
+        for artifact in (request_path, response_path):
+            if report["artifacts"].get(artifact.name) != dense.sha256_file(artifact):
+                raise ValueError("repair_unanchored_response")
+        payload, body = dense.read_json(request_path), dense.read_json(response_path)
+        if row["kind"] == "llm":
+            choice = body.get("choices", [{}])[0]
+            content = choice.get("message", {}).get("content")
+            if choice.get("finish_reason") == "length":
+                truncated += 1
+                continue
+            if (
+                choice.get("finish_reason") != "stop"
+                or not isinstance(content, str)
+                or not content.strip()
+            ):
+                raise ValueError("repair_invalid_summary")
+        else:
+            vectors = dense.normalize_rows(body.get("embeddings"))
+            if vectors.shape != (1, 1024):
+                raise ValueError("repair_invalid_embedding")
+        key = cache_key(payload, row["kind"], row["phase"], row["operation"])
+        cache.setdefault(
+            key,
+            {
+                "body": body,
+                "producer_run_id": manifest["run_id"],
+                "request_sha256": dense.sha256_file(request_path),
+                "response_sha256": dense.sha256_file(response_path),
+                "request_file": request_path.name,
+                "response_file": response_path.name,
+                "producer_output_cap": payload.get("max_tokens"),
+                "kind": row["kind"],
+                "operation": row["operation"],
+            },
+        )
+    if truncated != 1:
+        raise ValueError("repair_expected_one_truncated_summary")
+    spent = sum(ref["summary"]["known_subtotal"].values())
+    if spent >= PARAMETERS["token_limit"]:
+        raise ValueError("repair_budget_exhausted")
+    source = {
+        "run_id": manifest["run_id"],
+        "manifest_sha256": dense.sha256_file(path),
+        "accounting": manifest["token_accounting"],
+    }
+    return records, source, cache, PARAMETERS["token_limit"] - spent
+
+
 def execute(
-    plan, queries, corpus, labels, config, sdk, output_dir, *, continuation=None
+    plan,
+    queries,
+    corpus,
+    labels,
+    config,
+    sdk,
+    output_dir,
+    *,
+    continuation=None,
+    repair_from=None,
 ):
-    history, sources = [], []
+    history, sources, cache = [], [], {}
+    parameters = PARAMETERS
+    if repair_from is not None and continuation is None:
+        raise ValueError("repair_requires_historical_continuation")
     if continuation is not None:
-        prior_path, history, sources = verify_continuation(*continuation, plan, config)
+        original_plan = (
+            {**plan, "parameters": PARAMETERS} if repair_from is not None else plan
+        )
+        prior_path, history, sources = verify_continuation(
+            *continuation, original_plan, config
+        )
+    if repair_from is not None:
+        extra, source, cache, remaining = verify_repair(repair_from, plan, config)
+        if source["run_id"] in {s["run_id"] for s in sources}:
+            raise ValueError("repair_duplicate_source_run")
+        history.extend(extra)
+        sources.append(source)
+        parameters = {**REPAIR_PARAMETERS, "token_limit": remaining}
+        if plan["parameters"] != parameters:
+            raise ValueError("repair_parameters_mismatch")
     run_id = str(uuid.uuid4())
     if continuation is not None:
-        claim = prior_path.parent / "smoke-continuation-once.claim.json"
+        claim = prior_path.parent / (
+            "smoke-summary-cap4096-once.claim.json"
+            if repair_from is not None
+            else "smoke-continuation-once.claim.json"
+        )
         with claim.open("x", encoding="utf-8") as stream:
             json.dump(
                 {
                     "run_id": run_id,
                     "prior_run_id": sources[0]["run_id"],
-                    "parameters": PARAMETERS,
+                    "parameters": parameters,
                     "authorization": "Teacher approval relayed by user in this chat 2026-10-20: Ну, я точно не против",
                 },
                 stream,
@@ -457,9 +623,23 @@ def execute(
             "source_link": None,
             "source_link_note": "User supplied quotation in chat; no external message URL provided",
             "prior_runs": sources,
-            "new_token_limit": PARAMETERS["token_limit"],
+            "new_token_limit": parameters["token_limit"],
             "timeout_seconds": {"connect": 5, "read": 300},
             "rebuild": "Fresh run; historical embeddings/diagnostic summary are not reused or charged as free cache",
+        }
+    if repair_from is not None:
+        manifest["repair"] = {
+            "authorization": "User instructed: Сделай все что нужно, 2026-10-20; teacher acceptance of historical unknown retained",
+            "policy": "One cap4096 remediation; reuse only complete stop responses/embeddings with SHA provenance; no transport retry",
+            "source_run_id": sources[-1]["run_id"],
+            "cache_entries": len(cache),
+            "combined_continuation_budget": PARAMETERS["token_limit"],
+            "new_budget_remaining": parameters["token_limit"],
+            "generation_options": {
+                **target.OPTIONS,
+                "max_tokens": parameters["summary_max_tokens"],
+            },
+            "reader_options": target.OPTIONS,
         }
     rows = []
     try:
@@ -486,6 +666,8 @@ def execute(
                 local,
                 remote,
                 continuation=continuation is not None,
+                parameters=parameters,
+                cache=cache,
             )
 
             class Embedding(sdk["embedding_base"]):
@@ -504,7 +686,7 @@ def execute(
                     tokenizer=sdk["tokenizer"],
                     max_tokens=3000,
                     num_layers=PARAMETERS["num_layers"],
-                    summarization_length=512,
+                    summarization_length=parameters["summary_max_tokens"],
                     summarization_model=Summary(),
                     embedding_models={"BGE": embedding},
                     cluster_embedding_model="BGE",
@@ -647,6 +829,7 @@ def main():
     parser.add_argument("--execute", action="store_true")
     parser.add_argument("--continuation-prior", type=Path)
     parser.add_argument("--continuation-diagnostic", type=Path)
+    parser.add_argument("--repair-from", type=Path)
     args = parser.parse_args()
     if bool(args.continuation_prior) != bool(args.continuation_diagnostic):
         parser.error("Both continuation manifests are required")
@@ -656,6 +839,17 @@ def main():
         else None
     )
     plan, queries, corpus, labels = prepare(args.data_root)
+    if args.repair_from:
+        if continuation is None:
+            parser.error("Repair requires both historical manifests")
+        report = dense.read_json(
+            target.ROOT / "results/summary/raptor-continuation.json"
+        )
+        used = sum(report["new_token_accounting"]["summary"]["known_subtotal"].values())
+        plan["parameters"] = {
+            **REPAIR_PARAMETERS,
+            "token_limit": PARAMETERS["token_limit"] - used,
+        }
     if not args.execute:
         print(json.dumps(plan, ensure_ascii=True, indent=2))
         return
@@ -672,6 +866,7 @@ def main():
         sdk,
         args.output_dir,
         continuation=continuation,
+        repair_from=args.repair_from,
     )
     print(
         json.dumps(
