@@ -1,5 +1,7 @@
 # Текущая работа и критерии завершения
 
+**E1 status:** 2/6 indexes completed; physical known tokens=5386821; cost_complete=False. Last stage=hipporag2/musique. Raw/indexes remain local. PR Draft; E2 requires all six verified indexes.
+
 **20октября: #13 продолжение после цикла.** Cap3072 прежний, сначала строгая
 проба без дубликатов на оборванном payload. Затем bounded fallback≤20/dataset,
 все расходы/unknown сохраняются. Кэш обоих run, новый cycle plan; [E1_INDEXING](E1_INDEXING.md).
