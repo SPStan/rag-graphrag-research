@@ -110,7 +110,10 @@ def raptor_index(corpus, transport, directory, source):
     dense.write_json_atomic(path, payload)
     before = transport.journal.summary()
     loaded = raptor.restore_tree(dense.read_json(path), sdk)
-    if len(loaded.leaf_nodes) != len(corpus) or before != transport.journal.summary():
+    if (
+        raptor.serialize_tree(loaded, corpus) != payload
+        or before != transport.journal.summary()
+    ):
         raise ValueError("raptor_reload_mismatch")
     if set(payload["leaf_passage_ids"].values()) != {r["id"] for r in corpus}:
         raise ValueError("raptor_source_coverage_mismatch")

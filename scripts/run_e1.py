@@ -623,6 +623,51 @@ def row_usage(row):
     )
 
 
+def attribute_costs(rows):
+    """Keep physical spending separate from standalone construction attribution."""
+    for row in rows:
+        usage = row_usage(row)
+        row["cost_semantics"] = "Physical new cost; replay is not charged twice."
+        row["standalone_cost_complete"] = bool(usage.get("complete", False)) and bool(
+            usage.get("historical_cache_cost_complete", False)
+        )
+        row["standalone_known_subtotal"] = dict(usage.get("known_subtotal", {}))
+        row["measured_run_seconds"] = row.get("seconds")
+        row["attributed_construction_seconds"] = row.get(
+            "cumulative_seconds", row.get("seconds")
+        )
+        if row["method"] != "raptor":
+            continue
+        producer_id = row.get("validation", {}).get("leaf_producer_run_id")
+        if not producer_id:
+            row["standalone_cost_complete"] = False
+            continue
+        producer = next(r for r in rows if r["run_id"] == producer_id)
+        producer_usage = row_usage(producer)
+        reused = producer_usage.get("known_subtotal", {})
+        row["reused_leaf_build_cost"] = dict(reused)
+        row["reused_leaf_cost_complete"] = bool(
+            producer_usage.get("complete", False)
+        ) and bool(producer_usage.get("historical_cache_cost_complete", False))
+        row["standalone_cost_complete"] &= row["reused_leaf_cost_complete"]
+        for key, value in reused.items():
+            row["standalone_known_subtotal"][key] = (
+                row["standalone_known_subtotal"].get(key, 0) + value
+            )
+        producer_seconds = producer.get("cumulative_seconds", producer.get("seconds"))
+        own_seconds = row["attributed_construction_seconds"]
+        row["attributed_construction_seconds"] = (
+            own_seconds + producer_seconds
+            if own_seconds is not None and producer_seconds is not None
+            else None
+        )
+        row["cost_semantics"] += (
+            " Standalone attribution includes Dense producer history, including failed "
+            "attempts and unknowns; exclude reused cost from batch physical total. "
+            "Attributed seconds are a sum of measured histories, not a measured fresh run."
+        )
+
+
 def failure_diagnostic(directory):
     """Publish response metadata, never private source text or generated facts."""
     journal = directory / "usage.jsonl"
@@ -713,7 +758,11 @@ def export(plan, plan_path):
     report["physical_known_tokens"] = sum(
         sum(row_usage(r).get("known_subtotal", {}).values()) for r in rows
     )
-    report["cost_complete"] = all(row_usage(r).get("complete", False) for r in rows)
+    report["physical_usage_complete"] = all(
+        row_usage(r).get("complete", False) for r in rows
+    )
+    attribute_costs(rows)
+    report["cost_complete"] = all(r["standalone_cost_complete"] for r in rows)
     report["budget_charge_upper_bound"] = report["physical_known_tokens"] + sum(
         sum(
             p.get("unknown_reserved_upper_bound", 0)
@@ -726,22 +775,6 @@ def export(plan, plan_path):
     report["original_combined_token_limit"] = plan.get(
         "original_combined_token_limit", plan["combined_token_limit"]
     )
-    for row in rows:
-        row["cost_semantics"] = "Physical new cost; replay is not charged twice."
-        if row["method"] == "raptor" and row.get("validation", {}).get(
-            "leaf_producer_run_id"
-        ):
-            producer = next(
-                r
-                for r in rows
-                if r["run_id"] == row["validation"]["leaf_producer_run_id"]
-            )
-            row["reused_leaf_build_cost"] = producer["token_accounting"]["summary"][
-                "known_subtotal"
-            ]
-            row["cost_semantics"] += (
-                " Add reused_leaf_build_cost for standalone method cost; exclude it from batch physical total."
-            )
     dense.write_json_atomic(ROOT / "results/summary/e1-indexing.json", report)
     lines = [
         "# E1: индексация",
@@ -752,9 +785,7 @@ def export(plan, plan_path):
     for row in rows:
         usage = row_usage(row)
         known = usage.get("known_subtotal", {})
-        completeness = usage.get("complete", False) and usage.get(
-            "historical_cache_cost_complete", False
-        )
+        completeness = row["standalone_cost_complete"]
         lines.append(
             f"| {row['method']} | {row['dataset']} | {row['status']} | {known.get('llm_input_tokens', '—')}/{known.get('llm_output_tokens', '—')} | {known.get('embedding_input_tokens', '—')} (+cache {row.get('reused_leaf_build_cost', {}).get('embedding_input_tokens', 0)}) | {usage.get('attempts', '—')} | {row.get('cumulative_seconds', row.get('seconds', '—'))} | {completeness} | {row['run_id']} / `{row['output']}` |"
         )
