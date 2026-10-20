@@ -574,8 +574,7 @@
     "index-summary-70.response.json": "496570b8301952f8a40acbfe945a7e53e96c3463dbf09aab28ee53c149380415",
     "index-summary-72.request.json": "828f29e0e798e2e713fef4f9a0009c9ceadaceee11f015d305f4ece0e96e19de",
     "index-summary-72.response.json": "013d553381b552537c9dbdbff8d1b5c2357ceee0f0eec30d3ee42823576a9fae",
-    "manifest.json": "d2c4e840e67bb55400aef8beb153632e93370b9f6f7e208b2927838dbb8d0500",
-    "tokens.jsonl": "6caeca4de356c14088e47d14c2327fa6136450bd3abe095271bed27183bd2e12"
+    "manifest.json": "d2c4e840e67bb55400aef8beb153632e93370b9f6f7e208b2927838dbb8d0500"
   },
   "runtime": {
     "annotated-types": "0.8.0",
