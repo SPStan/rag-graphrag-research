@@ -184,6 +184,36 @@ def make_native_ollama_request(endpoint, *, protocol, model_digest, post_json=No
     return request
 
 
+def _validate_repair_task(task):
+    """Reject invalid task metadata before any measurement or extraction."""
+    attempt_number = task.get("attempt")
+    if (
+        not isinstance(attempt_number, int)
+        or isinstance(attempt_number, bool)
+        or attempt_number not in (2, 3)
+    ):
+        raise ValueError("Repair task has an invalid attempt number")
+    if attempt_number == 3 and task.get("remedial_retry") is not True:
+        raise ValueError("Attempt 3 must be explicitly marked remedial")
+    if task.get("retry_of_attempt") != attempt_number - 1:
+        raise ValueError("Repair task must link to the immediately preceding attempt")
+    if not isinstance(task.get("passage_id"), str) or not task["passage_id"]:
+        raise ValueError("Repair task needs a stable passage ID")
+    if task.get("operation") == "dependency_refresh":
+        dependency_attempt = task.get("dependency_attempt")
+        if (
+            task.get("dependency_stage") != "openie_ner"
+            or not isinstance(dependency_attempt, int)
+            or isinstance(dependency_attempt, bool)
+            or task.get("dependency_attempt_pending") is True
+        ):
+            raise ValueError(
+                "Triple refresh must link to the completed corrected NER attempt"
+            )
+    if task.get("stage") not in ("openie_ner", "openie_triples"):
+        raise ValueError("Repair task has an unknown stage")
+
+
 def measure_then_execute_openie_task(
     task,
     passage,
@@ -199,6 +229,7 @@ def measure_then_execute_openie_task(
     """Measure this exact prompt before its extraction request."""
     if model_requests_enabled is not True:
         raise RuntimeError("Model requests are disabled for this run")
+    _validate_repair_task(task)
     protocol = getattr(request_fn, "frozen_protocol", None)
     if not isinstance(protocol, dict) or protocol.get("model_digest") != model_digest:
         raise ValueError("A frozen native transport is required")
@@ -322,30 +353,8 @@ def execute_openie_task(
     if model_requests_enabled is not True:
         raise RuntimeError("Model requests are disabled for this run")
     stage = task.get("stage")
-    attempt_number = task.get("attempt")
-    if (
-        not isinstance(attempt_number, int)
-        or isinstance(attempt_number, bool)
-        or attempt_number not in (2, 3)
-    ):
-        raise ValueError("Repair task has an invalid attempt number")
-    if attempt_number == 3 and task.get("remedial_retry") is not True:
-        raise ValueError("Attempt 3 must be explicitly marked remedial")
-    if task.get("retry_of_attempt") != attempt_number - 1:
-        raise ValueError("Repair task must link to the immediately preceding attempt")
-    if not isinstance(task.get("passage_id"), str) or not task["passage_id"]:
-        raise ValueError("Repair task needs a stable passage ID")
-    if task.get("operation") == "dependency_refresh":
-        dependency_attempt = task.get("dependency_attempt")
-        if (
-            task.get("dependency_stage") != "openie_ner"
-            or not isinstance(dependency_attempt, int)
-            or isinstance(dependency_attempt, bool)
-            or task.get("dependency_attempt_pending") is True
-        ):
-            raise ValueError(
-                "Triple refresh must link to the completed corrected NER attempt"
-            )
+    _validate_repair_task(task)
+    attempt_number = task["attempt"]
     stage_caps = {
         "openie_ner": "ner_max_new_tokens",
         "openie_triples": "triples_max_new_tokens",

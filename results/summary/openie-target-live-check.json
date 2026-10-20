@@ -1,0 +1,247 @@
+{
+  "schema_version": 1,
+  "run_id": "b1549680-6917-47e4-a614-3540fcda01a6",
+  "status": "completed",
+  "ready_for_indexing": false,
+  "server_usage_verified": true,
+  "source_unchanged_verified": true,
+  "installed_python_files_verified": 61,
+  "token_budget": 20000,
+  "maximum_requests": 5,
+  "automatic_retries": 0,
+  "corrections": 0,
+  "model": "iairlab/qwen3.8-27b",
+  "base_url": "https://api.duckduck.cloud/v1",
+  "code": {
+    "commit": "2e46d0a2c7575c18b4a1d8b0c3ad265e052bdae8",
+    "working_tree_dirty": false,
+    "source_sha256": {
+      "scripts/run_dense.py": "b6cf8da3f987a1d7ad37ac16639ddf6a1f5523e8ccc0117ad015a423efaacaac",
+      "scripts/replay_reader.py": "9a8192bc38f70bbbe64b5cbefe31fd988ad6335b10e4140dc9f08f58f2c7edb8",
+      "scripts/evaluate_dense.py": "1e39159a7eb02bff83b7bd0fd04a6c062762e43554b7bf6e66caf7e95c47ccd7",
+      "scripts/answer_parser.py": "bed7477e2ca0ace452821e2adb13cf8b045aa6443617b141c13fadf18e56bf18"
+    }
+  },
+  "runner_sha256": "e95371bcc591807adbb971f1125aca39f399637ae27b2f6698873c85e973a594",
+  "cases": [
+    {
+      "stage": "openie_ner",
+      "passage_id": "sha256:af7c103c3e75391f0ab94b159af505f6dc4667c055348ae406230cdd81e32056",
+      "before_status": "truncated",
+      "status": "valid_nonempty",
+      "local_input_tokens": 489,
+      "output_cap": 1024,
+      "rendered_sha256": "4745f478e22b9a12dfb306b0fc1f84015ddf32b5a73e34642e44bd5b05633205",
+      "client_request_id": "b1549680-6917-47e4-a614-3540fcda01a6-0",
+      "request_sha256": "309745e34ba05f664081317261dfda77e737416df527b21b0d51703350e1a739",
+      "response_sha256": "8ffb87e9c97df6815a19f5bce24f17311fcdf294c52d59f5f56b11cf3b40363b",
+      "usage": {
+        "completion_tokens": 134,
+        "prompt_tokens": 489,
+        "total_tokens": 623,
+        "completion_tokens_details": {
+          "reasoning_tokens": 0
+        }
+      },
+      "returned_model": "iairlab/qwen3.8-27b",
+      "response_id": "chatcmpl-a1a4db44e7cf32cf",
+      "server_input_matches": true,
+      "finish_reason": "stop",
+      "value_count": 12
+    },
+    {
+      "stage": "openie_ner",
+      "passage_id": "sha256:80c59521880e2cd3f0e9795c3ba9796aac20ed7fb1a85616bba1d2473ff09de7",
+      "before_status": "truncated",
+      "status": "valid_nonempty",
+      "local_input_tokens": 383,
+      "output_cap": 1024,
+      "rendered_sha256": "274b9bcf8e915065935a7842026150e394eefc121cb5ed597b6388523c866171",
+      "client_request_id": "b1549680-6917-47e4-a614-3540fcda01a6-1",
+      "request_sha256": "114e4c59c4134b7e7780a737ae624a76f988c27ea2948d5e7ec7019d672dd33c",
+      "response_sha256": "163d79c8b6a4ef63a986c98e6b3359057b80fccdec2b1797e70ddf8e5495011c",
+      "usage": {
+        "completion_tokens": 165,
+        "prompt_tokens": 383,
+        "total_tokens": 548,
+        "completion_tokens_details": {
+          "reasoning_tokens": 0
+        }
+      },
+      "returned_model": "iairlab/qwen3.8-27b",
+      "response_id": "chatcmpl-8b9add692b2d0c83",
+      "server_input_matches": true,
+      "finish_reason": "stop",
+      "value_count": 20
+    },
+    {
+      "stage": "openie_triples",
+      "passage_id": "sha256:f520187048cf66b03e422935bfcfa4f4a075b08ea5b530add3433ccfd920cc65",
+      "before_status": "truncated",
+      "status": "valid_nonempty",
+      "local_input_tokens": 664,
+      "output_cap": 3072,
+      "rendered_sha256": "98161a25e8ca00119ea421355a7087c7e1149052a0ec394aa07aa710a0c3b156",
+      "client_request_id": "b1549680-6917-47e4-a614-3540fcda01a6-2",
+      "request_sha256": "1ae277eca62be25d8f4c434122235fb4fdc152b9e5baf0c6a28614065c70a258",
+      "response_sha256": "2f2a2ff0faf7d7c1464499f6194592da94b4f83880a9db7f3e521dcbf8bb8fde",
+      "usage": {
+        "completion_tokens": 179,
+        "prompt_tokens": 664,
+        "total_tokens": 843,
+        "completion_tokens_details": {
+          "reasoning_tokens": 0
+        }
+      },
+      "returned_model": "iairlab/qwen3.8-27b",
+      "response_id": "chatcmpl-af66c6f753f1cc4a",
+      "server_input_matches": true,
+      "finish_reason": "stop",
+      "value_count": 6
+    },
+    {
+      "stage": "openie_triples",
+      "passage_id": "sha256:bf2985f3129a6f2ec21c9e119cc4a8b2f20b2b28b0d3dd8f2aa7117c646621a1",
+      "before_status": "truncated",
+      "status": "valid_nonempty",
+      "local_input_tokens": 721,
+      "output_cap": 3072,
+      "rendered_sha256": "6f60c867aa00f044234ae9cd6de0986e90a366004a4ba48c813ce2a4a5290460",
+      "client_request_id": "b1549680-6917-47e4-a614-3540fcda01a6-3",
+      "request_sha256": "02c191bc135109791c86394f47678c89466ed5a5a5641a5c17544346b943afc0",
+      "response_sha256": "aec60a2bad6eb814c5f09f2cbf5ceb0cbf3d3432fb1e3b3da594d3bdbb9de615",
+      "usage": {
+        "completion_tokens": 194,
+        "prompt_tokens": 721,
+        "total_tokens": 915,
+        "completion_tokens_details": {
+          "reasoning_tokens": 0
+        }
+      },
+      "returned_model": "iairlab/qwen3.8-27b",
+      "response_id": "chatcmpl-be54495eff31a69e",
+      "server_input_matches": true,
+      "finish_reason": "stop",
+      "value_count": 10
+    },
+    {
+      "stage": "openie_ner",
+      "passage_id": "sha256:225264f9bf8f8bc021f8b31859f996e64ae039e724674b5efbfd83d701af4993",
+      "before_status": "request_error",
+      "status": "valid_nonempty",
+      "local_input_tokens": 278,
+      "output_cap": 1024,
+      "rendered_sha256": "4cbf4d3993f2210dc26102b383391f356699e6e8479b670feccdadd2d30199d9",
+      "client_request_id": "b1549680-6917-47e4-a614-3540fcda01a6-4",
+      "request_sha256": "089fa5617520a6f602e3dd2a0871155ebb7b81af72d013262ba6e865506e1821",
+      "response_sha256": "31677a1781a312e9575aa63b4ea60e95c7ff38ac8baa6505cf498f5d2aebde2d",
+      "usage": {
+        "completion_tokens": 112,
+        "prompt_tokens": 278,
+        "total_tokens": 390,
+        "completion_tokens_details": {
+          "reasoning_tokens": 0
+        }
+      },
+      "returned_model": "iairlab/qwen3.8-27b",
+      "response_id": "chatcmpl-adbc42c859b4c900",
+      "server_input_matches": true,
+      "finish_reason": "stop",
+      "value_count": 10
+    }
+  ],
+  "token_accounting": {
+    "journal_file": "tokens.jsonl",
+    "journal_sha256": "cc4ad3a8ed67addae130978e5c023392f3727c8e2d5463618aa8f806e8f06766",
+    "summary": {
+      "schema_version": 1,
+      "phases": [
+        {
+          "phase": "index",
+          "provider": "target_api",
+          "attempts": 5,
+          "errors": 0,
+          "unfinished": 0,
+          "cache_hits": 0,
+          "cache_provenance_unknown": 0,
+          "known_subtotal": {
+            "llm_input_tokens": 2535,
+            "llm_output_tokens": 784,
+            "embedding_input_tokens": 0
+          },
+          "unknown_fields": {
+            "llm_input_tokens": 0,
+            "llm_output_tokens": 0,
+            "embedding_input_tokens": 0
+          },
+          "complete": true,
+          "total": {
+            "llm_input_tokens": 2535,
+            "llm_output_tokens": 784,
+            "embedding_input_tokens": 0
+          }
+        }
+      ],
+      "known_subtotal": {
+        "llm_input_tokens": 2535,
+        "llm_output_tokens": 784,
+        "embedding_input_tokens": 0
+      },
+      "complete": true,
+      "attempts": 5,
+      "historical_cache_cost_complete": true,
+      "journal_corrupt_tail": false,
+      "corrupt_tail_bytes": 0
+    }
+  },
+  "raw_directory": "openie-target-live-b1549680-6917-47e4-a614-3540fcda01a6",
+  "kind": "issue11_saved_openie_target_check",
+  "scope": "Five saved development-stage prompts, not a full index rebuild or OpenIE quality benchmark",
+  "native_counts_file": "openie-target-context-counts.json",
+  "native_counts_sha256": "3843e804986dc4d302cb2770a8c51d3100f1551a24c5e6e10110cef1e3cf3087",
+  "source_preflight_file": "openie-target-preflight.json",
+  "source_preflight_sha256": "985db980023b33655c27e06e30ec3ad7df8aba70b46d14de84032e6978c3e04f",
+  "source_run_id": "e78eff08-532a-40b3-a359-49a6b08b32a7",
+  "source_hashes": {
+    "manifest": "35fbf63508e611366fee129f1ede0994f2c9954242d6e7e89a603aed456159f2",
+    "corpus": "054338e3803fbe69f67037c58d2a49438572ffe2e8c8a047148a2dcdc100e44b",
+    "state": "728b93a078a28eee94267a9da0522c6460d535a66aa8cf55527ab69f12754f85",
+    "cache": "54593cc53b543383044fc0cfb72b84bd946822b2847c1554d948f5fe90d8441d"
+  },
+  "raw_manifest_sha256": "0770a8b3fb5bf9c1b6498baa2d254d7aa78652202650bc899da1dc17622e74d2",
+  "token_journal_verified": true,
+  "generation_options": {
+    "temperature": 0,
+    "seed": 42,
+    "stream": false,
+    "chat_template_kwargs": {
+      "enable_thinking": false
+    },
+    "response_format": {
+      "type": "json_object"
+    },
+    "stage_output_caps": {
+      "openie_ner": 1024,
+      "openie_triples": 3072
+    }
+  },
+  "backend_contract": {
+    "source": "user supplied 2026-10-14",
+    "context_window": 262144,
+    "backend": "vLLM 0.29.0",
+    "model_hf": "Qwen/Qwen3.8-27B",
+    "native_reference_revision": "1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0",
+    "deployed_hf_revision": "not independently reported"
+  },
+  "human_active_hours": null,
+  "limitations": [
+    "Only five saved development-stage examples; no extraction effectiveness or full-index readiness claim.",
+    "Target model and output caps both differ from historical configuration; no isolated causal attribution.",
+    "Historical request_error usage remains unknown; reported complete accounting covers only these five new POSTs.",
+    "RAPTOR failed request and its unknown usage are separate and unchanged.",
+    "Exact deployed model revision/quantization and global tokenizer identity not proven by matching these five counts."
+  ],
+  "first_request_started_at": "2026-10-14T11:03:47.095846+00:00",
+  "last_request_finished_at": "2026-10-14T11:03:54.987294+00:00",
+  "automatic_request_span_seconds": 7.891448
+}

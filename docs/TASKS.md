@@ -1,5 +1,9 @@
 # Текущая работа и критерии завершения
 
+**Текущее состояние после интеграции master:** #12 smoke завершён, ниже результат.
+PR #30/#11 слиты/закрыты; обзор #32 также в master. Старые статусы ниже — история.
+Полные выборки/новые расходы/merge #31 автоматически не запускать.
+
 **20 октября: реальный RAPTOR smoke завершён.**
 Run c311fd7a-9b0a-45f3-8c14-862bf3a42d2e на clean6c2c483: дерево80 узлов
 (50 leaves/30 summary), слои50/21/9; save/reload без вызовов, отдельно проверен
@@ -82,6 +86,58 @@ Draft PR #30: target context contract неизвестен, OpenIE generation н
   расходующие запросы и не запускать full corpus/следующую задачу автоматически.
 
 Статусы ниже — история.
+
+**14 октября: обзор опубликованных методов #25.** Подготовлены [полная таблица](related-work-comparison.md#full-comparison) и [слайдовый вариант](related-work-comparison.md#slide-version) Dense RAG / HippoRAG 2 / RAPTOR с версиями первоисточников и ограничениями. Журнал чтения студента сохранён; новых модельных вызовов нет, реализация RAPTOR не менялась. 15 октября первоисточники повторно сверены; по поручению пользователя PR #32 передаётся в Ready for review. Научное согласование O1/N1/R1/H1 ещё не зарегистрировано; нужно отправить `/research_submit https://github.com/SPStan/rag-graphrag-research/pull/32 25` через бота и получить явное согласие куратора. Эта команда недоступна инструментам агента. До согласования issue/PR не закрывать, merge отдельно. Настройка доски #23 завершена [итогом в issue](https://github.com/SPStan/rag-graphrag-research/issues/23#issuecomment-6170587264), issue оставлена открытой. Текущая экспериментальная работа #12 продолжается отдельно; строки ниже описывают предшествующие этапы.
+
+**14 октября: исправлена проверка task до измерительного запроса.** Общая
+валидация attempt/remedial/retry_of_attempt/passage_id/dependency/stage вызывается
+до request_fn в measure_then_execute_openie_task и сохраняется в прямом
+execute_openie_task. Регрессия некорректных задач подтверждает ноль callback;
+целевые executor/offline runner: 16 passed. Новых модельных запросов нет.
+PR #30 передан на полное ревью, научные формулировки согласованы карточкой
+`e818864b878ccf61af85ef16:1`; ready_for_indexing=false, issue открыта.
+
+**14 октября: should ревью dc7ae635 закрыт.** Эталон SDK берётся из Git blobs
+закреплённого коммита, не рабочего дерева; одинаковые dirty source/installed
+регрессионно отвергаются до HTTP. Все 61 реальных SDK Python-файлов повторно
+подтверждены без API-вызовов. [Проверка](OPENIE_TARGET_CHECK.md). Draft,
+ready_for_indexing=false, актуальное согласование/полное ревью отдельно.
+
+**14 октября: технический saved-case OpenIE smoke #11 выполнен.** На `2e46d0a`
+run `b1549680-6917-47e4-a614-3540fcda01a6` завершил 5/5 cases: valid_nonempty,
+stop, все server prompt_tokens совпали с native. Расход нового run 2535 input /
+784 output; 5 POST, без retry/коррекций. Исторический cache/state не изменён.
+[Сводка/SHA](../results/summary/openie-target-live-check.json), [до/после](OPENIE_TARGET_CHECK.md).
+Далее полное техническое ревью PR #30 и актуальное согласие куратора; PR пока
+Draft, #11 открыта. ready_for_indexing=false сохраняется: это не repair всей
+очереди/индекса и не оценка эффективности. Не возобновлять старый repair, не
+повторять cases/failed RAPTOR автоматически. Блоки ниже — история этапов.
+
+**14 октября: контракт #11 уточнён пользователем.** Общий context 262144,
+output до остатка окна, native Qwen HF tokenizer/template, vLLM 0.29.0;
+отдельного server count endpoint нет. Пять исходных prompts проверены локально
+на закреплённом tokenizer (input+cap 1302–3793):
+[таблица/SHA](OPENIE_TARGET_CHECK.md). Старый blocked preflight сохраняется.
+Замечание ревью a80e104 выполнено: команда воспроизведения проверена на пяти
+prompts; counts/rendered SHA опубликованы в
+[безопасном JSON](../results/summary/openie-target-context-counts.json), без текстов.
+Далее отдельный ограниченный OpenIE протокол со сверкой server usage и
+фактическим до/после; новых модельных вызовов в проверке counts нет.
+ready_for_indexing=false, PR Draft, согласование куратора отдельно. Для #12
+по-прежнему нужны исход timeout и usage неудачного summary.
+
+**13 октября: следующий шаг #11 по предварительному ревью PR #30.** Получить
+deployment context/output limits и точный tokenizer/chat-template либо серверный
+счётчик полного messages payload; проверить fit пяти выбранных cases. Публичные
+docs/OpenAPI GET — 404, генерация не запускалась. Текст запроса провайдеру и
+последовательность проверки — [OPENIE_TARGET_CHECK](OPENIE_TARGET_CHECK.md).
+Карточка `eb27b8fa5654329712648d28:0`: H1/N1/O1/R1 не утверждены;
+`/research_status https://github.com/SPStan/rag-graphrag-research/pull/30`
+выполняется через бота, текущие инструменты этой команды не предоставляют.
+Draft/Refs #11 и ready_for_indexing=false сохраняются. Нельзя закрывать issue
+или считать offline проверки реальной целевой генерацией.
+
+**13 октября: пользователь поручил issue #11 — ошибки OpenIE HippoRAG.** PR #29 слит (`5e617fa`), #10 закрыта/Projects Done, научное согласование #10 подтверждено пользователем ответом research_status. Текущий блок — до пяти сохранённых development-примеров #11, без возобновления старого repair и без пересборки корпуса. Ветка `codex/openie-target-check` использует существующий SDK-worktree. Read-only target preflight интегрируется в `preflight_hipporag_repair_prompts`; старые артефакты сохраняются. Пользователь подтвердил неизвестные context/output limits и tokenizer/backend revision; API metadata их не сообщает. Генерация OpenIE и индекс не запускаются до проверенного context-fit контракта. Итог и команды — [OPENIE_TARGET_CHECK](OPENIE_TARGET_CHECK.md). Научное согласование #11 отдельно; merge только отдельно. Предыдущие статусы ниже — история.
 
 **13 октября: зависимость #28 разрешена, актуальное согласование #29 ожидается.** PR #28 слит в master (`edc5d28`), issue #9 закрыта, Projects Done. Master интегрирован в ветку #29 обычным merge, чтобы сохранить исходные commit ID фактических запусков и SHA provenance; модельные запросы и raw не повторяются/не изменяются. Итоговый diff относительно master содержит только блок #10. Последнее ревью бота пометило согласование карточки `1d9e259796f6f4e1f28694a8:1` устаревшим: текущие O1/N1/R1/H1 нужно повторно отправить `/research_submit https://github.com/SPStan/rag-graphrag-research/pull/29 10`, затем проверить `/research_status https://github.com/SPStan/rag-graphrag-research/pull/29`. Эти команды недоступны через текущие инструменты агента; согласие куратора не подменять. PR #29 сохранять Draft/Refs #10, issue #10 открытой до актуального согласования и полного технического ревью. Следующие #11/#12 и merge отдельно. Статусы ниже — история.
 
