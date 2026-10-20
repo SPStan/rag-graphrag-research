@@ -55,8 +55,44 @@ thinking=false. Точная серверная ревизия/квантова�
 
 ## Команды
 
+### Разобранный локальный отказ20октября
+
+Первый Dense MuSiQue завершён:5500,172POST,684560 embedding tokens/113.705s.
+Первый Dense HotpotQA остановлен на третьем batch: два успешных,9333 известных
+embedding tokens, затем HTTP400 из внутреннего `/tokenize` Ollama:
+Windows `Only one usage of each socket address ... is normally permitted`.
+Это локальный socket allocation failure, не отказ формата корпуса и не target API.
+После паузы число TIME_WAIT снизилось; ни сервисы, ни исторические данные не удалялись.
+
+Техническое продолжение внутри исходного #13: pacing0.1s на входной текст
+(batch32 не чаще3.2s), одна новая папка/UUID только для этой failed Dense строки.
+Первый failed manifest/journal/ответы остаются неизменными. Расход отказа неизвестен:
+его UTF-8 request reservation восстанавливается по точному SHA payload и вычитается
+из остатка2M вместе с9333 известными токенами. Это резерв бюджета, не измеренный usage.
+Полнота суммарной стоимости Hotpot/E1 останется false, даже если новый индекс готов.
+Остальные ещё не начатые строки выполняются тем же продолженным планом;
+готовый MuSiQue не пересчитывается. Согласие куратора на новый unknown не заявляется;
+эта техническая попытка ограничена исходным объёмом/бюджетом #13, где неполнота
+расхода допускается только с явным указанием.
+
+```powershell
+$dataRoot = '<data-root>'
+$envFile = '<data-root>/<env-file>'
+$prior = "$dataRoot/indexes/e1/issue13-plan.json"
+$plan = "$dataRoot/indexes/e1/issue13-continuation-plan.json"
+./.venv-check/Scripts/python.exe -m scripts.run_e1 continue --prior-plan $prior --plan $plan
+# Далее run --method dense --dataset hotpotqa; остальные pending строки — из этого plan.
+```
+
+Claim лежит рядом с каноническим failed manifest и запрещает второе продолжение
+между каталогами/worktrees. Повтор команды continue отклоняется до HTTP.
+Новая ошибка снова останавливает строку; новых автоматических продолжений нет.
+
 Из checkout, содержащего E1 commit; пути ниже заменяются локальными.
 Секрет хранится только в игнорируемом env-file.
+Следующий блок показывает исходное создание пакета. Если canonical plan уже
+существует, prepare не повторять; для текущего продолжения использовать plan выше
+и пропустить готовый Dense MuSiQue.
 
 ```powershell
 $dataRoot = '<data-root>'
@@ -71,6 +107,7 @@ $plan = "$dataRoot/indexes/e1/issue13-plan.json"
 & '<raptor-venv>/Scripts/python.exe' -m scripts.run_e1 run --plan $plan --env-file $envFile --method raptor --dataset musique --source '<pinned-raptor-source>'
 & '<raptor-venv>/Scripts/python.exe' -m scripts.run_e1 run --plan $plan --env-file $envFile --method raptor --dataset hotpotqa --source '<pinned-raptor-source>'
 ./.venv-check/Scripts/python.exe -m scripts.run_e1 report --plan $plan
+./.venv-check/Scripts/python.exe -m scripts.run_e1 verify --plan $plan
 ```
 
 Для RAPTOR установить доступные `TIKTOKEN_CACHE_DIR` (уже загруженный cl100k)

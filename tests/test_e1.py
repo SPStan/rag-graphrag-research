@@ -121,6 +121,111 @@ def test_dense_reload_covers_ids(tmp_path):
     assert result == {"passages": 1, "dimension": 1024, "reload_model_calls": 0}
 
 
+def test_local_failure_continuation_preserves_unknown_and_shared_claim(tmp_path):
+    corpus = [{"id": str(i), "title": "Title", "text": f"text {i}"} for i in range(33)]
+    rows = [
+        {
+            "method": method,
+            "dataset": dataset,
+            "run_id": f"{method}-{dataset}",
+            "code_commit": "old",
+            "token_limit": e1.LIMITS[method],
+            "output": f"indexes/e1/batch/{method}/{dataset}",
+        }
+        for method in e1.METHODS
+        for dataset in e1.DATASETS
+    ]
+    original = {
+        "batch_id": "batch",
+        "rows": rows,
+        "data_root": str(tmp_path),
+        "embedding_model": "bge-m3:latest",
+        "combined_token_limit": 68000000,
+        "parameters": {},
+    }
+    root = tmp_path / rows[1]["output"]
+    root.mkdir(parents=True)
+    (root / "requests").mkdir()
+    journal = Journal(
+        root / "usage.jsonl",
+        run_id=rows[1]["run_id"],
+        method="dense",
+        dataset="hotpotqa",
+    )
+    good = journal.start(
+        phase="index",
+        operation="index_embedding",
+        provider="local_ollama",
+        model="bge",
+        kind="embedding",
+    )
+    journal.finish(good, status="success", usage={"embedding_input_tokens": 7})
+    bad = journal.start(
+        phase="index",
+        operation="index_embedding",
+        provider="local_ollama",
+        model="bge",
+        kind="embedding",
+    )
+    journal.finish(bad, status="error")
+    payload = {
+        "model": "bge-m3:latest",
+        "input": [f"{r['title']}\n{r['text']}" for r in corpus[32:]],
+        "truncate": False,
+    }
+    key = e1.target.digest(
+        {"payload": payload, "kind": "embedding", "operation": "index_embedding"}
+    )
+    dense.write_json_atomic(
+        root / "requests" / f"{key}.json", {"status": "started", "request_sha256": key}
+    )
+    dense.write_json_atomic(
+        root / "requests" / f"{key}.response.json",
+        {"error": "/tokenize: Only one usage of each socket address"},
+    )
+    manifest = {
+        "status": "failed",
+        "run_id": rows[1]["run_id"],
+        "seconds": 1,
+        "token_accounting": journal.reference(),
+        "artifacts": {
+            p.relative_to(root).as_posix(): dense.sha256_file(p)
+            for p in root.rglob("*")
+            if p.is_file()
+        },
+    }
+    dense.write_json_atomic(root / "manifest.json", manifest)
+    prior = tmp_path / "prior.json"
+    dense.write_json_atomic(prior, original)
+    prior_sha = dense.sha256_file(prior)
+    with (
+        patch.object(e1, "ROOT", tmp_path),
+        patch.object(e1, "code_dirty", return_value=False),
+        patch.object(e1, "git", return_value="new"),
+        patch.object(e1, "load_corpus", return_value=(corpus, {})),
+    ):
+        child = e1.continuation_plan(prior)
+        row = child["rows"][1]
+        assert row["prior_run"]["summary"]["complete"] is False
+        assert row["prior_budget_charge"] > 7
+        assert row["token_limit"] + row["prior_budget_charge"] == 2000000
+        assert row["output"].endswith("-continuation1")
+        assert dense.sha256_file(prior) == prior_sha
+        assert (
+            dense.sha256_file(root / "manifest.json")
+            == row["prior_run"]["manifest_sha256"]
+        )
+        with pytest.raises(FileExistsError):
+            e1.continuation_plan(prior)
+        # Reporting keeps the unknown prior, even before the child sends a request.
+        child.update(model="qwen", embedding_digest="digest")
+        (tmp_path / "results/summary").mkdir(parents=True)
+        result = e1.export(child, prior)
+        assert result["physical_known_tokens"] == 7
+        assert result["cost_complete"] is False
+        assert result["rows"][1]["cumulative_accounting"]["complete"] is False
+
+
 @pytest.mark.skipif(
     not os.environ.get("E1_HIPPO_SOURCE"),
     reason="isolated pinned HippoRAG SDK required",
@@ -220,7 +325,7 @@ def test_real_raptor_sdk_index_reuses_dense_and_reloads(tmp_path):
             return "A short summary of the clustered research passages.", {}
 
     runner = Fake()
-    runner.plan = plan
+    runner.plan = {**plan, "parent_plan": {"digest": e1.target.digest(plan)}}
     with (
         patch.object(e1_indexers, "ROOT", tmp_path),
         patch("requests.Session.request", side_effect=AssertionError("HTTP forbidden")),

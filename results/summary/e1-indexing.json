@@ -1,0 +1,345 @@
+{
+  "batch_id": "edff74df-c567-49de-a834-f9f1fc6f7f74",
+  "plan_sha256": "96874c6a3dce5a03918caaa4930692516b04f6c0fcc1620668fd9826bbdaac2d",
+  "models": {
+    "model": "iairlab/qwen3.8-27b",
+    "embedding_model": "bge-m3:latest",
+    "embedding_digest": "7907646426070047a77226ac3e684fbbe8410524f7b4a74d02837e43f2146bab"
+  },
+  "parameters": {
+    "seed": 42,
+    "temperature": 0,
+    "embedding_batch_size": 32,
+    "embedding_dimension": 1024,
+    "truncate": false,
+    "ner_max_tokens": 1024,
+    "triple_max_tokens": 3072,
+    "summary_max_tokens": 4096,
+    "num_layers": 2,
+    "max_cluster_tokens": 3000,
+    "reduction_dimension": 5,
+    "threshold": 0.1,
+    "timeout_seconds": [
+      5,
+      300
+    ],
+    "retry": 0,
+    "redirects": false,
+    "target_context": 262144,
+    "thinking": false
+  },
+  "rows": [
+    {
+      "run_id": "72cc4f85-7656-44a2-87c0-bbb3df5df81c",
+      "method": "dense",
+      "dataset": "musique",
+      "passages": 5500,
+      "corpus": {
+        "report_sha256": "c947e210a468ce62f64c29668480d6f32f884303fcf9edc8f1fc1b4edf99b483",
+        "ids_manifest_sha256": "82f5b26acedb39998398b0b4e9b4cb8f5fc9ec9bbb16420914dd66a4f058d33a",
+        "source_revision": "5ec05b38deecc3318bb432c69865959c56058990",
+        "output_sha256": {
+          "queries.json": "a0fd193f34f153e51052b8346b0db7868c60d68affb6f3e54c56cce7c2c14fc3",
+          "corpus.json": "054338e3803fbe69f67037c58d2a49438572ffe2e8c8a047148a2dcdc100e44b",
+          "labels.json": "76a36d30f3934c24ad5f7f5eaa6a67e4d26e30f2e29f7302f58d211ccb05da4a"
+        }
+      },
+      "corpus_fingerprint": "f726a739ff0def6f7517fe3185780fdc21e5d51a2cfcd83ce3f18fba277c9f9a",
+      "code_commit": "aa1e4f41a7d5753aa39665d679184e8688ece76f",
+      "token_limit": 2000000,
+      "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/dense/musique",
+      "status": "completed",
+      "seconds": 113.705,
+      "plan_sha256": "bc10e2d5ef1a7e23d4f7caabd624796b0be44327df932415b60c2d15d55947be",
+      "validation": {
+        "passages": 5500,
+        "dimension": 1024,
+        "reload_model_calls": 0
+      },
+      "token_accounting": {
+        "journal_file": "usage.jsonl",
+        "journal_sha256": "6c0c6d40b7274659e646390ba7372fe00beb3f752bea9abc1c462329750c2b26",
+        "summary": {
+          "schema_version": 1,
+          "phases": [
+            {
+              "phase": "index",
+              "provider": "local_ollama",
+              "attempts": 172,
+              "errors": 0,
+              "unfinished": 0,
+              "cache_hits": 0,
+              "cache_provenance_unknown": 0,
+              "known_subtotal": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 684560
+              },
+              "unknown_fields": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 0
+              },
+              "complete": true,
+              "total": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 684560
+              }
+            }
+          ],
+          "known_subtotal": {
+            "llm_input_tokens": 0,
+            "llm_output_tokens": 0,
+            "embedding_input_tokens": 684560
+          },
+          "complete": true,
+          "attempts": 172,
+          "historical_cache_cost_complete": true,
+          "journal_corrupt_tail": false,
+          "corrupt_tail_bytes": 0
+        }
+      },
+      "operations": {
+        "index_embedding": {
+          "schema_version": 1,
+          "phases": [
+            {
+              "phase": "index",
+              "provider": "local_ollama",
+              "attempts": 172,
+              "errors": 0,
+              "unfinished": 0,
+              "cache_hits": 0,
+              "cache_provenance_unknown": 0,
+              "known_subtotal": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 684560
+              },
+              "unknown_fields": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 0
+              },
+              "complete": true,
+              "total": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 684560
+              }
+            }
+          ],
+          "known_subtotal": {
+            "llm_input_tokens": 0,
+            "llm_output_tokens": 0,
+            "embedding_input_tokens": 684560
+          },
+          "complete": true,
+          "attempts": 172,
+          "historical_cache_cost_complete": true,
+          "journal_corrupt_tail": false,
+          "corrupt_tail_bytes": 0
+        }
+      },
+      "artifact_manifest_sha256": "dacea888db4d8c7720f612aad81cdb8832c05151a65828badf2d4e355e7a86c5",
+      "cost_semantics": "Physical new cost; replay is not charged twice."
+    },
+    {
+      "run_id": "8c4f1362-1ea4-4577-bcfb-6fb85eb95b5d",
+      "method": "dense",
+      "dataset": "hotpotqa",
+      "passages": 5500,
+      "corpus": {
+        "report_sha256": "c947e210a468ce62f64c29668480d6f32f884303fcf9edc8f1fc1b4edf99b483",
+        "ids_manifest_sha256": "c967cbcd5bdb02a6954d66fa472fc4840e23d08fe13e31c635ad6b5427f04a46",
+        "source_revision": "5ec05b38deecc3318bb432c69865959c56058990",
+        "output_sha256": {
+          "queries.json": "89ba1c856cb3c999dcc9e743779ed367375d0372cfb62727edb5558a5eb7f9aa",
+          "corpus.json": "9b161e9bbfee6ecfe304816dcb847f8763c3d55b06dbf04d002726405e3e3c61",
+          "labels.json": "42df93c1491eb7e41d46e7b562c0bad4352488ca8587c09d35eedee362875535"
+        }
+      },
+      "corpus_fingerprint": "1d6a33346c42cd2feae5cf71eb2c145121a74712eb51a86d95205983a4477634",
+      "code_commit": "aa1e4f41a7d5753aa39665d679184e8688ece76f",
+      "token_limit": 2000000,
+      "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/dense/hotpotqa",
+      "status": "failed",
+      "seconds": 3.725,
+      "plan_sha256": "bc10e2d5ef1a7e23d4f7caabd624796b0be44327df932415b60c2d15d55947be",
+      "error_type": "HTTPError",
+      "token_accounting": {
+        "journal_file": "usage.jsonl",
+        "journal_sha256": "6674167fac4d6822853a85e7e0c72227e4df530f3d2a78b219656184014581e2",
+        "summary": {
+          "schema_version": 1,
+          "phases": [
+            {
+              "phase": "index",
+              "provider": "local_ollama",
+              "attempts": 3,
+              "errors": 1,
+              "unfinished": 0,
+              "cache_hits": 0,
+              "cache_provenance_unknown": 0,
+              "known_subtotal": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 9333
+              },
+              "unknown_fields": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 1
+              },
+              "complete": false,
+              "total": null
+            }
+          ],
+          "known_subtotal": {
+            "llm_input_tokens": 0,
+            "llm_output_tokens": 0,
+            "embedding_input_tokens": 9333
+          },
+          "complete": false,
+          "attempts": 3,
+          "historical_cache_cost_complete": true,
+          "journal_corrupt_tail": false,
+          "corrupt_tail_bytes": 0
+        }
+      },
+      "operations": {
+        "index_embedding": {
+          "schema_version": 1,
+          "phases": [
+            {
+              "phase": "index",
+              "provider": "local_ollama",
+              "attempts": 3,
+              "errors": 1,
+              "unfinished": 0,
+              "cache_hits": 0,
+              "cache_provenance_unknown": 0,
+              "known_subtotal": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 9333
+              },
+              "unknown_fields": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 1
+              },
+              "complete": false,
+              "total": null
+            }
+          ],
+          "known_subtotal": {
+            "llm_input_tokens": 0,
+            "llm_output_tokens": 0,
+            "embedding_input_tokens": 9333
+          },
+          "complete": false,
+          "attempts": 3,
+          "historical_cache_cost_complete": true,
+          "journal_corrupt_tail": false,
+          "corrupt_tail_bytes": 0
+        }
+      },
+      "artifact_manifest_sha256": "329f1b9a5a21fbf52aa3a27bcc449089290579930e3495af7205c288129171c7",
+      "cost_semantics": "Physical new cost; replay is not charged twice."
+    },
+    {
+      "run_id": "bc31760b-7f4d-4a9d-bfda-a9ff602003ea",
+      "method": "hipporag2",
+      "dataset": "musique",
+      "passages": 5500,
+      "corpus": {
+        "report_sha256": "c947e210a468ce62f64c29668480d6f32f884303fcf9edc8f1fc1b4edf99b483",
+        "ids_manifest_sha256": "82f5b26acedb39998398b0b4e9b4cb8f5fc9ec9bbb16420914dd66a4f058d33a",
+        "source_revision": "5ec05b38deecc3318bb432c69865959c56058990",
+        "output_sha256": {
+          "queries.json": "a0fd193f34f153e51052b8346b0db7868c60d68affb6f3e54c56cce7c2c14fc3",
+          "corpus.json": "054338e3803fbe69f67037c58d2a49438572ffe2e8c8a047148a2dcdc100e44b",
+          "labels.json": "76a36d30f3934c24ad5f7f5eaa6a67e4d26e30f2e29f7302f58d211ccb05da4a"
+        }
+      },
+      "corpus_fingerprint": "f726a739ff0def6f7517fe3185780fdc21e5d51a2cfcd83ce3f18fba277c9f9a",
+      "code_commit": "aa1e4f41a7d5753aa39665d679184e8688ece76f",
+      "token_limit": 20000000,
+      "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/hipporag2/musique",
+      "status": "pending",
+      "cost_semantics": "Physical new cost; replay is not charged twice."
+    },
+    {
+      "run_id": "122d943f-7597-4038-863a-ec03f314bafa",
+      "method": "hipporag2",
+      "dataset": "hotpotqa",
+      "passages": 5500,
+      "corpus": {
+        "report_sha256": "c947e210a468ce62f64c29668480d6f32f884303fcf9edc8f1fc1b4edf99b483",
+        "ids_manifest_sha256": "c967cbcd5bdb02a6954d66fa472fc4840e23d08fe13e31c635ad6b5427f04a46",
+        "source_revision": "5ec05b38deecc3318bb432c69865959c56058990",
+        "output_sha256": {
+          "queries.json": "89ba1c856cb3c999dcc9e743779ed367375d0372cfb62727edb5558a5eb7f9aa",
+          "corpus.json": "9b161e9bbfee6ecfe304816dcb847f8763c3d55b06dbf04d002726405e3e3c61",
+          "labels.json": "42df93c1491eb7e41d46e7b562c0bad4352488ca8587c09d35eedee362875535"
+        }
+      },
+      "corpus_fingerprint": "1d6a33346c42cd2feae5cf71eb2c145121a74712eb51a86d95205983a4477634",
+      "code_commit": "aa1e4f41a7d5753aa39665d679184e8688ece76f",
+      "token_limit": 20000000,
+      "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/hipporag2/hotpotqa",
+      "status": "pending",
+      "cost_semantics": "Physical new cost; replay is not charged twice."
+    },
+    {
+      "run_id": "a22458e3-2528-4fa9-b752-a32c15d8b85b",
+      "method": "raptor",
+      "dataset": "musique",
+      "passages": 5500,
+      "corpus": {
+        "report_sha256": "c947e210a468ce62f64c29668480d6f32f884303fcf9edc8f1fc1b4edf99b483",
+        "ids_manifest_sha256": "82f5b26acedb39998398b0b4e9b4cb8f5fc9ec9bbb16420914dd66a4f058d33a",
+        "source_revision": "5ec05b38deecc3318bb432c69865959c56058990",
+        "output_sha256": {
+          "queries.json": "a0fd193f34f153e51052b8346b0db7868c60d68affb6f3e54c56cce7c2c14fc3",
+          "corpus.json": "054338e3803fbe69f67037c58d2a49438572ffe2e8c8a047148a2dcdc100e44b",
+          "labels.json": "76a36d30f3934c24ad5f7f5eaa6a67e4d26e30f2e29f7302f58d211ccb05da4a"
+        }
+      },
+      "corpus_fingerprint": "f726a739ff0def6f7517fe3185780fdc21e5d51a2cfcd83ce3f18fba277c9f9a",
+      "code_commit": "aa1e4f41a7d5753aa39665d679184e8688ece76f",
+      "token_limit": 12000000,
+      "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/raptor/musique",
+      "status": "pending",
+      "cost_semantics": "Physical new cost; replay is not charged twice."
+    },
+    {
+      "run_id": "ff75d8dd-69d6-4d9e-8e70-fdd63119741c",
+      "method": "raptor",
+      "dataset": "hotpotqa",
+      "passages": 5500,
+      "corpus": {
+        "report_sha256": "c947e210a468ce62f64c29668480d6f32f884303fcf9edc8f1fc1b4edf99b483",
+        "ids_manifest_sha256": "c967cbcd5bdb02a6954d66fa472fc4840e23d08fe13e31c635ad6b5427f04a46",
+        "source_revision": "5ec05b38deecc3318bb432c69865959c56058990",
+        "output_sha256": {
+          "queries.json": "89ba1c856cb3c999dcc9e743779ed367375d0372cfb62727edb5558a5eb7f9aa",
+          "corpus.json": "9b161e9bbfee6ecfe304816dcb847f8763c3d55b06dbf04d002726405e3e3c61",
+          "labels.json": "42df93c1491eb7e41d46e7b562c0bad4352488ca8587c09d35eedee362875535"
+        }
+      },
+      "corpus_fingerprint": "1d6a33346c42cd2feae5cf71eb2c145121a74712eb51a86d95205983a4477634",
+      "code_commit": "aa1e4f41a7d5753aa39665d679184e8688ece76f",
+      "token_limit": 12000000,
+      "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/raptor/hotpotqa",
+      "status": "pending",
+      "cost_semantics": "Physical new cost; replay is not charged twice."
+    }
+  ],
+  "combined_token_limit": 68000000,
+  "complete": false,
+  "limitations": "E1 measures indexing cost/coverage, not retrieval or answer quality. Historical smoke unknowns are preserved outside these new runs.",
+  "physical_known_tokens": 693893
+}

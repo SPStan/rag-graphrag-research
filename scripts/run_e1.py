@@ -1,6 +1,7 @@
 """Bounded full-corpus E1 indexing; private checkpoints, public cost summaries."""
 
 import argparse
+import copy
 from contextlib import contextmanager
 import json
 import os
@@ -40,6 +41,7 @@ PARAMETERS = {
     "redirects": False,
     "target_context": 262144,
     "thinking": False,
+    "embedding_pacing_seconds_per_text": 0.1,
 }
 
 
@@ -125,6 +127,12 @@ def make_plan(data_root, config, embedding_digest):
 
 
 def verify_plan(plan, row, config):
+    if (
+        plan.get("parent_plan")
+        and dense.sha256_file(plan["parent_plan"]["path"])
+        != plan["parent_plan"]["sha256"]
+    ):
+        raise ValueError("parent_plan_changed")
     combinations = [(r["method"], r["dataset"]) for r in plan["rows"]]
     if (
         plan["kind"] != "E1_full_corpus_indexing"
@@ -132,7 +140,8 @@ def verify_plan(plan, row, config):
         or plan["workspace"] != str(ROOT.resolve())
         or row["method"] not in METHODS
         or row["dataset"] not in DATASETS
-        or row["token_limit"] != LIMITS[row["method"]]
+        or row["token_limit"]
+        != LIMITS[row["method"]] - row.get("prior_budget_charge", 0)
         or plan["combined_token_limit"] != sum(r["token_limit"] for r in plan["rows"])
         or row["code_commit"] != git("rev-parse", "HEAD")
         or code_dirty()
@@ -141,6 +150,7 @@ def verify_plan(plan, row, config):
         or sorted(combinations) != sorted((m, d) for m in METHODS for d in DATASETS)
         or row["output"]
         != f"indexes/e1/{plan['batch_id']}/{row['method']}/{row['dataset']}"
+        + ("-continuation1" if row.get("prior_run") else "")
     ):
         raise ValueError("E1_plan_or_code_mismatch")
     response = requests.get("http://localhost:11434/api/tags", timeout=10)
@@ -184,6 +194,7 @@ class Transport:
         self.calls = directory / "requests"
         self.calls.mkdir(exist_ok=True)
         self.logical_calls = 0
+        self.last_embedding_started = 0.0
 
     def call(self, payload, *, kind, operation):
         key = target.digest({"payload": payload, "kind": kind, "operation": operation})
@@ -243,8 +254,16 @@ class Transport:
         if self.journal.summary()["attempts"] >= 40000:
             raise ValueError("request_limit_exceeded")
         saved = {"request_sha256": key, "status": "started", "operation": operation}
+        saved["reserved_tokens"] = input_bound + payload.get("max_tokens", 0)
         dense.write_json_atomic(checkpoint, saved)
         remote = kind == "llm"
+        if not remote:
+            delay = len(payload["input"]) * PARAMETERS[
+                "embedding_pacing_seconds_per_text"
+            ] - (time.monotonic() - self.last_embedding_started)
+            if delay > 0:
+                time.sleep(delay)
+            self.last_embedding_started = time.monotonic()
         body = target.checked_post(
             self.session,
             self.plan["endpoint"] + "/chat/completions"
@@ -334,6 +353,12 @@ def dense_index(corpus, transport, directory):
     return {"passages": len(corpus), "dimension": 1024, "reload_model_calls": 0}
 
 
+def row_usage(row):
+    return row.get(
+        "cumulative_accounting", row.get("token_accounting", {}).get("summary", {})
+    )
+
+
 def export(plan, plan_path):
     rows = []
     for row in plan["rows"]:
@@ -342,6 +367,28 @@ def export(plan, plan_path):
             dense.read_json(manifest) if manifest.exists() else {"status": "pending"}
         )
         public = {key: value for key, value in result.items() if key != "artifacts"}
+        if result["status"] == "running" and (manifest.parent / "usage.jsonl").exists():
+            from scripts.token_accounting import summarize
+
+            live = manifest.parent / "usage.jsonl"
+            public["token_accounting"] = {
+                "journal_sha256": dense.sha256_file(live),
+                "summary": summarize(read_records(live)),
+            }
+        if row.get("prior_run"):
+            prior = ROOT / row["prior_run"]["output"] / "manifest.json"
+            if dense.sha256_file(prior) != row["prior_run"]["manifest_sha256"]:
+                raise ValueError("prior_failed_manifest_changed")
+            from scripts.token_accounting import summarize
+
+            records = read_records(prior.parent / "usage.jsonl")
+            current = manifest.parent / "usage.jsonl"
+            if current.exists():
+                records.extend(read_records(current))
+            public["cumulative_accounting"] = summarize(records)
+            public["cumulative_seconds"] = dense.read_json(prior)[
+                "seconds"
+            ] + result.get("seconds", 0)
         if manifest.exists():
             public["artifact_manifest_sha256"] = dense.sha256_file(manifest)
         rows.append({**row, **public})
@@ -358,13 +405,14 @@ def export(plan, plan_path):
         "limitations": "E1 measures indexing cost/coverage, not retrieval or answer quality. Historical smoke unknowns are preserved outside these new runs.",
     }
     report["physical_known_tokens"] = sum(
-        sum(
-            r.get("token_accounting", {})
-            .get("summary", {})
-            .get("known_subtotal", {})
-            .values()
-        )
-        for r in rows
+        sum(row_usage(r).get("known_subtotal", {}).values()) for r in rows
+    )
+    report["cost_complete"] = all(row_usage(r).get("complete", False) for r in rows)
+    report["budget_charge_upper_bound"] = report["physical_known_tokens"] + sum(
+        r.get("prior_run", {}).get("unknown_reserved_upper_bound", 0) for r in rows
+    )
+    report["original_combined_token_limit"] = plan.get(
+        "original_combined_token_limit", plan["combined_token_limit"]
     )
     for row in rows:
         row["cost_semantics"] = "Physical new cost; replay is not charged twice."
@@ -390,7 +438,7 @@ def export(plan, plan_path):
         "|---|---|---|---:|---:|---:|---:|---|---|",
     ]
     for row in rows:
-        usage = row.get("token_accounting", {}).get("summary", {})
+        usage = row_usage(row)
         known = usage.get("known_subtotal", {})
         completeness = usage.get("complete", False) and usage.get(
             "historical_cache_cost_complete", False
@@ -402,6 +450,121 @@ def export(plan, plan_path):
         "\n".join(lines) + "\n", encoding="utf-8"
     )
     return report
+
+
+def continuation_plan(prior_path):
+    """One inspected local socket-failure continuation, within the original allocation.
+
+    Original plan/failed directory stay immutable. Unknown cost is NOT measured;
+    its conservative request reservation is charged against the remaining budget.
+    """
+    original = dense.read_json(prior_path)
+    if original.get("parent_plan"):
+        raise ValueError("only_one_E1_continuation_per_original_plan")
+    plan = copy.deepcopy(original)
+    if code_dirty():
+        raise ValueError("commit_continuation_before_preparing_plan")
+    candidates = []
+    for row in plan["rows"]:
+        path = ROOT / row["output"] / "manifest.json"
+        manifest = dense.read_json(path) if path.exists() else {}
+        if manifest.get("status") == "completed":
+            continue
+        row["code_commit"] = git("rev-parse", "HEAD")
+        if manifest.get("status") == "failed":
+            if row["method"] != "dense" or row["dataset"] != "hotpotqa":
+                raise ValueError("continuation_scope_is_local_Dense_Hotpot_only")
+            from scripts.token_accounting import verified_reference
+
+            reference = verified_reference(manifest, path)
+            if reference["status"] != "verified":
+                raise ValueError("prior_journal_not_intact")
+            for name, sha in manifest["artifacts"].items():
+                if dense.sha256_file(path.parent / name) != sha:
+                    raise ValueError("prior_artifact_changed")
+            summary = reference["summary"]
+            if sum(p["errors"] for p in summary["phases"]) != 1 or any(
+                p["unfinished"] or p["provider"] != "local_ollama"
+                for p in summary["phases"]
+            ):
+                raise ValueError("unexpected_prior_error_scope")
+            corpus, _ = load_corpus(plan["data_root"], row["dataset"])
+            unresolved = [
+                dense.read_json(p)
+                for p in path.parent.joinpath("requests").glob("*.json")
+                if not p.name.endswith(".response.json")
+                and dense.read_json(p)["status"] != "complete"
+            ]
+            if len(unresolved) != 1:
+                raise ValueError("expected_exactly_one_socket_failure")
+            saved = unresolved[0]
+            response = dense.read_json(
+                path.parent / "requests" / f"{saved['request_sha256']}.response.json"
+            )
+            error = response.get("error", "")
+            if (
+                "/tokenize" not in error
+                or "Only one usage of each socket address" not in error
+            ):
+                raise ValueError("failure_is_not_inspected_local_socket_exhaustion")
+            bound = None
+            texts = [f"{r['title']}\n{r['text']}" for r in corpus]
+            for offset in range(0, len(texts), 32):
+                payload = {
+                    "model": original["embedding_model"],
+                    "input": texts[offset : offset + 32],
+                    "truncate": False,
+                }
+                key = target.digest(
+                    {
+                        "payload": payload,
+                        "kind": "embedding",
+                        "operation": "index_embedding",
+                    }
+                )
+                if key == saved["request_sha256"]:
+                    bound = len(json.dumps(payload, ensure_ascii=False).encode()) + 2048
+            if bound is None:
+                raise ValueError("unknown_request_cannot_be_reconstructed")
+            known = sum(reference["summary"]["known_subtotal"].values())
+            row["prior_run"] = {
+                "run_id": row["run_id"],
+                "output": row["output"],
+                "manifest_sha256": dense.sha256_file(path),
+                "summary": reference["summary"],
+                "unknown_reserved_upper_bound": bound,
+                "reason": "Local Ollama internal /tokenize socket exhaustion; endpoint allocations recovered during inspection. Add per-text pacing, one fresh attempt, preserve unknown.",
+            }
+            row["prior_budget_charge"] = known + bound
+            row["token_limit"] -= known + bound
+            row["run_id"] = str(uuid.uuid4())
+            row["output"] += "-continuation1"
+            candidates.append(path.parent)
+    if len(candidates) != 1:
+        raise ValueError("expected_one_failed_Dense_row")
+    with (candidates[0] / "continuation-once.claim.json").open(
+        "x", encoding="utf-8"
+    ) as stream:
+        json.dump(
+            {
+                "parent_plan_sha256": dense.sha256_file(prior_path),
+                "new_run_id": next(
+                    r["run_id"] for r in plan["rows"] if r.get("prior_run")
+                ),
+            },
+            stream,
+        )
+        stream.flush()
+        os.fsync(stream.fileno())
+    plan["parent_plan"] = {
+        "path": str(prior_path.resolve()),
+        "sha256": dense.sha256_file(prior_path),
+        "digest": target.digest(original),
+    }
+    plan["parameters"] = PARAMETERS
+    plan["combined_token_limit"] = sum(r["token_limit"] for r in plan["rows"])
+    plan["original_combined_token_limit"] = original["combined_token_limit"]
+    return plan
 
 
 def execute(plan, row, config, source=None):
@@ -477,13 +640,16 @@ def execute(plan, row, config, source=None):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("prepare", "run", "report"))
+    parser.add_argument(
+        "command", choices=("prepare", "continue", "run", "report", "verify")
+    )
     parser.add_argument("--plan", type=Path, required=True)
     parser.add_argument("--data-root", type=Path)
     parser.add_argument("--env-file", type=Path)
     parser.add_argument("--method", choices=METHODS)
     parser.add_argument("--dataset", choices=DATASETS)
     parser.add_argument("--source", type=Path)
+    parser.add_argument("--prior-plan", type=Path)
     args = parser.parse_args()
     config = dotenv_values(args.env_file) if args.env_file else {}
     if args.command == "prepare":
@@ -499,8 +665,32 @@ def main():
         args.plan.parent.mkdir(parents=True, exist_ok=True)
         with args.plan.open("x", encoding="utf-8") as stream:
             json.dump(plan, stream, ensure_ascii=False, indent=2)
+    elif args.command == "continue":
+        canonical = (
+            Path(dense.read_json(args.prior_plan)["data_root"])
+            / "indexes/e1/issue13-continuation-plan.json"
+        )
+        if args.plan.resolve() != canonical.resolve() or args.plan.exists():
+            raise ValueError("continuation_requires_unused_canonical_plan")
+        plan = continuation_plan(args.prior_plan)
+        with args.plan.open("x", encoding="utf-8") as stream:
+            json.dump(plan, stream, ensure_ascii=False, indent=2)
     else:
         plan = dense.read_json(args.plan)
+        if args.command == "verify":
+            from scripts.token_accounting import verified_reference
+
+            for row in plan["rows"]:
+                path = ROOT / row["output"] / "manifest.json"
+                manifest = dense.read_json(path)
+                if (
+                    manifest["status"] != "completed"
+                    or verified_reference(manifest, path)["status"] != "verified"
+                ):
+                    raise ValueError("index_not_completed_or_journal_invalid")
+                for name, sha in manifest["artifacts"].items():
+                    if dense.sha256_file(path.parent / name) != sha:
+                        raise ValueError("index_artifact_changed")
         if args.command == "run":
             row = next(
                 r

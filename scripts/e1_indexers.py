@@ -19,6 +19,9 @@ def raptor_index(corpus, transport, directory, source):
         / "dense"
         / transport.row["dataset"]
     )
+    for row in transport.plan.get("rows", []):
+        if row["method"] == "dense" and row["dataset"] == transport.row["dataset"]:
+            producer = ROOT / row["output"]
     manifest = dense.read_json(producer / "manifest.json")
     from scripts.token_accounting import verified_reference
 
@@ -29,7 +32,11 @@ def raptor_index(corpus, transport, directory, source):
         or reference["status"] != "verified"
         or not reference["summary"]["complete"]
         or manifest["artifacts"]["vectors.npz"] != dense.sha256_file(vectors_path)
-        or manifest["plan_sha256"] != target.digest(transport.plan)
+        or manifest["plan_sha256"]
+        not in (
+            target.digest(transport.plan),
+            transport.plan.get("parent_plan", {}).get("digest"),
+        )
     ):
         raise ValueError("dense_leaf_producer_not_verified")
     with dense.np.load(vectors_path, allow_pickle=False) as saved:
