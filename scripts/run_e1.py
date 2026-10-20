@@ -129,7 +129,7 @@ def make_plan(data_root, config, embedding_digest):
 def verify_plan(plan, row, config):
     if (
         plan.get("parent_plan")
-        and dense.sha256_file(plan["parent_plan"]["path"])
+        and dense.sha256_file(Path(plan["parent_plan"]["path"]))
         != plan["parent_plan"]["sha256"]
     ):
         raise ValueError("parent_plan_changed")
@@ -567,6 +567,46 @@ def continuation_plan(prior_path):
     return plan
 
 
+def seal_unstarted_plan(path):
+    """Rebind a rejected preflight to clean code before any new HTTP."""
+    plan = dense.read_json(path)
+    if not plan.get("parent_plan") or code_dirty():
+        raise ValueError("only_clean_unstarted_continuation_can_be_sealed")
+    original = dense.read_json(Path(plan["parent_plan"]["path"]))
+    for row in plan["rows"]:
+        directory = ROOT / row["output"]
+        manifest = directory / "manifest.json"
+        original_row = next(
+            r
+            for r in original["rows"]
+            if (r["method"], r["dataset"]) == (row["method"], row["dataset"])
+        )
+        if (
+            row["code_commit"] == original_row["code_commit"]
+            and manifest.exists()
+            and dense.read_json(manifest)["status"] == "completed"
+        ):
+            continue
+        if (directory / "usage.jsonl").exists() or (
+            directory / "running.lock"
+        ).exists():
+            raise ValueError("cannot_change_started_plan")
+        row["code_commit"] = git("rev-parse", "HEAD")
+    old_sha = dense.sha256_file(path)
+    backup = path.with_name(f"{path.stem}.preflight-{old_sha[:12]}.json")
+    with backup.open("xb") as stream:
+        stream.write(path.read_bytes())
+    plan.setdefault("preflight_revisions", []).append(
+        {
+            "sha256": old_sha,
+            "file": backup.name,
+            "reason": "Rejected before new HTTP; fix Path type in parent-plan verification.",
+        }
+    )
+    dense.write_json_atomic(path, plan)
+    return plan
+
+
 def execute(plan, row, config, source=None):
     corpus = verify_plan(plan, row, config)
     directory = ROOT / row["output"]
@@ -641,7 +681,7 @@ def execute(plan, row, config, source=None):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "command", choices=("prepare", "continue", "run", "report", "verify")
+        "command", choices=("prepare", "continue", "seal", "run", "report", "verify")
     )
     parser.add_argument("--plan", type=Path, required=True)
     parser.add_argument("--data-root", type=Path)
@@ -675,6 +715,8 @@ def main():
         plan = continuation_plan(args.prior_plan)
         with args.plan.open("x", encoding="utf-8") as stream:
             json.dump(plan, stream, ensure_ascii=False, indent=2)
+    elif args.command == "seal":
+        plan = seal_unstarted_plan(args.plan)
     else:
         plan = dense.read_json(args.plan)
         if args.command == "verify":

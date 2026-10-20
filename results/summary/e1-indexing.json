@@ -1,6 +1,6 @@
 {
   "batch_id": "edff74df-c567-49de-a834-f9f1fc6f7f74",
-  "plan_sha256": "96874c6a3dce5a03918caaa4930692516b04f6c0fcc1620668fd9826bbdaac2d",
+  "plan_sha256": "cd0f638de8898743bab4e2c251fb7531cb2638e801d47dc8639e3421bb6cebcd",
   "models": {
     "model": "iairlab/qwen3.8-27b",
     "embedding_model": "bge-m3:latest",
@@ -26,7 +26,8 @@
     "retry": 0,
     "redirects": false,
     "target_context": 262144,
-    "thinking": false
+    "thinking": false,
+    "embedding_pacing_seconds_per_text": 0.1
   },
   "rows": [
     {
@@ -146,7 +147,7 @@
       "cost_semantics": "Physical new cost; replay is not charged twice."
     },
     {
-      "run_id": "8c4f1362-1ea4-4577-bcfb-6fb85eb95b5d",
+      "run_id": "f93e2e87-e6e8-4a3a-a2c0-2b88e1bf3319",
       "method": "dense",
       "dataset": "hotpotqa",
       "passages": 5500,
@@ -161,16 +162,13 @@
         }
       },
       "corpus_fingerprint": "1d6a33346c42cd2feae5cf71eb2c145121a74712eb51a86d95205983a4477634",
-      "code_commit": "aa1e4f41a7d5753aa39665d679184e8688ece76f",
-      "token_limit": 2000000,
-      "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/dense/hotpotqa",
-      "status": "failed",
-      "seconds": 3.725,
-      "plan_sha256": "bc10e2d5ef1a7e23d4f7caabd624796b0be44327df932415b60c2d15d55947be",
-      "error_type": "HTTPError",
-      "token_accounting": {
-        "journal_file": "usage.jsonl",
-        "journal_sha256": "6674167fac4d6822853a85e7e0c72227e4df530f3d2a78b219656184014581e2",
+      "code_commit": "04fe3b27c702db2bbe70dde8a04a0abc02529410",
+      "token_limit": 1971068,
+      "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/dense/hotpotqa-continuation1",
+      "prior_run": {
+        "run_id": "8c4f1362-1ea4-4577-bcfb-6fb85eb95b5d",
+        "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/dense/hotpotqa",
+        "manifest_sha256": "329f1b9a5a21fbf52aa3a27bcc449089290579930e3495af7205c288129171c7",
         "summary": {
           "schema_version": 1,
           "phases": [
@@ -206,47 +204,49 @@
           "historical_cache_cost_complete": true,
           "journal_corrupt_tail": false,
           "corrupt_tail_bytes": 0
-        }
+        },
+        "unknown_reserved_upper_bound": 19599,
+        "reason": "Local Ollama internal /tokenize socket exhaustion; endpoint allocations recovered during inspection. Add per-text pacing, one fresh attempt, preserve unknown."
       },
-      "operations": {
-        "index_embedding": {
-          "schema_version": 1,
-          "phases": [
-            {
-              "phase": "index",
-              "provider": "local_ollama",
-              "attempts": 3,
-              "errors": 1,
-              "unfinished": 0,
-              "cache_hits": 0,
-              "cache_provenance_unknown": 0,
-              "known_subtotal": {
-                "llm_input_tokens": 0,
-                "llm_output_tokens": 0,
-                "embedding_input_tokens": 9333
-              },
-              "unknown_fields": {
-                "llm_input_tokens": 0,
-                "llm_output_tokens": 0,
-                "embedding_input_tokens": 1
-              },
-              "complete": false,
-              "total": null
-            }
-          ],
-          "known_subtotal": {
-            "llm_input_tokens": 0,
-            "llm_output_tokens": 0,
-            "embedding_input_tokens": 9333
-          },
-          "complete": false,
-          "attempts": 3,
-          "historical_cache_cost_complete": true,
-          "journal_corrupt_tail": false,
-          "corrupt_tail_bytes": 0
-        }
+      "prior_budget_charge": 28932,
+      "status": "pending",
+      "cumulative_accounting": {
+        "schema_version": 1,
+        "phases": [
+          {
+            "phase": "index",
+            "provider": "local_ollama",
+            "attempts": 3,
+            "errors": 1,
+            "unfinished": 0,
+            "cache_hits": 0,
+            "cache_provenance_unknown": 0,
+            "known_subtotal": {
+              "llm_input_tokens": 0,
+              "llm_output_tokens": 0,
+              "embedding_input_tokens": 9333
+            },
+            "unknown_fields": {
+              "llm_input_tokens": 0,
+              "llm_output_tokens": 0,
+              "embedding_input_tokens": 1
+            },
+            "complete": false,
+            "total": null
+          }
+        ],
+        "known_subtotal": {
+          "llm_input_tokens": 0,
+          "llm_output_tokens": 0,
+          "embedding_input_tokens": 9333
+        },
+        "complete": false,
+        "attempts": 3,
+        "historical_cache_cost_complete": true,
+        "journal_corrupt_tail": false,
+        "corrupt_tail_bytes": 0
       },
-      "artifact_manifest_sha256": "329f1b9a5a21fbf52aa3a27bcc449089290579930e3495af7205c288129171c7",
+      "cumulative_seconds": 3.725,
       "cost_semantics": "Physical new cost; replay is not charged twice."
     },
     {
@@ -265,7 +265,7 @@
         }
       },
       "corpus_fingerprint": "f726a739ff0def6f7517fe3185780fdc21e5d51a2cfcd83ce3f18fba277c9f9a",
-      "code_commit": "aa1e4f41a7d5753aa39665d679184e8688ece76f",
+      "code_commit": "04fe3b27c702db2bbe70dde8a04a0abc02529410",
       "token_limit": 20000000,
       "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/hipporag2/musique",
       "status": "pending",
@@ -287,7 +287,7 @@
         }
       },
       "corpus_fingerprint": "1d6a33346c42cd2feae5cf71eb2c145121a74712eb51a86d95205983a4477634",
-      "code_commit": "aa1e4f41a7d5753aa39665d679184e8688ece76f",
+      "code_commit": "04fe3b27c702db2bbe70dde8a04a0abc02529410",
       "token_limit": 20000000,
       "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/hipporag2/hotpotqa",
       "status": "pending",
@@ -309,7 +309,7 @@
         }
       },
       "corpus_fingerprint": "f726a739ff0def6f7517fe3185780fdc21e5d51a2cfcd83ce3f18fba277c9f9a",
-      "code_commit": "aa1e4f41a7d5753aa39665d679184e8688ece76f",
+      "code_commit": "04fe3b27c702db2bbe70dde8a04a0abc02529410",
       "token_limit": 12000000,
       "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/raptor/musique",
       "status": "pending",
@@ -331,15 +331,18 @@
         }
       },
       "corpus_fingerprint": "1d6a33346c42cd2feae5cf71eb2c145121a74712eb51a86d95205983a4477634",
-      "code_commit": "aa1e4f41a7d5753aa39665d679184e8688ece76f",
+      "code_commit": "04fe3b27c702db2bbe70dde8a04a0abc02529410",
       "token_limit": 12000000,
       "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/raptor/hotpotqa",
       "status": "pending",
       "cost_semantics": "Physical new cost; replay is not charged twice."
     }
   ],
-  "combined_token_limit": 68000000,
+  "combined_token_limit": 67971068,
   "complete": false,
   "limitations": "E1 measures indexing cost/coverage, not retrieval or answer quality. Historical smoke unknowns are preserved outside these new runs.",
-  "physical_known_tokens": 693893
+  "physical_known_tokens": 693893,
+  "cost_complete": false,
+  "budget_charge_upper_bound": 713492,
+  "original_combined_token_limit": 68000000
 }

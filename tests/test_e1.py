@@ -224,6 +224,65 @@ def test_local_failure_continuation_preserves_unknown_and_shared_claim(tmp_path)
         assert result["physical_known_tokens"] == 7
         assert result["cost_complete"] is False
         assert result["rows"][1]["cumulative_accounting"]["complete"] is False
+        child_path = tmp_path / "continued.json"
+        dense.write_json_atomic(child_path, child)
+        sealed = e1.seal_unstarted_plan(child_path)
+        assert sealed["preflight_revisions"]
+        current = tmp_path / row["output"]
+        current.mkdir(parents=True)
+        (current / "usage.jsonl").write_text("", encoding="utf-8")
+        with pytest.raises(ValueError, match="cannot_change_started"):
+            e1.seal_unstarted_plan(child_path)
+
+
+def test_parent_plan_path_from_json_and_preflight_binding(tmp_path):
+    parent = tmp_path / "parent.json"
+    parent.write_text("{}", encoding="utf-8")
+    rows = [
+        {
+            "method": m,
+            "dataset": d,
+            "token_limit": e1.LIMITS[m],
+            "code_commit": "new",
+            "output": f"indexes/e1/batch/{m}/{d}",
+        }
+        for m in e1.METHODS
+        for d in e1.DATASETS
+    ]
+    corpus = [{"id": "a", "title": "T", "text": "x"}]
+    rows[0].update(corpus={}, corpus_fingerprint=dense.corpus_fingerprint(corpus))
+    plan = {
+        "kind": "E1_full_corpus_indexing",
+        "batch_id": "batch",
+        "workspace": str(tmp_path.resolve()),
+        "data_root": str(tmp_path),
+        "parameters": e1.PARAMETERS,
+        "rows": rows,
+        "combined_token_limit": 68000000,
+        "model": "qwen",
+        "endpoint": "https://example.invalid/v1",
+        "embedding_model": "bge-m3:latest",
+        "embedding_digest": "digest",
+        "parent_plan": {"path": str(parent), "sha256": dense.sha256_file(parent)},
+    }
+    config = {"TARGET_API_MODEL": "qwen", "TARGET_API_BASE_URL": plan["endpoint"]}
+    response = Mock()
+    response.json.return_value = {
+        "models": [{"name": "bge-m3:latest", "digest": "digest"}]
+    }
+    with (
+        patch.object(e1, "ROOT", tmp_path),
+        patch.object(e1, "git", return_value="new"),
+        patch.object(e1, "code_dirty", return_value=False),
+        patch.object(e1, "load_corpus", return_value=(corpus, {})),
+        patch.object(e1.requests, "get", return_value=response) as get,
+    ):
+        assert e1.verify_plan(plan, rows[0], config) == corpus
+        get.reset_mock()
+        rows[0]["output"] = "another-output"
+        with pytest.raises(ValueError, match="plan_or_code"):
+            e1.verify_plan(plan, rows[0], config)
+        get.assert_not_called()
 
 
 @pytest.mark.skipif(
