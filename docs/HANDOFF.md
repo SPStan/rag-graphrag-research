@@ -1,5 +1,17 @@
 # Передача контекста Sol / Luna
 
+**20 октября: реальный RAPTOR smoke завершён.**
+Run c311fd7a-9b0a-45f3-8c14-862bf3a42d2e на clean6c2c483: дерево80 узлов
+(50 leaves/30 summary), слои50/21/9; save/reload без вызовов, отдельно проверен
+reload новым процессом с неизменными raw/journal SHA. Общий reader3/3.
+Новых44POST/42874tokens (embedding11818, LLM18748+12308); cache72 с producer SHA.
+Continuation+remediation60330 из100000; весь history169 attempts, known67454,
+aggregate complete=false/total=null из-за первого timeout. [Сводка](../results/summary/raptor-smoke-completed.json).
+Три support-preserving вопроса — функциональный smoke, не эффективность.
+31 targeted/26 official SDK fake HTTP прошли, gate/hooks/CI6c2c483 прошли.
+Согласие на historical unknown передано пользователем20октября; O/N/R/H прежние.
+#12 остаётся открытой до полного ревью/отдельного merge. Старые блокеры ниже — история.
+
 **20 октября: исправление cap по поручению пользователя «Сделай все что нужно».**
 Один remediation: summary cap4096, reader512; прежние50 passages/2levels/3QA.
 Offline21 first-layer clusters требуют guard больше20: выбран100summary/200POST.

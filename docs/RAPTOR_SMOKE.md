@@ -1,5 +1,42 @@
 # RAPTOR: малый корпус (#12)
 
+## Завершённый реальный smoke 20 октября
+
+Run `c311fd7a-9b0a-45f3-8c14-862bf3a42d2e`, clean commit
+`6c2c4836c60b9793d20b86601fab38478da46349`.
+[Полная безопасная сводка](../results/summary/raptor-smoke-completed.json)
+содержит конфигурацию, SHA, IDs, runtime, все затраты и provenance.
+
+- Реальное дерево: **80 узлов, 50 leaves, 30 summary**, слои **50/21/9**.
+  Save/reload в run: ноль model calls; повторный reload отдельным процессом
+  подтвердил80/50 и неизменность всех raw/journal SHA. Callback не создавался.
+- Общий reader: **3/3** завершены, общий prompt/parser сохранены, cap512.
+  Диагностические EM2/3, mean F1=8/9; ancestry coverage1.0 у трёх вопросов,
+  по6 исходных passages в ancestry выбранных nodes. Это не passage recall@5
+  и не доказательство сохранения фактов в summary. Поддерживающий выбор корпуса
+  и три development-вопроса исключают вывод об эффективности/основном benchmark.
+- Переиспользовано **72** проверенных результата (61 embedding +11 stop summary),
+  producer cost входит один раз в history. Partial/length не переиспользуется.
+- **44 новых POST**, embedding11818 / target input18748 / output12308 =
+  **42874 новых combined tokens**, новый journal verified/complete=true,
+  historical_cache_cost_complete=true. Новых summary19, reader3, embeddings22.
+- Continuation17456 + remediation42874 = **60330 из100000**, без retry.
+  История: **169 физических attempts**, известный subtotal67454, но общий
+  total=null/complete=false из-за первого timeout. Полный расход не восстановлен.
+  Старые manifests/journals не менялись; завершение не стирает прежние неудачи.
+
+Raw: `results/raw/raptor-smoke/c311fd7a-9b0a-45f3-8c14-862bf3a42d2e/`:
+tree.json/answers.json/manifest/tokens/cache-provenance и все физические
+request/response. Private тексты, ключи, векторы и дерево в Git не публикуются.
+
+Проверки:31 targeted passed (+1 SDK skip), официальный SDK26passed на fake HTTP,
+общий gate/hooks прошли, CI6c2c483 Windows/Linux/secrets успешен. На sandbox Windows
+для SDK задавать NUMBA_CACHE_DIR/TEMP/TMP в доступную локальную папку: недоступный
+in-tree Numba cache вызывал ожидание, алгоритм/SDK не менялись. Последующие
+документальные/merge коммиты не объявляются кодом фактического model run.
+Дальше полное техническое ревью; #12 открыта, merge только по отдельной команде.
+Никаких новых full corpus/методов автоматически не начинать.
+
 **20 октября: исправление cap по поручению пользователя «Сделай все что нужно».**
 Один remediation: summary cap4096, reader512; прежние50 passages/2levels/3QA.
 Offline21 first-layer clusters требуют guard больше20: выбран100summary/200POST.
