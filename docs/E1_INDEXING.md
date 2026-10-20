@@ -1,5 +1,42 @@
 # E1: индексы полного корпуса (#13)
 
+## 21 октября: повторный цикл и независимый RAPTOR
+
+Cycle child остановлен после2329/5500 проверенных passages. На другом passage
+исходный ответ:1038 input/3072 output,163 tuples/4 уникальных; корректирующий:
+1091 input/3072 output,191 tuples/4 уникальных. Оба finish_reason=length.
+Расход обеих попыток **8273** известен; частичные triples не приняты. Дополнительного
+transport retry не было. Первая успешная проба не гарантировала отсутствие других
+циклов. Третьего запроса на этот passage не выполнять без нового проверенного
+протокола: повтор той же инструкции и увеличение cap не устраняют причину.
+
+Общий физический known E1=5386821; historical unknown сохраняется. Исходные
+failed manifests, журналы и plans неизменны. Причина SDK `unresolved_triples_stop`
+отражается в безопасном `failure_diagnostic`: finish_reason, request SHA,
+полнота usage и количества повторов, без текста passages/ответов.
+
+После разбора отказа разрешено отдельно выполнить две независимые RAPTOR строки.
+Они используют готовые Dense vectors и собственные прежние лимиты12M на датасет;
+сброса бюджета/повтора HippoRAG нет. Новый канонический plan с lineage сохраняет
+все failed/unknown; меняет code_commit только у нетронутых RAPTOR строк.
+Проверяет SHA артефактов/журналов и отсутствие работающих workers; один claim рядом
+с prior действует между worktrees. Plan запрещает запуск любого другого метода
+до HTTP. При ошибке RAPTOR остановка, автоматического retry нет.
+
+```powershell
+$dataRoot = '<data-root>'
+$prior = "$dataRoot/indexes/e1/issue13-cycle-plan.json"
+$plan = "$dataRoot/indexes/e1/issue13-raptor-plan.json"
+./.venv-check/Scripts/python.exe -m scripts.run_e1 independent-raptor --prior-plan $prior --plan $plan
+# Выполнить RAPTOR musique, затем hotpotqa командами run ниже с новым $plan.
+```
+
+Gitleaks на a994322 ошибочно распознал `cycle_repair_request_key` как API-key.
+Значение — SHA256 payload, совпадающий с object_id в журнале и именем checkpoint.
+Экспорт переименован в `cycle_repair_request_sha256`; исключение ограничено точным
+historical fingerprint (commit/file/rule/line), остальные находки не скрываются.
+Это исправление CI, не подтверждение готовности шести индексов. PR Draft/#13 открыта.
+
 ## Продолжение после цикла triple JSON
 
 Network child остановлен:736 input/3072 output, length. В ответе на93словный

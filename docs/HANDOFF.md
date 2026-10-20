@@ -1,5 +1,12 @@
 # Передача контекста Sol / Luna
 
+**21октября: Hippo Mu остановлен на2329/5500.** Исходный и corrective ответы
+снова повторяют4 triples до length3072; обе попытки известны (8273 tokens).
+Третьего запроса нет. Планируется независимый RAPTOR ×2 с прежними Dense/cache,
+лимитами и immutable lineage; Hippo failed/unknown сохраняются. [Протокол](E1_INDEXING.md).
+Gitleaks: точный false positive SHA payload; экспорт переименован, точный fingerprint.
+E1 пока2/6; #13/PR #33 открыты, Draft, E2 не запускать.
+
 **E1 status:** 2/6 indexes completed; physical known tokens=5386821; cost_complete=False. Last stage=hipporag2/musique. Raw/indexes remain local. PR Draft; E2 requires all six verified indexes.
 
 **20октября: cycle repair E1.** Network child остановлен на length3072:

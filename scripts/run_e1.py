@@ -161,6 +161,8 @@ def make_plan(data_root, config, embedding_digest):
 
 
 def verify_plan(plan, row, config):
+    if plan.get("independent_raptor") and row["method"] != "raptor":
+        raise ValueError("independent_plan_allows_only_raptor")
     for item in plan.get("lineage", []):
         if dense.sha256_file(Path(item["path"])) != item["sha256"]:
             raise ValueError("lineage_plan_changed")
@@ -621,6 +623,37 @@ def row_usage(row):
     )
 
 
+def failure_diagnostic(directory):
+    """Publish response metadata, never private source text or generated facts."""
+    journal = directory / "usage.jsonl"
+    if not journal.exists():
+        return {}
+    finished = [r for r in read_records(journal) if r["event"] == "finished"]
+    if not finished:
+        return {}
+    last = finished[-1]
+    key = last.get("object_id")
+    result = {
+        "operation": last["operation"],
+        "request_sha256": key,
+        "usage_status": last["usage_status"],
+    }
+    response = directory / "requests" / f"{key}.response.json"
+    if response.exists() and last["kind"] == "llm":
+        body = dense.read_json(response)
+        if body.get("choices"):
+            choice = body["choices"][0]
+            result["finish_reason"] = choice.get("finish_reason")
+            result["repetition"] = triple_cycle(choice["message"].get("content") or "")
+    repairs = directory / "cycle-repairs.json"
+    if repairs.exists():
+        result["corrective_request"] = any(
+            r["revised_request_sha256"] == key
+            for r in dense.read_json(repairs).values()
+        )
+    return result
+
+
 def export(plan, plan_path):
     rows = []
     for row in plan["rows"]:
@@ -629,6 +662,8 @@ def export(plan, plan_path):
             dense.read_json(manifest) if manifest.exists() else {"status": "pending"}
         )
         public = {key: value for key, value in result.items() if key != "artifacts"}
+        if result["status"] == "failed":
+            public["failure_diagnostic"] = failure_diagnostic(manifest.parent)
         if result["status"] == "running" and (manifest.parent / "usage.jsonl").exists():
             from scripts.token_accounting import summarize
 
@@ -657,7 +692,12 @@ def export(plan, plan_path):
             public["cumulative_seconds"] = seconds + result.get("seconds", 0)
         if manifest.exists():
             public["artifact_manifest_sha256"] = dense.sha256_file(manifest)
-        rows.append({**row, **public})
+        exported_row = {**row, **public}
+        if "cycle_repair_request_key" in exported_row:
+            exported_row["cycle_repair_request_sha256"] = exported_row.pop(
+                "cycle_repair_request_key"
+            )
+        rows.append(exported_row)
     report = {
         "batch_id": plan["batch_id"],
         "plan_sha256": dense.sha256_file(plan_path),
@@ -1058,6 +1098,74 @@ def cycle_resume_plan(prior_path, passage_id):
     return plan
 
 
+def independent_raptor_plan(prior_path):
+    """Freeze stopped HippoRAG; bind only untouched RAPTOR rows to new code."""
+    if code_dirty():
+        raise ValueError("independent_raptor_requires_clean_code")
+    original = dense.read_json(prior_path)
+    plan = copy.deepcopy(original)
+    parent = {
+        "path": str(prior_path.resolve()),
+        "sha256": dense.sha256_file(prior_path),
+        "digest": target.digest(original),
+    }
+    lineage = [parent, *original.get("lineage", [])]
+    for item in lineage:
+        if dense.sha256_file(Path(item["path"])) != item["sha256"]:
+            raise ValueError("lineage_plan_changed")
+    stopped, pending = False, 0
+    for row in plan["rows"]:
+        directory = ROOT / row["output"]
+        path = directory / "manifest.json"
+        if (directory / "running.lock").exists():
+            raise ValueError("independent_raptor_requires_stopped_workers")
+        if path.exists():
+            manifest = dense.read_json(path)
+            if manifest["status"] not in ("completed", "failed"):
+                raise ValueError("independent_raptor_requires_terminal_runs")
+            if verified_reference(manifest, path)["status"] != "verified":
+                raise ValueError("prior_journal_not_intact")
+            for name, sha in manifest["artifacts"].items():
+                if dense.sha256_file(directory / name) != sha:
+                    raise ValueError("saved_E1_artifact_changed")
+            stopped |= row["method"] == "hipporag2" and manifest["status"] == "failed"
+        if row["method"] != "raptor":
+            continue
+        if directory.exists() and any(directory.iterdir()):
+            raise ValueError("independent_raptor_requires_untouched_output")
+        producer = next(
+            r
+            for r in plan["rows"]
+            if r["method"] == "dense" and r["dataset"] == row["dataset"]
+        )
+        if (
+            dense.read_json(ROOT / producer["output"] / "manifest.json")["status"]
+            != "completed"
+        ):
+            raise ValueError("raptor_requires_completed_dense")
+        row["code_commit"] = git("rev-parse", "HEAD")
+        pending += 1
+    if not stopped or pending != 2:
+        raise ValueError(
+            "independent_raptor_requires_failed_hippo_and_two_pending_rows"
+        )
+    # Shared canonical prior: two worktrees cannot independently reserve this block.
+    with prior_path.with_suffix(".raptor-once.claim.json").open(
+        "x", encoding="utf-8"
+    ) as stream:
+        json.dump(
+            {
+                "parent_plan_sha256": parent["sha256"],
+                "code_commit": git("rev-parse", "HEAD"),
+            },
+            stream,
+        )
+        stream.flush()
+        os.fsync(stream.fileno())
+    plan.update(parent_plan=parent, lineage=lineage, independent_raptor=True)
+    return plan
+
+
 def seal_unstarted_plan(path):
     """Rebind a rejected preflight to clean code before any new HTTP."""
     plan = dense.read_json(path)
@@ -1178,6 +1286,7 @@ def main():
             "continue",
             "network-resume",
             "cycle-resume",
+            "independent-raptor",
             "seal",
             "run",
             "report",
@@ -1235,6 +1344,16 @@ def main():
         if args.plan.resolve() != canonical.resolve() or args.plan.exists():
             raise ValueError("cycle_resume_requires_unused_canonical_plan")
         plan = cycle_resume_plan(args.prior_plan, args.passage_id)
+        with args.plan.open("x", encoding="utf-8") as stream:
+            json.dump(plan, stream, ensure_ascii=False, indent=2)
+    elif args.command == "independent-raptor":
+        canonical = (
+            Path(dense.read_json(args.prior_plan)["data_root"])
+            / "indexes/e1/issue13-raptor-plan.json"
+        )
+        if args.plan.resolve() != canonical.resolve() or args.plan.exists():
+            raise ValueError("independent_raptor_requires_unused_canonical_plan")
+        plan = independent_raptor_plan(args.prior_plan)
         with args.plan.open("x", encoding="utf-8") as stream:
             json.dump(plan, stream, ensure_ascii=False, indent=2)
     elif args.command == "seal":

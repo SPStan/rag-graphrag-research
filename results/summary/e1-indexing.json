@@ -594,7 +594,6 @@
         }
       ],
       "resume_kind": "cycle",
-      "cycle_repair_request_key": "14160c662cfc367cb21f6185a132d7f6823f019b83057b4b5fcaa03b8e9373d5",
       "cycle_probe_source_id": "sha256:38f7b69951335314e57c3ca0577d8c9e5e2d20717819ff5f88bf24cb3aa2c45e",
       "cycle_diagnostic": {
         "complete_tuples": 168,
@@ -796,6 +795,18 @@
           "corrupt_tail_bytes": 0
         }
       },
+      "failure_diagnostic": {
+        "operation": "openie_triples",
+        "request_sha256": "ce1ff9b78d2fdec07fb33d8035168e779bfe44be3175d57c7830db3b026b1087",
+        "usage_status": "complete",
+        "finish_reason": "length",
+        "repetition": {
+          "complete_tuples": 191,
+          "unique_tuples": 4,
+          "cycle": true
+        },
+        "corrective_request": true
+      },
       "cumulative_accounting": {
         "schema_version": 1,
         "phases": [
@@ -859,6 +870,7 @@
       },
       "cumulative_seconds": 9963.753,
       "artifact_manifest_sha256": "0682447040e167d3ac027e20b31846c3aed093adc8290bfd9f38003ffe59872c",
+      "cycle_repair_request_sha256": "14160c662cfc367cb21f6185a132d7f6823f019b83057b4b5fcaa03b8e9373d5",
       "cost_semantics": "Physical new cost; replay is not charged twice."
     },
     {

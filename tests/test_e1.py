@@ -338,6 +338,12 @@ def test_second_loop_stops_without_third_attempt(tmp_path):
         runner.generate(messages, 3072, "openie_triples")
     assert session.post.call_count == 2
     assert runner.journal.summary()["known_subtotal"]["llm_output_tokens"] == 6144
+    diagnostic = e1.failure_diagnostic(tmp_path)
+    assert diagnostic["finish_reason"] == "length"
+    assert diagnostic["corrective_request"] is True
+    assert diagnostic["usage_status"] == "complete"
+    assert diagnostic["repetition"]["cycle"] is True
+    assert "content" not in diagnostic
 
 
 def test_legitimate_long_response_does_not_trigger_cycle_repair(tmp_path):
@@ -351,6 +357,90 @@ def test_legitimate_long_response_does_not_trigger_cycle_repair(tmp_path):
         runner.generate([], 3072, "openie_triples")
     assert session.post.call_count == 1
     assert not runner.repairs
+
+
+@pytest.mark.parametrize(
+    "blocked", [None, "lock", "tampered", "started", "incomplete_dense"]
+)
+def test_independent_raptor_preserves_failed_history_and_never_restarts_hippo(
+    tmp_path, blocked
+):
+    prior, failed, _ = failed_remote_fixture(tmp_path)
+    plan = dense.read_json(prior)
+    plan["rows"][2]["cycle_repair_request_key"] = "a" * 64
+    for row in plan["rows"][:2]:
+        directory = tmp_path / row["output"]
+        directory.mkdir(parents=True)
+        journal = Journal(
+            directory / "usage.jsonl",
+            run_id=row["run_id"],
+            method="dense",
+            dataset=row["dataset"],
+        )
+        attempt = journal.start(
+            phase="index",
+            operation="index_embedding",
+            provider="local_ollama",
+            model="bge",
+            kind="embedding",
+        )
+        journal.finish(attempt, status="success", usage={"embedding_input_tokens": 7})
+        dense.write_json_atomic(
+            directory / "manifest.json",
+            {
+                "status": "completed",
+                "run_id": row["run_id"],
+                "seconds": 1,
+                "token_accounting": journal.reference(),
+                "artifacts": {"usage.jsonl": dense.sha256_file(journal.path)},
+            },
+        )
+    dense.write_json_atomic(prior, plan)
+    sha = dense.sha256_file(prior)
+    if blocked == "lock":
+        (failed / "running.lock").write_text("123", encoding="utf-8")
+    elif blocked == "tampered":
+        next((failed / "requests").glob("*.response.json")).write_text(
+            "{}", encoding="utf-8"
+        )
+    elif blocked == "started":
+        directory = tmp_path / plan["rows"][4]["output"]
+        directory.mkdir(parents=True)
+        (directory / "usage.jsonl").write_text("", encoding="utf-8")
+    elif blocked == "incomplete_dense":
+        path = tmp_path / plan["rows"][0]["output"] / "manifest.json"
+        manifest = dense.read_json(path)
+        manifest["status"] = "failed"
+        dense.write_json_atomic(path, manifest)
+    with (
+        patch.object(e1, "ROOT", tmp_path),
+        patch.object(e1, "code_dirty", return_value=False),
+        patch.object(e1, "git", return_value="new"),
+        patch("requests.Session.request", side_effect=AssertionError("HTTP forbidden")),
+    ):
+        if blocked:
+            with pytest.raises(ValueError):
+                e1.independent_raptor_plan(prior)
+            assert not prior.with_suffix(".raptor-once.claim.json").exists()
+            return
+        child = e1.independent_raptor_plan(prior)
+        assert child["rows"][:4] == plan["rows"][:4]
+        assert child["rows"][4]["code_commit"] == "new"
+        assert child["combined_token_limit"] == plan["combined_token_limit"]
+        assert dense.sha256_file(prior) == sha
+        with pytest.raises(FileExistsError):
+            e1.independent_raptor_plan(prior)
+        with patch.object(e1, "requests") as http:
+            with pytest.raises(ValueError, match="only_raptor"):
+                e1.verify_plan(child, child["rows"][2], {})
+            http.get.assert_not_called()
+        (tmp_path / "results/summary").mkdir(parents=True)
+        exported = e1.export(child, prior)
+        assert exported["cost_complete"] is False
+        assert exported["physical_known_tokens"] == 29
+        assert exported["rows"][2]["cycle_repair_request_sha256"] == "a" * 64
+        assert "cycle_repair_request_key" not in exported["rows"][2]
+        assert child["rows"][2]["cycle_repair_request_key"] == "a" * 64
 
 
 def test_wrong_probe_is_rejected_before_http(tmp_path):

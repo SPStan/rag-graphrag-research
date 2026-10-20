@@ -1,5 +1,11 @@
 # Текущая работа и критерии завершения
 
+**21октября — #13:** исправить Gitleaks false positive SHA, проверить offline;
+затем независимый RAPTOR musique/hotpotqa по `issue13-raptor-plan.json`.
+Hippo Mu failed2329/5500: второй cycle сохранился после коррекции, третьего POST нет.
+Для продолжения Hippo нужен новый проверяемый протокол, не повтор прежней инструкции.
+Сохранить все known/unknown, Draft/Refs #13; E2 запрещён до6/6. [Детали](E1_INDEXING.md).
+
 **E1 status:** 2/6 indexes completed; physical known tokens=5386821; cost_complete=False. Last stage=hipporag2/musique. Raw/indexes remain local. PR Draft; E2 requires all six verified indexes.
 
 **20октября: #13 продолжение после цикла.** Cap3072 прежний, сначала строгая
