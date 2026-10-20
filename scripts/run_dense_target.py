@@ -106,6 +106,7 @@ def checked_post(
     headers=None,
     response_path=None,
     token_limit=TOKEN_LIMIT,
+    timeout=(5, 120),
 ):
     # Conservative request reservation; no tokenizer/backend context limit is inferred.
     reserve = len(json.dumps(payload, ensure_ascii=False).encode()) + 2048
@@ -117,7 +118,7 @@ def checked_post(
 
     def send():
         response = session.post(
-            url, json=payload, headers=headers, timeout=(5, 120), allow_redirects=False
+            url, json=payload, headers=headers, timeout=timeout, allow_redirects=False
         )
         try:
             body = response.json()

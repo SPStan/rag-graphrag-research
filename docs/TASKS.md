@@ -1,5 +1,91 @@
 # Текущая работа и критерии завершения
 
+**Текущее состояние после интеграции master:** #12 smoke завершён, ниже результат.
+PR #30/#11 слиты/закрыты; обзор #32 также в master. Старые статусы ниже — история.
+Полные выборки/новые расходы/merge #31 автоматически не запускать.
+
+**20 октября: реальный RAPTOR smoke завершён.**
+Run c311fd7a-9b0a-45f3-8c14-862bf3a42d2e на clean6c2c483: дерево80 узлов
+(50 leaves/30 summary), слои50/21/9; save/reload без вызовов, отдельно проверен
+reload новым процессом с неизменными raw/journal SHA. Общий reader3/3.
+Новых44POST/42874tokens (embedding11818, LLM18748+12308); cache72 с producer SHA.
+Continuation+remediation60330 из100000; весь history169 attempts, known67454,
+aggregate complete=false/total=null из-за первого timeout. [Сводка](../results/summary/raptor-smoke-completed.json).
+Три support-preserving вопроса — функциональный smoke, не эффективность.
+31 targeted/26 official SDK fake HTTP прошли, gate/hooks/CI6c2c483 прошли.
+Согласие на historical unknown передано пользователем20октября; O/N/R/H прежние.
+#12 остаётся открытой до полного ревью/отдельного merge. Старые блокеры ниже — история.
+
+**20 октября: исправление cap по поручению пользователя «Сделай все что нужно».**
+Один remediation: summary cap4096, reader512; прежние50 passages/2levels/3QA.
+Offline21 first-layer clusters требуют guard больше20: выбран100summary/200POST.
+Общий бюджет continuation+remediation100000, остаток82544. 61 embedding/11 stop
+summary сверены по SHA и complete producer journal; partial/length исключён.
+Cache hit сохраняет producer/SHA, историческая стоимость не дублируется.
+Одна новая canonical-prior claim, retry0, timeout5/300; старые claims не удалять.
+Команда continuation дополнена --repair-from
+results/raw/raptor-smoke/3a48630b-72fe-46a9-99eb-309035ed1a0c/manifest.json.
+Новый HTTP только после offline-проверок; при ошибке/unknown/length остановка.
+O/N/R/H прежние; полный корпус не разрешён. До реального результата PR Draft.
+
+**20 октября: согласованное продолжение остановлено на cap512.**
+Run `3a48630b-72fe-46a9-99eb-309035ed1a0c` (`00f3e8a`, clean): 11 summary
+stop, 12-й length (897 input/512 output); 73 POST, новый полный расход
+embedding9739 / LLM3983+3734. Общий учёт125 attempts неполон, total=null из-за
+первого timeout. [Результат/артефакты](../results/summary/raptor-continuation.json),
+[детали](RAPTOR_SMOKE.md). Дерево/reload/reader0/3 не завершены. Повторов нет,
+claim сохраняется. Согласие преподавателя передано пользователем и принято;
+следующий блокер технический: политика truncated summary. PR Draft, #12 открыта.
+
+**20 октября: преподаватель согласовал продолжение с historical unknown.**
+Пользователь передал: «Ну, я точно не против»; внешний URL не предоставлен.
+Один новый bounded smoke, guards 100000 новых tokens / 100 POST / 20 summary,
+timeout5/300, retry0. Старые failed + diagnostic остаются в aggregate с
+complete=false/total=null; hashes проверяются, shared claim запрещает повтор.
+[Протокол/команда](RAPTOR_SMOKE.md). O/N/R/H не меняются. PR Draft, #12 открыта.
+
+**14 октября: замечание о доступности operator.py выполнено.** Обезличенный
+[скрипт](operators/operator.py), [команда и сравнение SHA](RAPTOR_SMOKE.md)
+опубликованы; guards проверяются тестом с fake HTTP, без новых модельных вызовов.
+Далее актуальное согласие куратора на продолжение с неизвестным историческим
+usage; до него tree/reader автоматически не запускать. #12 открыта, PR Draft.
+
+**14 октября: один диагностический summary #12 по прямой просьбе пользователя.**
+Run `3525d53a-8a93-4e17-a784-6337feb520a7`: completed, 350 input + 375 output,
+read timeout 300 s, retry=0, один POST с исходным payload. [Сводка](../results/summary/raptor-summary-diagnostic.json).
+Общий расход по-прежнему неполон: прежний unknown не восстановлен, 52 attempts,
+aggregate total=null. Tree/save/reload/три reader-вопроса ещё не выполнены.
+Дальнейшие модельные запросы автоматически не запускать; PR Draft, #12 открыта,
+согласование куратора и принятие отклонения отдельно. Статусы ниже — история.
+
+**14 октября: #12, контракт уточнён.** Пользователь сообщил context 262144,
+output до остатка окна, native Qwen HF tokenizer/template, vLLM 0.29.0.
+Первый summary по локальному native tokenizer занимает 350 input + 512 cap,
+помещается в окно. Точный server usage не восстановлен; по-прежнему выяснить
+исход ReadTimeout до нового расходующего протокола. [RAPTOR_SMOKE](RAPTOR_SMOKE.md).
+Не путать локальный подсчёт с измерением расхода; failed run остаётся в учёте.
+Новых запросов нет, issue открыта, PR Draft.
+
+## Активный блок 13 октября — #12: малый RAPTOR
+
+#29 слит (`5e617fa`), #10 закрыта по команде пользователя. #11 отдельно в
+Draft PR #30: target context contract неизвестен, OpenIE generation не запускалась.
+#12 независима от #11; ветка `codex/raptor-small-corpus` от master. Протокол:
+[RAPTOR_SMOKE](RAPTOR_SMOKE.md), решение [ADR-0020](../.adr/0020-raptor-small-corpus-adapter.md).
+
+- Официальный RAPTOR закреплён; 50 synthetic leaves → tree → reload → retrieval
+  проверены в изолированном SDK без сети (11 passed).
+- Общий offline gate: 235 passed, 14 skipped; SDK test выполняется отдельно.
+- Реальный run `bb0b97d2-b0ca-4d09-926c-76d2309b0853` на `2b699a2` failed:
+  50 embeddings / 6399 локальных tokens; первый summary ReadTimeout 120 s,
+  удалённый usage неизвестен. Дерево/reload/три reader запроса реально не завершены.
+- [Сводка](../results/summary/raptor-smoke.json), [Draft PR #31](https://github.com/SPStan/rag-graphrag-research/pull/31), Refs #12.
+  Issue остаётся открытой/In Progress. Offline проверки не заменяют реальные
+  критерии приёмки; перед новым протоколом устранить timeout и разобраться с usage.
+- Далее техническое ревью и согласование O1/N1/R1/H1. Не сливать, не повторять
+  расходующие запросы и не запускать full corpus/следующую задачу автоматически.
+
+Статусы ниже — история.
 
 **14 октября: обзор опубликованных методов #25.** Подготовлены [полная таблица](related-work-comparison.md#full-comparison) и [слайдовый вариант](related-work-comparison.md#slide-version) Dense RAG / HippoRAG 2 / RAPTOR с версиями первоисточников и ограничениями. Журнал чтения студента сохранён; новых модельных вызовов нет, реализация RAPTOR не менялась. 15 октября первоисточники повторно сверены; по поручению пользователя PR #32 передаётся в Ready for review. Научное согласование O1/N1/R1/H1 ещё не зарегистрировано; нужно отправить `/research_submit https://github.com/SPStan/rag-graphrag-research/pull/32 25` через бота и получить явное согласие куратора. Эта команда недоступна инструментам агента. До согласования issue/PR не закрывать, merge отдельно. Настройка доски #23 завершена [итогом в issue](https://github.com/SPStan/rag-graphrag-research/issues/23#issuecomment-6170587264), issue оставлена открытой. Текущая экспериментальная работа #12 продолжается отдельно; строки ниже описывают предшествующие этапы.
 
