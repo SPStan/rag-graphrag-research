@@ -1,5 +1,78 @@
 # Передача контекста Sol / Luna
 
+## Текущая очередь — 21 октября 2026, аудит E1
+
+- Активная задача #13 / Draft PR #33: шесть индексов, E2 ещё заблокирован.
+- Dense ×2 готовы; HippoRAG MuSiQue остановлен на 2329/5500 после двух
+  циклических ответов. HippoRAG HotpotQA не начат. Старые данные не менять.
+- RAPTOR MuSiQue остановлен: HTTP 413 от local /api/embed,
+  error="the input length exceeds the context length". Последняя операция
+  index_embedding имеет usage unknown; tree.json отсутствует. HotpotQA не начат.
+  Фоновая очередь завершена (stopped_recorded); PID прежней очереди отсутствуют
+  при проверке. Исходные артефакты и стоимость сохранять.
+- Следующий шаг: интегрировать offline-исправления с актуальным PR #33,
+  сохранив его свежую failed-сводку (1867c4d), и выполнить согласованную
+  ограниченную schema-пробу HippoRAG после gate. Не ждать завершения дерева,
+  которого остановленная очередь уже не создаст. Полного rebuild нет.
+- RAPTOR: отдельно восстановить проблемный embedding input и его producer
+  по SHA, проверить длину родным tokenizer BGE-M3 и действующий context.
+  Qwen output cap и cl100k cluster limit не гарантируют совместимость с BGE.
+  Не включать truncate=True и не повторять весь корпус. Сначала определить
+  явную политику обработки длинных summaries, reuse и остаточный бюджет.
+- Schema-проба подготовлена offline: оба исходных SHA совпали,61 файл SDK
+  проверен; максимум2 новых POST, cap3072, NER0, резерв17669 из16065954.
+  Новых вызовов нет; отдельное согласие на2 POST получено21октября после вопроса
+  с точным резервом17669. Очередь остановлена; сначала интеграция и gate. Private plan в audit
+  `.cache/e1-schema-probe/plan.json`; команда/SHA в E1_INDEXING. Полного rebuild нет.
+- Срок первой вехи 18 октября прошёл; #13 не завершена. Сроки и корпус
+  самостоятельно не меняем, фактические часы студента неизвестны.
+
+## История — не текущие инструкции запуска
+
+
+**21октября: Hippo Mu остановлен на2329/5500.** Исходный и corrective ответы
+снова повторяют4 triples до length3072; обе попытки известны (8273 tokens).
+Третьего запроса нет. Планируется независимый RAPTOR ×2 с прежними Dense/cache,
+лимитами и immutable lineage; Hippo failed/unknown сохраняются. [Протокол](E1_INDEXING.md).
+Gitleaks: точный false positive SHA payload; экспорт переименован, точный fingerprint.
+E1 пока2/6; #13/PR #33 открыты, Draft, E2 не запускать.
+
+**E1 status:** 2/6 indexes completed; physical known tokens=5386821; cost_complete=False. Last stage=hipporag2/musique. Raw/indexes remain local. PR Draft; E2 requires all six verified indexes.
+
+**20октября: cycle repair E1.** Network child остановлен на length3072:
+3 уникальных triples повторены56раз. Кап не повышается. Новый cycle plan:
+probe того же payload с запретом дубликатов, затем≤20 условных коррекций/dataset,
+по1 на циклический request. Кэш обоих предыдущих run, сохранение всей стоимости,
+остаток17023464, старый unknown7922 не снят. [Протокол](E1_INDEXING.md).
+Готовых индексов пока2/6; #13/PR #33 открыты, Draft. E2/merge не запускать.
+
+**E1 status:** 2/6 indexes completed; physical known tokens=4429311; cost_complete=False. Last stage=hipporag2/musique. Raw/indexes remain local. PR Draft; E2 requires all six verified indexes.
+
+**20октября: ограниченное продолжение HippoRAG MuSiQue после RemoteDisconnected.**
+Первый run failed,1560 passages/3293 verified responses сохранены. Новая папка,
+replay по SHA и физическому usage; unknown7922 reserved, known2841297, остаток
+17150781 из прежних20M. Connection:close/retry0, один canonical claim; при новой
+ошибке стоп. [Протокол/команда](E1_INDEXING.md#продолжение-после-remotedisconnected).
+Готовые Dense не повторять; после Hippo Mu идут оставшиеся3конфигурации. Пока
+реальных шести готовых индексов нет — #13 открыта, PR #33 Draft, E2 блокирован.
+
+**E1 status:** 2/6 indexes completed; physical known tokens=4301994; cost_complete=False. Last stage=hipporag2/musique. Raw/indexes remain local. PR Draft; E2 requires all six verified indexes.
+
+**20 октября: активна #13, E1 на полном корпусе.** #31 слит eab5606, #12
+закрыта; полного независимого технического ревью перед merge не было из-за
+недоступного diff шлюза. Новый блок: [протокол E1](E1_INDEXING.md), шесть
+индексов5500, только индексация. Новый предел68M; результаты smoke не переносятся
+в качество метода, historical unknown сохраняется. До фактических шести индексов
+#13 открыта/PR Draft. Более ранние запреты автоматического full run описывают
+состояние до прямого поручения выполнить #13.
+
+E1 batch edff74df-c567-49de-a834-f9f1fc6f7f74 на aa1e4f4: Dense MuSiQue
+готов5500/172POST/684560embedding/113.705s. Dense HotpotQA failed на третьем
+batch: известны9333, ещё один usage unknown, HTTP400 внутреннего /tokenize
+из-за Windows socket allocation. Проверены TIME_WAIT/port range, после паузы
+сокеты освободились. Протокол однократного продолжения/пейсинга и резервирования
+unknown в E1_INDEXING; старые папки не менять. Полного E1 пока нет, E2 блокирован.
+
 **Текущее состояние после интеграции master:** #12 smoke завершён, ниже результат.
 PR #30/#11 слиты/закрыты; обзор #32 также в master. Старые статусы ниже — история.
 Полные выборки/новые расходы/merge #31 автоматически не запускать.
