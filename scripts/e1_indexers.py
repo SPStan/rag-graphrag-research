@@ -209,6 +209,41 @@ def hipporag_index(corpus, transport, directory, source):
     # IDs are mapped explicitly to the exact SDK chunk content; labels never enter indexing.
     docs = [f"{r['title']}\n{r['text']}" for r in corpus]
     try:
+        if transport.row.get("cycle_probe_source_id"):
+            source_row = next(
+                r for r in corpus if r["id"] == transport.row["cycle_probe_source_id"]
+            )
+            text = f"{source_row['title']}\n{source_row['text']}"
+            transport.require_cache = True
+            try:
+                n = original.ner("cycle-probe", text)
+            finally:
+                transport.require_cache = False
+            if n.metadata.get("error"):
+                raise ValueError("cycle_probe_NER_not_cached")
+            n.unique_entities = parse("openie_ner", n.response, recover_partial=False)
+            transport.require_repair_key = True
+            try:
+                t = original.triple_extraction("cycle-probe", text, n.unique_entities)
+            finally:
+                transport.require_repair_key = False
+            if (
+                t.metadata.get("error")
+                or t.metadata.get("finish_reason") != "stop"
+                or not t.triples
+            ):
+                raise ValueError("cycle_probe_not_completed")
+            dense.write_json_atomic(
+                directory / "cycle-probe.json",
+                {
+                    "source_id": source_row["id"],
+                    "status": "passed",
+                    "triples": len(t.triples),
+                    "finish_reason": t.metadata["finish_reason"],
+                    "prompt_tokens": t.metadata.get("prompt_tokens"),
+                    "completion_tokens": t.metadata.get("completion_tokens"),
+                },
+            )
         rag.index(docs)
         if set(rag.chunk_embedding_store.get_all_texts()) != set(docs) or len(
             rag.chunk_embedding_store.get_all_ids()

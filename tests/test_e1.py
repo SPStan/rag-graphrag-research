@@ -1,6 +1,7 @@
 """Offline spending guards and actual pinned SDK index/save/reload checks."""
 
 import os
+import json
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -278,6 +279,149 @@ def test_changed_parent_response_rejected_before_http(tmp_path):
         session.post.assert_not_called()
 
 
+def loop_body():
+    content = json.dumps(
+        {"triples": [["A", "visits", "B"], ["B", "in", "C"], ["A", "uses", "D"]] * 56}
+    )[:-2]
+    return {
+        "choices": [{"finish_reason": "length", "message": {"content": content}}],
+        "usage": {"prompt_tokens": 736, "completion_tokens": 3072},
+    }
+
+
+def test_repetition_diagnostic_does_not_accept_partial_text():
+    stats = e1.triple_cycle(loop_body()["choices"][0]["message"]["content"])
+    assert stats == {"complete_tuples": 168, "unique_tuples": 3, "cycle": True}
+    assert not e1.triple_cycle(
+        json.dumps({"triples": [[str(i), "in", "B"] for i in range(100)]})
+    )["cycle"]
+
+
+def test_cycle_repair_counts_both_attempts_and_replays_only_valid_result(tmp_path):
+    runner, session = transport(tmp_path, loop_body())
+    runner.plan["cycle_repair"] = e1.CYCLE_REPAIR
+    length = session.post.return_value
+    valid = Mock(status_code=200)
+    valid.json.return_value = {
+        "choices": [
+            {
+                "finish_reason": "stop",
+                "message": {"content": '{"triples":[["A","visits","B"]]}'},
+            }
+        ],
+        "usage": {"prompt_tokens": 800, "completion_tokens": 20},
+    }
+    session.post.side_effect = [length, valid]
+    messages = [{"role": "user", "content": "triples"}]
+    content, _ = runner.generate(messages, 3072, "openie_triples")
+    assert json.loads(content)["triples"] == [["A", "visits", "B"]]
+    runner.generate(messages, 3072, "openie_triples")
+    assert session.post.call_count == 2
+    assert (
+        session.post.call_args.kwargs["json"]["messages"][-1]["content"]
+        == e1.CYCLE_REPAIR["instruction"]
+    )
+    summary = runner.journal.summary()
+    assert summary["attempts"] == 2
+    assert summary["known_subtotal"]["llm_output_tokens"] == 3092
+    assert summary["complete"] is True
+    assert len(runner.repairs) == 1
+
+
+def test_second_loop_stops_without_third_attempt(tmp_path):
+    runner, session = transport(tmp_path, loop_body())
+    runner.plan["cycle_repair"] = e1.CYCLE_REPAIR
+    messages = [{"role": "user", "content": "triples"}]
+    with pytest.raises(ValueError, match="generation_not_complete"):
+        runner.generate(messages, 3072, "openie_triples")
+    with pytest.raises(ValueError, match="unresolved_cycle"):
+        runner.generate(messages, 3072, "openie_triples")
+    assert session.post.call_count == 2
+    assert runner.journal.summary()["known_subtotal"]["llm_output_tokens"] == 6144
+
+
+def test_legitimate_long_response_does_not_trigger_cycle_repair(tmp_path):
+    body = loop_body()
+    body["choices"][0]["message"]["content"] = json.dumps(
+        {"triples": [[str(i), "in", "B"] for i in range(100)]}
+    )[:-2]
+    runner, session = transport(tmp_path, body)
+    runner.plan["cycle_repair"] = e1.CYCLE_REPAIR
+    with pytest.raises(ValueError, match="generation_not_complete"):
+        runner.generate([], 3072, "openie_triples")
+    assert session.post.call_count == 1
+    assert not runner.repairs
+
+
+def test_wrong_probe_is_rejected_before_http(tmp_path):
+    runner, session = transport(tmp_path)
+    runner.require_repair_key = True
+    runner.row["cycle_repair_request_key"] = "another-request"
+    with pytest.raises(ValueError, match="probe_request"):
+        runner.generate([], 3072, "openie_triples")
+    session.post.assert_not_called()
+
+
+def test_cycle_resume_verifies_inherited_cache_and_all_cost_history(tmp_path):
+    prior, _, messages = failed_remote_fixture(tmp_path)
+    with (
+        patch.object(e1, "ROOT", tmp_path),
+        patch.object(e1, "code_dirty", return_value=False),
+        patch.object(e1, "git", return_value="new"),
+        patch.object(e1, "load_corpus", return_value=([{"id": "source"}], {})),
+    ):
+        network = e1.network_resume_plan(prior)
+        row = network["rows"][2]
+        directory = tmp_path / row["output"]
+        directory.mkdir(parents=True)
+        journal = Journal(
+            directory / "usage.jsonl",
+            run_id=row["run_id"],
+            method="hipporag2",
+            dataset="musique",
+        )
+        runner = e1.Transport(
+            network, row, {"LITELLM_API_KEY": "test-secret"}, directory, journal
+        )
+        response = Mock(status_code=200)
+        response.json.return_value = loop_body()
+        runner.session.post = Mock(return_value=response)
+        runner.generate(messages, 1024, "openie_ner")
+        with pytest.raises(ValueError, match="generation_not_complete"):
+            runner.generate(
+                [{"role": "user", "content": "triple cycle"}], 3072, "openie_triples"
+            )
+        manifest = {
+            "status": "failed",
+            "run_id": row["run_id"],
+            "seconds": 2,
+            "token_accounting": journal.reference(),
+            "artifacts": {
+                p.relative_to(directory).as_posix(): dense.sha256_file(p)
+                for p in directory.rglob("*")
+                if p.is_file()
+            },
+        }
+        dense.write_json_atomic(directory / "manifest.json", manifest)
+        plan_path = tmp_path / "network.json"
+        dense.write_json_atomic(plan_path, network)
+        child = e1.cycle_resume_plan(plan_path, "source")
+        resumed = child["rows"][2]
+        assert len(resumed["history_runs"]) == 2
+        assert len(resumed["resume_sources"]) == 2
+        assert resumed["token_limit"] == row["token_limit"] - 3808
+        assert resumed["prior_budget_charge"] == row["prior_budget_charge"] + 3808
+        assert resumed["cycle_diagnostic"]["unique_tuples"] == 3
+        with pytest.raises(FileExistsError):
+            e1.cycle_resume_plan(plan_path, "source")
+        (tmp_path / "results/summary").mkdir(parents=True)
+        report = e1.export(child, plan_path)
+        assert report["physical_known_tokens"] == 3823
+        assert report["cost_complete"] is False
+        assert report["budget_charge_upper_bound"] > 3823
+        assert report["rows"][2]["cumulative_seconds"] == 3
+
+
 def test_local_failure_continuation_preserves_unknown_and_shared_claim(tmp_path):
     corpus = [{"id": str(i), "title": "Title", "text": f"text {i}"} for i in range(33)]
     rows = [
@@ -449,7 +593,7 @@ def test_parent_plan_path_from_json_and_preflight_binding(tmp_path):
 def test_real_hipporag_sdk_index_and_reload_without_http(tmp_path):
     class Fake:
         plan = {"endpoint": "https://example.invalid", "model": "qwen"}
-        row = {"dataset": "musique"}
+        row = {"dataset": "musique", "cycle_probe_source_id": "a"}
         journal = Journal(
             tmp_path / "usage.jsonl",
             run_id="fake",
@@ -487,6 +631,7 @@ def test_real_hipporag_sdk_index_and_reload_without_http(tmp_path):
     assert result["passages"] == 2
     assert result["graph_nodes"] >= 2
     assert result["reload_model_calls"] == 0
+    assert dense.read_json(tmp_path / "cycle-probe.json")["status"] == "passed"
 
 
 @pytest.mark.skipif(

@@ -1,5 +1,39 @@
 # E1: индексы полного корпуса (#13)
 
+## Продолжение после цикла triple JSON
+
+Network child остановлен:736 input/3072 output, length. В ответе на93словный
+пассаж168 полных tuples, уникальных3 (каждая56раз). Это цикл; частичный JSON
+не принимается. Caps1024/3072 прежние. `unique-triples-v1` добавляет последнее
+user-сообщение: только triples, каждую поддержанную тройку один раз, без
+named_entities, закрыть JSON после исчерпания разных фактов.
+
+Сначала probe на том же source ID: NER только из verified cache, triple SHA
+до HTTP совпадает с оборванным. Только stop/полный JSON/непустые уникальные triples
+разрешают основной run. `cycle-probe.json` хранит результат, повторной оплаты
+этой пробы при основной индексации нет. Исходные SDK prompts остальных passages
+прежние. Только length с явным циклом (≥12 tuples, unique≤1/4) допускает один
+корректирующий запрос. Всего≤20 коррекций/dataset, включая probe; обе попытки
+учтены в журнале, связь payload SHA — в `cycle-repairs.json`. Новая неудача либо
+иной length/parse/unknown останавливают пакет; transport retry0. HotpotQA получает
+тот же policy только после успешной MuSiQue пробы и готового индекса.
+
+Кэш объединяет оба предыдущих run; cache hits прослеживаются до physical producer,
+length не попадает в accepted cache. Новые127317 известных tokens вычитаются из
+остатка17150781: остаётся **17023464**. Unknown7922 сохраняется в резерве,
+новых unknown в length нет. E1 суммирует всю историю, cost_complete=false.
+Новая папка/UUID, один canonical claim; прежние raw/manifest/plan неизменны.
+Это техническая адаптация extraction, не доказательство качества и не согласование O/N/R/H.
+
+```powershell
+$dataRoot = '<data-root>'
+$envFile = '<data-root>/<env-file>'
+$prior = "$dataRoot/indexes/e1/issue13-network-plan.json"
+$plan = "$dataRoot/indexes/e1/issue13-cycle-plan.json"
+./.venv-check/Scripts/python.exe -m scripts.run_e1 cycle-resume --prior-plan $prior --plan $plan --passage-id '<verified-source-id>'
+& '<hipporag-venv>/Scripts/python.exe' -m scripts.run_e1 run --plan $plan --env-file $envFile --method hipporag2 --dataset musique --source '<pinned-hipporag-source>'
+```
+
 ## Продолжение после RemoteDisconnected
 
 20октября первый HippoRAG2 MuSiQue остановлен:1560 полностью проверенных

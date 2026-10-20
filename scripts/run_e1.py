@@ -6,6 +6,7 @@ from contextlib import contextmanager
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import time
 import uuid
@@ -49,6 +50,33 @@ PARAMETERS = {
     "embedding_pacing_seconds_per_text": 0.1,
     "target_connection_close": True,
 }
+CYCLE_REPAIR = {
+    "version": "unique-triples-v1",
+    "max_per_dataset": 20,
+    "instruction": 'Return only the JSON object with the "triples" field. Extract each supported triple exactly once. Do not repeat any triple. Do not output named_entities. When no more distinct supported facts remain, close the JSON array and object immediately.',
+}
+
+
+def triple_cycle(text):
+    """Diagnostic only: count complete tuples inside an unfinished response."""
+    decoder, triples = json.JSONDecoder(), []
+    for match in re.finditer(r'\[\s*"', text):
+        try:
+            value, _ = decoder.raw_decode(text[match.start() :])
+        except ValueError:
+            continue
+        if (
+            isinstance(value, list)
+            and len(value) == 3
+            and all(isinstance(x, str) for x in value)
+        ):
+            triples.append(tuple(value))
+    unique = len(set(triples))
+    return {
+        "complete_tuples": len(triples),
+        "unique_tuples": unique,
+        "cycle": len(triples) >= 12 and unique * 4 <= len(triples),
+    }
 
 
 def git(*args):
@@ -154,13 +182,16 @@ def verify_plan(plan, row, config):
         or plan["combined_token_limit"] != sum(r["token_limit"] for r in plan["rows"])
         or row["code_commit"] != git("rev-parse", "HEAD")
         or code_dirty()
+        or (plan.get("cycle_repair") and plan["cycle_repair"] != CYCLE_REPAIR)
         or plan["model"] != config["TARGET_API_MODEL"]
         or plan["endpoint"] != config["TARGET_API_BASE_URL"].rstrip("/")
         or sorted(combinations) != sorted((m, d) for m in METHODS for d in DATASETS)
         or row["output"]
         != f"indexes/e1/{plan['batch_id']}/{row['method']}/{row['dataset']}"
         + (
-            "-network1"
+            "-cycle1"
+            if row.get("resume_kind") == "cycle"
+            else "-network1"
             if row.get("resume_from")
             else "-continuation1"
             if row.get("prior_run")
@@ -168,6 +199,24 @@ def verify_plan(plan, row, config):
         )
     ):
         raise ValueError("E1_plan_or_code_mismatch")
+    if plan.get("cycle_repair") and (row["method"], row["dataset"]) == (
+        "hipporag2",
+        "hotpotqa",
+    ):
+        pilot = next(
+            r
+            for r in plan["rows"]
+            if (r["method"], r["dataset"]) == ("hipporag2", "musique")
+        )
+        path = ROOT / pilot["output"] / "manifest.json"
+        prior = dense.read_json(path)
+        probe = path.parent / "cycle-probe.json"
+        if (
+            prior["status"] != "completed"
+            or prior["artifacts"].get("cycle-probe.json") != dense.sha256_file(probe)
+            or dense.read_json(probe)["status"] != "passed"
+        ):
+            raise ValueError("cycle_repair_requires_successful_MuSiQue_probe_and_index")
     response = requests.get("http://localhost:11434/api/tags", timeout=10)
     response.raise_for_status()
     actual = next(
@@ -213,16 +262,35 @@ class Transport:
         self.last_cache_hit = False
         self.parent_cache = {}
         self.replayed_count = 0
-        if row.get("resume_from"):
-            parent = ROOT / row["resume_from"]["output"] / "manifest.json"
-            if dense.sha256_file(parent) != row["resume_from"]["manifest_sha256"]:
+        self.require_cache = False
+        self.require_repair_key = False
+        self.repairs_path = directory / "cycle-repairs.json"
+        self.repairs = (
+            dense.read_json(self.repairs_path) if self.repairs_path.exists() else {}
+        )
+        sources = row.get(
+            "resume_sources", [row["resume_from"]] if row.get("resume_from") else []
+        )
+        for source in sources:
+            parent = ROOT / source["output"] / "manifest.json"
+            if dense.sha256_file(parent) != source["manifest_sha256"]:
                 raise ValueError("resume_manifest_changed")
-            self.parent_cache, _, _ = verified_checkpoints(parent)
+            self.parent_cache, _, _ = verified_checkpoints(
+                parent,
+                inherited=self.parent_cache,
+                allow_length=row.get("resume_kind") == "cycle",
+            )
 
     def call(self, payload, *, kind, operation):
         key = target.digest({"payload": payload, "kind": kind, "operation": operation})
         checkpoint = self.calls / f"{key}.json"
         response = self.calls / f"{key}.response.json"
+        if (
+            self.require_cache
+            and key not in self.parent_cache
+            and not checkpoint.exists()
+        ):
+            raise ValueError("probe_requires_verified_cached_NER")
         summary = self.journal.summary()
         if not summary["complete"] or any(p["errors"] for p in summary["phases"]):
             raise ValueError("incomplete_or_failed_journal_cannot_continue")
@@ -288,7 +356,8 @@ class Transport:
                 kind=kind,
                 object_id=key,
                 producer_run_id=self.row.get("run_id", self.journal.run_id),
-                producer_usage_complete=True,
+                producer_usage_complete=summary["complete"]
+                and summary["historical_cache_cost_complete"],
             )
             self.last_cache_hit = True
             return dense.read_json(response)
@@ -382,15 +451,84 @@ class Transport:
         }
         if response_format is not None:
             payload["response_format"] = response_format
-        body = self.call(payload, kind="llm", operation=operation)
+        key = target.digest({"payload": payload, "kind": "llm", "operation": operation})
+        if self.require_repair_key and key != self.row.get("cycle_repair_request_key"):
+            raise ValueError("probe_request_does_not_match_truncated_request")
+        policy = self.plan.get("cycle_repair")
+        if policy and policy != CYCLE_REPAIR:
+            raise ValueError("cycle_repair_policy_mismatch")
+        if policy and (
+            key in self.repairs or key == self.row.get("cycle_repair_request_key")
+        ):
+            body = self.repair_cycle(payload, key, operation)
+        else:
+            try:
+                body = self.call(payload, kind="llm", operation=operation)
+            except ValueError as exc:
+                if (
+                    str(exc) != "generation_not_complete"
+                    or not policy
+                    or operation != "openie_triples"
+                ):
+                    raise
+                old = dense.read_json(self.calls / f"{key}.response.json")
+                choice = old["choices"][0]
+                if (
+                    choice["finish_reason"] != "length"
+                    or not triple_cycle(choice["message"]["content"])["cycle"]
+                ):
+                    raise
+                body = self.repair_cycle(payload, key, operation)
         return body["choices"][0]["message"]["content"], {
             **body["usage"],
             "finish_reason": body["choices"][0]["finish_reason"],
             "cache_hit": self.last_cache_hit,
         }
 
+    def repair_cycle(self, payload, key, operation):
+        if operation != "openie_triples":
+            raise ValueError("cycle_repair_only_for_triples")
+        revised = {
+            **payload,
+            "messages": [
+                *payload["messages"],
+                {"role": "user", "content": CYCLE_REPAIR["instruction"]},
+            ],
+        }
+        revised_key = target.digest(
+            {"payload": revised, "kind": "llm", "operation": operation}
+        )
+        if key not in self.repairs:
+            if len(self.repairs) >= CYCLE_REPAIR["max_per_dataset"]:
+                raise ValueError("cycle_repair_limit_exceeded")
+            self.repairs[key] = {
+                "revised_request_sha256": revised_key,
+                "status": "started",
+            }
+            dense.write_json_atomic(self.repairs_path, self.repairs)
+        elif (
+            self.repairs[key]["status"] != "complete"
+            or self.repairs[key]["revised_request_sha256"] != revised_key
+        ):
+            raise ValueError("unresolved_cycle_repair_cannot_repeat")
+        body = self.call(revised, kind="llm", operation=operation)
+        parsed = json.loads(body["choices"][0]["message"]["content"])
+        values = parsed.get("triples")
+        if not isinstance(values, list) or any(
+            not isinstance(x, list)
+            or len(x) != 3
+            or not all(isinstance(v, str) and v.strip() for v in x)
+            for x in values
+        ):
+            raise ValueError("invalid_cycle_repair_triples")
+        if len({tuple(x) for x in values}) != len(values):
+            raise ValueError("cycle_repair_still_repeats")
+        self.repairs[key]["status"] = "complete"
+        dense.write_json_atomic(self.repairs_path, self.repairs)
+        return body
 
-def verified_checkpoints(manifest_path):
+
+def verified_checkpoints(manifest_path, *, inherited=None, allow_length=False):
     """Verify successful physical responses individually; never reuse a failed one."""
     manifest = dense.read_json(manifest_path)
     reference = verified_reference(manifest, manifest_path)
@@ -401,12 +539,24 @@ def verified_checkpoints(manifest_path):
             raise ValueError("resume_artifact_changed")
     records = read_records(reference["path"])
     finished = {r["attempt_id"]: r for r in records if r["event"] == "finished"}
-    cache, failures = {}, []
+    cache, failures = dict(inherited or {}), []
     for row in (r for r in records if r["event"] == "started"):
         terminal = finished.get(row["attempt_id"])
-        if terminal is None or terminal.get("cache_hit"):
+        if terminal is None:
             raise ValueError("resume_requires_terminal_physical_attempts")
         key = row["object_id"]
+        if terminal.get("cache_hit"):
+            item = cache.get(key)
+            if (
+                not item
+                or terminal["producer_run_id"] != item["run_id"]
+                or any(
+                    row[k] != item[k]
+                    for k in ("operation", "kind", "provider", "model")
+                )
+            ):
+                raise ValueError("unverified_inherited_cache_hit")
+            continue
         checkpoint = manifest_path.parent / "requests" / f"{key}.json"
         saved = dense.read_json(checkpoint)
         if saved["request_sha256"] != key or saved["operation"] != row["operation"]:
@@ -415,16 +565,23 @@ def verified_checkpoints(manifest_path):
             failures.append((row, terminal, saved))
             continue
         response = checkpoint.with_name(f"{key}.response.json")
-        if (
-            saved["status"] != "complete"
-            or dense.sha256_file(response) != saved["response_sha256"]
-            or terminal["usage_status"] != "complete"
-        ):
+        if terminal["usage_status"] != "complete":
             raise ValueError("resume_success_checkpoint_invalid")
         body = dense.read_json(response)
         usage = extract_usage(body, row["kind"], row["provider"])
         if any(terminal[field] != value for field, value in usage.items()):
             raise ValueError("resume_response_usage_mismatch")
+        if saved["status"] != "complete":
+            if (
+                allow_length
+                and row["operation"] == "openie_triples"
+                and body["choices"][0]["finish_reason"] == "length"
+            ):
+                failures.append((row, terminal, saved))
+                continue
+            raise ValueError("resume_success_checkpoint_invalid")
+        if dense.sha256_file(response) != saved["response_sha256"]:
+            raise ValueError("resume_success_checkpoint_invalid")
         if key in cache:
             raise ValueError("duplicate_resume_physical_request")
         cache[key] = {
@@ -436,7 +593,8 @@ def verified_checkpoints(manifest_path):
             "provider": row["provider"],
             "model": row["model"],
             # The response has complete usage, but the producing RUN has one unknown.
-            "producer_complete": reference["summary"]["complete"],
+            "producer_complete": reference["summary"]["complete"]
+            and reference["summary"]["historical_cache_cost_complete"],
         }
     return cache, failures, reference
 
@@ -479,20 +637,24 @@ def export(plan, plan_path):
                 "journal_sha256": dense.sha256_file(live),
                 "summary": summarize(read_records(live)),
             }
-        if row.get("prior_run"):
-            prior = ROOT / row["prior_run"]["output"] / "manifest.json"
-            if dense.sha256_file(prior) != row["prior_run"]["manifest_sha256"]:
-                raise ValueError("prior_failed_manifest_changed")
+        history = row.get(
+            "history_runs", [row["prior_run"]] if row.get("prior_run") else []
+        )
+        if history:
             from scripts.token_accounting import summarize
 
-            records = read_records(prior.parent / "usage.jsonl")
+            records, seconds = [], 0
+            for prior_row in history:
+                prior = ROOT / prior_row["output"] / "manifest.json"
+                if dense.sha256_file(prior) != prior_row["manifest_sha256"]:
+                    raise ValueError("prior_failed_manifest_changed")
+                records.extend(read_records(prior.parent / "usage.jsonl"))
+                seconds += dense.read_json(prior)["seconds"]
             current = manifest.parent / "usage.jsonl"
             if current.exists():
                 records.extend(read_records(current))
             public["cumulative_accounting"] = summarize(records)
-            public["cumulative_seconds"] = dense.read_json(prior)[
-                "seconds"
-            ] + result.get("seconds", 0)
+            public["cumulative_seconds"] = seconds + result.get("seconds", 0)
         if manifest.exists():
             public["artifact_manifest_sha256"] = dense.sha256_file(manifest)
         rows.append({**row, **public})
@@ -513,7 +675,13 @@ def export(plan, plan_path):
     )
     report["cost_complete"] = all(row_usage(r).get("complete", False) for r in rows)
     report["budget_charge_upper_bound"] = report["physical_known_tokens"] + sum(
-        r.get("prior_run", {}).get("unknown_reserved_upper_bound", 0) for r in rows
+        sum(
+            p.get("unknown_reserved_upper_bound", 0)
+            for p in r.get(
+                "history_runs", [r["prior_run"]] if r.get("prior_run") else []
+            )
+        )
+        for r in rows
     )
     report["original_combined_token_limit"] = plan.get(
         "original_combined_token_limit", plan["combined_token_limit"]
@@ -776,6 +944,120 @@ def network_resume_plan(prior_path):
     return plan
 
 
+def cycle_resume_plan(prior_path, passage_id):
+    """Keep known cost and every ancestor; probe a single bounded cycle repair."""
+    original = dense.read_json(prior_path)
+    if (
+        original.get("cycle_repair")
+        or not original.get("network_resume")
+        or code_dirty()
+    ):
+        raise ValueError("cycle_resume_requires_clean_network_stage")
+    plan = copy.deepcopy(original)
+    lineage = [
+        {
+            "path": str(prior_path.resolve()),
+            "sha256": dense.sha256_file(prior_path),
+            "digest": target.digest(original),
+        },
+        *original["lineage"],
+    ]
+    for ancestor in lineage:
+        if dense.sha256_file(Path(ancestor["path"])) != ancestor["sha256"]:
+            raise ValueError("cycle_ancestor_plan_changed")
+    failed = []
+    for row in plan["rows"]:
+        path = ROOT / row["output"] / "manifest.json"
+        manifest = dense.read_json(path) if path.exists() else {}
+        if manifest.get("status") == "completed":
+            continue
+        if manifest.get("status") not in (None, "failed"):
+            raise ValueError("cycle_stage_is_not_stopped")
+        row["code_commit"] = git("rev-parse", "HEAD")
+        if manifest.get("status") != "failed":
+            continue
+        if (row["method"], row["dataset"]) != ("hipporag2", "musique") or not row.get(
+            "resume_from"
+        ):
+            raise ValueError("cycle_resume_scope_is_Hippo_MuSiQue")
+        sources = [row["resume_from"]]
+        cache = {}
+        for source in sources:
+            parent = ROOT / source["output"] / "manifest.json"
+            if dense.sha256_file(parent) != source["manifest_sha256"]:
+                raise ValueError("cycle_source_manifest_changed")
+            cache, _, _ = verified_checkpoints(parent, inherited=cache)
+        cache, unusable, reference = verified_checkpoints(
+            path, inherited=cache, allow_length=True
+        )
+        if len(unusable) != 1:
+            raise ValueError("cycle_resume_requires_one_incomplete_response")
+        started, terminal, _ = unusable[0]
+        body = dense.read_json(
+            path.parent / "requests" / f"{started['object_id']}.response.json"
+        )
+        diagnostic = triple_cycle(body["choices"][0]["message"]["content"])
+        if (
+            started["operation"] != "openie_triples"
+            or terminal["usage_status"] != "complete"
+            or not diagnostic["cycle"]
+        ):
+            raise ValueError("cycle_resume_requires_known_usage_repeated_triples")
+        corpus, _ = load_corpus(plan["data_root"], row["dataset"])
+        if passage_id not in {r["id"] for r in corpus}:
+            raise ValueError("cycle_probe_source_missing")
+        known = sum(reference["summary"]["known_subtotal"].values())
+        if known >= row["token_limit"]:
+            raise ValueError("cycle_budget_exhausted")
+        latest = {
+            "run_id": row["run_id"],
+            "output": row["output"],
+            "manifest_sha256": dense.sha256_file(path),
+            "summary": reference["summary"],
+            "unknown_reserved_upper_bound": 0,
+            "reason": "Known-cost length response repeats three triples; no partial acceptance.",
+        }
+        row["history_runs"] = [row["prior_run"], latest]
+        row["prior_run"] = latest
+        row["resume_from"] = {key: latest[key] for key in ("output", "manifest_sha256")}
+        row["resume_sources"] = [*sources, row["resume_from"]]
+        row["prior_budget_charge"] += known
+        row["token_limit"] -= known
+        row["run_id"] = str(uuid.uuid4())
+        row["output"] = f"indexes/e1/{plan['batch_id']}/hipporag2/musique-cycle1"
+        row.update(
+            resume_kind="cycle",
+            cycle_repair_request_key=started["object_id"],
+            cycle_probe_source_id=passage_id,
+            cycle_diagnostic=diagnostic,
+            verified_response_cache_count=len(cache),
+        )
+        failed.append((path, row["run_id"]))
+    if len(failed) != 1:
+        raise ValueError("cycle_requires_one_failed_stage")
+    path, child = failed[0]
+    with (path.parent / "cycle-resume-once.claim.json").open(
+        "x", encoding="utf-8"
+    ) as stream:
+        json.dump(
+            {
+                "parent_plan_sha256": dense.sha256_file(prior_path),
+                "child_run_id": child,
+            },
+            stream,
+        )
+        stream.flush()
+        os.fsync(stream.fileno())
+    plan.update(
+        parent_plan=lineage[0],
+        lineage=lineage,
+        cycle_repair=CYCLE_REPAIR,
+        parameters=PARAMETERS,
+        combined_token_limit=sum(r["token_limit"] for r in plan["rows"]),
+    )
+    return plan
+
+
 def seal_unstarted_plan(path):
     """Rebind a rejected preflight to clean code before any new HTTP."""
     plan = dense.read_json(path)
@@ -895,6 +1177,7 @@ def main():
             "prepare",
             "continue",
             "network-resume",
+            "cycle-resume",
             "seal",
             "run",
             "report",
@@ -908,6 +1191,7 @@ def main():
     parser.add_argument("--dataset", choices=DATASETS)
     parser.add_argument("--source", type=Path)
     parser.add_argument("--prior-plan", type=Path)
+    parser.add_argument("--passage-id")
     args = parser.parse_args()
     config = dotenv_values(args.env_file) if args.env_file else {}
     if args.command == "prepare":
@@ -941,6 +1225,16 @@ def main():
         if args.plan.resolve() != canonical.resolve() or args.plan.exists():
             raise ValueError("network_resume_requires_unused_canonical_plan")
         plan = network_resume_plan(args.prior_plan)
+        with args.plan.open("x", encoding="utf-8") as stream:
+            json.dump(plan, stream, ensure_ascii=False, indent=2)
+    elif args.command == "cycle-resume":
+        canonical = (
+            Path(dense.read_json(args.prior_plan)["data_root"])
+            / "indexes/e1/issue13-cycle-plan.json"
+        )
+        if args.plan.resolve() != canonical.resolve() or args.plan.exists():
+            raise ValueError("cycle_resume_requires_unused_canonical_plan")
+        plan = cycle_resume_plan(args.prior_plan, args.passage_id)
         with args.plan.open("x", encoding="utf-8") as stream:
             json.dump(plan, stream, ensure_ascii=False, indent=2)
     elif args.command == "seal":

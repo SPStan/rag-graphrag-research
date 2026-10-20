@@ -1,5 +1,12 @@
 # Передача контекста Sol / Luna
 
+**20октября: cycle repair E1.** Network child остановлен на length3072:
+3 уникальных triples повторены56раз. Кап не повышается. Новый cycle plan:
+probe того же payload с запретом дубликатов, затем≤20 условных коррекций/dataset,
+по1 на циклический request. Кэш обоих предыдущих run, сохранение всей стоимости,
+остаток17023464, старый unknown7922 не снят. [Протокол](E1_INDEXING.md).
+Готовых индексов пока2/6; #13/PR #33 открыты, Draft. E2/merge не запускать.
+
 **E1 status:** 2/6 indexes completed; physical known tokens=4429311; cost_complete=False. Last stage=hipporag2/musique. Raw/indexes remain local. PR Draft; E2 requires all six verified indexes.
 
 **20октября: ограниченное продолжение HippoRAG MuSiQue после RemoteDisconnected.**
