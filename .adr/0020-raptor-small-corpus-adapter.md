@@ -73,3 +73,8 @@ reader запроса, usage всех summaries и embeddings. Seed 42 и оди
 read timeout300 по успешной диагностике, все старые попытки в aggregate.
 Timeout cause и старый server usage не восстановлены; новых автоматических
 повторов нет. Согласие не переносится на full corpus или будущие расходы.
+
+Фактическое продолжение 20 октября остановлено на двенадцатом summary:
+finish_reason=length при cap512, usage897/512 сохранён. Новый journal полон,
+общий расход неполон. Дерево/reader не завершены; перед следующими расходами
+пересмотреть отдельную bounded policy truncated summary, без удаления claim.

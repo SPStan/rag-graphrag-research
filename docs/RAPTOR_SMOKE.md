@@ -1,5 +1,33 @@
 # RAPTOR: малый корпус (#12)
 
+## Результат продолжения 20 октября: остановка на truncated summary
+
+Run `3a48630b-72fe-46a9-99eb-309035ed1a0c`, чистый код `00f3e8a`,
+[сводка](../results/summary/raptor-continuation.json): 50 leaf embeddings,
+11 summary `nonempty/stop` и их embeddings; двенадцатый summary вернул
+`finish_reason=length`, 897 input / 512 output. Строгий guard остановил run;
+partial summary не принят, повторов не было. Причина этой остановки известна:
+output cap512 недостаточен для данного ответа. Это не повтор прежнего timeout
+и не объяснение его исхода.
+
+Новый run: **73 POST** (61 local embedding + 12 target), **9739 embedding +
+3983 LLM input + 3734 LLM output = 17456 известных combined tokens**.
+Журнал проверен, новый расход полный, бюджет100000 не исчерпан. Общий учёт
+трёх runs: **125 attempts**, известные subtotal embedding16138 / LLM4333+4109;
+общий total=null, complete=false из-за первого timeout. Известный subtotal24580
+не является полным расходом исследования. Все исторические manifest/journal SHA
+повторно проверены и не изменились.
+
+Реального завершённого дерева, save/reload и трёх reader-ответов пока нет (0/3).
+Upstream строит уровень до возврата из construct_tree; промежуточные summary
+сохранены в private request/response, но не объявляются готовым tree/checkpoint.
+Не удалять continuation claim, не запускать заново команду выше. Следующий
+технический шаг — определить отдельную ограниченную политику для truncated
+summary (cap/бюджет/переиспользование проверенных результатов), сначала offline.
+Увеличение cap не выполнялось, дополнительных model calls после остановки нет.
+Согласие на historical unknown получено; прежний блокер согласования не выдаётся
+за нерешённый. Текущий блокер — output cap и незавершённый smoke. PR Draft/Refs #12.
+
 ## Согласованное продолжение, 20 октября
 
 Пользователь передал ответ преподавателя на вопрос о продолжении при unknown
