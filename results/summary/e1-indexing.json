@@ -1,6 +1,6 @@
 {
   "batch_id": "edff74df-c567-49de-a834-f9f1fc6f7f74",
-  "plan_sha256": "f3049921fb30be3e607578ca3f990a743402678fbe7cfcc8d192af0ddf7e11f6",
+  "plan_sha256": "5fd283922e4318ebd8cd65d4ce302e6e60a4a1d5c93f390302ffe2992d444328",
   "models": {
     "model": "iairlab/qwen3.8-27b",
     "embedding_model": "bge-m3:latest",
@@ -27,7 +27,8 @@
     "redirects": false,
     "target_context": 262144,
     "thinking": false,
-    "embedding_pacing_seconds_per_text": 0.1
+    "embedding_pacing_seconds_per_text": 0.1,
+    "target_connection_close": true
   },
   "rows": [
     {
@@ -344,7 +345,7 @@
       "cost_semantics": "Physical new cost; replay is not charged twice."
     },
     {
-      "run_id": "bc31760b-7f4d-4a9d-bfda-a9ff602003ea",
+      "run_id": "2548f65f-0dd5-4fba-8cc1-d09bf7da6fe1",
       "method": "hipporag2",
       "dataset": "musique",
       "passages": 5500,
@@ -359,16 +360,13 @@
         }
       },
       "corpus_fingerprint": "f726a739ff0def6f7517fe3185780fdc21e5d51a2cfcd83ce3f18fba277c9f9a",
-      "code_commit": "c61a025808d6196ddfa10c1422e2827f71b52898",
-      "token_limit": 20000000,
-      "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/hipporag2/musique",
-      "status": "failed",
-      "seconds": 6476.095,
-      "plan_sha256": "d8ca9a51107a17343d358574c01a783ec069a0fcb31f08089a12f61e60448385",
-      "error_type": "ValueError",
-      "token_accounting": {
-        "journal_file": "usage.jsonl",
-        "journal_sha256": "8316b77af29192c16b16f0926ce216608c1fc9d686737b41d26f630a20325393",
+      "code_commit": "50a22292d40872bc5f54a47809f3f81aebb88ede",
+      "token_limit": 17150781,
+      "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/hipporag2/musique-network1",
+      "prior_run": {
+        "run_id": "bc31760b-7f4d-4a9d-bfda-a9ff602003ea",
+        "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/hipporag2/musique",
+        "manifest_sha256": "62e0d3ee891fbc9139a8113c9df2cc372ea208ca30ef02954f6f317c60ca7d55",
         "summary": {
           "schema_version": 1,
           "phases": [
@@ -429,6 +427,87 @@
           "historical_cache_cost_complete": true,
           "journal_corrupt_tail": false,
           "corrupt_tail_bytes": 0
+        },
+        "unknown_reserved_upper_bound": 7922,
+        "reason": "Remote disconnected without response; preserve unknown, reuse verified successful responses, one bounded continuation with fresh target connections."
+      },
+      "resume_from": {
+        "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/hipporag2/musique",
+        "manifest_sha256": "62e0d3ee891fbc9139a8113c9df2cc372ea208ca30ef02954f6f317c60ca7d55"
+      },
+      "prior_budget_charge": 2849219,
+      "verified_response_cache_count": 3293,
+      "status": "failed",
+      "seconds": 440.736,
+      "plan_sha256": "c63fa8c24038d0d84cd4b611a77bbd72e59e4a16eb363e1e2ae7f1b1daebf901",
+      "error_type": "ValueError",
+      "token_accounting": {
+        "journal_file": "usage.jsonl",
+        "journal_sha256": "c31c88f68414f31a0f2d4ce4207696b7eb61a0de6bd084069c6a954fb89a1e81",
+        "summary": {
+          "schema_version": 1,
+          "phases": [
+            {
+              "phase": "index",
+              "provider": "local_ollama",
+              "attempts": 0,
+              "errors": 0,
+              "unfinished": 0,
+              "cache_hits": 172,
+              "cache_provenance_unknown": 172,
+              "known_subtotal": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 0
+              },
+              "unknown_fields": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 0
+              },
+              "complete": true,
+              "total": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 0
+              }
+            },
+            {
+              "phase": "index",
+              "provider": "target_api",
+              "attempts": 182,
+              "errors": 0,
+              "unfinished": 0,
+              "cache_hits": 76,
+              "cache_provenance_unknown": 76,
+              "known_subtotal": {
+                "llm_input_tokens": 88666,
+                "llm_output_tokens": 38651,
+                "embedding_input_tokens": 0
+              },
+              "unknown_fields": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 0
+              },
+              "complete": true,
+              "total": {
+                "llm_input_tokens": 88666,
+                "llm_output_tokens": 38651,
+                "embedding_input_tokens": 0
+              }
+            }
+          ],
+          "known_subtotal": {
+            "llm_input_tokens": 88666,
+            "llm_output_tokens": 38651,
+            "embedding_input_tokens": 0
+          },
+          "complete": true,
+          "attempts": 182,
+          "historical_cache_cost_complete": false,
+          "journal_corrupt_tail": false,
+          "corrupt_tail_bytes": 0
         }
       },
       "operations": {
@@ -438,15 +517,15 @@
             {
               "phase": "index",
               "provider": "local_ollama",
-              "attempts": 172,
+              "attempts": 0,
               "errors": 0,
               "unfinished": 0,
-              "cache_hits": 0,
-              "cache_provenance_unknown": 0,
+              "cache_hits": 172,
+              "cache_provenance_unknown": 172,
               "known_subtotal": {
                 "llm_input_tokens": 0,
                 "llm_output_tokens": 0,
-                "embedding_input_tokens": 684560
+                "embedding_input_tokens": 0
               },
               "unknown_fields": {
                 "llm_input_tokens": 0,
@@ -457,18 +536,18 @@
               "total": {
                 "llm_input_tokens": 0,
                 "llm_output_tokens": 0,
-                "embedding_input_tokens": 684560
+                "embedding_input_tokens": 0
               }
             }
           ],
           "known_subtotal": {
             "llm_input_tokens": 0,
             "llm_output_tokens": 0,
-            "embedding_input_tokens": 684560
+            "embedding_input_tokens": 0
           },
           "complete": true,
-          "attempts": 172,
-          "historical_cache_cost_complete": true,
+          "attempts": 0,
+          "historical_cache_cost_complete": false,
           "journal_corrupt_tail": false,
           "corrupt_tail_bytes": 0
         },
@@ -478,14 +557,14 @@
             {
               "phase": "index",
               "provider": "target_api",
-              "attempts": 1561,
+              "attempts": 91,
               "errors": 0,
               "unfinished": 0,
-              "cache_hits": 0,
-              "cache_provenance_unknown": 0,
+              "cache_hits": 38,
+              "cache_provenance_unknown": 38,
               "known_subtotal": {
-                "llm_input_tokens": 464528,
-                "llm_output_tokens": 140464,
+                "llm_input_tokens": 26706,
+                "llm_output_tokens": 8255,
                 "embedding_input_tokens": 0
               },
               "unknown_fields": {
@@ -495,20 +574,20 @@
               },
               "complete": true,
               "total": {
-                "llm_input_tokens": 464528,
-                "llm_output_tokens": 140464,
+                "llm_input_tokens": 26706,
+                "llm_output_tokens": 8255,
                 "embedding_input_tokens": 0
               }
             }
           ],
           "known_subtotal": {
-            "llm_input_tokens": 464528,
-            "llm_output_tokens": 140464,
+            "llm_input_tokens": 26706,
+            "llm_output_tokens": 8255,
             "embedding_input_tokens": 0
           },
           "complete": true,
-          "attempts": 1561,
-          "historical_cache_cost_complete": true,
+          "attempts": 91,
+          "historical_cache_cost_complete": false,
           "journal_corrupt_tail": false,
           "corrupt_tail_bytes": 0
         },
@@ -518,38 +597,104 @@
             {
               "phase": "index",
               "provider": "target_api",
-              "attempts": 1561,
-              "errors": 1,
+              "attempts": 91,
+              "errors": 0,
               "unfinished": 0,
-              "cache_hits": 0,
-              "cache_provenance_unknown": 0,
+              "cache_hits": 38,
+              "cache_provenance_unknown": 38,
               "known_subtotal": {
-                "llm_input_tokens": 1066814,
-                "llm_output_tokens": 484931,
+                "llm_input_tokens": 61960,
+                "llm_output_tokens": 30396,
                 "embedding_input_tokens": 0
               },
               "unknown_fields": {
-                "llm_input_tokens": 1,
-                "llm_output_tokens": 1,
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
                 "embedding_input_tokens": 0
               },
-              "complete": false,
-              "total": null
+              "complete": true,
+              "total": {
+                "llm_input_tokens": 61960,
+                "llm_output_tokens": 30396,
+                "embedding_input_tokens": 0
+              }
             }
           ],
           "known_subtotal": {
-            "llm_input_tokens": 1066814,
-            "llm_output_tokens": 484931,
+            "llm_input_tokens": 61960,
+            "llm_output_tokens": 30396,
             "embedding_input_tokens": 0
           },
-          "complete": false,
-          "attempts": 1561,
-          "historical_cache_cost_complete": true,
+          "complete": true,
+          "attempts": 91,
+          "historical_cache_cost_complete": false,
           "journal_corrupt_tail": false,
           "corrupt_tail_bytes": 0
         }
       },
-      "artifact_manifest_sha256": "62e0d3ee891fbc9139a8113c9df2cc372ea208ca30ef02954f6f317c60ca7d55",
+      "cumulative_accounting": {
+        "schema_version": 1,
+        "phases": [
+          {
+            "phase": "index",
+            "provider": "local_ollama",
+            "attempts": 172,
+            "errors": 0,
+            "unfinished": 0,
+            "cache_hits": 172,
+            "cache_provenance_unknown": 172,
+            "known_subtotal": {
+              "llm_input_tokens": 0,
+              "llm_output_tokens": 0,
+              "embedding_input_tokens": 684560
+            },
+            "unknown_fields": {
+              "llm_input_tokens": 0,
+              "llm_output_tokens": 0,
+              "embedding_input_tokens": 0
+            },
+            "complete": true,
+            "total": {
+              "llm_input_tokens": 0,
+              "llm_output_tokens": 0,
+              "embedding_input_tokens": 684560
+            }
+          },
+          {
+            "phase": "index",
+            "provider": "target_api",
+            "attempts": 3304,
+            "errors": 1,
+            "unfinished": 0,
+            "cache_hits": 76,
+            "cache_provenance_unknown": 76,
+            "known_subtotal": {
+              "llm_input_tokens": 1620008,
+              "llm_output_tokens": 664046,
+              "embedding_input_tokens": 0
+            },
+            "unknown_fields": {
+              "llm_input_tokens": 1,
+              "llm_output_tokens": 1,
+              "embedding_input_tokens": 0
+            },
+            "complete": false,
+            "total": null
+          }
+        ],
+        "known_subtotal": {
+          "llm_input_tokens": 1620008,
+          "llm_output_tokens": 664046,
+          "embedding_input_tokens": 684560
+        },
+        "complete": false,
+        "attempts": 3476,
+        "historical_cache_cost_complete": false,
+        "journal_corrupt_tail": false,
+        "corrupt_tail_bytes": 0
+      },
+      "cumulative_seconds": 6916.831,
+      "artifact_manifest_sha256": "3f78674de65884acb053cf4b6583f454e42b31eccb9f490bd0444cdb008c7730",
       "cost_semantics": "Physical new cost; replay is not charged twice."
     },
     {
@@ -568,7 +713,7 @@
         }
       },
       "corpus_fingerprint": "1d6a33346c42cd2feae5cf71eb2c145121a74712eb51a86d95205983a4477634",
-      "code_commit": "c61a025808d6196ddfa10c1422e2827f71b52898",
+      "code_commit": "50a22292d40872bc5f54a47809f3f81aebb88ede",
       "token_limit": 20000000,
       "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/hipporag2/hotpotqa",
       "status": "pending",
@@ -590,7 +735,7 @@
         }
       },
       "corpus_fingerprint": "f726a739ff0def6f7517fe3185780fdc21e5d51a2cfcd83ce3f18fba277c9f9a",
-      "code_commit": "c61a025808d6196ddfa10c1422e2827f71b52898",
+      "code_commit": "50a22292d40872bc5f54a47809f3f81aebb88ede",
       "token_limit": 12000000,
       "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/raptor/musique",
       "status": "pending",
@@ -612,18 +757,18 @@
         }
       },
       "corpus_fingerprint": "1d6a33346c42cd2feae5cf71eb2c145121a74712eb51a86d95205983a4477634",
-      "code_commit": "c61a025808d6196ddfa10c1422e2827f71b52898",
+      "code_commit": "50a22292d40872bc5f54a47809f3f81aebb88ede",
       "token_limit": 12000000,
       "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/raptor/hotpotqa",
       "status": "pending",
       "cost_semantics": "Physical new cost; replay is not charged twice."
     }
   ],
-  "combined_token_limit": 67971068,
+  "combined_token_limit": 65121849,
   "complete": false,
   "limitations": "E1 measures indexing cost/coverage, not retrieval or answer quality. Historical smoke unknowns are preserved outside these new runs.",
-  "physical_known_tokens": 4301994,
+  "physical_known_tokens": 4429311,
   "cost_complete": false,
-  "budget_charge_upper_bound": 4321593,
+  "budget_charge_upper_bound": 4456832,
   "original_combined_token_limit": 68000000
 }

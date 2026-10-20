@@ -1,5 +1,7 @@
 # Текущая работа и критерии завершения
 
+**E1 status:** 2/6 indexes completed; physical known tokens=4429311; cost_complete=False. Last stage=hipporag2/musique. Raw/indexes remain local. PR Draft; E2 requires all six verified indexes.
+
 **20октября: продолжение #13 после remote disconnect.** Сохранены1560 passages,
 3293 verified responses; расход оборванного POST неизвестен, резерв7922.
 Один дочерний Hippo Mu run с replay/новой папкой; прежний20M за вычетом known и

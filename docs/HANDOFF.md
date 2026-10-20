@@ -1,5 +1,7 @@
 # Передача контекста Sol / Luna
 
+**E1 status:** 2/6 indexes completed; physical known tokens=4429311; cost_complete=False. Last stage=hipporag2/musique. Raw/indexes remain local. PR Draft; E2 requires all six verified indexes.
+
 **20октября: ограниченное продолжение HippoRAG MuSiQue после RemoteDisconnected.**
 Первый run failed,1560 passages/3293 verified responses сохранены. Новая папка,
 replay по SHA и физическому usage; unknown7922 reserved, known2841297, остаток
