@@ -436,3 +436,45 @@ commit. До её окончания не заменять исходники/HE
 offline, с сохранением failed/unknown и проверенным reuse, затем ограниченная
 проверка по утверждённому плану. Одна исправленная summary не доказывает
 работоспособность всей индексации.
+
+
+## Последняя остановка и подготовленное продолжение RAPTOR —21октября
+
+MuSiQue run68b112fc завершился failed в14:51MSK: при Layer1 pinned UMAP
+отвергает n_neighbors=1 в рекурсивной группе2–4nodes. Новый расход1477962
+известен полностью (1540POST), tree.json отсутствует; HotpotQA не запущен.
+Это отдельная ошибка от раннего embedding HTTP413, чей unknown сохранён.
+
+Локальный адаптер `pinned_gmm_umap_singletons_n_le_4_v1` завершает такие группы
+singleton clusters. Обычные UMAP/GMM и recursive defaults сохранены; SDK bytes
+проверяются против закреплённого Git. Политика одинакова для обоих датасетов;
+её следует указывать при интерпретации E1. Подробности/альтернативы — ADR-0022.
+
+После clean commit подготовить одноразовый canonical plan, без модельных вызовов:
+
+```powershell
+$prior = '<data-root>/indexes/e1/issue13-raptor-batch-plan.json'
+$plan = '<data-root>/indexes/e1/issue13-raptor-clustering-plan.json'
+./.venv-check/Scripts/python.exe -m scripts.run_e1 raptor-clustering-resume --prior-plan $prior --plan $plan
+```
+
+Команда проверяет immutable history, полный текущий usage, все response SHA,
+Dense leaf producer, отсутствие активных workers/Hotpot outputs. Один claim
+рядом с каноническим failed prior не допускает повторного продолжения в другой
+папке. Новый MuSiQue output musique-cluster1; остаток9492570tokens,
+HotpotQA12000000. Старая история/unknown сохраняются. Создание плана не запускает
+HTTP; после этой остановки реальный stage требует отдельного решения о
+продолжении. Offline-проверки не являются результатом реальной индексации.
+
+
+Offline проверка исправления21октября завершена:349tests passed/16skipped;
+отдельный pinned RAPTOR SDK test passed (fake models, index/save/reload,
+исходный n_neighbors сбой для2/3/4nodes, HTTP forbidden). На полном MuSiQue
+проверены2542physical response entries и5500Dense leaves;2548summary/embedding
+callback воспроизведены из кэша,0physical attempts. Layer0 полностью совпал
+с сохранёнными запросами. Layer1 завершил кластеризацию и остановился перед
+первым uncached запросом; дерево ещё не построено. Safe proof result SHA:
+`bf45c18ce135397ef4ab71e8b9d58f815470bce189da1ec53d0890c8fe356a1b`. Исходный failed manifest SHA:
+`138e35a8c8993e732e7e623345a2a9aee70746fc3032fc9bfff28f1e6d88d276`.
+Следующее продолжение использует обычный tracked run_e1 transport, без отдельного
+модельного operator; новые HTTP сохраняются в том же формате journal/checkpoints.

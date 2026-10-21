@@ -1,12 +1,13 @@
 """Index-only calls into the pinned HippoRAG and RAPTOR implementations."""
 
 import copy
+import logging
 import random
 
 from scripts import run_dense as dense
 from scripts import run_dense_target as target
 from scripts import run_raptor_smoke as raptor
-from scripts.run_e1 import PARAMETERS, ROOT
+from scripts.run_e1 import PARAMETERS, RAPTOR_CLUSTERING_POLICY, ROOT
 
 
 def verified_dense_leaves(corpus, plan, dataset, workspace):
@@ -43,8 +44,60 @@ def verified_dense_leaves(corpus, plan, dataset, workspace):
     return producer, manifest, leaf_vectors
 
 
+def raptor_cluster_nodes(
+    nodes,
+    embedding_model_name,
+    max_length_in_cluster=3500,
+    *,
+    tokenizer,
+    reduction_dimension=10,
+    threshold=0.1,
+    verbose=False,
+    cluster_fn,
+):
+    """Pinned node grouping, with singleton terminals where UMAP is undefined.
+
+    Upstream computes floor(sqrt(n-1)) neighbors: n=2..4 gives 1,
+    rejected by UMAP. Singletons preserve all texts without another reduction.
+    The normal path and recursive defaults follow pinned cluster_utils.py.
+    """
+    if len(nodes) <= 4:
+        logging.info("RAPTOR singleton terminal: %d nodes", len(nodes))
+        return [[node] for node in nodes]
+    embeddings = dense.np.array([n.embeddings[embedding_model_name] for n in nodes])
+    labels = cluster_fn(embeddings, dim=reduction_dimension, threshold=threshold)
+    groups = []
+    for label in dense.np.unique(dense.np.concatenate(labels)):
+        group = [n for n, memberships in zip(nodes, labels) if label in memberships]
+        if len(group) == 1:
+            groups.append(group)
+        elif sum(len(tokenizer.encode(n.text)) for n in group) > max_length_in_cluster:
+            # Upstream recursion resets dimension/threshold to 10/0.1.
+            groups.extend(
+                raptor_cluster_nodes(
+                    group,
+                    embedding_model_name,
+                    max_length_in_cluster,
+                    tokenizer=tokenizer,
+                    cluster_fn=cluster_fn,
+                )
+            )
+        else:
+            groups.append(group)
+    return groups
+
+
 def raptor_index(corpus, transport, directory, source):
     sdk = raptor.load_source(source)
+    from raptor.cluster_utils import ClusteringAlgorithm, perform_clustering
+
+    class SmallGroupClustering(ClusteringAlgorithm):
+        @staticmethod
+        def perform_clustering(nodes, embedding_model_name, **kwargs):
+            return raptor_cluster_nodes(
+                nodes, embedding_model_name, cluster_fn=perform_clustering, **kwargs
+            )
+
     producer, manifest, leaf_vectors = verified_dense_leaves(
         corpus, transport.plan, transport.row["dataset"], ROOT
     )
@@ -90,6 +143,7 @@ def raptor_index(corpus, transport, directory, source):
             embedding_models={"BGE": Embedding()},
             cluster_embedding_model="BGE",
             reduction_dimension=5,
+            clustering_algorithm=SmallGroupClustering,
             clustering_params={
                 "max_length_in_cluster": 3000,
                 "threshold": 0.1,
@@ -122,6 +176,7 @@ def raptor_index(corpus, transport, directory, source):
         "passages": len(corpus),
         "nodes": len(nodes),
         "summaries": len(nodes) - len(leaves),
+        "clustering_policy": RAPTOR_CLUSTERING_POLICY,
         "layers": {str(k): len(v) for k, v in layers.items()},
         "reload_model_calls": 0,
         "leaf_producer_manifest_sha256": dense.sha256_file(producer / "manifest.json"),

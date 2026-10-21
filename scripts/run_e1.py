@@ -29,6 +29,7 @@ METHODS = ("dense", "hipporag2", "raptor")
 DATASETS = ("musique", "hotpotqa")
 # Independent, disjoint allocations: no caller can spend another row's allowance.
 LIMITS = {"dense": 2_000_000, "hipporag2": 20_000_000, "raptor": 12_000_000}
+RAPTOR_CLUSTERING_POLICY = "pinned_gmm_umap_singletons_n_le_4_v1"
 PARAMETERS = {
     "seed": 42,
     "temperature": 0,
@@ -261,7 +262,9 @@ def verify_plan(plan, row, config):
         or row["output"]
         != f"indexes/e1/{plan['batch_id']}/{row['method']}/{row['dataset']}"
         + (
-            "-batch1"
+            "-cluster1"
+            if row.get("resume_kind") == "clustering"
+            else "-batch1"
             if row.get("resume_kind") == "embedding_batch"
             else "-cycle1"
             if row.get("resume_kind") == "cycle"
@@ -977,6 +980,9 @@ def export(plan, plan_path):
             key: plan[key] for key in ("model", "embedding_model", "embedding_digest")
         },
         "parameters": plan["parameters"],
+        "raptor_clustering_policy": plan.get(
+            "raptor_clustering_policy", "pinned_upstream"
+        ),
         "rows": rows,
         "combined_token_limit": plan["combined_token_limit"],
         "complete": all(r["status"] == "completed" for r in rows),
@@ -1792,6 +1798,132 @@ def raptor_batch_plan(prior_path):
     return plan
 
 
+def raptor_clustering_plan(prior_path):
+    """One new RAPTOR continuation after a fully accounted local clustering failure."""
+    original = dense.read_json(prior_path)
+    if (
+        code_dirty()
+        or not original.get("raptor_batch_resume")
+        or original.get("raptor_clustering_resume")
+        or original.get("workspace") != str(ROOT.resolve())
+    ):
+        raise ValueError("clustering_resume_requires_clean_batch_prior")
+    parent = {
+        "path": str(prior_path.resolve()),
+        "sha256": dense.sha256_file(prior_path),
+        "digest": target.digest(original),
+    }
+    plan = copy.deepcopy(original)
+    plan.update(
+        parent_plan=parent,
+        lineage=[parent, *original.get("lineage", [])],
+        raptor_clustering_resume=True,
+        raptor_clustering_policy=RAPTOR_CLUSTERING_POLICY,
+    )
+    for item in plan["lineage"]:
+        if dense.sha256_file(Path(item["path"])) != item["sha256"]:
+            raise ValueError("lineage_plan_changed")
+    inspected = []
+    for row in plan["rows"]:
+        directory = ROOT / row["output"]
+        path = directory / "manifest.json"
+        if (directory / "running.lock").exists() or (
+            path.exists() and dense.read_json(path)["status"] == "running"
+        ):
+            raise ValueError("clustering_resume_requires_stopped_workers")
+        if row["method"] != "raptor":
+            continue
+        leaf_scope = verified_raptor_leaf_scope(plan, row)
+        row["code_commit"] = git("rev-parse", "HEAD")
+        if row.get("embedding_options") != RAPTOR_EMBEDDING_OPTIONS:
+            raise ValueError("clustering_resume_embedding_options_changed")
+        if row["dataset"] == "hotpotqa":
+            if directory.exists() and any(directory.iterdir()):
+                raise ValueError("raptor_hotpot_must_be_untouched")
+            continue
+        manifest = dense.read_json(path)
+        if (
+            row.get("resume_kind") != "embedding_batch"
+            or manifest["status"] != "failed"
+            or manifest.get("error_type") != "ValueError"
+            or (directory / "tree.json").exists()
+        ):
+            raise ValueError("clustering_resume_requires_failed_batch")
+        cache = {}
+        for source in row["resume_sources"]:
+            source_path = ROOT / source["output"] / "manifest.json"
+            if dense.sha256_file(source_path) != source["manifest_sha256"]:
+                raise ValueError("resume_manifest_changed")
+            cache, _, _ = verified_checkpoints(
+                source_path, inherited=cache, leaf_producer=leaf_scope
+            )
+        cache, failures, ref = verified_checkpoints(
+            path, inherited=cache, leaf_producer=leaf_scope
+        )
+        if failures or not ref["summary"]["complete"]:
+            raise ValueError("clustering_resume_requires_complete_current_usage")
+        current = {
+            "output": row["output"],
+            "run_id": manifest["run_id"],
+            "manifest_sha256": dense.sha256_file(path),
+            "summary": ref["summary"],
+            "unknown_reserved_upper_bound": 0,
+        }
+        history = [*row["history_runs"], current]
+        # Reverify all historical manifests and their saved reservations too.
+        for h in history:
+            hp = ROOT / h["output"] / "manifest.json"
+            if dense.sha256_file(hp) != h["manifest_sha256"]:
+                raise ValueError("clustering_history_manifest_changed")
+            actual = verified_reference(dense.read_json(hp), hp)
+            reserved = current_unknown_reservation(hp.parent)
+            if (
+                actual["status"] != "verified"
+                or actual["summary"] != h["summary"]
+                or type(reserved) is not int
+                or reserved != h["unknown_reserved_upper_bound"]
+            ):
+                raise ValueError("clustering_history_cost_changed")
+        charge = sum(
+            sum(h["summary"]["known_subtotal"].values())
+            + h["unknown_reserved_upper_bound"]
+            for h in history
+        )
+        if charge >= LIMITS["raptor"]:
+            raise ValueError("clustering_resume_budget_exhausted")
+        row.update(
+            history_runs=history,
+            prior_run=current,
+            resume_sources=[
+                *row["resume_sources"],
+                {k: current[k] for k in ("output", "manifest_sha256")},
+            ],
+            resume_from={k: current[k] for k in ("output", "manifest_sha256")},
+            resume_kind="clustering",
+            prior_budget_charge=charge,
+            token_limit=LIMITS["raptor"] - charge,
+            run_id=str(uuid.uuid4()),
+            output=f"indexes/e1/{plan['batch_id']}/raptor/musique-cluster1",
+            verified_response_cache_count=len(cache),
+        )
+        if (ROOT / row["output"]).exists():
+            raise ValueError("clustering_resume_output_must_be_new")
+        inspected.append((directory, row["run_id"]))
+    if len(inspected) != 1:
+        raise ValueError("clustering_resume_requires_one_failed_stage")
+    directory, child = inspected[0]
+    with (directory / "clustering-resume-once.claim.json").open(
+        "x", encoding="utf-8"
+    ) as stream:
+        json.dump(
+            {"parent_plan_sha256": parent["sha256"], "child_run_id": child}, stream
+        )
+        stream.flush()
+        os.fsync(stream.fileno())
+    plan["combined_token_limit"] = sum(r["token_limit"] for r in plan["rows"])
+    return plan
+
+
 def independent_raptor_plan(prior_path):
     """Freeze stopped HippoRAG; bind only untouched RAPTOR rows to new code."""
     if code_dirty():
@@ -1982,6 +2114,7 @@ def main():
             "cycle-resume",
             "independent-raptor",
             "raptor-batch-resume",
+            "raptor-clustering-resume",
             "prepare-schema-probe",
             "run-schema-probe",
             "seal",
@@ -2062,6 +2195,16 @@ def main():
         if args.plan.resolve() != canonical.resolve() or args.plan.exists():
             raise ValueError("raptor_batch_requires_unused_canonical_plan")
         plan = raptor_batch_plan(args.prior_plan)
+        with args.plan.open("x", encoding="utf-8") as stream:
+            json.dump(plan, stream, ensure_ascii=False, indent=2)
+    elif args.command == "raptor-clustering-resume":
+        canonical = (
+            Path(dense.read_json(args.prior_plan)["data_root"])
+            / "indexes/e1/issue13-raptor-clustering-plan.json"
+        )
+        if args.plan.resolve() != canonical.resolve() or args.plan.exists():
+            raise ValueError("clustering_resume_requires_unused_canonical_plan")
+        plan = raptor_clustering_plan(args.prior_plan)
         with args.plan.open("x", encoding="utf-8") as stream:
             json.dump(plan, stream, ensure_ascii=False, indent=2)
     elif args.command == "prepare-schema-probe":

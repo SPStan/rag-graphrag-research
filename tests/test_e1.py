@@ -873,3 +873,17 @@ def test_real_raptor_sdk_index_reuses_dense_and_reloads(tmp_path):
     assert result["summaries"] > 0
     assert result["reload_model_calls"] == 0
     assert runner.journal.summary()["historical_cache_cost_complete"] is True
+
+    # Reproduce the pinned numerical failure, then test our terminal policy.
+    from raptor.cluster_utils import perform_clustering
+
+    for count in (2, 3, 4):
+        with pytest.raises(ValueError, match="n_neighbors must be greater than 1"):
+            perform_clustering(np.ones((count, 1024)), dim=10, threshold=0.1)
+        nodes = list(range(count))
+        assert e1_indexers.raptor_cluster_nodes(
+            nodes,
+            "BGE",
+            tokenizer=Mock(),
+            cluster_fn=Mock(side_effect=AssertionError("UMAP forbidden")),
+        ) == [[n] for n in nodes]

@@ -7,11 +7,11 @@
 - Активная задача #13 / Draft PR #33: шесть индексов, E2 ещё заблокирован.
 - Dense ×2 готовы; HippoRAG MuSiQue остановлен на 2329/5500 после двух
   циклических ответов. HippoRAG HotpotQA не начат. Старые данные не менять.
-- RAPTOR MuSiQue остановлен: HTTP 413 от local /api/embed,
-  error="the input length exceeds the context length". Последняя операция
-  index_embedding имеет usage unknown; tree.json отсутствует. HotpotQA не начат.
-  Фоновая очередь завершена (stopped_recorded); PID прежней очереди отсутствуют
-  при проверке. Исходные артефакты и стоимость сохранять.
+- Последнее продолжение RAPTOR MuSiQue (68b112fc) остановилось21октября
+  в14:51MSK: ValueError n_neighbors must be greater than1, рекурсивная
+  кластеризация Layer1. Все1540 новыхPOST имеют usage:1477962tokens.
+  Дерево не сохранено; HotpotQA не начат. Queue stopped_recorded, worker завершён.
+  Ранний HTTP413 и его unknown10422 сохраняются в history, не являются новой ошибкой.
 - Offline-исправления PR #34 интегрированы. Schema-проба выполнена после явного
   разрешения на передачу:1 POST/HTTP400, uniqueItems не реализован сервером.
   Usage unknown/reserve8679; второй POST не отправлен, повтор не разрешён.
@@ -20,18 +20,21 @@
   num_ctx4096/num_batch4096 только для новых RAPTOR embeddings, truncate=false,
   старый verified cache сохраняется. Согласованный1 local POST прошёл на clean
   eb6b271:2104 known tokens, вектор1024/save/reload0 calls. Полного rebuild нет.
-- Известный physical E1 теперь6405867; upper budget charge6452489. Unknown остаётся unknown; текущий RAPTOR
-  reserve10422 и schema reserve8679 включаются в upper bound отдельно от usage.
-- Оба Dense готовы; реальных готовых деревьев RAPTOR пока нет. E2/QA не запускать.
-- Подготовлен путь raptor-batch-resume: real cache5500 Dense leaves и1002
-  physical responses проверены offline; old unknown10422 сохраняется, probe2104
-  не оплачивается повторно. 57 targeted tests и отдельный pinned RAPTOR SDK test
-  без HTTP прошли. Команда/пределы — E1_INDEXING.md.
-- Следующий шаг: создать/проверить canonical issue13-raptor-batch-plan.json,
-  получить явное разрешение на новые RAPTOR calls и выполнить MuSiQue, затем
-  HotpotQA. Пределы10970532/12000000, stop on first error/retry0, no E2/QA/Hippo.
-  Одинаковые5500 passages/модели/seed прежние; новый stage не запускать без согласия.
-  Hippo заблокирован unsupported uniqueItems; новый schema-вариант отдельно согласовать.
+- Известный physical E1 теперь7883829; upper budget charge7930451.
+  Unknown сохраняется; known не выдаётся за полную стоимость. Два Dense готовы,
+  остальные4индекса нет; E2/QA/merge запрещены.
+- Подготовлена локальная политика RAPTOR singleton terminals для групп<=4,
+  где pinned UMAP вычисляет недопустимый n_neighbors=1. SDK файлы не меняются;
+  обычные группы и параметры upstream сохраняются, политика одинакова датасетам.
+  Это версия адаптера, не исходный RAPTOR без изменений (ADR-0022).
+- Full corpus offline replay завершён:2542verified physical responses,
+  2548replay callbacks,0HTTP; Layer0 совпал с кэшем, Layer1 прошёл кластеризацию
+  и остановился перед первой новой summary. 349tests passed/16skipped,
+  отдельный pinned RAPTOR SDK test прошёл безHTTP, включая старый n_neighbors сбой.
+- Следующий шаг: canonical issue13-raptor-clustering-plan.json и последовательное
+  продолжение MuSiQue/HotpotQA в прежнем разрешённом объёме. История3runs
+  неизменна; остаток9492570/12000000, stop first error/retry0, no Hippo/E2/QA/merge.
+  Повтор после нового отказа не автоматический. Hippo uniqueItems остаётся блокером.
 - Срок первой вехи 18 октября прошёл; #13 не завершена. Сроки и корпус
   самостоятельно не меняем, фактические часы студента неизвестны.
 
