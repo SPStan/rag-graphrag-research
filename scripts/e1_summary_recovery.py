@@ -377,3 +377,184 @@ def prepare_continuation(prior_path, adoption_path, native_config):
         os.fsync(stream.fileno())
     plan["combined_token_limit"] = sum(r["token_limit"] for r in plan["rows"])
     return plan
+
+
+TLS_POLICY = {
+    "version": "raptor_tls_connect_once_v1",
+    "timeout_seconds": [30, 300],
+    "max_continuations": 1,
+    "max_total_new_posts": 4000,
+    "retry": 0,
+}
+
+
+def validate_network_failure(row, failures, reference):
+    """Bind a fresh continuation to one terminal unknown summary request."""
+    if len(failures) != 1 or reference["summary"]["attempts"] <= 0:
+        raise ValueError("summary_network_requires_one_failure")
+    started, terminal, checkpoint = failures[0]
+    if (
+        started["kind"] != "llm"
+        or started["provider"] != "target_api"
+        or started["operation"] != "summary"
+        or terminal.get("error_code") != "ReadTimeout"
+        or terminal["usage_status"] != "unknown"
+        or checkpoint["status"] != "started"
+        or type(checkpoint.get("reserved_tokens")) is not int
+        or not 0 < checkpoint["reserved_tokens"] <= 262144
+        or any(p["unfinished"] for p in reference["summary"]["phases"])
+        or sum(p["errors"] for p in reference["summary"]["phases"]) != 1
+    ):
+        raise ValueError("summary_network_unexpected_failure")
+    if row.get("network_prior_attempts") is not None and (
+        row["network_prior_attempts"] != reference["summary"]["attempts"]
+        or row["network_first_request_key"] != started["object_id"]
+    ):
+        raise ValueError("summary_network_failure_binding_changed")
+    return started["object_id"], checkpoint["reserved_tokens"]
+
+
+def prepare_network_continuation(prior_path, audit_path):
+    """One explicit network continuation; failed usage remains unknown."""
+    from scripts import run_e1 as e
+
+    original = dense.read_json(prior_path)
+    if (
+        e.code_dirty()
+        or original.get("raptor_summary_network_resume")
+        or original["workspace"] != str(e.ROOT.resolve())
+    ):
+        raise ValueError("summary_network_requires_clean_unused_prior")
+    plan = copy.deepcopy(original)
+    row = next(
+        r for r in plan["rows"] if (r["method"], r["dataset"]) == ("raptor", "hotpotqa")
+    )
+    if (
+        row.get("resume_kind") != "summary_native"
+        or row.get("max_new_posts") != POLICY["max_new_posts"]
+    ):
+        raise ValueError("summary_network_requires_first_native_continuation")
+    for r in plan["rows"]:
+        out = e.ROOT / r["output"]
+        mp = out / "manifest.json"
+        if (out / "running.lock").exists() or (
+            mp.exists() and dense.read_json(mp)["status"] == "running"
+        ):
+            raise ValueError("summary_network_workers_must_be_stopped")
+    audit = audit_path.read_text(encoding="utf-8")
+    if not all(
+        marker in audit
+        for marker in (
+            "do_handshake",
+            "The handshake operation timed out",
+            "read timeout=5",
+            "requests.exceptions.ReadTimeout",
+        )
+    ):
+        raise ValueError("summary_network_tls_audit_missing")
+    parent = {
+        "path": str(prior_path.resolve()),
+        "sha256": dense.sha256_file(prior_path),
+        "digest": target.digest(original),
+    }
+    lineage = [parent, *original.get("lineage", [])]
+    for pin in lineage:
+        if dense.sha256_file(Path(pin["path"])) != pin["sha256"]:
+            raise ValueError("lineage_plan_changed")
+    adoption = e.ROOT / row["summary_adoption"]["path"]
+    if dense.sha256_file(adoption) != row["summary_adoption"]["sha256"]:
+        raise ValueError("fallback_adoption_changed")
+    verify_adoption(plan, row, adoption)
+    cache = {}
+    leaf = e.verified_raptor_leaf_scope(plan, row)
+    for source in row["resume_sources"]:
+        mp = e.ROOT / source["output"] / "manifest.json"
+        if dense.sha256_file(mp) != source["manifest_sha256"]:
+            raise ValueError("summary_network_source_changed")
+        cache, _, _ = e.verified_checkpoints(
+            mp, inherited=cache, leaf_producer=leaf, allow_summary_length=True
+        )
+    directory = e.ROOT / row["output"]
+    mp = directory / "manifest.json"
+    manifest = dense.read_json(mp)
+    if manifest["status"] != "failed" or manifest.get("error_type") != "ReadTimeout":
+        raise ValueError("summary_network_prior_not_failed_timeout")
+    cache, failures, ref = e.verified_checkpoints(
+        mp, inherited=cache, leaf_producer=leaf, allow_summary_length=True
+    )
+    key, bound = validate_network_failure(row, failures, ref)
+    if (
+        key in cache
+        or (directory / "requests" / f"{key}.response.json").exists()
+        or e.current_unknown_reservation(directory) != bound
+    ):
+        raise ValueError("summary_network_unknown_response_or_reserve_changed")
+    history = copy.deepcopy(row["history_runs"])
+    history.append(
+        {
+            "output": row["output"],
+            "run_id": manifest["run_id"],
+            "manifest_sha256": dense.sha256_file(mp),
+            "summary": ref["summary"],
+            "unknown_reserved_upper_bound": bound,
+        }
+    )
+    if len({h["run_id"] for h in history}) != len(history):
+        raise ValueError("summary_network_duplicate_history")
+    for h in history:
+        hp = e.ROOT / h["output"] / "manifest.json"
+        actual = verified_reference(dense.read_json(hp), hp)
+        if (
+            dense.sha256_file(hp) != h["manifest_sha256"]
+            or actual["status"] != "verified"
+            or actual["summary"] != h["summary"]
+            or e.current_unknown_reservation(hp.parent)
+            != h["unknown_reserved_upper_bound"]
+        ):
+            raise ValueError("summary_network_history_changed")
+    charge = sum(
+        sum(h["summary"]["known_subtotal"].values()) + h["unknown_reserved_upper_bound"]
+        for h in history
+    )
+    posts = ref["summary"]["attempts"]
+    if charge >= e.LIMITS["raptor"] or posts >= TLS_POLICY["max_total_new_posts"]:
+        raise ValueError("summary_network_budget_exhausted")
+    row.update(
+        history_runs=history,
+        prior_run=history[-1],
+        prior_budget_charge=charge,
+        token_limit=e.LIMITS["raptor"] - charge,
+        max_new_posts=TLS_POLICY["max_total_new_posts"] - posts,
+        network_prior_attempts=posts,
+        network_first_request_key=key,
+        run_id=str(uuid.uuid4()),
+        code_commit=e.git("rev-parse", "HEAD"),
+        output=f"indexes/e1/{plan['batch_id']}/raptor/hotpotqa-summary-network1",
+        resume_sources=[
+            {k: h[k] for k in ("output", "manifest_sha256")} for h in history
+        ],
+        resume_from={k: history[-1][k] for k in ("output", "manifest_sha256")},
+    )
+    if (e.ROOT / row["output"]).exists():
+        raise ValueError("summary_network_output_must_be_new")
+    plan.update(
+        parent_plan=parent,
+        lineage=lineage,
+        raptor_summary_network_resume=True,
+        network_policy=TLS_POLICY,
+        network_audit={
+            "path": str(audit_path.resolve()),
+            "sha256": dense.sha256_file(audit_path),
+        },
+        combined_token_limit=sum(r["token_limit"] for r in plan["rows"]),
+    )
+    with (directory / "network-resume-once.claim.json").open(
+        "x", encoding="utf-8"
+    ) as stream:
+        json.dump(
+            {"parent_plan_sha256": parent["sha256"], "child_run_id": row["run_id"]},
+            stream,
+        )
+        stream.flush()
+        os.fsync(stream.fileno())
+    return plan

@@ -1,5 +1,52 @@
 # E1: индексы полного корпуса (#13)
 
+## HotpotQA: восстановление после TLS timeout — 22 октября 2026
+
+Run17fdc09a остановлен после1005новых POST: known1935267,
+одна unknown summary/reserve8432, tree.json отсутствует. Полный E1:
+physical known14991627, upper charge15046681, cost_complete=false, готово3/6.
+Ошибку не трактуем как ошибку алгоритма или исчерпание окна.
+Сохранённый traceback показывает `ssl.do_handshake` → handshake timeout →
+requests.ReadTimeout(read timeout=5), а не ожидание generation300секунд.
+Несмотря на TLS-фазу, неизвестный server usage не заменён нулём.
+Отдельный TLS preflight безHTTP/датасета/модели прошёл за0.390секунды;
+он подтверждает лишь текущую доступность, не устранение всех сетевых сбоев.
+
+В существующем runner добавлено одно явно инициируемое сетевое продолжение
+`raptor_tls_connect_once_v1`. Изменён только connect timeout:30вместо5секунд,
+read timeout300, retry0, redirectsfalse, prompts/caps/models/seed неизменны.
+Это отдельный fresh run, не автоматический транспортный retry. Не распространять
+политику на Hippo, MuSiQue или другие стадии. Новых corrective summaries нет.
+
+Из прежнего Hotpot12M вычитаются родители2697403 + новыйknown1935267 +
+reserve8432 =4641102. **Остаток7358898combined tokens**. Из4000разрешённых
+physical POST уже использовано1005, **максимум2995новых POST target+local**.
+Внешние данные те же: оставшиеся Hotpot кластеры; embedding локально;
+вопросы/gold/supporting labels не передаются. Все1004успешных физических ответа
+последнего run переиспользуются наряду с прежним prefix, fallback и Dense leaves.
+Проверка journal/manifest/artifacts/source SHA сохраняет unknown как unknown.
+Первый новый запрос обязан совпасть с failed request key
+f24cbd110cbdf431139dc711d894178d8fe45d79fe474e44c51451a80ed6b7fc;
+иначе остановка доHTTP. Это проверяет реконструкцию исходного payload во время
+детерминированного replay, не требует ещё одного диагностического POST.
+
+Canonical claim рядом с failed output исключает повторное сетевое продолжение
+между каталогами/worktrees, новый output hotpotqa-summary-network1. Повторный
+TLS timeout, length, unknown, native overflow, SHA mismatch или исчерпание лимита
+останавливают stage. Нет автоматического третьего запуска или роста бюджета.
+Изменение timeout не восстанавливает usage старого запроса и не гарантирует успех.
+
+```powershell
+$dataRoot = '<data-root>'
+./.venv-check/Scripts/python.exe -m scripts.run_e1 raptor-summary-network-resume --prior-plan "$dataRoot/indexes/e1/issue13-raptor-summary-plan.json" --plan "$dataRoot/indexes/e1/issue13-raptor-summary-network-plan.json" --network-audit '<saved-summary-stderr.log>'
+```
+
+Команда только готовит план, безHTTP. Запуск после действующего разрешения —
+существующий `run` исключительно raptor/hotpotqa на новом плане и pinned SDK.
+Все failed run/manifest/response остаются неизменными. PR Draft/Refs #13,
+техническая готовность и актуальное научное согласование остаются отдельными.
+
+
 ## Текущий путь восстановления — 22 октября 2026 (offline)
 
 ### Решение по сохранённому HotpotQA ответу

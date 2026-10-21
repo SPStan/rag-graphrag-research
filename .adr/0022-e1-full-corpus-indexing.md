@@ -334,3 +334,21 @@ Hippo: удаление uniqueItems — кандидат совместимос�
 unknown reserve8679сохраняется, cap3072не повышен. Реальной проверки пока нет.
 Подробности и воспроизведение: docs/E1_INDEXING.md, безопасное принятие —
 results/summary/e1-raptor-summary-adoption.json.
+
+### 22 октября: отдельное TLS-восстановление HotpotQA
+
+Новый отказ — TLS handshake timeout5секунд, не отсутствие model response после300.
+В run17fdc09a1005новых POST,1935267known и8432unknown reserve; старые записи
+не меняются. Альтернатива слепого повторения или повышения generation cap отклонена.
+Один ограниченный fresh run меняет connect timeout5→30, read300/retry0/prompt/cap
+прежние. После1005POST остаётся2995; после known+reserve7358898combined tokens
+в прежнем12M. Новый claim/output/run; все успешные responses replay поSHA.
+Первый uncached key обязан быть исходным failed summary key. Любая новая ошибка
+останавливает этот план, третья continuation автоматически не разрешена.
+Причина timeout на стороне сети/сервера дальше handshake не установлена;
+новый параметр — защитная политика, не экспериментально доказанное исправление.
+Успешный TLS-only preflight0HTTP не доказывает исправность generation.
+Проверка: offline регрессии claim, ограничения, provenance, cache, второго timeout,
+zeroHTTP при подмене audit/key/attempts. Условия пересмотра: новый отказ или
+невоспроизводимый payload, расход выше reserve либо несовпадение источников.
+Научное O/N/R/H и merge отдельно; Hippo и E2 этим решением не разрешены.

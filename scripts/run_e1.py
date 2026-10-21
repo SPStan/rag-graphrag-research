@@ -266,7 +266,10 @@ def verify_plan(plan, row, config):
         or row["output"]
         != f"indexes/e1/{plan['batch_id']}/{row['method']}/{row['dataset']}"
         + (
-            "-summary1"
+            "-summary-network1"
+            if plan.get("raptor_summary_network_resume")
+            and row.get("resume_kind") == "summary_native"
+            else "-summary1"
             if row.get("resume_kind") == "summary_native"
             else "-cluster1"
             if row.get("resume_kind") == "clustering"
@@ -374,7 +377,9 @@ class Transport:
             if (
                 entry["original_request_sha256"]
                 != self.summary_adoption_verified[0]["original_request_sha256"]
-                or row.get("max_new_posts") != recovery.POLICY["max_new_posts"]
+                or row.get("max_new_posts")
+                != recovery.POLICY["max_new_posts"]
+                - row.get("network_prior_attempts", 0)
                 or row.get("resume_kind") != "summary_native"
             ):
                 raise ValueError("fallback_association_or_attempt_limit_changed")
@@ -382,7 +387,7 @@ class Transport:
             parent = ROOT / source["output"] / "manifest.json"
             if dense.sha256_file(parent) != source["manifest_sha256"]:
                 raise ValueError("resume_manifest_changed")
-            self.parent_cache, _, _ = verified_checkpoints(
+            self.parent_cache, source_failures, source_reference = verified_checkpoints(
                 parent,
                 inherited=self.parent_cache,
                 allow_length=row.get("resume_kind") == "cycle",
@@ -390,6 +395,20 @@ class Transport:
                 leaf_producer=leaf_producer,
             )
 
+        if plan.get("raptor_summary_network_resume"):
+            if plan.get("network_policy") != recovery.TLS_POLICY or (
+                row["method"],
+                row["dataset"],
+            ) != ("raptor", "hotpotqa"):
+                raise ValueError("summary_network_policy_changed")
+            if type(row.get("network_prior_attempts")) is not int or not row.get(
+                "network_first_request_key"
+            ):
+                raise ValueError("summary_network_failure_binding_missing")
+            recovery.validate_network_failure(row, source_failures, source_reference)
+            audit = plan["network_audit"]
+            if dense.sha256_file(Path(audit["path"])) != audit["sha256"]:
+                raise ValueError("summary_network_audit_changed")
         if row.get("summary_adoption"):
             config = plan["native_tokenizer"]
             self.native_bge = recovery.NativeBGE(
@@ -486,6 +505,12 @@ class Transport:
             )
             self.last_cache_hit = True
             return dense.read_json(response)
+        if (
+            self.row.get("network_first_request_key")
+            and self.journal.summary()["attempts"] == 0
+            and key != self.row["network_first_request_key"]
+        ):
+            raise ValueError("summary_network_first_uncached_request_changed")
         # UTF-8 byte upper bound plus framing and output reservation, before HTTP.
         input_bound = len(json.dumps(payload, ensure_ascii=False).encode()) + 2048
         if (
@@ -528,7 +553,9 @@ class Transport:
             else None,
             response_path=response,
             token_limit=self.row["token_limit"],
-            timeout=(5, 300),
+            timeout=tuple(self.plan["network_policy"]["timeout_seconds"])
+            if remote and self.plan.get("raptor_summary_network_resume")
+            else (5, 300),
         )
         # Invalid content is not a usable checkpoint, even with known usage.
         if remote:
@@ -2478,6 +2505,7 @@ def main():
             "raptor-batch-resume",
             "raptor-clustering-resume",
             "raptor-summary-resume",
+            "raptor-summary-network-resume",
             "prepare-summary-probe",
             "run-summary-probe",
             "prepare-schema-probe",
@@ -2500,6 +2528,7 @@ def main():
     parser.add_argument("--approved-probe-sha256")
     parser.add_argument("--recovered-payload", type=Path)
     parser.add_argument("--summary-adoption", type=Path)
+    parser.add_argument("--network-audit", type=Path)
     parser.add_argument("--native-gguf", type=Path)
     parser.add_argument("--native-library-dir", type=Path)
     args = parser.parse_args()
@@ -2577,6 +2606,20 @@ def main():
         plan = raptor_clustering_plan(args.prior_plan)
         with args.plan.open("x", encoding="utf-8") as stream:
             json.dump(plan, stream, ensure_ascii=False, indent=2)
+    elif args.command == "raptor-summary-network-resume":
+        from scripts.e1_summary_recovery import prepare_network_continuation
+
+        canonical = (
+            Path(dense.read_json(args.prior_plan)["data_root"])
+            / "indexes/e1/issue13-raptor-summary-network-plan.json"
+        )
+        if args.plan.resolve() != canonical.resolve() or args.plan.exists():
+            raise ValueError("summary_network_requires_unused_canonical_plan")
+        plan = prepare_network_continuation(args.prior_plan, args.network_audit)
+        with args.plan.open("x", encoding="utf-8") as stream:
+            json.dump(plan, stream, ensure_ascii=False, indent=2)
+        print(json.dumps({"prepared_only": True, "http_calls": 0}))
+        return
     elif args.command == "raptor-summary-resume":
         from scripts.e1_summary_recovery import prepare_continuation
 
