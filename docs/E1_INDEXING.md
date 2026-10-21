@@ -545,3 +545,38 @@ reported completion_tokens≤1536; известные токены сохран�
 `241faf584908cf5cc06a5d531e1d108be47b5b6359da12d556ee74da6dc104a6`.
 Manifest SHA `c57bd6e2bcbbfb3cb72c22925b7cfc5d1073167b6d40f184fc0b145c7774896b`.
 Это проверка готового MuSiQue, не повторная индексация и не оценка качества.
+
+
+## Результат одной согласованной пробы —21октября23:47MSK
+
+Run384f9946-44cd-4b46-a58a-fe965724bb64 на clean0b23605 выполнил ровно1POST,
+0embedding/NER/retry. Ответ finish_reason=stop,3058input/535output=3593known,
+1979UTF8bytes. Но315whitespace words при максимуме300: probe failed.
+Даже без одного punctuation-only token остаются314лексических whitespace tokens;
+это не объясняется только Markdown-разметкой. Лимит300 не переопределён,
+ответ не обрезан и не принят в индекс. Full_index_authorized=false.
+
+Parent failed manifest и source responses неизменны. Probe manifest SHA:
+`72cc8e5951bb179ecd32eed0dd17ac2863261c872d6a6f502bc2d2458481f37b`.
+Response SHA `c4005c1105b5dbce5b88d31497cf8fdab798ab2e8087f5017736e3e7c3ff8b13`.
+Approved plan SHA `c70255917d3719816216f647b1d87c3921a9cccdfe7bbc253f64ee4938d37239`.
+Все3593токена вошли в общий экспорт из finally; unknown этой пробы нет.
+E1 known13056360, upper budget charge13102982, cost_complete=false.
+Остаток HotpotQA9302597=12000000−2693810−3593. Старые unknown не сброшены.
+Новых index calls/дерева HotpotQA нет; готовы3/6. CI0b23605 passed.
+
+### Короткое воспроизведение и решение для Sol
+
+1. #13/PR#33: Dense×2 и RAPTOR MuSiQue готовы; HotpotQA tree отсутствует.
+2. Baseline summary на том же контексте:3011in/4096out,length,не принят.
+3. Согласован1POST: system≤300слов/compact prose, cap1536, user context unchanged.
+4. Получен полный ответ stop,3058in/535out,1979bytes, но315words>300; failed.
+5. Оба расхода сохранены; payload SHA восстановлен точно, retry/embedding не было.
+6. Нельзя считать этот результат успешным по исходному критерию или удалить15слов.
+7. Вариант A: новая отдельная проба с целевыми250словами при прежнем hard≤300.
+8. Вариант B: явное принятие куратором нового допуска, например≤350, с reuse
+   полного315-word response по SHA; исходный failed manifest остаётся immutable.
+9. Оба варианта меняют следующий протокол и требуют отдельного решения; это
+   не основание для автоматического второгоPOST/embedding/full continuation.
+10. Перед приёмкой response нужны semantic support/native BGE fit и явное
+    версионирование одинаковой политики обоим датасетам; MuSiQue не повторять.

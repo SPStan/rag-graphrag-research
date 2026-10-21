@@ -1,6 +1,6 @@
 # Передача контекста Sol / Luna
 
-**E1 status:** 3/6 indexes completed; physical known tokens=13052767; cost_complete=False. Last stage=raptor/hotpotqa. Raw/indexes remain local. PR Draft; E2 requires all six verified indexes.
+**E1 status:** 3/6 indexes completed; physical known tokens=13056360; cost_complete=False. Last stage=raptor/hotpotqa. Raw/indexes remain local. PR Draft; E2 requires all six verified indexes.
 
 ## Текущая очередь — 21 октября 2026, E1
 
@@ -11,20 +11,22 @@
   Последний ответ не принят; tree.json отсутствует. Вся очередь stopped_recorded.
 - HotpotQA:2827 POST (1414LLM/1413embedding), known2693810, usage complete
   для этой строки. Остаток её прежнего12M —9306190; failed7107 входит в known.
-- E1 physical known13052767, upper budget charge13099389, cost_complete=false.
-  Исторические unknown/reserves сохраняются; не выдавать их за нулевой расход.
-- Hippo MuSiQue остаётся failed2329/5500, HotpotQA pending. Schema uniqueItems
-  не поддержан сервером; новый Hippo probe/rebuild не разрешён. E2/QA/merge нет.
-- Точный failed summary payload восстановлен по SHA: 2826 verified responses
-  воспроизведены без HTTP; partial исключён. Следующий шаг — согласовать одну
-  отдельную пробу краткой summary: ≤300 words/cap1536,
-  ≤4000 UTF8 bytes, тот же полный context/API/model, без обрезки старого ответа.
-  Лимит размера — диагностический guard, не native BGE token count.
-- Реальная проба только после конкретного согласования: максимум 1 target POST,
- 0 embedding/NER/retry, stop first error, full_index_authorized=false. Успех
-  не запускает индекс автоматически. Готовый MuSiQue не повторять.
-- Код проверки:362 offline tests passed/16 skipped; 13 новых регрессий проверяют
-  claim доHTTP, неизменность context, length/unknown, бюджет и общий экспорт.
+- E1 physical known13056360, upper budget charge13102982, cost_complete=false.
+  Исторические unknown/reserves сохранены. Индексов по-прежнему3/6, E2/QA нет.
+- Hippo MuSiQue failed2329/5500, HotpotQA pending; uniqueItems не поддержан.
+  Новый Hippo probe/rebuild и merge не разрешены.
+- Точный Hotpot summary payload восстановлен:2826verified responses/0HTTP.
+  Одна согласованная summary-проба384f9946 выполнена:1targetPOST/0embedding,
+  stop,3058in/535out=3593known,1979UTF8bytes. Но315whitespace words>300:
+  manifest failed, full_index_authorized=false. Повторного запроса нет.
+- Остаток прежнего HotpotQA12M теперь9302597. Старые raw/manifest/response,
+  failed7107 и новый3593 остаются в истории. Критерий300 не изменён задним числом.
+- Следующий шаг: решение по протоколу после baseline length и failed word-limit
+  probe. Короткое воспроизведение/варианты для Sol в E1_INDEXING.md; без новыхHTTP.
+  Ни принятие315слов по новому допуску, ни проба с целью250слов не согласованы.
+  Успех формата не доказывает качество; semantic support и native BGE fit не проверены.
+- 362offline tests passed/16skipped,13новых регрессий; CI0b23605 прошёл.
+  Fresh-process MuSiQue reload:5500passages/7438nodes/exact SHA round-trip/0HTTP.
 - Срок первой вехи18октября прошёл. Корпус/модели/сроки не меняем,
   фактические часы студента неизвестны. Детали — E1_INDEXING.md/ADR-0022.
 

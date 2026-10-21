@@ -1676,25 +1676,98 @@
           "cycle": false
         }
       },
+      "cumulative_accounting": {
+        "schema_version": 1,
+        "phases": [
+          {
+            "phase": "index",
+            "provider": "local_ollama",
+            "attempts": 1413,
+            "errors": 0,
+            "unfinished": 0,
+            "cache_hits": 5500,
+            "cache_provenance_unknown": 0,
+            "known_subtotal": {
+              "llm_input_tokens": 0,
+              "llm_output_tokens": 0,
+              "embedding_input_tokens": 884117
+            },
+            "unknown_fields": {
+              "llm_input_tokens": 0,
+              "llm_output_tokens": 0,
+              "embedding_input_tokens": 0
+            },
+            "complete": true,
+            "total": {
+              "llm_input_tokens": 0,
+              "llm_output_tokens": 0,
+              "embedding_input_tokens": 884117
+            }
+          },
+          {
+            "phase": "index",
+            "provider": "target_api",
+            "attempts": 1415,
+            "errors": 0,
+            "unfinished": 0,
+            "cache_hits": 0,
+            "cache_provenance_unknown": 0,
+            "known_subtotal": {
+              "llm_input_tokens": 928888,
+              "llm_output_tokens": 884398,
+              "embedding_input_tokens": 0
+            },
+            "unknown_fields": {
+              "llm_input_tokens": 0,
+              "llm_output_tokens": 0,
+              "embedding_input_tokens": 0
+            },
+            "complete": true,
+            "total": {
+              "llm_input_tokens": 928888,
+              "llm_output_tokens": 884398,
+              "embedding_input_tokens": 0
+            }
+          }
+        ],
+        "known_subtotal": {
+          "llm_input_tokens": 928888,
+          "llm_output_tokens": 884398,
+          "embedding_input_tokens": 884117
+        },
+        "complete": true,
+        "attempts": 2828,
+        "historical_cache_cost_complete": true,
+        "journal_corrupt_tail": false,
+        "corrupt_tail_bytes": 0
+      },
+      "cumulative_seconds": 10158.547,
+      "summary_probe": {
+        "status": "failed",
+        "run_id": "384f9946-44cd-4b46-a58a-fe965724bb64",
+        "unknown_reserved_upper_bound": 0,
+        "full_index_authorized": false,
+        "cases": []
+      },
       "artifact_manifest_sha256": "9d6e9c32da818dae32722d35e46b960d55fc9d2e071effd16dbdddef3cbf2d87",
       "cost_semantics": "Physical new cost; replay is not charged twice.",
       "standalone_cost_complete": false,
       "standalone_known_subtotal": {
-        "llm_input_tokens": 925830,
-        "llm_output_tokens": 883863,
+        "llm_input_tokens": 928888,
+        "llm_output_tokens": 884398,
         "embedding_input_tokens": 884117
       },
       "measured_run_seconds": 10152.44,
-      "attributed_construction_seconds": 10152.44
+      "attributed_construction_seconds": 10158.547
     }
   ],
   "combined_token_limit": 62487102,
   "complete": false,
   "limitations": "E1 measures indexing cost/coverage, not retrieval or answer quality. Historical smoke unknowns are preserved outside these new runs.",
-  "physical_known_tokens": 13052767,
+  "physical_known_tokens": 13056360,
   "physical_usage_complete": false,
   "cost_complete": false,
-  "budget_charge_upper_bound": 13099389,
+  "budget_charge_upper_bound": 13102982,
   "budget_reservation_complete": true,
   "original_combined_token_limit": 68000000
 }
