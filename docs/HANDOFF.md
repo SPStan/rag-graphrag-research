@@ -1,5 +1,7 @@
 # Передача контекста Sol / Luna
 
+**E1 status:** 3/6 indexes completed; physical known tokens=13052767; cost_complete=False. Last stage=raptor/hotpotqa. Raw/indexes remain local. PR Draft; E2 requires all six verified indexes.
+
 **E1 status:** 2/6 indexes completed; physical known tokens=7883829; cost_complete=False. Last stage=raptor/musique. Raw/indexes remain local. PR Draft; E2 requires all six verified indexes.
 
 ## Текущая очередь — 21 октября 2026, аудит E1
