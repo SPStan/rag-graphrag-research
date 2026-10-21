@@ -21,8 +21,14 @@
 - Известный physical E1 теперь6405867; upper budget charge6452489. Unknown остаётся unknown; текущий RAPTOR
   reserve10422 и schema reserve8679 включаются в upper bound отдельно от usage.
 - Оба Dense готовы; реальных готовых деревьев RAPTOR пока нет. E2/QA не запускать.
-- Следующий шаг: подготовить контролируемое продолжение RAPTOR из сохранённых
-  ответов; остаток MuSiQue10970532 из12M. Новый полный run требует согласования.
+- Подготовлен путь raptor-batch-resume: real cache5500 Dense leaves и1002
+  physical responses проверены offline; old unknown10422 сохраняется, probe2104
+  не оплачивается повторно. 57 targeted tests и отдельный pinned RAPTOR SDK test
+  без HTTP прошли. Команда/пределы — E1_INDEXING.md.
+- Следующий шаг: создать/проверить canonical issue13-raptor-batch-plan.json,
+  получить явное разрешение на новые RAPTOR calls и выполнить MuSiQue, затем
+  HotpotQA. Пределы10970532/12000000, stop on first error/retry0, no E2/QA/Hippo.
+  Одинаковые5500 passages/модели/seed прежние; новый stage не запускать без согласия.
   Hippo заблокирован unsupported uniqueItems; новый schema-вариант отдельно согласовать.
 - Срок первой вехи 18 октября прошёл; #13 не завершена. Сроки и корпус
   самостоятельно не меняем, фактические часы студента неизвестны.

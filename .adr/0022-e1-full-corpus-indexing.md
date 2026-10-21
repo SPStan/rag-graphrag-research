@@ -1,5 +1,33 @@
 # ADR-0022: измеренная индексация E1 на шести полных корпусах
 
+## 21 октября: подготовка RAPTOR continuation после batch-пробы
+
+Один свежий MuSiQue run использует старые physical responses и удачную batch-пробу
+в качестве двух immutable sources. Проверка cache разделяет Dense leaves и
+физические summary/embedding ответы. Для leaves проверяются producer journal,
+SHA vectors, ordered passage IDs и точный text digest; произвольный producer ID
+не заменяет эти проверки. Общая проверка Dense вынесена из существующего
+RAPTOR builder и используется также при подготовке/replay.
+
+Failed embedding payload восстанавливается из saved summary до совпадения SHA;
+успешная probe должна соответствовать этому же тексту с options4096/4096.
+Она не оплачивается второй раз. Существующие успешные embeddings replay по старому
+payload SHA, uncached получают новые options. Ветка/модели/корпус/seed/две layers
+не меняются; roundtrip tree обязателен. Никакого truncate или повторного Dense.
+
+Оба исходных run входят в history: known1016942+probe2104, unknown reserve10422.
+MuSiQue остаток10970532; untouched HotpotQA12M. Диагностика, уже включённая в
+history, не добавляется вторично экспортом. Сумма длительностей — attribution,
+не новое cold-run измерение. Unknown остаётся unknown после успешного индекса.
+
+Plan создаётся в единственном `<data-root>/indexes/e1/issue13-raptor-batch-plan.json`,
+claim рядом с failed manifest исключает второе продолжение между output folders.
+Планы/manifest источников закреплены SHA/lineage, новые run ID/output и clean code.
+Любая новая ошибка останавливает очередь без retry. До отдельных согласованных
+расходов команда только готовит plan; полный rebuild не разрешается успехом probe.
+Hippo/QA/E2 не запускаются. Альтернатива повторить501 summaries/500 embeddings
+отклонена: сохранённые physical responses пригодны к проверяемому replay.
+
 ## Итог ограниченной schema-пробы21октября
 
 После явного разрешения на external dataset transfer первый POST вернул HTTP400:

@@ -261,7 +261,9 @@ def verify_plan(plan, row, config):
         or row["output"]
         != f"indexes/e1/{plan['batch_id']}/{row['method']}/{row['dataset']}"
         + (
-            "-cycle1"
+            "-batch1"
+            if row.get("resume_kind") == "embedding_batch"
+            else "-cycle1"
             if row.get("resume_kind") == "cycle"
             else "-network1"
             if row.get("resume_from")
@@ -343,6 +345,11 @@ class Transport:
         sources = row.get(
             "resume_sources", [row["resume_from"]] if row.get("resume_from") else []
         )
+        leaf_producer = (
+            verified_raptor_leaf_scope(plan, row)
+            if sources and row["method"] == "raptor"
+            else None
+        )
         for source in sources:
             parent = ROOT / source["output"] / "manifest.json"
             if dense.sha256_file(parent) != source["manifest_sha256"]:
@@ -351,6 +358,7 @@ class Transport:
                 parent,
                 inherited=self.parent_cache,
                 allow_length=row.get("resume_kind") == "cycle",
+                leaf_producer=leaf_producer,
             )
 
     def call(self, payload, *, kind, operation):
@@ -617,7 +625,27 @@ class Transport:
         return body
 
 
-def verified_checkpoints(manifest_path, *, inherited=None, allow_length=False):
+def verified_raptor_leaf_scope(plan, row):
+    from scripts.e1_indexers import verified_dense_leaves
+
+    corpus, provenance = load_corpus(plan["data_root"], row["dataset"])
+    if (
+        provenance != row["corpus"]
+        or dense.corpus_fingerprint(corpus) != row["corpus_fingerprint"]
+    ):
+        raise ValueError("raptor_leaf_source_changed")
+    _, manifest, leaves = verified_dense_leaves(corpus, plan, row["dataset"], ROOT)
+    return {
+        "run_id": manifest["run_id"],
+        "keys": {target.digest(text) for text in leaves},
+        "dataset": row["dataset"],
+        "model": plan["embedding_model"],
+    }
+
+
+def verified_checkpoints(
+    manifest_path, *, inherited=None, allow_length=False, leaf_producer=None
+):
     """Verify successful physical responses individually; never reuse a failed one."""
     manifest = dense.read_json(manifest_path)
     reference = verified_reference(manifest, manifest_path)
@@ -635,6 +663,31 @@ def verified_checkpoints(manifest_path, *, inherited=None, allow_length=False):
             raise ValueError("resume_requires_terminal_physical_attempts")
         key = row["object_id"]
         if terminal.get("cache_hit"):
+            if leaf_producer and key in leaf_producer["keys"]:
+                if (
+                    terminal["producer_run_id"] != leaf_producer["run_id"]
+                    or terminal.get("producer_usage_complete") is not True
+                    or (
+                        row["method"],
+                        row["dataset"],
+                        row["phase"],
+                        row["operation"],
+                        row["provider"],
+                        row["model"],
+                        row["kind"],
+                    )
+                    != (
+                        "raptor",
+                        leaf_producer["dataset"],
+                        "index",
+                        "index_embedding",
+                        "local_ollama",
+                        leaf_producer["model"],
+                        "embedding",
+                    )
+                ):
+                    raise ValueError("unverified_dense_leaf_cache_hit")
+                continue
             item = cache.get(key)
             if (
                 not item
@@ -852,7 +905,11 @@ def export(plan, plan_path):
             public["cumulative_accounting"] = summarize(records)
             public["cumulative_seconds"] = seconds + result.get("seconds", 0)
         probe_kind = {"hipporag2": "schema", "raptor": "embedding"}.get(row["method"])
-        if probe_kind and row["dataset"] == "musique":
+        if (
+            probe_kind
+            and row["dataset"] == "musique"
+            and not row.get("diagnostics_in_history")
+        ):
             probe_path = (
                 manifest.parent.parent / f"musique-{probe_kind}-probe1/manifest.json"
             )
@@ -1574,6 +1631,167 @@ def execute_schema_probe(probe_path, prior_path, source, config, approved_sha256
     return directory
 
 
+def raptor_batch_plan(prior_path):
+    """Reserve one inspected continuation and the untouched second RAPTOR row."""
+    original = dense.read_json(prior_path)
+    if (
+        code_dirty()
+        or not original.get("independent_raptor")
+        or original.get("raptor_batch_resume")
+        or original.get("workspace") != str(ROOT.resolve())
+    ):
+        raise ValueError("raptor_batch_requires_clean_independent_prior")
+    parent = {
+        "path": str(prior_path.resolve()),
+        "sha256": dense.sha256_file(prior_path),
+        "digest": target.digest(original),
+    }
+    plan = copy.deepcopy(original)
+    plan.update(
+        parent_plan=parent,
+        lineage=[parent, *original.get("lineage", [])],
+        raptor_batch_resume=True,
+    )
+    for item in plan["lineage"]:
+        if dense.sha256_file(Path(item["path"])) != item["sha256"]:
+            raise ValueError("lineage_plan_changed")
+    inspected = []
+    for row in plan["rows"]:
+        directory = ROOT / row["output"]
+        path = directory / "manifest.json"
+        if (directory / "running.lock").exists() or (
+            path.exists() and dense.read_json(path)["status"] == "running"
+        ):
+            raise ValueError("raptor_batch_requires_stopped_workers")
+        if row["method"] != "raptor":
+            continue
+        # Validate the exact Dense vectors used for all leaf cache hits.
+        leaf_scope = verified_raptor_leaf_scope(plan, row)
+        row["code_commit"] = git("rev-parse", "HEAD")
+        row["embedding_options"] = dict(RAPTOR_EMBEDDING_OPTIONS)
+        if row["dataset"] == "hotpotqa":
+            if directory.exists() and any(directory.iterdir()):
+                raise ValueError("raptor_hotpot_must_be_untouched")
+            continue
+        manifest = dense.read_json(path)
+        if manifest["status"] != "failed" or row.get("history_runs"):
+            raise ValueError("raptor_batch_requires_original_failed_run")
+        cache, failures, reference = verified_checkpoints(
+            path, leaf_producer=leaf_scope
+        )
+        if (
+            len(failures) != 1
+            or failures[0][0]["kind"] != "embedding"
+            or failures[0][1]["usage_status"] != "unknown"
+        ):
+            raise ValueError("raptor_batch_requires_one_unknown_embedding")
+        bound = current_unknown_reservation(directory)
+        if type(bound) is not int or bound <= 0:
+            raise ValueError("raptor_batch_requires_saved_unknown_reserve")
+        probe_path = directory.parent / "musique-embedding-probe1/manifest.json"
+        probe = dense.read_json(probe_path)
+        if (
+            probe["status"] != "completed"
+            or probe["parent_manifest_sha256"] != dense.sha256_file(path)
+            or probe.get("embedding_options") != RAPTOR_EMBEDDING_OPTIONS
+            or probe.get("full_index_authorized") is not False
+        ):
+            raise ValueError("raptor_batch_requires_successful_exact_probe")
+        cache, probe_errors, probe_reference = verified_checkpoints(
+            probe_path, inherited=cache, leaf_producer=leaf_scope
+        )
+        if (
+            probe_errors
+            or not probe_reference["summary"]["complete"]
+            or probe_reference["summary"]["attempts"] != 1
+        ):
+            raise ValueError("raptor_batch_probe_cost_not_complete")
+        repaired = []
+        for item in cache.values():
+            if item["operation"] != "summary" or item["kind"] != "llm":
+                continue
+            text = dense.read_json(item["path"])["choices"][0]["message"]["content"]
+            payload = {
+                "model": plan["embedding_model"],
+                "input": [text],
+                "truncate": False,
+            }
+            old_key = target.digest(
+                {
+                    "payload": payload,
+                    "kind": "embedding",
+                    "operation": "index_embedding",
+                }
+            )
+            if old_key != failures[0][0]["object_id"]:
+                continue
+            payload["options"] = dict(RAPTOR_EMBEDDING_OPTIONS)
+            new_key = target.digest(
+                {
+                    "payload": payload,
+                    "kind": "embedding",
+                    "operation": "index_embedding",
+                }
+            )
+            if new_key not in cache or cache[new_key]["run_id"] != probe["run_id"]:
+                raise ValueError("raptor_batch_probe_does_not_repair_failed_input")
+            repaired.append(new_key)
+        if len(repaired) != 1:
+            raise ValueError("raptor_batch_failed_input_not_reconstructed")
+        history = []
+        for source_path, source_manifest, ref, reserved in [
+            (path, manifest, reference, bound),
+            (probe_path, probe, probe_reference, 0),
+        ]:
+            history.append(
+                {
+                    "output": source_path.parent.relative_to(ROOT).as_posix(),
+                    "run_id": source_manifest["run_id"],
+                    "manifest_sha256": dense.sha256_file(source_path),
+                    "summary": ref["summary"],
+                    "unknown_reserved_upper_bound": reserved,
+                }
+            )
+        charge = sum(
+            sum(h["summary"]["known_subtotal"].values())
+            + h["unknown_reserved_upper_bound"]
+            for h in history
+        )
+        if charge >= row["token_limit"]:
+            raise ValueError("raptor_batch_budget_exhausted")
+        row.update(
+            history_runs=history,
+            prior_run=history[-1],
+            resume_sources=[
+                {k: h[k] for k in ("output", "manifest_sha256")} for h in history
+            ],
+            diagnostics_in_history=True,
+            resume_kind="embedding_batch",
+            prior_budget_charge=charge,
+            token_limit=row["token_limit"] - charge,
+            run_id=str(uuid.uuid4()),
+            output=row["output"] + "-batch1",
+            verified_response_cache_count=len(cache),
+        )
+        row["resume_from"] = row["resume_sources"][-1]
+        if (ROOT / row["output"]).exists():
+            raise ValueError("raptor_batch_output_must_be_new")
+        inspected.append((directory, row["run_id"]))
+    if len(inspected) != 1:
+        raise ValueError("raptor_batch_requires_one_failed_stage")
+    directory, child = inspected[0]
+    with (directory / "embedding-resume-once.claim.json").open(
+        "x", encoding="utf-8"
+    ) as stream:
+        json.dump(
+            {"parent_plan_sha256": parent["sha256"], "child_run_id": child}, stream
+        )
+        stream.flush()
+        os.fsync(stream.fileno())
+    plan["combined_token_limit"] = sum(r["token_limit"] for r in plan["rows"])
+    return plan
+
+
 def independent_raptor_plan(prior_path):
     """Freeze stopped HippoRAG; bind only untouched RAPTOR rows to new code."""
     if code_dirty():
@@ -1763,6 +1981,7 @@ def main():
             "network-resume",
             "cycle-resume",
             "independent-raptor",
+            "raptor-batch-resume",
             "prepare-schema-probe",
             "run-schema-probe",
             "seal",
@@ -1833,6 +2052,16 @@ def main():
         if args.plan.resolve() != canonical.resolve() or args.plan.exists():
             raise ValueError("independent_raptor_requires_unused_canonical_plan")
         plan = independent_raptor_plan(args.prior_plan)
+        with args.plan.open("x", encoding="utf-8") as stream:
+            json.dump(plan, stream, ensure_ascii=False, indent=2)
+    elif args.command == "raptor-batch-resume":
+        canonical = (
+            Path(dense.read_json(args.prior_plan)["data_root"])
+            / "indexes/e1/issue13-raptor-batch-plan.json"
+        )
+        if args.plan.resolve() != canonical.resolve() or args.plan.exists():
+            raise ValueError("raptor_batch_requires_unused_canonical_plan")
+        plan = raptor_batch_plan(args.prior_plan)
         with args.plan.open("x", encoding="utf-8") as stream:
             json.dump(plan, stream, ensure_ascii=False, indent=2)
     elif args.command == "prepare-schema-probe":

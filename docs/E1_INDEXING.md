@@ -1,5 +1,31 @@
 # E1: индексы полного корпуса (#13)
 
+## Подготовка продолжения RAPTOR после batch-пробы
+
+Следующий план включает только RAPTOR MuSiQue continuation и untouched HotpotQA.
+Физические cache responses проверяются отдельно от Dense leaf vectors; source
+journal/manifest/artifact SHA, ordered IDs, payload SHA и reported usage обязательны.
+Удачный embedding diagnostic переиспользуется, неизвестный расход failed POST
+не удаляется. История двух run включается ровно один раз, E1 cost_complete=false.
+Условие запуска нового полного этапа — отдельное согласование новых расходов.
+
+```powershell
+$dataRoot = '<data-root>'
+$prior = "$dataRoot/indexes/e1/issue13-raptor-plan.json"
+$plan = "$dataRoot/indexes/e1/issue13-raptor-batch-plan.json"
+./.venv-check/Scripts/python.exe -m scripts.run_e1 raptor-batch-resume --prior-plan $prior --plan $plan
+# Только после согласования: run raptor/musique, затем raptor/hotpotqa.
+```
+
+Бюджеты новых POST: MuSiQue10970532, HotpotQA12000000 combined tokens
+(LLM input/output + local embedding), максимум22970532. Target Qwen/локальный
+BGE-M3 и5500 passages прежние. Для новых RAPTOR embedding options4096/4096,
+truncate=false; старый verified payload/cost не заменяются новым SHA.
+Один canonical claim при failed MuSiQue, свежий UUID и `musique-batch1` output;
+HotpotQA папка должна быть нетронутой. Родительский plan/worktree/data pin проверяются
+до claim. Нельзя выполнить plan в другой рабочей копии либо с активным index worker.
+Успех подготовки не означает построенного дерева; E2/QA и Hippo остаются запрещены.
+
 ## Актуальный разбор21октября: schema-проба и physical batch
 
 После отдельного явного разрешения на передачу двух passages/NER выполнен

@@ -9,19 +9,12 @@ from scripts import run_raptor_smoke as raptor
 from scripts.run_e1 import PARAMETERS, ROOT
 
 
-def raptor_index(corpus, transport, directory, source):
-    sdk = raptor.load_source(source)
+def verified_dense_leaves(corpus, plan, dataset, workspace):
     # Same dataset, exact title-newline-text inputs and model digest; no old smoke cache.
-    producer = (
-        ROOT
-        / "indexes/e1"
-        / transport.plan["batch_id"]
-        / "dense"
-        / transport.row["dataset"]
-    )
-    for row in transport.plan.get("rows", []):
-        if row["method"] == "dense" and row["dataset"] == transport.row["dataset"]:
-            producer = ROOT / row["output"]
+    producer = workspace / "indexes/e1" / plan["batch_id"] / "dense" / dataset
+    for row in plan.get("rows", []):
+        if row["method"] == "dense" and row["dataset"] == dataset:
+            producer = workspace / row["output"]
     manifest = dense.read_json(producer / "manifest.json")
     from scripts.token_accounting import verified_reference
 
@@ -34,9 +27,9 @@ def raptor_index(corpus, transport, directory, source):
         or manifest["artifacts"]["vectors.npz"] != dense.sha256_file(vectors_path)
         or manifest["plan_sha256"]
         not in (
-            target.digest(transport.plan),
-            transport.plan.get("parent_plan", {}).get("digest"),
-            *[p["digest"] for p in transport.plan.get("lineage", [])],
+            target.digest(plan),
+            plan.get("parent_plan", {}).get("digest"),
+            *[p["digest"] for p in plan.get("lineage", [])],
         )
     ):
         raise ValueError("dense_leaf_producer_not_verified")
@@ -47,6 +40,14 @@ def raptor_index(corpus, transport, directory, source):
     leaf_vectors = {
         f"{row['title']}\n{row['text']}": vector for row, vector in zip(corpus, vectors)
     }
+    return producer, manifest, leaf_vectors
+
+
+def raptor_index(corpus, transport, directory, source):
+    sdk = raptor.load_source(source)
+    producer, manifest, leaf_vectors = verified_dense_leaves(
+        corpus, transport.plan, transport.row["dataset"], ROOT
+    )
 
     class Embedding(sdk["embedding_base"]):
         def create_embedding(self, text):
