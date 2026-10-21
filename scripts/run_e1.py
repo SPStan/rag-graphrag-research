@@ -77,7 +77,7 @@ TRIPLES_SCHEMA = {
 }
 
 
-def schema_probe_payload(original):
+def schema_probe_payload(original, *, compatible=False):
     """Change only response format; this does not establish server enforcement."""
     if original.get("max_tokens") != 3072 or original.get("response_format") != {
         "type": "json_object"
@@ -92,6 +92,10 @@ def schema_probe_payload(original):
             "schema": copy.deepcopy(TRIPLES_SCHEMA),
         },
     }
+    if compatible:
+        schema = payload["response_format"]["json_schema"]
+        schema["name"] = "openie_triples_shape_v2"
+        del schema["schema"]["properties"]["triples"]["uniqueItems"]
     reserve = len(json.dumps(payload, ensure_ascii=False).encode("utf-8")) + 2048 + 3072
     if reserve > PARAMETERS["target_context"]:
         raise ValueError("schema_probe_context_reservation_exceeded")
@@ -262,7 +266,9 @@ def verify_plan(plan, row, config):
         or row["output"]
         != f"indexes/e1/{plan['batch_id']}/{row['method']}/{row['dataset']}"
         + (
-            "-cluster1"
+            "-summary1"
+            if row.get("resume_kind") == "summary_native"
+            else "-cluster1"
             if row.get("resume_kind") == "clustering"
             else "-batch1"
             if row.get("resume_kind") == "embedding_batch"
@@ -353,6 +359,25 @@ class Transport:
             if sources and row["method"] == "raptor"
             else None
         )
+        if row.get("summary_adoption"):
+            from scripts import e1_summary_recovery as recovery
+
+            if plan.get("summary_fallback_policy") != recovery.POLICY:
+                raise ValueError("summary_fallback_policy_mismatch")
+            entry = row["summary_adoption"]
+            adoption = ROOT / entry["path"]
+            if dense.sha256_file(adoption) != entry["sha256"]:
+                raise ValueError("fallback_adoption_changed")
+            self.summary_adoption_verified = recovery.verify_adoption(
+                plan, row, adoption
+            )
+            if (
+                entry["original_request_sha256"]
+                != self.summary_adoption_verified[0]["original_request_sha256"]
+                or row.get("max_new_posts") != recovery.POLICY["max_new_posts"]
+                or row.get("resume_kind") != "summary_native"
+            ):
+                raise ValueError("fallback_association_or_attempt_limit_changed")
         for source in sources:
             parent = ROOT / source["output"] / "manifest.json"
             if dense.sha256_file(parent) != source["manifest_sha256"]:
@@ -361,8 +386,25 @@ class Transport:
                 parent,
                 inherited=self.parent_cache,
                 allow_length=row.get("resume_kind") == "cycle",
+                allow_summary_length=row.get("resume_kind") == "summary_native",
                 leaf_producer=leaf_producer,
             )
+
+        if row.get("summary_adoption"):
+            config = plan["native_tokenizer"]
+            self.native_bge = recovery.NativeBGE(
+                config["gguf_path"], config["library_dir"]
+            )
+            record, item = self.summary_adoption_verified
+            text = dense.read_json(item["path"])["choices"][0]["message"]["content"]
+            if self.native_bge.count(text) != record["native_tokens_with_special"]:
+                self.native_bge.close()
+                raise ValueError("fallback_native_count_changed")
+
+    def close(self):
+        if hasattr(self, "native_bge"):
+            self.native_bge.close()
+        self.session.close()
 
     def call(self, payload, *, kind, operation):
         key = target.digest({"payload": payload, "kind": kind, "operation": operation})
@@ -451,7 +493,7 @@ class Transport:
             and input_bound + payload["max_tokens"] > PARAMETERS["target_context"]
         ):
             raise ValueError("context_reservation_exceeded")
-        if self.journal.summary()["attempts"] >= 40000:
+        if self.journal.summary()["attempts"] >= self.row.get("max_new_posts", 40000):
             raise ValueError("request_limit_exceeded")
         saved = {"request_sha256": key, "status": "started", "operation": operation}
         saved["reserved_tokens"] = input_bound + payload.get("max_tokens", 0)
@@ -534,6 +576,10 @@ class Transport:
             # affect uncached calls, never relabel or repay old embeddings.
             if options is not None and old_key not in self.parent_cache:
                 payload["options"] = dict(options)
+            if self.row.get("resume_kind") == "summary_native":
+                from scripts.e1_summary_recovery import check_embedding_fit
+
+                check_embedding_fit(self, payload)
             body = self.call(
                 payload,
                 kind="embedding",
@@ -552,6 +598,16 @@ class Transport:
         if response_format is not None:
             payload["response_format"] = response_format
         key = target.digest({"payload": payload, "kind": "llm", "operation": operation})
+        if operation == "summary" and self.row.get("summary_adoption"):
+            from scripts.e1_summary_recovery import reuse_fallback
+
+            fallback = reuse_fallback(self, key)
+            if fallback is not None:
+                return fallback["choices"][0]["message"]["content"], {
+                    **fallback["usage"],
+                    "finish_reason": "stop",
+                    "cache_hit": True,
+                }
         if self.require_repair_key and key != self.row.get("cycle_repair_request_key"):
             raise ValueError("probe_request_does_not_match_truncated_request")
         policy = self.plan.get("cycle_repair")
@@ -1385,7 +1441,7 @@ def cycle_resume_plan(prior_path, passage_id):
     return plan
 
 
-def prepare_schema_probe(prior_path, source):
+def prepare_schema_probe(prior_path, source, *, compatible=False):
     """Reconstruct the two historical requests offline; never send or authorize HTTP."""
     from scripts.preflight_hipporag_repair_prompts import (
         verify_target_prompt_installation,
@@ -1481,8 +1537,21 @@ def prepare_schema_probe(prior_path, source):
             or not triple_cycle(old_body["choices"][0]["message"]["content"])["cycle"]
         ):
             raise ValueError("schema_probe_requires_verified_known_cycle")
-        payload, reserve = schema_probe_payload(original)
+        try:
+            json.loads(old_body["choices"][0]["message"]["content"])
+            full_json_parseable = True
+        except json.JSONDecodeError:
+            full_json_parseable = False
+        payload, reserve = schema_probe_payload(original, compatible=compatible)
         cases[key] = {
+            "historical_response_audit": {
+                "finish_reason": old_body["choices"][0]["finish_reason"],
+                "accepted": False,
+                "full_json_parseable": full_json_parseable,
+                "cycle_diagnostic": triple_cycle(
+                    old_body["choices"][0]["message"]["content"]
+                ),
+            },
             "source_id": document["id"],
             "original_request_sha256": started["object_id"],
             "ner_response_sha256": cache[ner_key]["sha256"],
@@ -1495,8 +1564,70 @@ def prepare_schema_probe(prior_path, source):
         }
     if set(cases) != set(repairs):
         raise ValueError("schema_probe_original_payload_sha_not_reconstructed")
+    if not compatible:
+        for case in cases.values():
+            case.pop("historical_response_audit")
     own_known = sum(reference["summary"]["known_subtotal"].values())
     remaining = row["token_limit"] - own_known
+    previous = {}
+    if compatible:
+        previous_path = directory.parent / "musique-schema-probe1" / "manifest.json"
+        previous_manifest = dense.read_json(previous_path)
+        previous_ref = verified_reference(previous_manifest, previous_path)
+        # This historical diagnostic predates per-request .json reservations.
+        # Reconstruct its exact legacy payloads, then match unknown journal IDs.
+        legacy_bounds = {}
+        for case in cases.values():
+            original_payload = {
+                **case["payload"],
+                "response_format": {"type": "json_object"},
+            }
+            legacy_payload, bound = schema_probe_payload(original_payload)
+            legacy_key = target.digest(
+                {
+                    "payload": legacy_payload,
+                    "kind": "llm",
+                    "operation": "openie_triples",
+                }
+            )
+            legacy_bounds[legacy_key] = bound
+        previous_records = read_records(previous_path.parent / "usage.jsonl")
+        finishes = {
+            r["attempt_id"]: r for r in previous_records if r["event"] == "finished"
+        }
+        unknown_keys = [
+            r["object_id"]
+            for r in previous_records
+            if r["event"] == "started"
+            and finishes.get(r["attempt_id"], {}).get("usage_status") != "complete"
+        ]
+        if any(key not in legacy_bounds for key in unknown_keys):
+            raise ValueError("compatible_schema_prior_reservation_not_reconstructed")
+        previous_reserve = sum(legacy_bounds[key] for key in unknown_keys)
+        if previous_reserve != previous_manifest.get("unknown_reserved_upper_bound"):
+            raise ValueError("compatible_schema_prior_reserve_changed")
+        if (
+            previous_manifest["status"] != "failed"
+            or previous_ref["status"] != "verified"
+            or type(previous_reserve) is not int
+            or previous_manifest["parent_manifest_sha256"]
+            != dense.sha256_file(manifest_path)
+        ):
+            raise ValueError("compatible_schema_requires_verified_failed_prior")
+        for name, sha in previous_manifest.get("artifacts", {}).items():
+            if dense.sha256_file(previous_path.parent / name) != sha:
+                raise ValueError("compatible_schema_prior_artifact_changed")
+        remaining -= (
+            sum(previous_ref["summary"]["known_subtotal"].values()) + previous_reserve
+        )
+        previous = {
+            "variant": "shape_local_unique_v2",
+            "execution_authorized": False,
+            "prior_failed_schema_manifest_sha256": dense.sha256_file(previous_path),
+            "prior_unknown_reservation": previous_reserve,
+            "local_duplicate_rejection": True,
+            "cycle_fix_proven": False,
+        }
     reserve = sum(c["reserved_tokens_upper_bound"] for c in cases.values())
     if reserve > remaining:
         raise ValueError("schema_probe_budget_reservation_exceeded")
@@ -1514,6 +1645,7 @@ def prepare_schema_probe(prior_path, source):
         "reserved_tokens_upper_bound": reserve,
         "server_usage_known": False,
         "unique_items_server_enforcement": "unverified",
+        **previous,
         "cases": list(cases.values()),
     }
 
@@ -2021,7 +2153,7 @@ def execute_summary_probe(probe_path, config, approved_sha256):
             if p.is_file() and p.name != "manifest.json"
         }
         dense.write_json_atomic(directory / "manifest.json", result)
-        runner.session.close()
+        runner.close()
         export(plan, prior_path)
     return directory
 
@@ -2288,13 +2420,14 @@ def execute(plan, row, config, source=None):
             dataset=row["dataset"],
             resume=resume,
         )
-        transport = Transport(plan, row, config, directory, journal)
+        transport = None
         started = time.perf_counter()
         manifest.update(
             status="running", run_id=row["run_id"], plan_sha256=target.digest(plan)
         )
         dense.write_json_atomic(path, manifest)
         try:
+            transport = Transport(plan, row, config, directory, journal)
             if row["method"] == "dense":
                 validation = dense_index(corpus, transport, directory)
             else:
@@ -2328,7 +2461,8 @@ def execute(plan, row, config, source=None):
                 if p.is_file() and p.name not in ("manifest.json", "running.lock")
             }
             dense.write_json_atomic(path, manifest)
-            transport.session.close()
+            if transport is not None:
+                transport.close()
 
 
 def main():
@@ -2343,9 +2477,11 @@ def main():
             "independent-raptor",
             "raptor-batch-resume",
             "raptor-clustering-resume",
+            "raptor-summary-resume",
             "prepare-summary-probe",
             "run-summary-probe",
             "prepare-schema-probe",
+            "prepare-compatible-schema-probe",
             "run-schema-probe",
             "seal",
             "run",
@@ -2363,6 +2499,9 @@ def main():
     parser.add_argument("--passage-id")
     parser.add_argument("--approved-probe-sha256")
     parser.add_argument("--recovered-payload", type=Path)
+    parser.add_argument("--summary-adoption", type=Path)
+    parser.add_argument("--native-gguf", type=Path)
+    parser.add_argument("--native-library-dir", type=Path)
     args = parser.parse_args()
     config = dotenv_values(args.env_file) if args.env_file else {}
     if args.command == "prepare":
@@ -2438,6 +2577,35 @@ def main():
         plan = raptor_clustering_plan(args.prior_plan)
         with args.plan.open("x", encoding="utf-8") as stream:
             json.dump(plan, stream, ensure_ascii=False, indent=2)
+    elif args.command == "raptor-summary-resume":
+        from scripts.e1_summary_recovery import prepare_continuation
+
+        canonical = (
+            Path(dense.read_json(args.prior_plan)["data_root"])
+            / "indexes/e1/issue13-raptor-summary-plan.json"
+        )
+        if args.plan.resolve() != canonical.resolve() or args.plan.exists():
+            raise ValueError("summary_resume_requires_unused_canonical_plan")
+        plan = prepare_continuation(
+            args.prior_plan,
+            args.summary_adoption.resolve(),
+            {
+                "gguf_path": str(args.native_gguf.resolve()),
+                "library_dir": str(args.native_library_dir.resolve()),
+            },
+        )
+        with args.plan.open("x", encoding="utf-8") as stream:
+            json.dump(plan, stream, ensure_ascii=False, indent=2)
+        print(
+            json.dumps(
+                {
+                    "prepared_only": True,
+                    "max_new_posts": plan["rows"][5]["max_new_posts"],
+                    "http_calls": 0,
+                }
+            )
+        )
+        return
     elif args.command == "prepare-summary-probe":
         prepared = prepare_summary_probe(args.prior_plan, args.recovered_payload)
         args.plan.parent.mkdir(parents=True, exist_ok=True)
@@ -2464,10 +2632,14 @@ def main():
             )
         )
         return
-    elif args.command == "prepare-schema-probe":
+    elif args.command in ("prepare-schema-probe", "prepare-compatible-schema-probe"):
         if args.plan.exists():
             raise ValueError("schema_probe_prepare_requires_unused_output")
-        probe = prepare_schema_probe(args.prior_plan, args.source)
+        probe = prepare_schema_probe(
+            args.prior_plan,
+            args.source,
+            compatible=args.command == "prepare-compatible-schema-probe",
+        )
         args.plan.parent.mkdir(parents=True, exist_ok=True)
         with args.plan.open("x", encoding="utf-8") as stream:
             json.dump(probe, stream, ensure_ascii=False, indent=2)

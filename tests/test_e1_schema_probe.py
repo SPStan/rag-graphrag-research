@@ -397,3 +397,31 @@ def test_approved_probe_bounds_posts_claims_and_preserves_spending(
                 assert report["budget_reservation_complete"] is False
         else:
             assert not (failed / "schema-probe-once.claim.json").exists()
+
+
+def test_compatible_schema_keeps_shape_and_local_duplicate_rejection():
+    original = {
+        **e1.target.OPTIONS,
+        "model": "qwen",
+        "max_tokens": 3072,
+        "messages": [{"role": "user", "content": "passage + cached NER"}],
+        "response_format": {"type": "json_object"},
+    }
+    payload, reserve = e1.schema_probe_payload(original, compatible=True)
+    schema = payload["response_format"]["json_schema"]
+    assert "uniqueItems" not in json.dumps(schema)
+    assert schema["schema"]["properties"]["triples"]["items"]["minItems"] == 3
+    assert payload["messages"] == original["messages"]
+    assert payload["max_tokens"] == 3072
+    assert reserve > 3072
+    duplicated = {
+        "choices": [
+            {
+                "finish_reason": "stop",
+                "message": {"content": '{"triples":[["A","in","B"],["A","in","B"]]}'},
+            }
+        ],
+        "usage": {"prompt_tokens": 10, "completion_tokens": 8},
+    }
+    with pytest.raises(ValueError, match="duplicate"):
+        e1.validate_schema_probe_response(duplicated)

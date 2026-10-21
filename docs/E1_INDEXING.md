@@ -1,5 +1,129 @@
 # E1: индексы полного корпуса (#13)
 
+## Текущий путь восстановления — 22 октября 2026 (offline)
+
+### Решение по сохранённому HotpotQA ответу
+
+Отдельная запись принятия: [e1-raptor-summary-adoption.json](../results/summary/e1-raptor-summary-adoption.json).
+Проверены SHA исходного payload/context и полного response, включая привязку
+original b243e850… → fallback25c48a37… → response c4005c11….
+Проба384f9946 по-прежнему failed по hard300слов; исходные данные не изменены.
+Новая запись принимает целый315-word response для будущего continuation,
+не пересматривая результат той диагностики. Старый length никогда не используется.
+
+Родной BGE-M3 GGUF daec91ff… и установленная libllama.dll00ea020d…:
+550токенов со special/548без, контрольный старый summary2104/2102.
+Воспроизводимый `NativeBGE` в scripts/e1_summary_recovery.py использует
+`llama_model_load_from_file`, native vocabulary и `llama_tokenize` через ctypes;
+контекст inference не создаётся, embedding/decode/HTTP отсутствуют. Адаптер
+проверяет точные SHA DLL/GGUF; Win64 ABI ограничен этой закреплённой сборкой.
+Native proof с SHA хранится отдельно в ignored adoption output; безопасные
+counts/pins опубликованы в записи принятия. num_ctx=num_batch=4096,
+truncate=false; 550 помещается в оба лимита. Фактический прежний Ollama log
+подтверждает n_ctx_slot=4096,n_batch=4096,n_ubatch=4096. Это проверка
+вместимости, не embedding-прогон.
+
+16групп основных утверждений проверены по исходному context, anchors указаны
+в записи принятия. Существенных неподдержанных добавлений не найдено.
+Исходный context содержит промежуточные summaries: их собственная фактическая
+точность независимо не установлена. Вопросы, gold и supporting labels не использовались.
+315слов не являются техническим переполнением; повторять POST ради300не нужно.
+
+### Политика length_fallback_native_capacity_v1
+
+- Единое правило для MuSiQue/HotpotQA: trigger — baseline finish_reason=length.
+  Обычный prompt/cap4096 сохраняется; только corrective prompt просит≤300слов,
+  cap1536,temp0,seed42,thinking=false,timeout5/300,retry0,redirects=false.
+- 300слов — желаемая краткость, без нового порога350. Обязательны stop,
+  непустой полный ответ, известный input/output usage, проверенная provenance
+  и вместимость родным BGE tokenizer в min(num_ctx,num_batch)=4096.
+- Максимум одна corrective-попытка на датасет. Hotpot уже использовал её:
+  в подготовленном continuation **0новых corrective POST**. Любой следующий
+  length прекращает этап; новое исправление требует нового решения.
+- Успешные baseline summaries обоих датасетов не перегенерируются. MuSiQue
+  использовал исходный prompt; Hotpot в одном месте использует отдельный
+  corrective prompt. Эти фактические различия сохраняются в provenance.
+- До каждого нового embedding native count проверяется offline; overflow
+  останавливает процесс доHTTP. Нет обрезки и принятия partial JSON/text.
+
+Текущее поручение разрешает эту техническую offline-подготовку. Проверка
+BOT_REVIEW_WORKFLOW/ADR не выявила отдельного обязательного решения куратора
+для неё; прежнее предложение «только новый допуск куратора» ниже не является
+текущей блокировкой. Реальные расходы требуют отдельного разрешения пользователя.
+Актуальное научное согласование O/N/R/H перед Ready проверяется независимо.
+
+### Hotpot continuation в существующем runner
+
+Новый run/output hotpotqa-summary1, неизменные предки ff75d8dd/384f9946.
+Подготовка проверяет SHA/журналы/manifest/artifacts, native550 и создаёт
+единственный claim рядом с каноническим prior output. Повторная подготовка
+в другом каталоге/worktree не разрешает ещё одну continuation.
+
+2826успешных физических responses исходного run и Dense5500 leaf vectors
+переиспользуются по SHA. Fallback — отдельный physical response пробы;
+`summary-fallbacks.json` нового run связывает ключ исходного запроса с новым
+ключом prompt/response SHA/producer/adoption SHA. Cache journal называет
+фактический fallback key, поэтому изменённый prompt не выдаётся за старый hit.
+Будущий replay также проверяет SHA. Нового generation для этого ответа нет;
+embedding принятого ответа ещё потребуется и входит в новые лимиты.
+
+Полный расход родителей2693810+3593=2697403учтён ровно один раз.
+Hotpot: **≤9302597новых combined tokens** (target input/output и local embedding)
+в прежнем12M. **≤4000новых физических POST всего** target+local,
+1попытка/request,0retry; cache hits лимит физических запросов не расходуют.
+4000 — административный предохранитель, не прогноз числа оставшихся запросов
+и не обещание закончить индекс в этом лимите. MuSiQue и Hippo не запускаются.
+
+Во внешний target API уйдут только оставшиеся тексты кластеров HotpotQA
+на прежних5500passages; embeddings — локальному BGE-M3. Вопросы/gold/labels
+не отправляются. Остановка на первой ошибке, length/пустом ответе,
+неизвестном usage, подмене SHA, native overflow, исчерпании budget/POST cap.
+Failed manifest сохраняет затраты/unknown и журнал; продолжение после ошибки
+автоматически не разрешается. E1 known13056360/charge13102982/cost_complete=false
+пока неизменны: в этой работе нет ни одного нового модельного запроса.
+
+Подготовка (безHTTP; итоговый план должен быть связан с чистым HEAD):
+
+```powershell
+$dataRoot = '<data-root>'
+$prior = "$dataRoot/indexes/e1/issue13-raptor-clustering-plan.json"
+$plan = "$dataRoot/indexes/e1/issue13-raptor-summary-plan.json"
+./.venv-check/Scripts/python.exe -m scripts.run_e1 raptor-summary-resume --prior-plan $prior --plan $plan --summary-adoption results/summary/e1-raptor-summary-adoption.json --native-gguf '<pinned-bge-gguf>' --native-library-dir '<ollama-native-library-directory>'
+```
+
+Подготовка не разрешает запуск. После отдельного разрешения — существующий
+`run --method raptor --dataset hotpotqa --plan ... --source <pinned-raptor-source>`;
+автоматический scheduler не возобновлять. Новый commit потребует перепривязки
+плана после проверки, не правки старых manifest задним числом.
+
+### Hippo: совместимый кандидат, не исправление цикла
+
+`prepare-compatible-schema-probe` восстанавливает исходные requests двух
+известных сбойных passages и их cached NER на pinned SDK. Schema v2 сохраняет
+строгую форму triples, но не отправляет неподдерживаемый uniqueItems. Локальный
+валидатор требует finish_reason=stop, известный usage, полный JSON без
+повторных полей, объект только triples, тройки из трёх непустых строк и отсутствие
+дубликатов. Нет очистки дубликатов, частичного JSON и повышения cap.
+Исторические length/cycle ответы отвергаются; их tuple-count — только диагностика.
+
+Минимальное предложение:≤2target POST, по одному на каждый из двух старых
+passages+cached NER, cap3072,1попытка/request,retry0,NER/embedding0,
+stopfirst. Старый HTTP400 сохраняет unknown reserve8679; remaining до новой
+пробы16057275. Точный резерв кандидата17625(8657+8968) записан
+в private `.cache/e1-compatible-schema-plan.json`. На обоих старых ответах
+full JSON parse failed; диагностические complete/unique tuples168/3и163/4.
+Успех не разрешает full rebuild и не доказывает устранение генеративного цикла
+или корректность фактов. Совместимость остальных keywords с сервером пока
+не проверена. Legacy run-schema-probe не принимает изменённый candidate plan;
+новый исполнитель должен быть проверен и разрешён отдельно перед реальными POST.
+
+```powershell
+./.venv-check/Scripts/python.exe -m scripts.run_e1 prepare-compatible-schema-probe --prior-plan '<clustering-plan>' --source '<pinned-hipporag-source>' --plan '<private-compatible-schema-plan>'
+```
+
+Ни этот proposal, ни подготовленный Hotpot plan не разрешают HTTP сейчас.
+
+
 ## Подготовка продолжения RAPTOR после batch-пробы
 
 Следующий план включает только RAPTOR MuSiQue continuation и untouched HotpotQA.

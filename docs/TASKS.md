@@ -2,33 +2,36 @@
 
 **E1 status:** 3/6 indexes completed; physical known tokens=13056360; cost_complete=False. Last stage=raptor/hotpotqa. Raw/indexes remain local. PR Draft; E2 requires all six verified indexes.
 
-## Текущая очередь — 21 октября 2026, E1
+## Текущая очередь — 22 октября 2026, E1 offline recovery
 
-- #13 / Draft PR #33: готовы 3/6 индексов. Dense×2 и RAPTOR MuSiQue
-  (5500leaves,7438nodes,1274/664summary nodes) прошли save/reload безHTTP.
-- RAPTOR HotpotQA ff75d8dd остановлен23:12MSK: summary finish_reason=length,
-  input3011/output4096. Это подробный каталог, не подтверждённый плотный цикл.
-  Последний ответ не принят; tree.json отсутствует. Вся очередь stopped_recorded.
-- HotpotQA:2827 POST (1414LLM/1413embedding), known2693810, usage complete
-  для этой строки. Остаток её прежнего12M —9306190; failed7107 входит в known.
-- E1 physical known13056360, upper budget charge13102982, cost_complete=false.
-  Исторические unknown/reserves сохранены. Индексов по-прежнему3/6, E2/QA нет.
-- Hippo MuSiQue failed2329/5500, HotpotQA pending; uniqueItems не поддержан.
-  Новый Hippo probe/rebuild и merge не разрешены.
-- Точный Hotpot summary payload восстановлен:2826verified responses/0HTTP.
-  Одна согласованная summary-проба384f9946 выполнена:1targetPOST/0embedding,
-  stop,3058in/535out=3593known,1979UTF8bytes. Но315whitespace words>300:
-  manifest failed, full_index_authorized=false. Повторного запроса нет.
-- Остаток прежнего HotpotQA12M теперь9302597. Старые raw/manifest/response,
-  failed7107 и новый3593 остаются в истории. Критерий300 не изменён задним числом.
-- Следующий шаг: решение по протоколу после baseline length и failed word-limit
-  probe. Короткое воспроизведение/варианты для Sol в E1_INDEXING.md; без новыхHTTP.
-  Ни принятие315слов по новому допуску, ни проба с целью250слов не согласованы.
-  Успех формата не доказывает качество; semantic support и native BGE fit не проверены.
-- 362offline tests passed/16skipped,13новых регрессий; CI0b23605 прошёл.
-  Fresh-process MuSiQue reload:5500passages/7438nodes/exact SHA round-trip/0HTTP.
-- Срок первой вехи18октября прошёл. Корпус/модели/сроки не меняем,
-  фактические часы студента неизвестны. Детали — E1_INDEXING.md/ADR-0022.
+- #13 / Draft PR #33: готовы 3/6: Dense×2 и RAPTOR MuSiQue
+  (5500 leaves, 7438 nodes, save/reload подтверждён). E2/QA/merge не разрешены.
+- HotpotQA baseline ff75d8dd остаётся failed/length; проба384f9946 остаётся
+  failed по прежнему hard300. Полный ответ315слов отдельно принят offline:
+  `results/summary/e1-raptor-summary-adoption.json`; исходные manifest/raw неизменны.
+- SHA context/response проверены. Родной pinned BGE-M3:550токенов со special
+  (548без), контроль2104; num_ctx=num_batch=4096. ctypes/libllama,0HTTP,
+  без embedding/generation. 16групп основных утверждений поддержаны context;
+  это не внешняя фактопроверка и не оценка качества. Вопросы/gold не читались.
+- Новая политика length_fallback_native_capacity_v1:300слов — пожелание prompt;
+  обязательны stop/nonempty/known usage/native fit. Одна corrective-попытка
+  на датасет после length; Hotpot уже израсходовал её. Новый length — остановка.
+  Успешные summaries MuSiQue/Hotpot не перегенерировать. Отличие prompts раскрыто.
+- В существующем runner подготовка нового Hotpot run с original→fallback
+  provenance, canonical claim, verified replay и полной историей расходов.
+  Только после отдельного разрешения:≤4000новых физическихPOST всего
+  (target+local),≤9302597combined tokens,1попытка/request, retry=0.
+- E1 physical known13056360, upper budget charge13102982, cost_complete=false;
+  старые unknown/reserves и обе failed/probe затраты сохранены. Новых вызовов нет.
+- HippoMu failed2329/5500, Hotpot pending. Offline-кандидат schema без uniqueItems;
+  полный JSON/форма triples/дубликаты строго проверяются локально. Это не
+  доказанное исправление цикла. Предложение≤2POST/два известных passage,
+  cached NER,cap3072,stopfirst; старый HTTP400unknown reserve8679 сохраняется.
+- Действующее поручение разрешает подготовку технической политики offline.
+  Автоматическое требование решения куратора для этого шага не применяется;
+  разрешение реальных расходов и научное O/N/R/H перед Ready — отдельные условия.
+- Следующий шаг: получить отдельное разрешение на конкретный план. Сейчас
+  никакой continuation/probe не запускать. Детали/команды: E1_INDEXING.md.
 
 ## История — не текущие инструкции запуска
 
