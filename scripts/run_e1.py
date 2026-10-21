@@ -859,12 +859,12 @@ def export(plan, plan_path):
             if probe_path.exists():
                 probe = dense.read_json(probe_path)
                 if probe["parent_manifest_sha256"] != dense.sha256_file(manifest):
-                    raise ValueError("schema_probe_parent_manifest_changed")
+                    raise ValueError(f"{probe_kind}_probe_parent_manifest_changed")
                 if verified_reference(probe, probe_path)["status"] != "verified":
-                    raise ValueError("schema_probe_journal_not_intact")
+                    raise ValueError(f"{probe_kind}_probe_journal_not_intact")
                 for name, sha in probe["artifacts"].items():
                     if dense.sha256_file(probe_path.parent / name) != sha:
-                        raise ValueError("schema_probe_artifact_changed")
+                        raise ValueError(f"{probe_kind}_probe_artifact_changed")
                 from scripts.token_accounting import summarize
 
                 records = []
@@ -890,6 +890,21 @@ def export(plan, plan_path):
                         "cases",
                     )
                 }
+                if probe_kind == "embedding":
+                    public["embedding_probe"].update(
+                        {
+                            k: probe[k]
+                            for k in (
+                                "embedding_options",
+                                "producer_response_sha256",
+                                "native_tokens_with_special",
+                                "native_tokens_without_special",
+                                "code_commit",
+                                "operator_sha256",
+                            )
+                            if k in probe
+                        }
+                    )
         if manifest.exists():
             public["artifact_manifest_sha256"] = dense.sha256_file(manifest)
         exported_row = {**row, **public}

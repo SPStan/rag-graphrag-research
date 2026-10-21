@@ -24,8 +24,37 @@ truncate=false. Старые verified payload проверяются первы�
 embedding. Для Dense/Hippo изменение запрещено. Реальный input сверх этого окна
 не обрезается: остановка и разбор, переход к8192 не автоматический.
 Один localhost embedding POST на сохранённом summary отдельно согласован;
-полный RAPTOR по этому согласию не запускать. Новые настройки пока не проверены
-реальным embedding. При продолжении учитывать все failed/diagnostic attempts.
+полный RAPTOR по этому согласию не запускать. Проба выполнена на clean eb6b271:
+ровно1 POST, usage2104, embedding shape1×1024, сохранение/reload без новых calls.
+Настройки подтверждены runtime n_batch4096/n_ubatch4096/n_ctx_slot4096.
+Manifest SHA: `1997f8e6ddb5c044d64882b2fb8c9ea1a1fda097f2c8110b36e795b8bfac0385`.
+Это исправление конкретного input, не готовность полного дерева.
+
+Текущий physical known E1 **6405867**, cost_complete=false. Верхний бюджетный
+charge **6452489** включает прежние reserves27521, RAPTOR10422 и schema8679.
+Ни один reserve не назван измеренным расходом. RAPTOR MuSiQue для будущего
+продолжения:12M−1016942 known−10422 unknown reserve−2104 diagnostic=**10970532**.
+Начатый failed run остаётся terminal; повтор всей команды запрещён.
+
+### Воспроизведение родного подсчёта без embeddings
+
+Проверить GGUF SHA из ADR. Запустить поставляемый с Ollama `llama-server.exe`
+на отдельном loopback-порту: `--embedding --no-warmup --gpu-layers 0
+--ctx-size 8192 --parallel 1 --host 127.0.0.1 --port 11993 --model <bge-blob>`.
+Это tokenizer-проверка; не вызывать /embedding, /embeddings или /completion.
+
+```powershell
+$raw = Get-Content '<raptor-run>/requests/aa23318465e56bcdf8d5331a4a4a0f724187c597ecda53645eaa0efb0cfff16d.response.json' -Raw | ConvertFrom-Json
+$body = @{content=$raw.choices[0].message.content; add_special=$true; parse_special=$false} | ConvertTo-Json -Depth 5
+$tokens = Invoke-RestMethod -Uri 'http://127.0.0.1:11993/tokenize' -Method Post -ContentType 'application/json' -Body ([Text.Encoding]::UTF8.GetBytes($body))
+$tokens.tokens.Count # 2104; add_special=false даёт2102
+```
+
+Выполненная embedding-проба использовала тот же source SHA и существующий
+Transport.embed с row.embedding_options, один canonical claim при failed prior.
+Operator и его SHA сохранены локально; экспорт включает options, token counts,
+producer response SHA и operator SHA. Все raw/journals старого run неизменны.
+Новый полный RAPTOR/QA не запускался.
 
 Экспорт включает unknown reserve текущего failed RAPTOR10422, историю и
 диагностику отдельно от measured tokens. Если исходный reserve потерян,

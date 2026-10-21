@@ -1106,16 +1106,101 @@
         "request_sha256": "f6deb464ae50c4fb94690686d8e7b734ff8713d65e7dfa96690535ad7b395f1f",
         "usage_status": "unknown"
       },
+      "cumulative_accounting": {
+        "schema_version": 1,
+        "phases": [
+          {
+            "phase": "index",
+            "provider": "local_ollama",
+            "attempts": 502,
+            "errors": 1,
+            "unfinished": 0,
+            "cache_hits": 5500,
+            "cache_provenance_unknown": 0,
+            "known_subtotal": {
+              "llm_input_tokens": 0,
+              "llm_output_tokens": 0,
+              "embedding_input_tokens": 338550
+            },
+            "unknown_fields": {
+              "llm_input_tokens": 0,
+              "llm_output_tokens": 0,
+              "embedding_input_tokens": 1
+            },
+            "complete": false,
+            "total": null
+          },
+          {
+            "phase": "index",
+            "provider": "target_api",
+            "attempts": 501,
+            "errors": 0,
+            "unfinished": 0,
+            "cache_hits": 0,
+            "cache_provenance_unknown": 0,
+            "known_subtotal": {
+              "llm_input_tokens": 347055,
+              "llm_output_tokens": 333441,
+              "embedding_input_tokens": 0
+            },
+            "unknown_fields": {
+              "llm_input_tokens": 0,
+              "llm_output_tokens": 0,
+              "embedding_input_tokens": 0
+            },
+            "complete": true,
+            "total": {
+              "llm_input_tokens": 347055,
+              "llm_output_tokens": 333441,
+              "embedding_input_tokens": 0
+            }
+          }
+        ],
+        "known_subtotal": {
+          "llm_input_tokens": 347055,
+          "llm_output_tokens": 333441,
+          "embedding_input_tokens": 338550
+        },
+        "complete": false,
+        "attempts": 1003,
+        "historical_cache_cost_complete": true,
+        "journal_corrupt_tail": false,
+        "corrupt_tail_bytes": 0
+      },
+      "cumulative_seconds": 3673.859,
+      "embedding_probe": {
+        "status": "completed",
+        "run_id": "e3fed45e-31f3-4a57-8fb9-0eb125d9bcea",
+        "unknown_reserved_upper_bound": 0,
+        "full_index_authorized": false,
+        "cases": [
+          {
+            "status": "passed",
+            "dimension": 1024,
+            "input_tokens": 2104,
+            "reload_model_calls": 0
+          }
+        ],
+        "embedding_options": {
+          "num_ctx": 4096,
+          "num_batch": 4096
+        },
+        "producer_response_sha256": "1fdcb7aedc1d9b54d60f2ef99024f8e941664de6ffaf53e3d461d101a9823803",
+        "native_tokens_with_special": 2104,
+        "native_tokens_without_special": 2102,
+        "code_commit": "eb6b271a692ef2701badd62baabbe3605a729855",
+        "operator_sha256": "ad51eefeeccf4fb5cc0d389c54d539590a0ec61310f79cd543bb5edd124d9620"
+      },
       "artifact_manifest_sha256": "88f38b941f3d9c1647ec1affad26790986bf7ba15d16edcdddae86a338f3243f",
       "cost_semantics": "Physical new cost; replay is not charged twice.",
       "standalone_cost_complete": false,
       "standalone_known_subtotal": {
         "llm_input_tokens": 347055,
         "llm_output_tokens": 333441,
-        "embedding_input_tokens": 336446
+        "embedding_input_tokens": 338550
       },
       "measured_run_seconds": 3665.399,
-      "attributed_construction_seconds": 3665.399
+      "attributed_construction_seconds": 3673.859
     },
     {
       "run_id": "ff75d8dd-69d6-4d9e-8e70-fdd63119741c",
@@ -1148,10 +1233,10 @@
   "combined_token_limit": 64994532,
   "complete": false,
   "limitations": "E1 measures indexing cost/coverage, not retrieval or answer quality. Historical smoke unknowns are preserved outside these new runs.",
-  "physical_known_tokens": 6403763,
+  "physical_known_tokens": 6405867,
   "physical_usage_complete": false,
   "cost_complete": false,
-  "budget_charge_upper_bound": 6450385,
+  "budget_charge_upper_bound": 6452489,
   "budget_reservation_complete": true,
   "original_combined_token_limit": 68000000
 }

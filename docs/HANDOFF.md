@@ -16,11 +16,14 @@
 - RAPTOR: failed input и producer восстановлены по SHA; native tokenizer2104,
   runner context4096, physical batch2048. Это batch-limit. Подготовлены явные
   num_ctx4096/num_batch4096 только для новых RAPTOR embeddings, truncate=false,
-  старый verified cache сохраняется. Один local embedding POST отдельно согласован;
-  выполнить после offline gate/commit и записать полный расход, без rebuild.
-- Известный physical E1 пока6403763. Unknown остаётся unknown; текущий RAPTOR
+  старый verified cache сохраняется. Согласованный1 local POST прошёл на clean
+  eb6b271:2104 known tokens, вектор1024/save/reload0 calls. Полного rebuild нет.
+- Известный physical E1 теперь6405867; upper budget charge6452489. Unknown остаётся unknown; текущий RAPTOR
   reserve10422 и schema reserve8679 включаются в upper bound отдельно от usage.
 - Оба Dense готовы; реальных готовых деревьев RAPTOR пока нет. E2/QA не запускать.
+- Следующий шаг: подготовить контролируемое продолжение RAPTOR из сохранённых
+  ответов; остаток MuSiQue10970532 из12M. Новый полный run требует согласования.
+  Hippo заблокирован unsupported uniqueItems; новый schema-вариант отдельно согласовать.
 - Срок первой вехи 18 октября прошёл; #13 не завершена. Сроки и корпус
   самостоятельно не меняем, фактические часы студента неизвестны.
 

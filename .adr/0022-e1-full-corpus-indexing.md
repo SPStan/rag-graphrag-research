@@ -42,7 +42,19 @@ Qwen summary cap, не делим и не обрезаем тексты. Отк�
 summary2104, никакого полного RAPTOR rebuild. Исторический failed usage остаётся
 unknown, даже если новая попытка успешна. При продолжении вычитать все known и
 unknown reservations из прежних12M, включая диагностику; физический и standalone
-расход не смешивать. Статус: причина установлена, новая настройка пока не проверена.
+расход не смешивать.
+
+Проверка21октября на clean eb6b271: один отдельно разрешённый localhost POST,
+num_ctx4096/num_batch4096/truncate=false. Тот же2104-token input обработан,
+вектор1024 сохранён и загружен без новых calls; usage2104,100% известен.
+В runner подтверждены n_batch4096/n_ubatch4096/n_ctx_slot4096.
+Probe manifest SHA:1997f8e6ddb5c044d64882b2fb8c9ea1a1fda097f2c8110b36e795b8bfac0385.
+Статус: исправление подтверждено на конкретном failed input, не на полном индексе.
+Предыдущий unknown10422 не снят. Для будущего RAPTOR MuSiQue остаётся10970532
+из12M после known1016942, reserve10422 и diagnostic2104. Probe не разрешает
+новый полный run автоматически; сначала подготовка continuation с immutable
+lineage, verified old payload reuse и canonical claim. Старые500 successful
+embedding payload не должны повторяться из-за добавления новых options.
 
 ## Уточнение21октября: повторный цикл, независимые индексы
 
