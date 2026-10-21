@@ -1,37 +1,15 @@
 # Передача контекста Sol / Luna
 
-**E1 status:** 3/6 indexes completed; physical known tokens=13056360; cost_complete=False. Last stage=raptor/hotpotqa. Raw/indexes remain local. PR Draft; E2 requires all six verified indexes.
+**E1 status:** 3/6 indexes completed; physical known tokens=14991627; cost_complete=False. Last stage=raptor/hotpotqa. Raw/indexes remain local. PR Draft; E2 requires all six verified indexes.
 
-## Текущая очередь — 22 октября 2026, E1 offline recovery
+## Текущая очередь — HotpotQA continuation, 22 октября 2026
 
-- #13 / Draft PR #33: готовы 3/6: Dense×2 и RAPTOR MuSiQue
-  (5500 leaves, 7438 nodes, save/reload подтверждён). E2/QA/merge не разрешены.
-- HotpotQA baseline ff75d8dd остаётся failed/length; проба384f9946 остаётся
-  failed по прежнему hard300. Полный ответ315слов отдельно принят offline:
-  `results/summary/e1-raptor-summary-adoption.json`; исходные manifest/raw неизменны.
-- SHA context/response проверены. Родной pinned BGE-M3:550токенов со special
-  (548без), контроль2104; num_ctx=num_batch=4096. ctypes/libllama,0HTTP,
-  без embedding/generation. 16групп основных утверждений поддержаны context;
-  это не внешняя фактопроверка и не оценка качества. Вопросы/gold не читались.
-- Новая политика length_fallback_native_capacity_v1:300слов — пожелание prompt;
-  обязательны stop/nonempty/known usage/native fit. Одна corrective-попытка
-  на датасет после length; Hotpot уже израсходовал её. Новый length — остановка.
-  Успешные summaries MuSiQue/Hotpot не перегенерировать. Отличие prompts раскрыто.
-- В существующем runner подготовка нового Hotpot run с original→fallback
-  provenance, canonical claim, verified replay и полной историей расходов.
-  Только после отдельного разрешения:≤4000новых физическихPOST всего
-  (target+local),≤9302597combined tokens,1попытка/request, retry=0.
-- E1 physical known13056360, upper budget charge13102982, cost_complete=false;
-  старые unknown/reserves и обе failed/probe затраты сохранены. Новых вызовов нет.
-- HippoMu failed2329/5500, Hotpot pending. Offline-кандидат schema без uniqueItems;
-  полный JSON/форма triples/дубликаты строго проверяются локально. Это не
-  доказанное исправление цикла. Предложение≤2POST/два известных passage,
-  cached NER,cap3072,stopfirst; старый HTTP400unknown reserve8679 сохраняется.
-- Действующее поручение разрешает подготовку технической политики offline.
-  Автоматическое требование решения куратора для этого шага не применяется;
-  разрешение реальных расходов и научное O/N/R/H перед Ready — отдельные условия.
-- Следующий шаг: получить отдельное разрешение на конкретный план. Сейчас
-  никакой continuation/probe не запускать. Детали/команды: E1_INDEXING.md.
+- Ограниченный HotpotQA run17fdc09a завершил выполнение; status=failed.
+- **E1 status:** 3/6 indexes completed; physical known tokens=14991627; cost_complete=False. Last stage=raptor/hotpotqa. Raw/indexes remain local. PR Draft; E2 requires all six verified indexes.
+- Полная сводка: results/summary/e1-indexing.md; raw/manifest остаются локально.
+- Старые failed/probe и unknown сохранены; автоматических повторов нет.
+- Hippo-проба, полный Hippo rebuild, QA/E2 и merge не запускались.
+- Следующий шаг: проверить итоговый manifest и save/reload; при отказе сначала разобрать причину. Hippo candidate требует отдельно подготовленного исполнителя.
 
 ## История — не текущие инструкции запуска
 
