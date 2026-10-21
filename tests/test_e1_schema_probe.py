@@ -391,9 +391,9 @@ def test_approved_probe_bounds_posts_claims_and_preserves_spending(
             assert report["rows"][0]["schema_probe"]["status"] == manifest["status"]
             if outcome in ("unknown", "http_error"):
                 assert manifest["unknown_reserved_upper_bound"] > 0
-                assert (
-                    report["budget_charge_upper_bound"]
-                    > report["physical_known_tokens"]
-                )
+                # The synthetic parent has unknown usage without a saved bound.
+                # A probe reserve cannot make the whole history's bound complete.
+                assert report["budget_charge_upper_bound"] is None
+                assert report["budget_reservation_complete"] is False
         else:
             assert not (failed / "schema-probe-once.claim.json").exists()

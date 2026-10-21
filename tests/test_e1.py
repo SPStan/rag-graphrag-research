@@ -78,6 +78,19 @@ def test_unknown_or_invalid_response_blocks_replay(tmp_path, body):
     assert session.post.call_count == 1
 
 
+def test_current_unknown_uses_saved_reserve_not_zero(tmp_path):
+    runner, session = transport(tmp_path)
+    session.post.side_effect = requests.ConnectionError("failed")
+    with pytest.raises(requests.ConnectionError):
+        runner.embed(["text"])
+    checkpoint = next((tmp_path / "requests").glob("*.json"))
+    reserve = dense.read_json(checkpoint)["reserved_tokens"]
+    assert e1.current_unknown_reservation(tmp_path) == reserve
+    assert reserve > 0
+    dense.write_json_atomic(checkpoint, {"status": "started"})
+    assert e1.current_unknown_reservation(tmp_path) is None
+
+
 def test_changed_checkpoint_is_rejected(tmp_path):
     runner, session = transport(tmp_path)
     runner.embed(["text"])
@@ -120,6 +133,74 @@ def test_dense_reload_covers_ids(tmp_path):
     runner, _ = transport(tmp_path)
     result = e1.dense_index([{"id": "a", "title": "T", "text": "x"}], runner, tmp_path)
     assert result == {"passages": 1, "dimension": 1024, "reload_model_calls": 0}
+
+
+def test_raptor_explicit_physical_batch_preserves_full_input(tmp_path):
+    runner, session = transport(tmp_path)
+    runner.row.update(
+        method="raptor", embedding_options=dict(e1.RAPTOR_EMBEDDING_OPTIONS)
+    )
+    text = "full summary\n" * 100
+    runner.embed([text])
+    payload = session.post.call_args.kwargs["json"]
+    assert payload["input"] == [text]
+    assert payload["truncate"] is False
+    assert payload["options"] == {"num_ctx": 4096, "num_batch": 4096}
+
+
+@pytest.mark.parametrize(
+    "method,options",
+    [
+        ("dense", {"num_ctx": 4096, "num_batch": 4096}),
+        ("hipporag2", {"num_ctx": 4096, "num_batch": 4096}),
+        ("raptor", {"num_ctx": 4096, "num_batch": 2048}),
+    ],
+)
+def test_embedding_batch_policy_rejects_unapproved_configuration(
+    tmp_path, method, options
+):
+    runner, session = transport(tmp_path)
+    runner.row.update(method=method, embedding_options=options)
+    with pytest.raises(ValueError, match="unsupported_RAPTOR"):
+        runner.embed(["summary"])
+    session.post.assert_not_called()
+
+
+def test_batch_fix_replays_verified_old_payload_without_paying_again(tmp_path):
+    runner, session = transport(tmp_path)
+    runner.row.update(
+        method="raptor", embedding_options=dict(e1.RAPTOR_EMBEDDING_OPTIONS)
+    )
+    old_payload = {
+        "model": runner.plan["embedding_model"],
+        "input": ["summary"],
+        "truncate": False,
+    }
+    key = e1.target.digest(
+        {"payload": old_payload, "kind": "embedding", "operation": "index_embedding"}
+    )
+    response = tmp_path / "parent.response.json"
+    dense.write_json_atomic(
+        response, {"embeddings": [[1.0] * 1024], "prompt_eval_count": 7}
+    )
+    runner.parent_cache[key] = {
+        "path": response,
+        "sha256": dense.sha256_file(response),
+        "run_id": "parent",
+        "producer_complete": False,
+        "operation": "index_embedding",
+        "kind": "embedding",
+        "provider": "local_ollama",
+        "model": runner.plan["embedding_model"],
+    }
+    runner.embed(["summary"])
+    session.post.assert_not_called()
+    assert runner.journal.summary()["attempts"] == 0
+    assert not runner.journal.summary()["historical_cache_cost_complete"]
+    response.write_text("{}", encoding="utf-8")
+    with pytest.raises(ValueError, match="parent_response_changed"):
+        runner.embed(["summary"])
+    session.post.assert_not_called()
 
 
 def failed_remote_fixture(tmp_path):

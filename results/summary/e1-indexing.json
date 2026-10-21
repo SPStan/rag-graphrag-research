@@ -144,6 +144,7 @@
           "corrupt_tail_bytes": 0
         }
       },
+      "current_unknown_reserved_upper_bound": 0,
       "artifact_manifest_sha256": "dacea888db4d8c7720f612aad81cdb8832c05151a65828badf2d4e355e7a86c5",
       "cost_semantics": "Physical new cost; replay is not charged twice.",
       "standalone_cost_complete": true,
@@ -312,6 +313,7 @@
           "corrupt_tail_bytes": 0
         }
       },
+      "current_unknown_reserved_upper_bound": 0,
       "cumulative_accounting": {
         "schema_version": 1,
         "phases": [
@@ -811,6 +813,7 @@
           "corrupt_tail_bytes": 0
         }
       },
+      "current_unknown_reserved_upper_bound": 0,
       "failure_diagnostic": {
         "operation": "openie_triples",
         "request_sha256": "ce1ff9b78d2fdec07fb33d8035168e779bfe44be3175d57c7830db3b026b1087",
@@ -854,8 +857,8 @@
           {
             "phase": "index",
             "provider": "target_api",
-            "attempts": 4666,
-            "errors": 1,
+            "attempts": 4667,
+            "errors": 2,
             "unfinished": 0,
             "cache_hits": 697,
             "cache_provenance_unknown": 697,
@@ -865,8 +868,8 @@
               "embedding_input_tokens": 0
             },
             "unknown_fields": {
-              "llm_input_tokens": 1,
-              "llm_output_tokens": 1,
+              "llm_input_tokens": 2,
+              "llm_output_tokens": 2,
               "embedding_input_tokens": 0
             },
             "complete": false,
@@ -879,12 +882,19 @@
           "embedding_input_tokens": 684560
         },
         "complete": false,
-        "attempts": 4838,
+        "attempts": 4839,
         "historical_cache_cost_complete": false,
         "journal_corrupt_tail": false,
         "corrupt_tail_bytes": 0
       },
-      "cumulative_seconds": 9963.753,
+      "cumulative_seconds": 9964.785,
+      "schema_probe": {
+        "status": "failed",
+        "run_id": "e073307d-4c02-4ed4-a4f2-bccb3f6cd20f",
+        "unknown_reserved_upper_bound": 8679,
+        "full_index_authorized": false,
+        "cases": []
+      },
       "artifact_manifest_sha256": "0682447040e167d3ac027e20b31846c3aed093adc8290bfd9f38003ffe59872c",
       "cycle_repair_request_sha256": "14160c662cfc367cb21f6185a132d7f6823f019b83057b4b5fcaa03b8e9373d5",
       "cost_semantics": "Physical new cost; replay is not charged twice.",
@@ -895,7 +905,7 @@
         "embedding_input_tokens": 684560
       },
       "measured_run_seconds": 3046.922,
-      "attributed_construction_seconds": 9963.753
+      "attributed_construction_seconds": 9964.785
     },
     {
       "run_id": "122d943f-7597-4038-863a-ec03f314bafa",
@@ -917,6 +927,7 @@
       "token_limit": 20000000,
       "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/hipporag2/hotpotqa",
       "status": "pending",
+      "current_unknown_reserved_upper_bound": 0,
       "cost_semantics": "Physical new cost; replay is not charged twice.",
       "standalone_cost_complete": false,
       "standalone_known_subtotal": {},
@@ -1089,6 +1100,7 @@
           "corrupt_tail_bytes": 0
         }
       },
+      "current_unknown_reserved_upper_bound": 10422,
       "failure_diagnostic": {
         "operation": "index_embedding",
         "request_sha256": "f6deb464ae50c4fb94690686d8e7b734ff8713d65e7dfa96690535ad7b395f1f",
@@ -1125,6 +1137,7 @@
       "token_limit": 12000000,
       "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/raptor/hotpotqa",
       "status": "pending",
+      "current_unknown_reserved_upper_bound": 0,
       "cost_semantics": "Physical new cost; replay is not charged twice.",
       "standalone_cost_complete": false,
       "standalone_known_subtotal": {},
@@ -1138,6 +1151,7 @@
   "physical_known_tokens": 6403763,
   "physical_usage_complete": false,
   "cost_complete": false,
-  "budget_charge_upper_bound": 6431284,
+  "budget_charge_upper_bound": 6450385,
+  "budget_reservation_complete": true,
   "original_combined_token_limit": 68000000
 }

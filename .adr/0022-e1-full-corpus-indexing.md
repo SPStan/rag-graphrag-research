@@ -1,5 +1,49 @@
 # ADR-0022: измеренная индексация E1 на шести полных корпусах
 
+## Итог ограниченной schema-пробы21октября
+
+После явного разрешения на external dataset transfer первый POST вернул HTTP400:
+Grammar error, Unimplemented keys: uniqueItems. Backend не выполняет предложенный
+контракт. Второго POST нет, retry нет; usage unknown/reserve8679. Не заменяем
+этот результат успешным "JSON Schema supported" и не удаляем uniqueItems скрыто.
+Следующий schema-вариант требует отдельного плана/проверки/согласования; локальная
+уникальность готового JSON не гарантирует устранение генеративного цикла.
+Полный HippoRAG и QA не разрешены результатом этой пробы.
+
+## 21 октября: установлен physical-batch отказ BGE-M3
+
+Точный failed input восстановлен из summary response
+`1fdcb7aedc1d9b54d60f2ef99024f8e941664de6ffaf53e3d461d101a9823803`;
+его embedding payload SHA совпал с failed journal object_id
+`f6deb464ae50c4fb94690686d8e7b734ff8713d65e7dfa96690535ad7b395f1f`.
+Это законченный Qwen ответ (stop,2179 input/2135 output), не length.
+
+Родной tokenizer точного GGUF BGE-M3 посчитал2102 без special tokens/2104 с ними.
+Три контрольных saved embedding usage совпали с родным подсчётом:524/693/548.
+Для подсчёта использован установленный llama-server CPU-only, embedding-only,
+no-warmup и только /tokenize; embedding/generation не вызывались. Временный
+tokenizer остановлен. GGUF SHA проверен: daec91ffb5dd0c27411bd71f29932917c49cf529a641d0168496c3a501e3062c.
+
+Модель metadata: context8192. Исторический runner: n_ctx_slot4096; точная ошибка:
+input2104 exceeds physical batch2048. Значит исходная HTTP413 неверно сводилась
+к превышению контекста. Установленный Ollama0.40.4 по умолчанию выделяет embedding
+batch2048; num_batch задаёт physical и logical batch в [коде закреплённой версии](https://github.com/ollama/ollama/blob/v0.40.4/llm/llama_server.go).
+
+Минимальная предлагаемая политика: только RAPTOR новые embeddings получают явные
+num_ctx=4096/num_batch=4096, truncate=false; сохраняется полный summary и прежняя
+модель. Успешный старый payload/cache проверяется первым и переиспользуется с
+исходным SHA; новые options не заставляют повторять старые embeddings. Не меняем
+Qwen summary cap, не делим и не обрезаем тексты. Отказ/unknown/реальный input сверх
+этого окна останавливает обработку; повышение до8192 требует отдельного решения
+и проверки памяти. Этот параметр не объявляется проверенным полным E1.
+
+Сначала synthetic tests payload/cache/запрета изменения Dense/Hippo. Затем
+отдельно согласованная проба: один localhost embedding POST на сохранённом
+summary2104, никакого полного RAPTOR rebuild. Исторический failed usage остаётся
+unknown, даже если новая попытка успешна. При продолжении вычитать все known и
+unknown reservations из прежних12M, включая диагностику; физический и standalone
+расход не смешивать. Статус: причина установлена, новая настройка пока не проверена.
+
 ## Уточнение21октября: повторный цикл, независимые индексы
 
 Коррекция инструкции не устранила цикл на втором passage: исходный и revised

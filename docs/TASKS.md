@@ -10,20 +10,17 @@
   index_embedding имеет usage unknown; tree.json отсутствует. HotpotQA не начат.
   Фоновая очередь завершена (stopped_recorded); PID прежней очереди отсутствуют
   при проверке. Исходные артефакты и стоимость сохранять.
-- Offline-исправления PR #34 интегрированы в PR #33; исходные failed-артефакты сохранены.
-  Общая проверка: 326 passed, 16 skipped; lint/format/type checks прошли.
-  Schema-проба не выполнена: автоматическая проверка разрешений не приняла
-  согласие из другого чата для отправки payload во внешний API. Требуется
-  подтверждение здесь: максимум 2 POST, резерв 17669, без rebuild и QA.
-- RAPTOR: отдельно восстановить проблемный embedding input и его producer
-  по SHA, проверить длину родным tokenizer BGE-M3 и действующий context.
-  Qwen output cap и cl100k cluster limit не гарантируют совместимость с BGE.
-  Не включать truncate=True и не повторять весь корпус. Сначала определить
-  явную политику обработки длинных summaries, reuse и остаточный бюджет.
-- Оба проблемных payload восстановлены offline, SHA совпали. Подготовлена проба
-  JSON Schema:2 POST максимум, cap3072/NER0/retry0, резерв17669 из16065954;
-  отдельное согласие получено21октября. Запуск заблокирован проверкой разрешений после
-  интеграции и gate; никакого автоматического полного Hippo run.
+- Offline-исправления PR #34 интегрированы. Schema-проба выполнена после явного
+  разрешения на передачу:1 POST/HTTP400, uniqueItems не реализован сервером.
+  Usage unknown/reserve8679; второй POST не отправлен, повтор не разрешён.
+- RAPTOR: failed input и producer восстановлены по SHA; native tokenizer2104,
+  runner context4096, physical batch2048. Это batch-limit. Подготовлены явные
+  num_ctx4096/num_batch4096 только для новых RAPTOR embeddings, truncate=false,
+  старый verified cache сохраняется. Один local embedding POST отдельно согласован;
+  выполнить после offline gate/commit и записать полный расход, без rebuild.
+- Известный physical E1 пока6403763. Unknown остаётся unknown; текущий RAPTOR
+  reserve10422 и schema reserve8679 включаются в upper bound отдельно от usage.
+- Оба Dense готовы; реальных готовых деревьев RAPTOR пока нет. E2/QA не запускать.
 - Срок первой вехи 18 октября прошёл; #13 не завершена. Сроки и корпус
   самостоятельно не меняем, фактические часы студента неизвестны.
 

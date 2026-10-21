@@ -55,6 +55,7 @@ CYCLE_REPAIR = {
     "max_per_dataset": 20,
     "instruction": 'Return only the JSON object with the "triples" field. Extract each supported triple exactly once. Do not repeat any triple. Do not output named_entities. When no more distinct supported facts remain, close the JSON array and object immediately.',
 }
+RAPTOR_EMBEDDING_OPTIONS = {"num_ctx": 4096, "num_batch": 4096}
 
 TRIPLES_SCHEMA = {
     "type": "object",
@@ -499,14 +500,31 @@ class Transport:
         return body
 
     def embed(self, texts):
+        options = self.row.get("embedding_options")
+        if options is not None and (
+            self.row["method"] != "raptor" or options != RAPTOR_EMBEDDING_OPTIONS
+        ):
+            raise ValueError("unsupported_RAPTOR_embedding_options")
         vectors = []
         for offset in range(0, len(texts), 32):
-            body = self.call(
+            payload = {
+                "model": self.plan["embedding_model"],
+                "input": texts[offset : offset + 32],
+                "truncate": False,
+            }
+            old_key = target.digest(
                 {
-                    "model": self.plan["embedding_model"],
-                    "input": texts[offset : offset + 32],
-                    "truncate": False,
-                },
+                    "payload": payload,
+                    "kind": "embedding",
+                    "operation": "index_embedding",
+                }
+            )
+            # Reuse only an exact, verified old physical response. New options
+            # affect uncached calls, never relabel or repay old embeddings.
+            if options is not None and old_key not in self.parent_cache:
+                payload["options"] = dict(options)
+            body = self.call(
+                payload,
                 kind="embedding",
                 operation="index_embedding",
             )
@@ -768,6 +786,32 @@ def failure_diagnostic(directory):
     return result
 
 
+def current_unknown_reservation(directory):
+    """A saved pre-HTTP bound is a reserve, never measured usage."""
+    journal = directory / "usage.jsonl"
+    if not journal.exists():
+        return 0
+    records = read_records(journal)
+    finished = {r["attempt_id"]: r for r in records if r["event"] == "finished"}
+    total = 0
+    for row in records:
+        if row["event"] != "started":
+            continue
+        end = finished.get(row["attempt_id"], {})
+        if end.get("cache_hit") or end.get("usage_status") == "complete":
+            continue
+        checkpoint = directory / "requests" / f"{row['object_id']}.json"
+        bound = (
+            dense.read_json(checkpoint).get("reserved_tokens")
+            if checkpoint.exists()
+            else None
+        )
+        if type(bound) is not int or bound < 0:
+            return None
+        total += bound
+    return total
+
+
 def export(plan, plan_path):
     rows = []
     for row in plan["rows"]:
@@ -776,6 +820,9 @@ def export(plan, plan_path):
             dense.read_json(manifest) if manifest.exists() else {"status": "pending"}
         )
         public = {key: value for key, value in result.items() if key != "artifacts"}
+        public["current_unknown_reserved_upper_bound"] = current_unknown_reservation(
+            manifest.parent
+        )
         if result["status"] == "failed":
             public["failure_diagnostic"] = failure_diagnostic(manifest.parent)
         if result["status"] == "running" and (manifest.parent / "usage.jsonl").exists():
@@ -804,8 +851,11 @@ def export(plan, plan_path):
                 records.extend(read_records(current))
             public["cumulative_accounting"] = summarize(records)
             public["cumulative_seconds"] = seconds + result.get("seconds", 0)
-        if (row["method"], row["dataset"]) == ("hipporag2", "musique"):
-            probe_path = manifest.parent.parent / "musique-schema-probe1/manifest.json"
+        probe_kind = {"hipporag2": "schema", "raptor": "embedding"}.get(row["method"])
+        if probe_kind and row["dataset"] == "musique":
+            probe_path = (
+                manifest.parent.parent / f"musique-{probe_kind}-probe1/manifest.json"
+            )
             if probe_path.exists():
                 probe = dense.read_json(probe_path)
                 if probe["parent_manifest_sha256"] != dense.sha256_file(manifest):
@@ -830,7 +880,7 @@ def export(plan, plan_path):
                     public.get("cumulative_seconds", result.get("seconds", 0))
                     + probe["seconds"]
                 )
-                public["schema_probe"] = {
+                public[f"{probe_kind}_probe"] = {
                     k: probe[k]
                     for k in (
                         "status",
@@ -880,10 +930,17 @@ def export(plan, plan_path):
             for r in rows
         )
         + sum(
-            r.get("schema_probe", {}).get("unknown_reserved_upper_bound", 0)
+            r.get(f"{kind}_probe", {}).get("unknown_reserved_upper_bound", 0)
             for r in rows
+            for kind in ("schema", "embedding")
         )
+        + sum(r.get("current_unknown_reserved_upper_bound") or 0 for r in rows)
     )
+    report["budget_reservation_complete"] = all(
+        r["current_unknown_reserved_upper_bound"] is not None for r in rows
+    )
+    if not report["budget_reservation_complete"]:
+        report["budget_charge_upper_bound"] = None
     report["original_combined_token_limit"] = plan.get(
         "original_combined_token_limit", plan["combined_token_limit"]
     )

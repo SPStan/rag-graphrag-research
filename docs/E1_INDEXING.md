@@ -1,5 +1,36 @@
 # E1: индексы полного корпуса (#13)
 
+## Актуальный разбор21октября: schema-проба и physical batch
+
+После отдельного явного разрешения на передачу двух passages/NER выполнен
+**один** schema POST. Сервер HTTP400: grammar backend не реализует uniqueItems.
+Второй POST не выполнялся, retry/fallback нет. Usage отсутствует: известный subtotal
+диагностики0 не означает нулевого расхода; unknown reserve8679 сохранён.
+Claim/failed manifest/raw/journal immutable, full_index_authorized=false.
+Снятие uniqueItems или новая попытка потребуют нового плана и согласования.
+
+RAPTOR embedding input восстановлен из producer summary по двум точным SHA:
+request `f6deb464ae50c4fb94690686d8e7b734ff8713d65e7dfa96690535ad7b395f1f`,
+producer response `1fdcb7aedc1d9b54d60f2ef99024f8e941664de6ffaf53e3d461d101a9823803`.
+Native GGUF tokenizer:2104 с special tokens (2102 без). Проверка совпала с тремя
+сохранёнными usage524/693/548; /embedding не вызывался при tokenization.
+Ошибка runner: physical batch2048, input2104 при context4096; model context8192.
+Подробности и pinned source — ADR-0022. Это batch-ограничение, не доказательство
+слишком длинного для BGE-M3 summary. Char/cl100k оценки не использованы.
+
+Подготовлена минимальная настройка только RAPTOR: явные num_ctx4096/num_batch4096,
+truncate=false. Старые verified payload проверяются первыми, replay сохраняет
+исходный SHA и историческую неполноту; новые options применяются только к uncached
+embedding. Для Dense/Hippo изменение запрещено. Реальный input сверх этого окна
+не обрезается: остановка и разбор, переход к8192 не автоматический.
+Один localhost embedding POST на сохранённом summary отдельно согласован;
+полный RAPTOR по этому согласию не запускать. Новые настройки пока не проверены
+реальным embedding. При продолжении учитывать все failed/diagnostic attempts.
+
+Экспорт включает unknown reserve текущего failed RAPTOR10422, историю и
+диагностику отдельно от measured tokens. Если исходный reserve потерян,
+budget_charge_upper_bound=null, budget_reservation_complete=false, а не ноль.
+
 ## Offline-подготовка schema-пробы — 21 октября
 
 Подготовка выполнена в отдельном audit worktree, без изменения живого runner.
