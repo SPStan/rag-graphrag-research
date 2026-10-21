@@ -6,5 +6,7 @@
 | dense | hotpotqa | completed | 0/0 | 776137 (+cache 0) | 175 | 558.277 | False | f93e2e87-e6e8-4a3a-a2c0-2b88e1bf3319 / `indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/dense/hotpotqa-continuation1` |
 | hipporag2 | musique | failed | 2296256/945308 | 684560 (+cache 0) | 4839 | 9964.785 | False | 1379a939-228d-458f-bb90-f120b165f2f8 / `indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/hipporag2/musique-cycle1` |
 | hipporag2 | hotpotqa | pending | —/— | — (+cache 0) | — | — | False | 122d943f-7597-4038-863a-ec03f314bafa / `indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/hipporag2/hotpotqa` |
-| raptor | musique | failed | 347055/333441 | 338550 (+cache 0) | 1003 | 3673.859 | False | a22458e3-2528-4fa9-b752-a32c15d8b85b / `indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/raptor/musique` |
+| raptor | musique | failed | 858596/815172 | 823240 (+cache 0) | 2543 | 9287.021 | False | 68b112fc-73bc-4e82-81b5-8d916f5c933a / `indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/raptor/musique-batch1` |
 | raptor | hotpotqa | pending | —/— | — (+cache 0) | — | — | False | ff75d8dd-69d6-4d9e-8e70-fdd63119741c / `indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/raptor/hotpotqa` |
+
+Seconds include the prior failed run when cumulative_seconds is present. Unknown usage remains unknown.

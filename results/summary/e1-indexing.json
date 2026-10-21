@@ -1,6 +1,6 @@
 {
   "batch_id": "edff74df-c567-49de-a834-f9f1fc6f7f74",
-  "plan_sha256": "11b1c4e45cbee629ae5e0b3d3390d1d03c99db57bca5f992d599f16c2b8312e8",
+  "plan_sha256": "d82306cceafff694d5acc8c825e476d178c6c046df00e877f62ad711e326cade",
   "models": {
     "model": "iairlab/qwen3.8-27b",
     "embedding_model": "bge-m3:latest",
@@ -935,7 +935,7 @@
       "attributed_construction_seconds": null
     },
     {
-      "run_id": "a22458e3-2528-4fa9-b752-a32c15d8b85b",
+      "run_id": "68b112fc-73bc-4e82-81b5-8d916f5c933a",
       "method": "raptor",
       "dataset": "musique",
       "passages": 5500,
@@ -950,51 +950,238 @@
         }
       },
       "corpus_fingerprint": "f726a739ff0def6f7517fe3185780fdc21e5d51a2cfcd83ce3f18fba277c9f9a",
-      "code_commit": "460fc400f2a69155d17ae2401446d167cd1e0e8d",
-      "token_limit": 12000000,
-      "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/raptor/musique",
-      "status": "failed",
-      "seconds": 3665.399,
-      "plan_sha256": "952bf729820e0ac2b03a795bda3222309c4acdc0a92d6f7312198f2898e97fc5",
-      "error_type": "HTTPError",
-      "token_accounting": {
-        "journal_file": "usage.jsonl",
-        "journal_sha256": "9a38bdfc1108520bcd3a1aaff07204ed8a15b188826c2a4a4fd775450d78149b",
+      "code_commit": "2e015b0a6bf1fda21963ca81f156c5cbe0e3b4f6",
+      "token_limit": 10970532,
+      "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/raptor/musique-batch1",
+      "embedding_options": {
+        "num_ctx": 4096,
+        "num_batch": 4096
+      },
+      "history_runs": [
+        {
+          "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/raptor/musique",
+          "run_id": "a22458e3-2528-4fa9-b752-a32c15d8b85b",
+          "manifest_sha256": "88f38b941f3d9c1647ec1affad26790986bf7ba15d16edcdddae86a338f3243f",
+          "summary": {
+            "schema_version": 1,
+            "phases": [
+              {
+                "phase": "index",
+                "provider": "local_ollama",
+                "attempts": 501,
+                "errors": 1,
+                "unfinished": 0,
+                "cache_hits": 5500,
+                "cache_provenance_unknown": 0,
+                "known_subtotal": {
+                  "llm_input_tokens": 0,
+                  "llm_output_tokens": 0,
+                  "embedding_input_tokens": 336446
+                },
+                "unknown_fields": {
+                  "llm_input_tokens": 0,
+                  "llm_output_tokens": 0,
+                  "embedding_input_tokens": 1
+                },
+                "complete": false,
+                "total": null
+              },
+              {
+                "phase": "index",
+                "provider": "target_api",
+                "attempts": 501,
+                "errors": 0,
+                "unfinished": 0,
+                "cache_hits": 0,
+                "cache_provenance_unknown": 0,
+                "known_subtotal": {
+                  "llm_input_tokens": 347055,
+                  "llm_output_tokens": 333441,
+                  "embedding_input_tokens": 0
+                },
+                "unknown_fields": {
+                  "llm_input_tokens": 0,
+                  "llm_output_tokens": 0,
+                  "embedding_input_tokens": 0
+                },
+                "complete": true,
+                "total": {
+                  "llm_input_tokens": 347055,
+                  "llm_output_tokens": 333441,
+                  "embedding_input_tokens": 0
+                }
+              }
+            ],
+            "known_subtotal": {
+              "llm_input_tokens": 347055,
+              "llm_output_tokens": 333441,
+              "embedding_input_tokens": 336446
+            },
+            "complete": false,
+            "attempts": 1002,
+            "historical_cache_cost_complete": true,
+            "journal_corrupt_tail": false,
+            "corrupt_tail_bytes": 0
+          },
+          "unknown_reserved_upper_bound": 10422
+        },
+        {
+          "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/raptor/musique-embedding-probe1",
+          "run_id": "e3fed45e-31f3-4a57-8fb9-0eb125d9bcea",
+          "manifest_sha256": "1997f8e6ddb5c044d64882b2fb8c9ea1a1fda097f2c8110b36e795b8bfac0385",
+          "summary": {
+            "schema_version": 1,
+            "phases": [
+              {
+                "phase": "index",
+                "provider": "local_ollama",
+                "attempts": 1,
+                "errors": 0,
+                "unfinished": 0,
+                "cache_hits": 0,
+                "cache_provenance_unknown": 0,
+                "known_subtotal": {
+                  "llm_input_tokens": 0,
+                  "llm_output_tokens": 0,
+                  "embedding_input_tokens": 2104
+                },
+                "unknown_fields": {
+                  "llm_input_tokens": 0,
+                  "llm_output_tokens": 0,
+                  "embedding_input_tokens": 0
+                },
+                "complete": true,
+                "total": {
+                  "llm_input_tokens": 0,
+                  "llm_output_tokens": 0,
+                  "embedding_input_tokens": 2104
+                }
+              }
+            ],
+            "known_subtotal": {
+              "llm_input_tokens": 0,
+              "llm_output_tokens": 0,
+              "embedding_input_tokens": 2104
+            },
+            "complete": true,
+            "attempts": 1,
+            "historical_cache_cost_complete": true,
+            "journal_corrupt_tail": false,
+            "corrupt_tail_bytes": 0
+          },
+          "unknown_reserved_upper_bound": 0
+        }
+      ],
+      "prior_run": {
+        "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/raptor/musique-embedding-probe1",
+        "run_id": "e3fed45e-31f3-4a57-8fb9-0eb125d9bcea",
+        "manifest_sha256": "1997f8e6ddb5c044d64882b2fb8c9ea1a1fda097f2c8110b36e795b8bfac0385",
         "summary": {
           "schema_version": 1,
           "phases": [
             {
               "phase": "index",
               "provider": "local_ollama",
-              "attempts": 501,
-              "errors": 1,
-              "unfinished": 0,
-              "cache_hits": 5500,
-              "cache_provenance_unknown": 0,
-              "known_subtotal": {
-                "llm_input_tokens": 0,
-                "llm_output_tokens": 0,
-                "embedding_input_tokens": 336446
-              },
-              "unknown_fields": {
-                "llm_input_tokens": 0,
-                "llm_output_tokens": 0,
-                "embedding_input_tokens": 1
-              },
-              "complete": false,
-              "total": null
-            },
-            {
-              "phase": "index",
-              "provider": "target_api",
-              "attempts": 501,
+              "attempts": 1,
               "errors": 0,
               "unfinished": 0,
               "cache_hits": 0,
               "cache_provenance_unknown": 0,
               "known_subtotal": {
-                "llm_input_tokens": 347055,
-                "llm_output_tokens": 333441,
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 2104
+              },
+              "unknown_fields": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 0
+              },
+              "complete": true,
+              "total": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 2104
+              }
+            }
+          ],
+          "known_subtotal": {
+            "llm_input_tokens": 0,
+            "llm_output_tokens": 0,
+            "embedding_input_tokens": 2104
+          },
+          "complete": true,
+          "attempts": 1,
+          "historical_cache_cost_complete": true,
+          "journal_corrupt_tail": false,
+          "corrupt_tail_bytes": 0
+        },
+        "unknown_reserved_upper_bound": 0
+      },
+      "resume_sources": [
+        {
+          "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/raptor/musique",
+          "manifest_sha256": "88f38b941f3d9c1647ec1affad26790986bf7ba15d16edcdddae86a338f3243f"
+        },
+        {
+          "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/raptor/musique-embedding-probe1",
+          "manifest_sha256": "1997f8e6ddb5c044d64882b2fb8c9ea1a1fda097f2c8110b36e795b8bfac0385"
+        }
+      ],
+      "diagnostics_in_history": true,
+      "resume_kind": "embedding_batch",
+      "prior_budget_charge": 1029468,
+      "verified_response_cache_count": 1002,
+      "resume_from": {
+        "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/raptor/musique-embedding-probe1",
+        "manifest_sha256": "1997f8e6ddb5c044d64882b2fb8c9ea1a1fda097f2c8110b36e795b8bfac0385"
+      },
+      "status": "failed",
+      "seconds": 5613.162,
+      "plan_sha256": "32fac8465c184194b18ce8846bead66eb3352812e9df0908cf242d3cb8d3ee5e",
+      "error_type": "ValueError",
+      "token_accounting": {
+        "journal_file": "usage.jsonl",
+        "journal_sha256": "70e21b2c58ca8f2a0a9684e65d7d2ca9cd76f40a06a6fbb18133c5b060eef21e",
+        "summary": {
+          "schema_version": 1,
+          "phases": [
+            {
+              "phase": "index",
+              "provider": "local_ollama",
+              "attempts": 770,
+              "errors": 0,
+              "unfinished": 0,
+              "cache_hits": 6004,
+              "cache_provenance_unknown": 503,
+              "known_subtotal": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 484690
+              },
+              "unknown_fields": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 0
+              },
+              "complete": true,
+              "total": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 484690
+              }
+            },
+            {
+              "phase": "index",
+              "provider": "target_api",
+              "attempts": 770,
+              "errors": 0,
+              "unfinished": 0,
+              "cache_hits": 504,
+              "cache_provenance_unknown": 504,
+              "known_subtotal": {
+                "llm_input_tokens": 511541,
+                "llm_output_tokens": 481731,
                 "embedding_input_tokens": 0
               },
               "unknown_fields": {
@@ -1004,20 +1191,20 @@
               },
               "complete": true,
               "total": {
-                "llm_input_tokens": 347055,
-                "llm_output_tokens": 333441,
+                "llm_input_tokens": 511541,
+                "llm_output_tokens": 481731,
                 "embedding_input_tokens": 0
               }
             }
           ],
           "known_subtotal": {
-            "llm_input_tokens": 347055,
-            "llm_output_tokens": 333441,
-            "embedding_input_tokens": 336446
+            "llm_input_tokens": 511541,
+            "llm_output_tokens": 481731,
+            "embedding_input_tokens": 484690
           },
-          "complete": false,
-          "attempts": 1002,
-          "historical_cache_cost_complete": true,
+          "complete": true,
+          "attempts": 1540,
+          "historical_cache_cost_complete": false,
           "journal_corrupt_tail": false,
           "corrupt_tail_bytes": 0
         }
@@ -1029,33 +1216,37 @@
             {
               "phase": "index",
               "provider": "local_ollama",
-              "attempts": 501,
-              "errors": 1,
+              "attempts": 770,
+              "errors": 0,
               "unfinished": 0,
-              "cache_hits": 5500,
-              "cache_provenance_unknown": 0,
+              "cache_hits": 6004,
+              "cache_provenance_unknown": 503,
               "known_subtotal": {
                 "llm_input_tokens": 0,
                 "llm_output_tokens": 0,
-                "embedding_input_tokens": 336446
+                "embedding_input_tokens": 484690
               },
               "unknown_fields": {
                 "llm_input_tokens": 0,
                 "llm_output_tokens": 0,
-                "embedding_input_tokens": 1
+                "embedding_input_tokens": 0
               },
-              "complete": false,
-              "total": null
+              "complete": true,
+              "total": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 484690
+              }
             }
           ],
           "known_subtotal": {
             "llm_input_tokens": 0,
             "llm_output_tokens": 0,
-            "embedding_input_tokens": 336446
+            "embedding_input_tokens": 484690
           },
-          "complete": false,
-          "attempts": 501,
-          "historical_cache_cost_complete": true,
+          "complete": true,
+          "attempts": 770,
+          "historical_cache_cost_complete": false,
           "journal_corrupt_tail": false,
           "corrupt_tail_bytes": 0
         },
@@ -1065,14 +1256,14 @@
             {
               "phase": "index",
               "provider": "target_api",
-              "attempts": 501,
+              "attempts": 770,
               "errors": 0,
               "unfinished": 0,
-              "cache_hits": 0,
-              "cache_provenance_unknown": 0,
+              "cache_hits": 504,
+              "cache_provenance_unknown": 504,
               "known_subtotal": {
-                "llm_input_tokens": 347055,
-                "llm_output_tokens": 333441,
+                "llm_input_tokens": 511541,
+                "llm_output_tokens": 481731,
                 "embedding_input_tokens": 0
               },
               "unknown_fields": {
@@ -1082,29 +1273,29 @@
               },
               "complete": true,
               "total": {
-                "llm_input_tokens": 347055,
-                "llm_output_tokens": 333441,
+                "llm_input_tokens": 511541,
+                "llm_output_tokens": 481731,
                 "embedding_input_tokens": 0
               }
             }
           ],
           "known_subtotal": {
-            "llm_input_tokens": 347055,
-            "llm_output_tokens": 333441,
+            "llm_input_tokens": 511541,
+            "llm_output_tokens": 481731,
             "embedding_input_tokens": 0
           },
           "complete": true,
-          "attempts": 501,
-          "historical_cache_cost_complete": true,
+          "attempts": 770,
+          "historical_cache_cost_complete": false,
           "journal_corrupt_tail": false,
           "corrupt_tail_bytes": 0
         }
       },
-      "current_unknown_reserved_upper_bound": 10422,
+      "current_unknown_reserved_upper_bound": 0,
       "failure_diagnostic": {
         "operation": "index_embedding",
-        "request_sha256": "f6deb464ae50c4fb94690686d8e7b734ff8713d65e7dfa96690535ad7b395f1f",
-        "usage_status": "unknown"
+        "request_sha256": "1d75b8f985529e855bc656f126eff1bbc747d6cc3cd620e5e84d3bd963cef741",
+        "usage_status": "complete"
       },
       "cumulative_accounting": {
         "schema_version": 1,
@@ -1112,15 +1303,15 @@
           {
             "phase": "index",
             "provider": "local_ollama",
-            "attempts": 502,
+            "attempts": 1272,
             "errors": 1,
             "unfinished": 0,
-            "cache_hits": 5500,
-            "cache_provenance_unknown": 0,
+            "cache_hits": 11504,
+            "cache_provenance_unknown": 503,
             "known_subtotal": {
               "llm_input_tokens": 0,
               "llm_output_tokens": 0,
-              "embedding_input_tokens": 338550
+              "embedding_input_tokens": 823240
             },
             "unknown_fields": {
               "llm_input_tokens": 0,
@@ -1133,14 +1324,14 @@
           {
             "phase": "index",
             "provider": "target_api",
-            "attempts": 501,
+            "attempts": 1271,
             "errors": 0,
             "unfinished": 0,
-            "cache_hits": 0,
-            "cache_provenance_unknown": 0,
+            "cache_hits": 504,
+            "cache_provenance_unknown": 504,
             "known_subtotal": {
-              "llm_input_tokens": 347055,
-              "llm_output_tokens": 333441,
+              "llm_input_tokens": 858596,
+              "llm_output_tokens": 815172,
               "embedding_input_tokens": 0
             },
             "unknown_fields": {
@@ -1150,57 +1341,34 @@
             },
             "complete": true,
             "total": {
-              "llm_input_tokens": 347055,
-              "llm_output_tokens": 333441,
+              "llm_input_tokens": 858596,
+              "llm_output_tokens": 815172,
               "embedding_input_tokens": 0
             }
           }
         ],
         "known_subtotal": {
-          "llm_input_tokens": 347055,
-          "llm_output_tokens": 333441,
-          "embedding_input_tokens": 338550
+          "llm_input_tokens": 858596,
+          "llm_output_tokens": 815172,
+          "embedding_input_tokens": 823240
         },
         "complete": false,
-        "attempts": 1003,
-        "historical_cache_cost_complete": true,
+        "attempts": 2543,
+        "historical_cache_cost_complete": false,
         "journal_corrupt_tail": false,
         "corrupt_tail_bytes": 0
       },
-      "cumulative_seconds": 3673.859,
-      "embedding_probe": {
-        "status": "completed",
-        "run_id": "e3fed45e-31f3-4a57-8fb9-0eb125d9bcea",
-        "unknown_reserved_upper_bound": 0,
-        "full_index_authorized": false,
-        "cases": [
-          {
-            "status": "passed",
-            "dimension": 1024,
-            "input_tokens": 2104,
-            "reload_model_calls": 0
-          }
-        ],
-        "embedding_options": {
-          "num_ctx": 4096,
-          "num_batch": 4096
-        },
-        "producer_response_sha256": "1fdcb7aedc1d9b54d60f2ef99024f8e941664de6ffaf53e3d461d101a9823803",
-        "native_tokens_with_special": 2104,
-        "native_tokens_without_special": 2102,
-        "code_commit": "eb6b271a692ef2701badd62baabbe3605a729855",
-        "operator_sha256": "ad51eefeeccf4fb5cc0d389c54d539590a0ec61310f79cd543bb5edd124d9620"
-      },
-      "artifact_manifest_sha256": "88f38b941f3d9c1647ec1affad26790986bf7ba15d16edcdddae86a338f3243f",
+      "cumulative_seconds": 9287.021,
+      "artifact_manifest_sha256": "138e35a8c8993e732e7e623345a2a9aee70746fc3032fc9bfff28f1e6d88d276",
       "cost_semantics": "Physical new cost; replay is not charged twice.",
       "standalone_cost_complete": false,
       "standalone_known_subtotal": {
-        "llm_input_tokens": 347055,
-        "llm_output_tokens": 333441,
-        "embedding_input_tokens": 338550
+        "llm_input_tokens": 858596,
+        "llm_output_tokens": 815172,
+        "embedding_input_tokens": 823240
       },
-      "measured_run_seconds": 3665.399,
-      "attributed_construction_seconds": 3673.859
+      "measured_run_seconds": 5613.162,
+      "attributed_construction_seconds": 9287.021
     },
     {
       "run_id": "ff75d8dd-69d6-4d9e-8e70-fdd63119741c",
@@ -1218,9 +1386,13 @@
         }
       },
       "corpus_fingerprint": "1d6a33346c42cd2feae5cf71eb2c145121a74712eb51a86d95205983a4477634",
-      "code_commit": "460fc400f2a69155d17ae2401446d167cd1e0e8d",
+      "code_commit": "2e015b0a6bf1fda21963ca81f156c5cbe0e3b4f6",
       "token_limit": 12000000,
       "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/raptor/hotpotqa",
+      "embedding_options": {
+        "num_ctx": 4096,
+        "num_batch": 4096
+      },
       "status": "pending",
       "current_unknown_reserved_upper_bound": 0,
       "cost_semantics": "Physical new cost; replay is not charged twice.",
@@ -1230,13 +1402,13 @@
       "attributed_construction_seconds": null
     }
   ],
-  "combined_token_limit": 64994532,
+  "combined_token_limit": 63965064,
   "complete": false,
   "limitations": "E1 measures indexing cost/coverage, not retrieval or answer quality. Historical smoke unknowns are preserved outside these new runs.",
-  "physical_known_tokens": 6405867,
+  "physical_known_tokens": 7883829,
   "physical_usage_complete": false,
   "cost_complete": false,
-  "budget_charge_upper_bound": 6452489,
+  "budget_charge_upper_bound": 7930451,
   "budget_reservation_complete": true,
   "original_combined_token_limit": 68000000
 }
