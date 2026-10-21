@@ -478,3 +478,70 @@ callback воспроизведены из кэша,0physical attempts. Layer0 �
 `138e35a8c8993e732e7e623345a2a9aee70746fc3032fc9bfff28f1e6d88d276`.
 Следующее продолжение использует обычный tracked run_e1 transport, без отдельного
 модельного operator; новые HTTP сохраняются в том же формате journal/checkpoints.
+
+
+## HotpotQA: summary length и подготовка одной пробы —21октября
+
+RAPTOR MuSiQue957006e6 завершён:5500leaves,7438nodes, слои5500/1274/664,
+точный save/reload0calls. HotpotQA ff75d8dd остановился23:12MSK на Layer1:
+finish_reason=length, input3011/output4096/total7107. Ответ разворачивается
+в каталог ТВ/кино/актёров (1785word tokens,600unique words); плотный цикл
+как в предыдущем HippoRAG не установлен. Не увеличивать cap вслепую и не
+принимать частичный ответ. Исходные response/journal/manifest остаются immutable.
+
+HotpotQA2827physical POST:1414summary/1413embedding; known2693810.
+Все usage в этом запуске известны, включая failed7107. Общий E1 known13052767,
+upper budget charge13099389; старые unknown других строк сохраняются.
+Остаток HotpotQA9306190 из12M не расширяется.
+
+Предложена одна диагностическая проба `raptor_summary_300_words_v1`:
+сохранить исходный user context целиком, добавить system-ограничение≤300слов,
+компактная проза/без каталогов/повторов/новых фактов, cap1536. Успех требует
+stop/nonempty/≤300whitespace words/≤4000UTF8bytes и известного usage.
+Последний byte guard ограничивает диагностический ответ, не является точным
+подсчётом BGE и не доказывает embedding compatibility или качество summary.
+Семантическая поддержанность проверяется отдельно по context, без QA gold.
+
+Подготовка проверяет точный SHA восстановленного исходного payload, все
+source response SHA, завершённость журнала, Dense leaf producer и отсутствие
+живых index workers. Новый payload имеет отдельный SHA; частичный старый текст
+не очищается, не продолжается и не попадает в probe input. Общие параметры
+температуры/seed/thinking и модель прежние. Проба не является принятой политикой
+для полного benchmark; готовый MuSiQue из-за этой пробы не повторяется.
+
+```powershell
+$prior = '<data-root>/indexes/e1/issue13-raptor-clustering-plan.json'
+$probe = '<private-dir>/hotpot-summary-probe-plan.json'
+./.venv-check/Scripts/python.exe -m scripts.run_e1 prepare-summary-probe --prior-plan $prior --recovered-payload '<offline-dir>/failed-payload.json' --plan $probe
+# После конкретного согласования ровно1POST, без embedding/NER/retry:
+./.venv-check/Scripts/python.exe -m scripts.run_e1 run-summary-probe --plan $probe --env-file '<env-file>' --approved-probe-sha256 '<plan-sha256>'
+./.venv-check/Scripts/python.exe -m scripts.run_e1 report --plan $prior
+```
+
+Один claim summary-probe-once рядом с каноническим Hotpot prior действует
+между каталогами/worktrees и сохраняется после ошибки. Любой изменённый
+payload/code/config/SHA отклоняется доHTTP. Даже при ошибке сохраняются known,
+unknown reserve и failed manifest; summary_probe входит в общий экспорт E1.
+Максимум1target POST,0embedding/NER, стоп при первой ошибке. Успешный probe
+имеет full_index_authorized=false: новый index continuation требует отдельного
+решения и проверенного использования нового response SHA. Случайно прочитать
+length как usable cache нельзя: explicit diagnostic flag возвращает его
+только в failures, стандартный resume продолжает отклонять такой checkpoint.
+
+
+Offline восстановление выполнено:2826verified responses воспроизведены,
+0physical attempts. Канонический request SHA совпал с исходной попыткой:
+`b243e8505a98c45dbe7f8a85fd505444554f611bc7bc0eb7cb1d358fc185ebdf`.
+Файл восстановленного payload SHA:
+`2be68e791be7f63960551e923c6b3ee772c21ad28c5297fdefce5d08603d7c32`.
+Parent failed manifest SHA:
+`9d6e9c32da818dae32722d35e46b960d55fc9d2e071effd16dbdddef3cbf2d87`.
+Payload private; подготовка самостоятельно пересчитывает канонический request
+SHA, поэтому произвольный новый context не пройдёт доHTTP. Probe требует
+reported completion_tokens≤1536; известные токены сохраняются и при нарушении.
+
+Дополнительный fresh-process MuSiQue reload прошёл с запретомHTTP:5500passages,
+7438nodes, exact round-trip, journal SHA до/после одинаков. Tree SHA:
+`241faf584908cf5cc06a5d531e1d108be47b5b6359da12d556ee74da6dc104a6`.
+Manifest SHA `c57bd6e2bcbbfb3cb72c22925b7cfc5d1073167b6d40f184fc0b145c7774896b`.
+Это проверка готового MuSiQue, не повторная индексация и не оценка качества.

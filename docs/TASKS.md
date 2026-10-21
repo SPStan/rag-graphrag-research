@@ -2,43 +2,31 @@
 
 **E1 status:** 3/6 indexes completed; physical known tokens=13052767; cost_complete=False. Last stage=raptor/hotpotqa. Raw/indexes remain local. PR Draft; E2 requires all six verified indexes.
 
-**E1 status:** 2/6 indexes completed; physical known tokens=7883829; cost_complete=False. Last stage=raptor/musique. Raw/indexes remain local. PR Draft; E2 requires all six verified indexes.
+## Текущая очередь — 21 октября 2026, E1
 
-## Текущая очередь — 21 октября 2026, аудит E1
-
-- Активная задача #13 / Draft PR #33: шесть индексов, E2 ещё заблокирован.
-- Dense ×2 готовы; HippoRAG MuSiQue остановлен на 2329/5500 после двух
-  циклических ответов. HippoRAG HotpotQA не начат. Старые данные не менять.
-- Последнее продолжение RAPTOR MuSiQue (68b112fc) остановилось21октября
-  в14:51MSK: ValueError n_neighbors must be greater than1, рекурсивная
-  кластеризация Layer1. Все1540 новыхPOST имеют usage:1477962tokens.
-  Дерево не сохранено; HotpotQA не начат. Queue stopped_recorded, worker завершён.
-  Ранний HTTP413 и его unknown10422 сохраняются в history, не являются новой ошибкой.
-- Offline-исправления PR #34 интегрированы. Schema-проба выполнена после явного
-  разрешения на передачу:1 POST/HTTP400, uniqueItems не реализован сервером.
-  Usage unknown/reserve8679; второй POST не отправлен, повтор не разрешён.
-- RAPTOR: failed input и producer восстановлены по SHA; native tokenizer2104,
-  runner context4096, physical batch2048. Это batch-limit. Подготовлены явные
-  num_ctx4096/num_batch4096 только для новых RAPTOR embeddings, truncate=false,
-  старый verified cache сохраняется. Согласованный1 local POST прошёл на clean
-  eb6b271:2104 known tokens, вектор1024/save/reload0 calls. Полного rebuild нет.
-- Известный physical E1 теперь7883829; upper budget charge7930451.
-  Unknown сохраняется; known не выдаётся за полную стоимость. Два Dense готовы,
-  остальные4индекса нет; E2/QA/merge запрещены.
-- Подготовлена локальная политика RAPTOR singleton terminals для групп<=4,
-  где pinned UMAP вычисляет недопустимый n_neighbors=1. SDK файлы не меняются;
-  обычные группы и параметры upstream сохраняются, политика одинакова датасетам.
-  Это версия адаптера, не исходный RAPTOR без изменений (ADR-0022).
-- Full corpus offline replay завершён:2542verified physical responses,
-  2548replay callbacks,0HTTP; Layer0 совпал с кэшем, Layer1 прошёл кластеризацию
-  и остановился перед первой новой summary. 349tests passed/16skipped,
-  отдельный pinned RAPTOR SDK test прошёл безHTTP, включая старый n_neighbors сбой.
-- Следующий шаг: canonical issue13-raptor-clustering-plan.json и последовательное
-  продолжение MuSiQue/HotpotQA в прежнем разрешённом объёме. История3runs
-  неизменна; остаток9492570/12000000, stop first error/retry0, no Hippo/E2/QA/merge.
-  Повтор после нового отказа не автоматический. Hippo uniqueItems остаётся блокером.
-- Срок первой вехи 18 октября прошёл; #13 не завершена. Сроки и корпус
-  самостоятельно не меняем, фактические часы студента неизвестны.
+- #13 / Draft PR #33: готовы 3/6 индексов. Dense×2 и RAPTOR MuSiQue
+  (5500leaves,7438nodes,1274/664summary nodes) прошли save/reload безHTTP.
+- RAPTOR HotpotQA ff75d8dd остановлен23:12MSK: summary finish_reason=length,
+  input3011/output4096. Это подробный каталог, не подтверждённый плотный цикл.
+  Последний ответ не принят; tree.json отсутствует. Вся очередь stopped_recorded.
+- HotpotQA:2827 POST (1414LLM/1413embedding), known2693810, usage complete
+  для этой строки. Остаток её прежнего12M —9306190; failed7107 входит в known.
+- E1 physical known13052767, upper budget charge13099389, cost_complete=false.
+  Исторические unknown/reserves сохраняются; не выдавать их за нулевой расход.
+- Hippo MuSiQue остаётся failed2329/5500, HotpotQA pending. Schema uniqueItems
+  не поддержан сервером; новый Hippo probe/rebuild не разрешён. E2/QA/merge нет.
+- Точный failed summary payload восстановлен по SHA: 2826 verified responses
+  воспроизведены без HTTP; partial исключён. Следующий шаг — согласовать одну
+  отдельную пробу краткой summary: ≤300 words/cap1536,
+  ≤4000 UTF8 bytes, тот же полный context/API/model, без обрезки старого ответа.
+  Лимит размера — диагностический guard, не native BGE token count.
+- Реальная проба только после конкретного согласования: максимум 1 target POST,
+ 0 embedding/NER/retry, stop first error, full_index_authorized=false. Успех
+  не запускает индекс автоматически. Готовый MuSiQue не повторять.
+- Код проверки:362 offline tests passed/16 skipped; 13 новых регрессий проверяют
+  claim доHTTP, неизменность context, length/unknown, бюджет и общий экспорт.
+- Срок первой вехи18октября прошёл. Корпус/модели/сроки не меняем,
+  фактические часы студента неизвестны. Детали — E1_INDEXING.md/ADR-0022.
 
 ## История — не текущие инструкции запуска
 

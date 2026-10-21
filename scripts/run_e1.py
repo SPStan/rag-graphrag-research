@@ -647,7 +647,12 @@ def verified_raptor_leaf_scope(plan, row):
 
 
 def verified_checkpoints(
-    manifest_path, *, inherited=None, allow_length=False, leaf_producer=None
+    manifest_path,
+    *,
+    inherited=None,
+    allow_length=False,
+    allow_summary_length=False,
+    leaf_producer=None,
 ):
     """Verify successful physical responses individually; never reuse a failed one."""
     manifest = dense.read_json(manifest_path)
@@ -718,10 +723,9 @@ def verified_checkpoints(
             raise ValueError("resume_response_usage_mismatch")
         if saved["status"] != "complete":
             if (
-                allow_length
-                and row["operation"] == "openie_triples"
-                and body["choices"][0]["finish_reason"] == "length"
-            ):
+                (allow_length and row["operation"] == "openie_triples")
+                or (allow_summary_length and row["operation"] == "summary")
+            ) and body["choices"][0]["finish_reason"] == "length":
                 failures.append((row, terminal, saved))
                 continue
             raise ValueError("resume_success_checkpoint_invalid")
@@ -907,14 +911,19 @@ def export(plan, plan_path):
                 records.extend(read_records(current))
             public["cumulative_accounting"] = summarize(records)
             public["cumulative_seconds"] = seconds + result.get("seconds", 0)
-        probe_kind = {"hipporag2": "schema", "raptor": "embedding"}.get(row["method"])
+        probe_kind = (
+            "summary"
+            if (row["method"], row["dataset"]) == ("raptor", "hotpotqa")
+            else {"hipporag2": "schema", "raptor": "embedding"}.get(row["method"])
+        )
         if (
             probe_kind
-            and row["dataset"] == "musique"
+            and (row["dataset"] == "musique" or probe_kind == "summary")
             and not row.get("diagnostics_in_history")
         ):
             probe_path = (
-                manifest.parent.parent / f"musique-{probe_kind}-probe1/manifest.json"
+                manifest.parent.parent
+                / f"{row['dataset']}-{probe_kind}-probe1/manifest.json"
             )
             if probe_path.exists():
                 probe = dense.read_json(probe_path)
@@ -1010,7 +1019,7 @@ def export(plan, plan_path):
         + sum(
             r.get(f"{kind}_probe", {}).get("unknown_reserved_upper_bound", 0)
             for r in rows
-            for kind in ("schema", "embedding")
+            for kind in ("schema", "embedding", "summary")
         )
         + sum(r.get("current_unknown_reserved_upper_bound") or 0 for r in rows)
     )
@@ -1798,6 +1807,225 @@ def raptor_batch_plan(prior_path):
     return plan
 
 
+SUMMARY_PROBE_POLICY = {
+    "version": "raptor_summary_300_words_v1",
+    "max_words": 300,
+    "max_output_tokens": 1536,
+    "max_utf8_bytes": 4000,
+}
+
+
+def summary_probe_payload(original):
+    """Keep the original context intact; constrain only the diagnostic summary."""
+    messages = original.get("messages", [])
+    if (
+        len(messages) != 2
+        or messages[0] != {"role": "system", "content": "You are a helpful assistant."}
+        or messages[1].get("role") != "user"
+        or not isinstance(messages[1].get("content"), str)
+        or not messages[1]["content"].startswith("Write a summary of the following,")
+        or original
+        != {
+            **target.OPTIONS,
+            "model": original.get("model"),
+            "messages": messages,
+            "max_tokens": PARAMETERS["summary_max_tokens"],
+        }
+    ):
+        raise ValueError("summary_probe_original_payload_invalid")
+    payload = copy.deepcopy(original)
+    payload["max_tokens"] = SUMMARY_PROBE_POLICY["max_output_tokens"]
+    payload["messages"][0]["content"] += (
+        " Summarize in at most 300 words of compact prose. Preserve the key entities"
+        " and relationships supported by the supplied text. Do not expand into"
+        " catalogs, repeat facts, or add facts. End the summary within this limit."
+    )
+    return payload
+
+
+def validate_summary_probe(body):
+    choice = body["choices"][0]
+    text = choice["message"]["content"]
+    usage = extract_usage(body, "llm", "target_api")
+    if (
+        choice["finish_reason"] != "stop"
+        or type(usage["llm_input_tokens"]) is not int
+        or type(usage["llm_output_tokens"]) is not int
+        or not 0
+        <= usage["llm_output_tokens"]
+        <= SUMMARY_PROBE_POLICY["max_output_tokens"]
+        or not isinstance(text, str)
+        or not text.strip()
+        or len(text.split()) > SUMMARY_PROBE_POLICY["max_words"]
+        or len(text.encode("utf-8")) > SUMMARY_PROBE_POLICY["max_utf8_bytes"]
+    ):
+        raise ValueError("summary_probe_output_not_compact_complete_text")
+    return {
+        "words": len(text.split()),
+        "utf8_bytes": len(text.encode("utf-8")),
+        "semantic_support": "not_reviewed",
+    }
+
+
+def prepare_summary_probe(prior_path, recovered_path):
+    """Verify one length failure and prepare one POST; never reuse partial text."""
+    plan = dense.read_json(prior_path)
+    if code_dirty() or plan.get("workspace") != str(ROOT.resolve()):
+        raise ValueError("summary_probe_requires_clean_live_checkout")
+    for item in plan["rows"]:
+        folder = ROOT / item["output"]
+        mp = folder / "manifest.json"
+        if (folder / "running.lock").exists() or (
+            mp.exists() and dense.read_json(mp)["status"] == "running"
+        ):
+            raise ValueError("summary_probe_requires_stopped_workers")
+    row = next(
+        r for r in plan["rows"] if (r["method"], r["dataset"]) == ("raptor", "hotpotqa")
+    )
+    folder = ROOT / row["output"]
+    mp = folder / "manifest.json"
+    manifest = dense.read_json(mp)
+    if manifest["status"] != "failed" or row.get("history_runs"):
+        raise ValueError("summary_probe_requires_first_failed_hotpot_run")
+    _, failures, reference = verified_checkpoints(
+        mp,
+        allow_summary_length=True,
+        leaf_producer=verified_raptor_leaf_scope(plan, row),
+    )
+    if len(failures) != 1 or not reference["summary"]["complete"]:
+        raise ValueError("summary_probe_requires_one_length_and_complete_usage")
+    failed, terminal, _ = failures[0]
+    original = dense.read_json(recovered_path)
+    if (
+        failed["operation"] != "summary"
+        or terminal["status"] != "success"
+        or original.get("model") != plan["model"]
+        or target.digest({"payload": original, "kind": "llm", "operation": "summary"})
+        != failed["object_id"]
+    ):
+        raise ValueError("summary_probe_recovered_payload_mismatch")
+    payload = summary_probe_payload(original)
+    reserve = (
+        len(json.dumps(payload, ensure_ascii=False).encode())
+        + 2048
+        + payload["max_tokens"]
+    )
+    known = sum(reference["summary"]["known_subtotal"].values())
+    if (
+        type(row["token_limit"]) is not int
+        or not 0 < row["token_limit"] <= LIMITS["raptor"]
+    ):
+        raise ValueError("summary_probe_invalid_prior_budget")
+    remaining = row["token_limit"] - known
+    if reserve > remaining or reserve > PARAMETERS["target_context"]:
+        raise ValueError("summary_probe_budget_or_context_exceeded")
+    return {
+        "kind": "E1_raptor_summary_diagnostic",
+        "workspace": str(ROOT.resolve()),
+        "code_commit": git("rev-parse", "HEAD"),
+        "policy": SUMMARY_PROBE_POLICY,
+        "prior_plan": {
+            "path": str(prior_path.resolve()),
+            "sha256": dense.sha256_file(prior_path),
+        },
+        "recovered_payload": {
+            "path": str(recovered_path.resolve()),
+            "sha256": dense.sha256_file(recovered_path),
+        },
+        "parent_manifest_sha256": dense.sha256_file(mp),
+        "original_request_sha256": failed["object_id"],
+        "payload": payload,
+        "request_sha256": target.digest(
+            {"payload": payload, "kind": "llm", "operation": "summary"}
+        ),
+        "remaining_before_probe": remaining,
+        "reserved_tokens_upper_bound": reserve,
+        "max_new_posts": 1,
+        "full_index_authorized": False,
+    }
+
+
+def execute_summary_probe(probe_path, config, approved_sha256):
+    if dense.sha256_file(probe_path) != approved_sha256:
+        raise ValueError("summary_probe_requires_exact_approved_sha")
+    prepared = dense.read_json(probe_path)
+    prior_path = Path(prepared["prior_plan"]["path"])
+    recovered = Path(prepared["recovered_payload"]["path"])
+    if prepared != prepare_summary_probe(prior_path, recovered):
+        raise ValueError("summary_probe_prepared_inputs_changed")
+    plan = dense.read_json(prior_path)
+    if (
+        config.get("TARGET_API_MODEL") != plan["model"]
+        or config.get("TARGET_API_BASE_URL", "").rstrip("/") != plan["endpoint"]
+        or not config.get("LITELLM_API_KEY")
+    ):
+        raise ValueError("summary_probe_target_config_mismatch")
+    parent_row = next(
+        r for r in plan["rows"] if (r["method"], r["dataset"]) == ("raptor", "hotpotqa")
+    )
+    parent = ROOT / parent_row["output"]
+    directory = parent.parent / "hotpotqa-summary-probe1"
+    if directory.exists():
+        raise ValueError("summary_probe_output_exists")
+    run_id = str(uuid.uuid4())
+    with (parent / "summary-probe-once.claim.json").open(
+        "x", encoding="utf-8"
+    ) as stream:
+        json.dump({"approved_plan_sha256": approved_sha256, "run_id": run_id}, stream)
+        stream.flush()
+        os.fsync(stream.fileno())
+    directory.mkdir()
+    journal = Journal(
+        directory / "usage.jsonl", run_id=run_id, method="raptor", dataset="hotpotqa"
+    )
+    row = {
+        "method": "raptor",
+        "dataset": "hotpotqa",
+        "run_id": run_id,
+        "token_limit": prepared["reserved_tokens_upper_bound"],
+    }
+    runner = Transport(plan, row, config, directory, journal)
+    result = {
+        "status": "running",
+        "run_id": run_id,
+        "code_commit": prepared["code_commit"],
+        "parent_manifest_sha256": prepared["parent_manifest_sha256"],
+        "approved_plan_sha256": approved_sha256,
+        "max_new_posts": 1,
+        "reserved_tokens_upper_bound": prepared["reserved_tokens_upper_bound"],
+        "policy": SUMMARY_PROBE_POLICY,
+        "full_index_authorized": False,
+        "cases": [],
+    }
+    started = time.perf_counter()
+    dense.write_json_atomic(directory / "manifest.json", result)
+    try:
+        body = runner.call(prepared["payload"], kind="llm", operation="summary")
+        stats = validate_summary_probe(body)
+        result["cases"] = [{"request_sha256": prepared["request_sha256"], **stats}]
+        result["status"] = "completed"
+    except BaseException as exc:
+        result.update(status="failed", error_type=type(exc).__name__)
+        raise
+    finally:
+        result["seconds"] = round(time.perf_counter() - started, 3)
+        result["token_accounting"] = journal.reference()
+        result["unknown_reserved_upper_bound"] = (
+            0
+            if journal.summary()["complete"]
+            else prepared["reserved_tokens_upper_bound"]
+        )
+        result["artifacts"] = {
+            p.relative_to(directory).as_posix(): dense.sha256_file(p)
+            for p in directory.rglob("*")
+            if p.is_file() and p.name != "manifest.json"
+        }
+        dense.write_json_atomic(directory / "manifest.json", result)
+        runner.session.close()
+        export(plan, prior_path)
+    return directory
+
+
 def raptor_clustering_plan(prior_path):
     """One new RAPTOR continuation after a fully accounted local clustering failure."""
     original = dense.read_json(prior_path)
@@ -2115,6 +2343,8 @@ def main():
             "independent-raptor",
             "raptor-batch-resume",
             "raptor-clustering-resume",
+            "prepare-summary-probe",
+            "run-summary-probe",
             "prepare-schema-probe",
             "run-schema-probe",
             "seal",
@@ -2132,6 +2362,7 @@ def main():
     parser.add_argument("--prior-plan", type=Path)
     parser.add_argument("--passage-id")
     parser.add_argument("--approved-probe-sha256")
+    parser.add_argument("--recovered-payload", type=Path)
     args = parser.parse_args()
     config = dotenv_values(args.env_file) if args.env_file else {}
     if args.command == "prepare":
@@ -2207,6 +2438,32 @@ def main():
         plan = raptor_clustering_plan(args.prior_plan)
         with args.plan.open("x", encoding="utf-8") as stream:
             json.dump(plan, stream, ensure_ascii=False, indent=2)
+    elif args.command == "prepare-summary-probe":
+        prepared = prepare_summary_probe(args.prior_plan, args.recovered_payload)
+        args.plan.parent.mkdir(parents=True, exist_ok=True)
+        with args.plan.open("x", encoding="utf-8") as stream:
+            json.dump(prepared, stream, ensure_ascii=False, indent=2)
+        print(
+            json.dumps(
+                {
+                    k: prepared[k]
+                    for k in (
+                        "max_new_posts",
+                        "remaining_before_probe",
+                        "reserved_tokens_upper_bound",
+                    )
+                }
+            )
+        )
+        return
+    elif args.command == "run-summary-probe":
+        directory = execute_summary_probe(args.plan, config, args.approved_probe_sha256)
+        print(
+            json.dumps(
+                {"status": dense.read_json(directory / "manifest.json")["status"]}
+            )
+        )
+        return
     elif args.command == "prepare-schema-probe":
         if args.plan.exists():
             raise ValueError("schema_probe_prepare_requires_unused_output")
