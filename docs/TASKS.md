@@ -1,24 +1,16 @@
 # Текущая работа и критерии завершения
 
-**E1 status:** 4/6 indexes completed; physical known tokens=15692272; cost_complete=False. Last stage=hipporag2/musique-schema-shape-probe1. Raw/indexes remain local. PR Draft; E2 requires all six verified indexes.
+**E1 status:** 4/6 indexes completed; physical known tokens=15692272; cost_complete=False. Last stage=hipporag2 native schema continuation. Raw/indexes remain local. PR Draft; E2 requires all six verified indexes.
 
-## Текущая очередь — 22 октября: 4/6, native-schema continuation offline
+## Текущая очередь — измеренный Hippo native-schema этап, 22 октября
 
-- Dense×2/RAPTOR×2 готовы, Hippo Mu2329/5500failed, Hotpot pending.
-- Строгая schema-проба052f9558 остаётся failed:2POST,3234known, unknown0.
-  Полные ответы отдельно приняты для штатного graph-set parser:16→16и62→14.
-  Public provenance: results/summary/e1-hippo-schema-adoption.json; HTTP0.
-- Replay встроен в runner с фактическим schema key/producer; старые успешные
-  json_object ответы не перегенерируются. Новый uncached triples — shape schema.
-- Подготовка prepare-native-schema-continuation: новые outputs/run IDs,
-  canonical claim у старого Mu, пять historical runs без двойного учёта.
-  Бюджет Mu16054041 + Hotpot20000000 =36054041; corrective0/retry0, стоп на ошибке.
-- E1 known15692272/upper15747326,cost_complete=false; все unknown сохранены.
-  Новых модельных/embedding вызовов в offline-блоке нет. Проба не повторяется.
-- Следующий шаг: отдельное согласие на точный новый full-corpus план после
-  offline-проверок. Текущая инструкция и позднее согласие на6d0d0dc3 его не дают.
-  PR33Draft/Refs13; full Hippo/QA/E2/merge не запускаются.
-- Параметры/данные/пределы/остановки и команды — E1_INDEXING/ADR-0022.
+- Планcaf265ad, runtime7f0c6ed: согласие на передачу и оба прогона получено в чате.
+- Hippo musique: failed; run 326a7eb4-7170-46ad-9a19-9ab1b3e5bdba.
+- Hippo hotpotqa: pending; run 730e871a-ea32-46b0-ad3c-6f5eff480a9d.
+- 4/6; known15692272, upper15747326; cost_complete=False.
+- Все failed/probe/unknown сохранены; новых retry/corrective нет. QA/E2/merge не запускались.
+- Следующий шаг: проверить manifests, coverage/reload и CI; при failed сначала разобрать причину.
+- PR33Draft/Refs13; итоговая таблица results/summary/e1-indexing.md.
 
 ## История — не текущие инструкции запуска
 

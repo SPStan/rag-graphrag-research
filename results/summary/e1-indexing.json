@@ -1,6 +1,6 @@
 {
   "batch_id": "edff74df-c567-49de-a834-f9f1fc6f7f74",
-  "plan_sha256": "548148abd45de69e11ba58e14cb91068ced00335e5e763c4a6d9f3eb1b0d5894",
+  "plan_sha256": "caf265ad518a8165699edb2930a7ad111ce1663799615fbd09a350e52a9b3db8",
   "models": {
     "model": "iairlab/qwen3.8-27b",
     "embedding_model": "bge-m3:latest",
@@ -364,7 +364,7 @@
       "attributed_construction_seconds": 558.277
     },
     {
-      "run_id": "1379a939-228d-458f-bb90-f120b165f2f8",
+      "run_id": "326a7eb4-7170-46ad-9a19-9ab1b3e5bdba",
       "method": "hipporag2",
       "dataset": "musique",
       "passages": 5500,
@@ -379,87 +379,10 @@
         }
       },
       "corpus_fingerprint": "f726a739ff0def6f7517fe3185780fdc21e5d51a2cfcd83ce3f18fba277c9f9a",
-      "code_commit": "cec3cc026101be7a2cefb314627215f52d438f15",
-      "token_limit": 17023464,
-      "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/hipporag2/musique-cycle1",
-      "prior_run": {
-        "run_id": "2548f65f-0dd5-4fba-8cc1-d09bf7da6fe1",
-        "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/hipporag2/musique-network1",
-        "manifest_sha256": "3f78674de65884acb053cf4b6583f454e42b31eccb9f490bd0444cdb008c7730",
-        "summary": {
-          "schema_version": 1,
-          "phases": [
-            {
-              "phase": "index",
-              "provider": "local_ollama",
-              "attempts": 0,
-              "errors": 0,
-              "unfinished": 0,
-              "cache_hits": 172,
-              "cache_provenance_unknown": 172,
-              "known_subtotal": {
-                "llm_input_tokens": 0,
-                "llm_output_tokens": 0,
-                "embedding_input_tokens": 0
-              },
-              "unknown_fields": {
-                "llm_input_tokens": 0,
-                "llm_output_tokens": 0,
-                "embedding_input_tokens": 0
-              },
-              "complete": true,
-              "total": {
-                "llm_input_tokens": 0,
-                "llm_output_tokens": 0,
-                "embedding_input_tokens": 0
-              }
-            },
-            {
-              "phase": "index",
-              "provider": "target_api",
-              "attempts": 182,
-              "errors": 0,
-              "unfinished": 0,
-              "cache_hits": 76,
-              "cache_provenance_unknown": 76,
-              "known_subtotal": {
-                "llm_input_tokens": 88666,
-                "llm_output_tokens": 38651,
-                "embedding_input_tokens": 0
-              },
-              "unknown_fields": {
-                "llm_input_tokens": 0,
-                "llm_output_tokens": 0,
-                "embedding_input_tokens": 0
-              },
-              "complete": true,
-              "total": {
-                "llm_input_tokens": 88666,
-                "llm_output_tokens": 38651,
-                "embedding_input_tokens": 0
-              }
-            }
-          ],
-          "known_subtotal": {
-            "llm_input_tokens": 88666,
-            "llm_output_tokens": 38651,
-            "embedding_input_tokens": 0
-          },
-          "complete": true,
-          "attempts": 182,
-          "historical_cache_cost_complete": false,
-          "journal_corrupt_tail": false,
-          "corrupt_tail_bytes": 0
-        },
-        "unknown_reserved_upper_bound": 0,
-        "reason": "Known-cost length response repeats three triples; no partial acceptance."
-      },
-      "resume_from": {
-        "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/hipporag2/musique-network1",
-        "manifest_sha256": "3f78674de65884acb053cf4b6583f454e42b31eccb9f490bd0444cdb008c7730"
-      },
-      "prior_budget_charge": 2976536,
-      "verified_response_cache_count": 3474,
+      "code_commit": "7f0c6eddaf51f810d6985ce27b1dc0412fd606b7",
+      "token_limit": 16054041,
+      "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/hipporag2/musique-schema1",
+      "prior_budget_charge": 3945959,
       "history_runs": [
         {
           "run_id": "bc31760b-7f4d-4a9d-bfda-a9ff602003ea",
@@ -600,6 +523,165 @@
           },
           "unknown_reserved_upper_bound": 0,
           "reason": "Known-cost length response repeats three triples; no partial acceptance."
+        },
+        {
+          "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/hipporag2/musique-cycle1",
+          "run_id": "1379a939-228d-458f-bb90-f120b165f2f8",
+          "manifest_sha256": "0682447040e167d3ac027e20b31846c3aed093adc8290bfd9f38003ffe59872c",
+          "summary": {
+            "schema_version": 1,
+            "phases": [
+              {
+                "phase": "index",
+                "provider": "local_ollama",
+                "attempts": 0,
+                "errors": 0,
+                "unfinished": 0,
+                "cache_hits": 172,
+                "cache_provenance_unknown": 172,
+                "known_subtotal": {
+                  "llm_input_tokens": 0,
+                  "llm_output_tokens": 0,
+                  "embedding_input_tokens": 0
+                },
+                "unknown_fields": {
+                  "llm_input_tokens": 0,
+                  "llm_output_tokens": 0,
+                  "embedding_input_tokens": 0
+                },
+                "complete": true,
+                "total": {
+                  "llm_input_tokens": 0,
+                  "llm_output_tokens": 0,
+                  "embedding_input_tokens": 0
+                }
+              },
+              {
+                "phase": "index",
+                "provider": "target_api",
+                "attempts": 1362,
+                "errors": 0,
+                "unfinished": 0,
+                "cache_hits": 621,
+                "cache_provenance_unknown": 621,
+                "known_subtotal": {
+                  "llm_input_tokens": 676248,
+                  "llm_output_tokens": 281262,
+                  "embedding_input_tokens": 0
+                },
+                "unknown_fields": {
+                  "llm_input_tokens": 0,
+                  "llm_output_tokens": 0,
+                  "embedding_input_tokens": 0
+                },
+                "complete": true,
+                "total": {
+                  "llm_input_tokens": 676248,
+                  "llm_output_tokens": 281262,
+                  "embedding_input_tokens": 0
+                }
+              }
+            ],
+            "known_subtotal": {
+              "llm_input_tokens": 676248,
+              "llm_output_tokens": 281262,
+              "embedding_input_tokens": 0
+            },
+            "complete": true,
+            "attempts": 1362,
+            "historical_cache_cost_complete": false,
+            "journal_corrupt_tail": false,
+            "corrupt_tail_bytes": 0
+          },
+          "unknown_reserved_upper_bound": 0
+        },
+        {
+          "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/hipporag2/musique-schema-probe1",
+          "run_id": "e073307d-4c02-4ed4-a4f2-bccb3f6cd20f",
+          "manifest_sha256": "4883ab9ba97957f4498b26c0edfd835057f081b1a24cb9ef36c4d8d3c9487f53",
+          "summary": {
+            "schema_version": 1,
+            "phases": [
+              {
+                "phase": "index",
+                "provider": "target_api",
+                "attempts": 1,
+                "errors": 1,
+                "unfinished": 0,
+                "cache_hits": 0,
+                "cache_provenance_unknown": 0,
+                "known_subtotal": {
+                  "llm_input_tokens": 0,
+                  "llm_output_tokens": 0,
+                  "embedding_input_tokens": 0
+                },
+                "unknown_fields": {
+                  "llm_input_tokens": 1,
+                  "llm_output_tokens": 1,
+                  "embedding_input_tokens": 0
+                },
+                "complete": false,
+                "total": null
+              }
+            ],
+            "known_subtotal": {
+              "llm_input_tokens": 0,
+              "llm_output_tokens": 0,
+              "embedding_input_tokens": 0
+            },
+            "complete": false,
+            "attempts": 1,
+            "historical_cache_cost_complete": true,
+            "journal_corrupt_tail": false,
+            "corrupt_tail_bytes": 0
+          },
+          "unknown_reserved_upper_bound": 8679
+        },
+        {
+          "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/hipporag2/musique-schema-shape-probe1",
+          "run_id": "052f9558-abef-46a3-a72e-7d955bdea323",
+          "manifest_sha256": "fd9c1b68c5abea7c5be1de81f32a8cc8c968819dc6bccc9a57379fcd3e23bcec",
+          "summary": {
+            "schema_version": 1,
+            "phases": [
+              {
+                "phase": "index",
+                "provider": "target_api",
+                "attempts": 2,
+                "errors": 0,
+                "unfinished": 0,
+                "cache_hits": 0,
+                "cache_provenance_unknown": 0,
+                "known_subtotal": {
+                  "llm_input_tokens": 1774,
+                  "llm_output_tokens": 1460,
+                  "embedding_input_tokens": 0
+                },
+                "unknown_fields": {
+                  "llm_input_tokens": 0,
+                  "llm_output_tokens": 0,
+                  "embedding_input_tokens": 0
+                },
+                "complete": true,
+                "total": {
+                  "llm_input_tokens": 1774,
+                  "llm_output_tokens": 1460,
+                  "embedding_input_tokens": 0
+                }
+              }
+            ],
+            "known_subtotal": {
+              "llm_input_tokens": 1774,
+              "llm_output_tokens": 1460,
+              "embedding_input_tokens": 0
+            },
+            "complete": true,
+            "attempts": 2,
+            "historical_cache_cost_complete": true,
+            "journal_corrupt_tail": false,
+            "corrupt_tail_bytes": 0
+          },
+          "unknown_reserved_upper_bound": 0
         }
       ],
       "resume_sources": [
@@ -610,22 +692,26 @@
         {
           "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/hipporag2/musique-network1",
           "manifest_sha256": "3f78674de65884acb053cf4b6583f454e42b31eccb9f490bd0444cdb008c7730"
+        },
+        {
+          "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/hipporag2/musique-cycle1",
+          "manifest_sha256": "0682447040e167d3ac027e20b31846c3aed093adc8290bfd9f38003ffe59872c"
         }
       ],
-      "resume_kind": "cycle",
-      "cycle_probe_source_id": "sha256:38f7b69951335314e57c3ca0577d8c9e5e2d20717819ff5f88bf24cb3aa2c45e",
-      "cycle_diagnostic": {
-        "complete_tuples": 168,
-        "unique_tuples": 3,
-        "cycle": true
+      "resume_kind": "native_schema",
+      "diagnostics_in_history": true,
+      "max_new_posts": 40000,
+      "schema_adoption": {
+        "path": "results/summary/e1-hippo-schema-adoption.json",
+        "sha256": "d04856cad7220496e14b68dabc46c571638a2795f0b0cf050eb8026fcf3eeced"
       },
       "status": "failed",
-      "seconds": 3046.922,
-      "plan_sha256": "9eb315c5c2c6dcfbdc5d612ff231a36a45a33376551111e6855084c72487503d",
+      "seconds": 26.685,
+      "plan_sha256": "c8f201027a604c0c91575eb31126b28cc373cb69f32ece051325e427002b5958",
       "error_type": "ValueError",
       "token_accounting": {
         "journal_file": "usage.jsonl",
-        "journal_sha256": "fca526ba9c93256a4454f057d81ce441eaf84228921e86d3e9f657e281e4709e",
+        "journal_sha256": "5d86332bfe6e28a136125a72c5e58d92cbc77ba3c17705f5eced0c0a62b9f480",
         "summary": {
           "schema_version": 1,
           "phases": [
@@ -657,14 +743,14 @@
             {
               "phase": "index",
               "provider": "target_api",
-              "attempts": 1362,
+              "attempts": 0,
               "errors": 0,
               "unfinished": 0,
-              "cache_hits": 621,
-              "cache_provenance_unknown": 621,
+              "cache_hits": 2,
+              "cache_provenance_unknown": 2,
               "known_subtotal": {
-                "llm_input_tokens": 676248,
-                "llm_output_tokens": 281262,
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
                 "embedding_input_tokens": 0
               },
               "unknown_fields": {
@@ -674,105 +760,25 @@
               },
               "complete": true,
               "total": {
-                "llm_input_tokens": 676248,
-                "llm_output_tokens": 281262,
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
                 "embedding_input_tokens": 0
               }
             }
           ],
           "known_subtotal": {
-            "llm_input_tokens": 676248,
-            "llm_output_tokens": 281262,
+            "llm_input_tokens": 0,
+            "llm_output_tokens": 0,
             "embedding_input_tokens": 0
           },
           "complete": true,
-          "attempts": 1362,
+          "attempts": 0,
           "historical_cache_cost_complete": false,
           "journal_corrupt_tail": false,
           "corrupt_tail_bytes": 0
         }
       },
       "operations": {
-        "openie_ner": {
-          "schema_version": 1,
-          "phases": [
-            {
-              "phase": "index",
-              "provider": "target_api",
-              "attempts": 680,
-              "errors": 0,
-              "unfinished": 0,
-              "cache_hits": 311,
-              "cache_provenance_unknown": 311,
-              "known_subtotal": {
-                "llm_input_tokens": 205386,
-                "llm_output_tokens": 62540,
-                "embedding_input_tokens": 0
-              },
-              "unknown_fields": {
-                "llm_input_tokens": 0,
-                "llm_output_tokens": 0,
-                "embedding_input_tokens": 0
-              },
-              "complete": true,
-              "total": {
-                "llm_input_tokens": 205386,
-                "llm_output_tokens": 62540,
-                "embedding_input_tokens": 0
-              }
-            }
-          ],
-          "known_subtotal": {
-            "llm_input_tokens": 205386,
-            "llm_output_tokens": 62540,
-            "embedding_input_tokens": 0
-          },
-          "complete": true,
-          "attempts": 680,
-          "historical_cache_cost_complete": false,
-          "journal_corrupt_tail": false,
-          "corrupt_tail_bytes": 0
-        },
-        "openie_triples": {
-          "schema_version": 1,
-          "phases": [
-            {
-              "phase": "index",
-              "provider": "target_api",
-              "attempts": 682,
-              "errors": 0,
-              "unfinished": 0,
-              "cache_hits": 310,
-              "cache_provenance_unknown": 310,
-              "known_subtotal": {
-                "llm_input_tokens": 470862,
-                "llm_output_tokens": 218722,
-                "embedding_input_tokens": 0
-              },
-              "unknown_fields": {
-                "llm_input_tokens": 0,
-                "llm_output_tokens": 0,
-                "embedding_input_tokens": 0
-              },
-              "complete": true,
-              "total": {
-                "llm_input_tokens": 470862,
-                "llm_output_tokens": 218722,
-                "embedding_input_tokens": 0
-              }
-            }
-          ],
-          "known_subtotal": {
-            "llm_input_tokens": 470862,
-            "llm_output_tokens": 218722,
-            "embedding_input_tokens": 0
-          },
-          "complete": true,
-          "attempts": 682,
-          "historical_cache_cost_complete": false,
-          "journal_corrupt_tail": false,
-          "corrupt_tail_bytes": 0
-        },
         "index_embedding": {
           "schema_version": 1,
           "phases": [
@@ -812,20 +818,93 @@
           "historical_cache_cost_complete": false,
           "journal_corrupt_tail": false,
           "corrupt_tail_bytes": 0
+        },
+        "openie_ner": {
+          "schema_version": 1,
+          "phases": [
+            {
+              "phase": "index",
+              "provider": "target_api",
+              "attempts": 0,
+              "errors": 0,
+              "unfinished": 0,
+              "cache_hits": 1,
+              "cache_provenance_unknown": 1,
+              "known_subtotal": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 0
+              },
+              "unknown_fields": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 0
+              },
+              "complete": true,
+              "total": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 0
+              }
+            }
+          ],
+          "known_subtotal": {
+            "llm_input_tokens": 0,
+            "llm_output_tokens": 0,
+            "embedding_input_tokens": 0
+          },
+          "complete": true,
+          "attempts": 0,
+          "historical_cache_cost_complete": false,
+          "journal_corrupt_tail": false,
+          "corrupt_tail_bytes": 0
+        },
+        "openie_triples": {
+          "schema_version": 1,
+          "phases": [
+            {
+              "phase": "index",
+              "provider": "target_api",
+              "attempts": 0,
+              "errors": 0,
+              "unfinished": 0,
+              "cache_hits": 1,
+              "cache_provenance_unknown": 1,
+              "known_subtotal": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 0
+              },
+              "unknown_fields": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 0
+              },
+              "complete": true,
+              "total": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 0
+              }
+            }
+          ],
+          "known_subtotal": {
+            "llm_input_tokens": 0,
+            "llm_output_tokens": 0,
+            "embedding_input_tokens": 0
+          },
+          "complete": true,
+          "attempts": 0,
+          "historical_cache_cost_complete": false,
+          "journal_corrupt_tail": false,
+          "corrupt_tail_bytes": 0
         }
       },
       "current_unknown_reserved_upper_bound": 0,
       "failure_diagnostic": {
         "operation": "openie_triples",
-        "request_sha256": "ce1ff9b78d2fdec07fb33d8035168e779bfe44be3175d57c7830db3b026b1087",
-        "usage_status": "complete",
-        "finish_reason": "length",
-        "repetition": {
-          "complete_tuples": 191,
-          "unique_tuples": 4,
-          "cycle": true
-        },
-        "corrective_request": true
+        "request_sha256": "6a4ae9c28f226afe4b76e8e091df21a4eed0e0a340ab91d97671633ac40a6741",
+        "usage_status": "unknown"
       },
       "cumulative_accounting": {
         "schema_version": 1,
@@ -836,8 +915,8 @@
             "attempts": 172,
             "errors": 0,
             "unfinished": 0,
-            "cache_hits": 344,
-            "cache_provenance_unknown": 344,
+            "cache_hits": 516,
+            "cache_provenance_unknown": 516,
             "known_subtotal": {
               "llm_input_tokens": 0,
               "llm_output_tokens": 0,
@@ -861,8 +940,8 @@
             "attempts": 4669,
             "errors": 2,
             "unfinished": 0,
-            "cache_hits": 697,
-            "cache_provenance_unknown": 697,
+            "cache_hits": 699,
+            "cache_provenance_unknown": 699,
             "known_subtotal": {
               "llm_input_tokens": 2298030,
               "llm_output_tokens": 946768,
@@ -888,53 +967,8 @@
         "journal_corrupt_tail": false,
         "corrupt_tail_bytes": 0
       },
-      "cumulative_seconds": 9976.0,
-      "schema_probe": {
-        "status": "failed",
-        "run_id": "e073307d-4c02-4ed4-a4f2-bccb3f6cd20f",
-        "unknown_reserved_upper_bound": 8679,
-        "full_index_authorized": false,
-        "cases": [],
-        "failure_diagnostic": {
-          "operation": "openie_triples",
-          "request_sha256": "19df1d19e21cba63469f9fb7776caa50274cfd2f56a7d5dbbe1e837018776871",
-          "usage_status": "unknown"
-        }
-      },
-      "schema_shape_probe": {
-        "status": "failed",
-        "run_id": "052f9558-abef-46a3-a72e-7d955bdea323",
-        "unknown_reserved_upper_bound": 0,
-        "full_index_authorized": false,
-        "cases": [
-          {
-            "source_id": "sha256:38f7b69951335314e57c3ca0577d8c9e5e2d20717819ff5f88bf24cb3aa2c45e",
-            "request_sha256": "aadd697b02e41634c5c0ed1037f64b904fe6f46d56498d45be8e52c44ac18ebe",
-            "triples": 16,
-            "format_status": "passed",
-            "semantic_support": "not_reviewed"
-          }
-        ],
-        "schema_variant": "shape_local_unique_v2",
-        "code_commit": "09ec0b44435af9a071f92a8ba1d1014df106072f",
-        "timeout_seconds": [
-          30,
-          300
-        ],
-        "failure_diagnostic": {
-          "operation": "openie_triples",
-          "request_sha256": "436abd1de70f4fcb34831bf2b953a88daa1d6dd1b98d60afee531965108e0182",
-          "usage_status": "complete",
-          "finish_reason": "stop",
-          "repetition": {
-            "complete_tuples": 62,
-            "unique_tuples": 14,
-            "cycle": true
-          }
-        }
-      },
-      "artifact_manifest_sha256": "0682447040e167d3ac027e20b31846c3aed093adc8290bfd9f38003ffe59872c",
-      "cycle_repair_request_sha256": "14160c662cfc367cb21f6185a132d7f6823f019b83057b4b5fcaa03b8e9373d5",
+      "cumulative_seconds": 10002.685,
+      "artifact_manifest_sha256": "3848a37300444d38e8374e7b16a3e8c6d9beed9fa8f920a4ad9c4fc30d4a8a09",
       "cost_semantics": "Physical new cost; replay is not charged twice.",
       "standalone_cost_complete": false,
       "standalone_known_subtotal": {
@@ -942,11 +976,11 @@
         "llm_output_tokens": 946768,
         "embedding_input_tokens": 684560
       },
-      "measured_run_seconds": 3046.922,
-      "attributed_construction_seconds": 9976.0
+      "measured_run_seconds": 26.685,
+      "attributed_construction_seconds": 10002.685
     },
     {
-      "run_id": "122d943f-7597-4038-863a-ec03f314bafa",
+      "run_id": "730e871a-ea32-46b0-ad3c-6f5eff480a9d",
       "method": "hipporag2",
       "dataset": "hotpotqa",
       "passages": 5500,
@@ -961,9 +995,19 @@
         }
       },
       "corpus_fingerprint": "1d6a33346c42cd2feae5cf71eb2c145121a74712eb51a86d95205983a4477634",
-      "code_commit": "cec3cc026101be7a2cefb314627215f52d438f15",
+      "code_commit": "7f0c6eddaf51f810d6985ce27b1dc0412fd606b7",
       "token_limit": 20000000,
-      "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/hipporag2/hotpotqa",
+      "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/hipporag2/hotpotqa-schema1",
+      "resume_kind": "native_schema",
+      "history_runs": [],
+      "resume_sources": [],
+      "diagnostics_in_history": true,
+      "prior_budget_charge": 0,
+      "max_new_posts": 40000,
+      "schema_adoption": {
+        "path": "results/summary/e1-hippo-schema-adoption.json",
+        "sha256": "d04856cad7220496e14b68dabc46c571638a2795f0b0cf050eb8026fcf3eeced"
+      },
       "status": "pending",
       "current_unknown_reserved_upper_bound": 0,
       "cost_semantics": "Physical new cost; replay is not charged twice.",
@@ -2078,7 +2122,7 @@
       "reused_leaf_cost_complete": false
     }
   ],
-  "combined_token_limit": 57846000,
+  "combined_token_limit": 56876577,
   "complete": false,
   "limitations": "E1 measures indexing cost/coverage, not retrieval or answer quality. Historical smoke unknowns are preserved outside these new runs.",
   "physical_known_tokens": 15692272,
