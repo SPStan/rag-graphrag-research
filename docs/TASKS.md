@@ -1,24 +1,16 @@
 # Текущая работа и критерии завершения
 
-**E1 status:** 4/6 indexes completed; physical known tokens=15692272; cost_complete=False. Last stage=hipporag2 native schema continuation. Raw/indexes remain local. PR Draft; E2 requires all six verified indexes.
+**E1 status:** 4/6 indexes completed; physical known tokens=16707393; cost_complete=False. Last stage=hipporag2 native schema continuation. Raw/indexes remain local. PR Draft; E2 requires all six verified indexes.
 
-## Текущая очередь — 22 октября: исправлен нулевой Hippo preflight
+## Текущая очередь — измеренный Hippo native-schema этап, 22 октября
 
-- Готово4/6; E1 known15692272/upper15747326,cost_complete=false.
-- Получено согласие на оба Hippo-прогонаcaf265ad/7f0c6ed. Mu326a7eb4 failed
-  при старом cache hit: schema-validator ошибочно применялся к json_object.
-  Новых POST0/tokens0; Hotpot не начинался. Failed/approved plan сохранены.
-- Legacy/schema контракты разделены. Весь кэш4836проверен pinned parser offline:
-  2332NER/2332triples,1919legacy extra-fields; partial recovery false/HTTP0.
-- Подготовить единственный preflight child существующим runner; допускается лишь
-  после failed с attempts0/known0/unknown0, новый claim/output/run, без reset.
-- Прежнее согласие на оба datasets применимо к локальному исправлению до первого
-  HTTP; бюджеты Mu16054041/Hotpot20000000, data/model/caps/retry0 не меняются.
-  Новую пользовательскую реплику на другой SHA не приписывать: записать derivation.
-- Следующий этап Mu→Hotpot, остановка на первой ошибке. После любого physical
-  request этот preflight-путь запрещён; новых model-retry он не разрешает.
-- PR33Draft/Refs13; QA/E2/merge не запускать. Статус активного launcher проверять
-  в .cache/e1-hippo-schema-job-status.json; детали E1_INDEXING/ADR-0022.
+- План0310dad2, runtime0d784ed: техническое pre-HTTP продолжение согласованногоcaf265ad; прежние лимиты, предокattempts0 сохранён.
+- Hippo musique: failed; run 3eab6c1d-d87e-42d3-8e12-618ca2adf0bc.
+- Hippo hotpotqa: pending; run cea6cbe8-b715-4445-9121-95f3ae33d2b8.
+- 4/6; known16707393, upper16762447; cost_complete=False.
+- Все failed/probe/unknown сохранены; новых retry/corrective нет. QA/E2/merge не запускались.
+- Следующий шаг: проверить manifests, coverage/reload и CI; при failed сначала разобрать причину.
+- PR33Draft/Refs13; итоговая таблица results/summary/e1-indexing.md.
 
 ## История — не текущие инструкции запуска
 

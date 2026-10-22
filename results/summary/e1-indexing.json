@@ -1,6 +1,6 @@
 {
   "batch_id": "edff74df-c567-49de-a834-f9f1fc6f7f74",
-  "plan_sha256": "caf265ad518a8165699edb2930a7ad111ce1663799615fbd09a350e52a9b3db8",
+  "plan_sha256": "0310dad240a07da97fdfda71018dc3ae024660beafe1fd33acb1187e80ba5339",
   "models": {
     "model": "iairlab/qwen3.8-27b",
     "embedding_model": "bge-m3:latest",
@@ -364,7 +364,7 @@
       "attributed_construction_seconds": 558.277
     },
     {
-      "run_id": "326a7eb4-7170-46ad-9a19-9ab1b3e5bdba",
+      "run_id": "3eab6c1d-d87e-42d3-8e12-618ca2adf0bc",
       "method": "hipporag2",
       "dataset": "musique",
       "passages": 5500,
@@ -379,9 +379,9 @@
         }
       },
       "corpus_fingerprint": "f726a739ff0def6f7517fe3185780fdc21e5d51a2cfcd83ce3f18fba277c9f9a",
-      "code_commit": "7f0c6eddaf51f810d6985ce27b1dc0412fd606b7",
+      "code_commit": "0d784ed3857ee3c132175cb96fd4a10b72262986",
       "token_limit": 16054041,
-      "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/hipporag2/musique-schema1",
+      "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/hipporag2/musique-schema-preflight1",
       "prior_budget_charge": 3945959,
       "history_runs": [
         {
@@ -682,6 +682,77 @@
             "corrupt_tail_bytes": 0
           },
           "unknown_reserved_upper_bound": 0
+        },
+        {
+          "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/hipporag2/musique-schema1",
+          "manifest_sha256": "3848a37300444d38e8374e7b16a3e8c6d9beed9fa8f920a4ad9c4fc30d4a8a09",
+          "run_id": "326a7eb4-7170-46ad-9a19-9ab1b3e5bdba",
+          "summary": {
+            "schema_version": 1,
+            "phases": [
+              {
+                "phase": "index",
+                "provider": "local_ollama",
+                "attempts": 0,
+                "errors": 0,
+                "unfinished": 0,
+                "cache_hits": 172,
+                "cache_provenance_unknown": 172,
+                "known_subtotal": {
+                  "llm_input_tokens": 0,
+                  "llm_output_tokens": 0,
+                  "embedding_input_tokens": 0
+                },
+                "unknown_fields": {
+                  "llm_input_tokens": 0,
+                  "llm_output_tokens": 0,
+                  "embedding_input_tokens": 0
+                },
+                "complete": true,
+                "total": {
+                  "llm_input_tokens": 0,
+                  "llm_output_tokens": 0,
+                  "embedding_input_tokens": 0
+                }
+              },
+              {
+                "phase": "index",
+                "provider": "target_api",
+                "attempts": 0,
+                "errors": 0,
+                "unfinished": 0,
+                "cache_hits": 2,
+                "cache_provenance_unknown": 2,
+                "known_subtotal": {
+                  "llm_input_tokens": 0,
+                  "llm_output_tokens": 0,
+                  "embedding_input_tokens": 0
+                },
+                "unknown_fields": {
+                  "llm_input_tokens": 0,
+                  "llm_output_tokens": 0,
+                  "embedding_input_tokens": 0
+                },
+                "complete": true,
+                "total": {
+                  "llm_input_tokens": 0,
+                  "llm_output_tokens": 0,
+                  "embedding_input_tokens": 0
+                }
+              }
+            ],
+            "known_subtotal": {
+              "llm_input_tokens": 0,
+              "llm_output_tokens": 0,
+              "embedding_input_tokens": 0
+            },
+            "complete": true,
+            "attempts": 0,
+            "historical_cache_cost_complete": false,
+            "journal_corrupt_tail": false,
+            "corrupt_tail_bytes": 0
+          },
+          "unknown_reserved_upper_bound": 0
         }
       ],
       "resume_sources": [
@@ -706,12 +777,12 @@
         "sha256": "d04856cad7220496e14b68dabc46c571638a2795f0b0cf050eb8026fcf3eeced"
       },
       "status": "failed",
-      "seconds": 26.685,
-      "plan_sha256": "c8f201027a604c0c91575eb31126b28cc373cb69f32ece051325e427002b5958",
+      "seconds": 3270.835,
+      "plan_sha256": "94df49e80c419f725cbfadd5d1f9985d6b678801369dac48a8a475597db5c9d2",
       "error_type": "ValueError",
       "token_accounting": {
         "journal_file": "usage.jsonl",
-        "journal_sha256": "5d86332bfe6e28a136125a72c5e58d92cbc77ba3c17705f5eced0c0a62b9f480",
+        "journal_sha256": "088909c4c3179d54693877bd57cd15cdc1b12999affdddfb843cc4581bf6aa6a",
         "summary": {
           "schema_version": 1,
           "phases": [
@@ -743,14 +814,14 @@
             {
               "phase": "index",
               "provider": "target_api",
-              "attempts": 0,
+              "attempts": 1544,
               "errors": 0,
               "unfinished": 0,
-              "cache_hits": 2,
-              "cache_provenance_unknown": 2,
+              "cache_hits": 1172,
+              "cache_provenance_unknown": 1172,
               "known_subtotal": {
-                "llm_input_tokens": 0,
-                "llm_output_tokens": 0,
+                "llm_input_tokens": 758587,
+                "llm_output_tokens": 256534,
                 "embedding_input_tokens": 0
               },
               "unknown_fields": {
@@ -760,19 +831,19 @@
               },
               "complete": true,
               "total": {
-                "llm_input_tokens": 0,
-                "llm_output_tokens": 0,
+                "llm_input_tokens": 758587,
+                "llm_output_tokens": 256534,
                 "embedding_input_tokens": 0
               }
             }
           ],
           "known_subtotal": {
-            "llm_input_tokens": 0,
-            "llm_output_tokens": 0,
+            "llm_input_tokens": 758587,
+            "llm_output_tokens": 256534,
             "embedding_input_tokens": 0
           },
           "complete": true,
-          "attempts": 0,
+          "attempts": 1544,
           "historical_cache_cost_complete": false,
           "journal_corrupt_tail": false,
           "corrupt_tail_bytes": 0
@@ -825,14 +896,14 @@
             {
               "phase": "index",
               "provider": "target_api",
-              "attempts": 0,
+              "attempts": 772,
               "errors": 0,
               "unfinished": 0,
-              "cache_hits": 1,
-              "cache_provenance_unknown": 1,
+              "cache_hits": 586,
+              "cache_provenance_unknown": 586,
               "known_subtotal": {
-                "llm_input_tokens": 0,
-                "llm_output_tokens": 0,
+                "llm_input_tokens": 229580,
+                "llm_output_tokens": 70422,
                 "embedding_input_tokens": 0
               },
               "unknown_fields": {
@@ -842,19 +913,19 @@
               },
               "complete": true,
               "total": {
-                "llm_input_tokens": 0,
-                "llm_output_tokens": 0,
+                "llm_input_tokens": 229580,
+                "llm_output_tokens": 70422,
                 "embedding_input_tokens": 0
               }
             }
           ],
           "known_subtotal": {
-            "llm_input_tokens": 0,
-            "llm_output_tokens": 0,
+            "llm_input_tokens": 229580,
+            "llm_output_tokens": 70422,
             "embedding_input_tokens": 0
           },
           "complete": true,
-          "attempts": 0,
+          "attempts": 772,
           "historical_cache_cost_complete": false,
           "journal_corrupt_tail": false,
           "corrupt_tail_bytes": 0
@@ -865,14 +936,14 @@
             {
               "phase": "index",
               "provider": "target_api",
-              "attempts": 0,
+              "attempts": 772,
               "errors": 0,
               "unfinished": 0,
-              "cache_hits": 1,
-              "cache_provenance_unknown": 1,
+              "cache_hits": 586,
+              "cache_provenance_unknown": 586,
               "known_subtotal": {
-                "llm_input_tokens": 0,
-                "llm_output_tokens": 0,
+                "llm_input_tokens": 529007,
+                "llm_output_tokens": 186112,
                 "embedding_input_tokens": 0
               },
               "unknown_fields": {
@@ -882,19 +953,19 @@
               },
               "complete": true,
               "total": {
-                "llm_input_tokens": 0,
-                "llm_output_tokens": 0,
+                "llm_input_tokens": 529007,
+                "llm_output_tokens": 186112,
                 "embedding_input_tokens": 0
               }
             }
           ],
           "known_subtotal": {
-            "llm_input_tokens": 0,
-            "llm_output_tokens": 0,
+            "llm_input_tokens": 529007,
+            "llm_output_tokens": 186112,
             "embedding_input_tokens": 0
           },
           "complete": true,
-          "attempts": 0,
+          "attempts": 772,
           "historical_cache_cost_complete": false,
           "journal_corrupt_tail": false,
           "corrupt_tail_bytes": 0
@@ -903,8 +974,14 @@
       "current_unknown_reserved_upper_bound": 0,
       "failure_diagnostic": {
         "operation": "openie_triples",
-        "request_sha256": "6a4ae9c28f226afe4b76e8e091df21a4eed0e0a340ab91d97671633ac40a6741",
-        "usage_status": "unknown"
+        "request_sha256": "9f12b07f0c6623c7c2718c999f3605121fe1e0c8a930af595db09bd1aba24072",
+        "usage_status": "complete",
+        "finish_reason": "length",
+        "repetition": {
+          "complete_tuples": 168,
+          "unique_tuples": 26,
+          "cycle": true
+        }
       },
       "cumulative_accounting": {
         "schema_version": 1,
@@ -915,8 +992,8 @@
             "attempts": 172,
             "errors": 0,
             "unfinished": 0,
-            "cache_hits": 516,
-            "cache_provenance_unknown": 516,
+            "cache_hits": 688,
+            "cache_provenance_unknown": 688,
             "known_subtotal": {
               "llm_input_tokens": 0,
               "llm_output_tokens": 0,
@@ -937,14 +1014,14 @@
           {
             "phase": "index",
             "provider": "target_api",
-            "attempts": 4669,
+            "attempts": 6213,
             "errors": 2,
             "unfinished": 0,
-            "cache_hits": 699,
-            "cache_provenance_unknown": 699,
+            "cache_hits": 1871,
+            "cache_provenance_unknown": 1871,
             "known_subtotal": {
-              "llm_input_tokens": 2298030,
-              "llm_output_tokens": 946768,
+              "llm_input_tokens": 3056617,
+              "llm_output_tokens": 1203302,
               "embedding_input_tokens": 0
             },
             "unknown_fields": {
@@ -957,30 +1034,30 @@
           }
         ],
         "known_subtotal": {
-          "llm_input_tokens": 2298030,
-          "llm_output_tokens": 946768,
+          "llm_input_tokens": 3056617,
+          "llm_output_tokens": 1203302,
           "embedding_input_tokens": 684560
         },
         "complete": false,
-        "attempts": 4841,
+        "attempts": 6385,
         "historical_cache_cost_complete": false,
         "journal_corrupt_tail": false,
         "corrupt_tail_bytes": 0
       },
-      "cumulative_seconds": 10002.685,
-      "artifact_manifest_sha256": "3848a37300444d38e8374e7b16a3e8c6d9beed9fa8f920a4ad9c4fc30d4a8a09",
+      "cumulative_seconds": 13273.52,
+      "artifact_manifest_sha256": "e3bb665491d2c1d7aa912d5bb89218ef5022cfad3190dc5c3ff068dc5ef3571a",
       "cost_semantics": "Physical new cost; replay is not charged twice.",
       "standalone_cost_complete": false,
       "standalone_known_subtotal": {
-        "llm_input_tokens": 2298030,
-        "llm_output_tokens": 946768,
+        "llm_input_tokens": 3056617,
+        "llm_output_tokens": 1203302,
         "embedding_input_tokens": 684560
       },
-      "measured_run_seconds": 26.685,
-      "attributed_construction_seconds": 10002.685
+      "measured_run_seconds": 3270.835,
+      "attributed_construction_seconds": 13273.52
     },
     {
-      "run_id": "730e871a-ea32-46b0-ad3c-6f5eff480a9d",
+      "run_id": "cea6cbe8-b715-4445-9121-95f3ae33d2b8",
       "method": "hipporag2",
       "dataset": "hotpotqa",
       "passages": 5500,
@@ -995,9 +1072,9 @@
         }
       },
       "corpus_fingerprint": "1d6a33346c42cd2feae5cf71eb2c145121a74712eb51a86d95205983a4477634",
-      "code_commit": "7f0c6eddaf51f810d6985ce27b1dc0412fd606b7",
+      "code_commit": "0d784ed3857ee3c132175cb96fd4a10b72262986",
       "token_limit": 20000000,
-      "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/hipporag2/hotpotqa-schema1",
+      "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/hipporag2/hotpotqa-schema-preflight1",
       "resume_kind": "native_schema",
       "history_runs": [],
       "resume_sources": [],
@@ -2125,10 +2202,10 @@
   "combined_token_limit": 56876577,
   "complete": false,
   "limitations": "E1 measures indexing cost/coverage, not retrieval or answer quality. Historical smoke unknowns are preserved outside these new runs.",
-  "physical_known_tokens": 15692272,
+  "physical_known_tokens": 16707393,
   "physical_usage_complete": false,
   "cost_complete": false,
-  "budget_charge_upper_bound": 15747326,
+  "budget_charge_upper_bound": 16762447,
   "budget_reservation_complete": true,
   "original_combined_token_limit": 68000000
 }
