@@ -262,6 +262,28 @@ def hipporag_index(corpus, transport, directory, source):
                 "ner": "valid_nonempty" if n.unique_entities else "valid_empty",
                 "triples": "valid_nonempty" if t.triples else "valid_empty",
             }
+            if transport.row.get("resume_kind") == "mixed_native":
+                repeated = 0
+                longest = 0
+                previous = None
+                raw_values = json.loads(t.response)["triples"]
+                for triple in raw_values:
+                    repeated = repeated + 1 if triple == previous else 1
+                    previous = triple
+                    longest = max(longest, repeated)
+                outcomes[chunk_id].update(
+                    extractor_model=t.metadata["extractor_model"],
+                    triples_request_sha256=t.metadata["triples_request_sha256"],
+                    warning=not n.unique_entities
+                    or not t.triples
+                    or longest >= 12
+                    or (
+                        len(raw_values) >= 12
+                        and len(set(map(tuple, raw_values))) * 4 <= len(raw_values)
+                    ),
+                    raw_triples=len(raw_values),
+                    unique_triples=len(set(map(tuple, raw_values))),
+                )
             dense.write_json_atomic(directory / "openie-validation.json", outcomes)
         return ner, triples
 

@@ -2,29 +2,29 @@
 
 **E1 status:** 4/6 indexes completed; physical known tokens=16720688; cost_complete=False. Last stage=hipporag2 native schema continuation. Raw/indexes remain local. PR Draft; E2 requires all six verified indexes.
 
-## Текущая очередь — 22 октября: изменение протокола подготовлено для согласования
+## Текущая очередь — 22 октября: смешанный extractor подготовлен offline
 
-- E1 прежний4/6; known16720688/upper16775742,cost_complete=false, oldunknown55054.
-  Mu остаток15025625, Hotpot20M. В этом offline-блоке новых model/embeddingPOST0.
-- Оба strict GPT gate failed:10POST/13295known сохранены. Следующего prompt retry нет.
-- Проверены4полных Qwen ответа на тех же известных sources по journal/artifact SHA:
-  source qualifiers/attachment/years тоже теряются; semantic_support старого adoption
-  не был установлен. Evidenceb011725e, это не corpus precision/рейтинг моделей.
-- Выбран один proposal ADR-0023: Qwen primary + GPT-OSS source_faithfulness_v1
-  только при length+cycle,≤1fallback/original request и≤20/dataset. Общий reader/BGE
-  и данные прежние. Mixed cache и отдельная Hippo configuration раскрываются явно.
-- Предложено разделить structural blockers и observed semantic errors с source-only
-  аудитом обеих моделей: все warnings+до8/model/dataset по fixed hash/seed42,
-  calibration5 отдельно. Не править/отбирать triples и не подбирать accuracy threshold.
-- Это не изменение принятого SPEC/старых failed: требуется согласие куратора на
-  протокол и актуальную O/N/R/H карточку, потом offline implementation/проверки
-  routing/replay/audit, exact continuation plan и отдельное разрешение расходов.
-- Предлагаемый max новых LLMPOST Mu4814/Hotpot11020 явно включает≤20fallback
-  сверхprimary, allPOST≤40000/dataset, прежние token allocations не увеличены.
-  Сейчас это не исполняемый план.3102Qwen пары и4готовых индекса не изменены.
-- Точный вопрос куратору и research_submit/status — E1_INDEXING. Внешних сообщений
-  не отправлять без явного разрешения. Архив оператора не пересоздавать.
-- PR33Draft/Refs #13,19files; issue открыта. E2/QA/merge/full не запускать.
+- Пользователь передал согласие куратора: «Куратор не против» для предложения
+  на17e7045. Источник — сообщение пользователя; индивидуальные O/N/R/H статусы
+  бота независимо не проверены. Это принятие протокола, не новых расходов.
+- E1 прежний4/6; known16720688/upper16775742,cost_complete=false,unknown55054.
+  Новых model/embedding POST0.3102Qwen пары и четыре готовых индекса неизменны.
+- В existing run_e1 реализованы Qwen primary/GPT-OSS length+cycle fallback,
+  ≤1/original и≤20/dataset; реальные model/request/response SHA сохраняются.
+  Partial не используется; обе старые strict GPT-пробы остаются failed.
+- Native SDK cache proof:6384совместимых entries, Qwen replay и полный GPT fallback,
+  0physical attempts/0новых tokens. Native synthetic index/save/reload проверен
+  для обычного и mixed пути; это не построение настоящего Hippo graph.
+- Canonical plan: .cache/e1-mixed-plan.json, подготовить на clean HEAD. Mu≤15025625
+  новых combined tokens/4814LLM POST, Hotpot≤20M/11020; allPOST≤40000/dataset.
+  Каждый POST одна попытка, connect30/read300. Старые расходы/unknown сохраняются.
+- После индексации — indexed_pending_audit; source-only аудит всех warnings и
+  до8sources/model/dataset, calibration отдельно. Не менять triples вручную.
+  До завершения Mu audit Hotpot не стартует; semantic_verified=false сохраняется.
+- Следующий шаг: зафиксировать/проверить exact plan SHA и получить отдельный
+  допуск новых расходов по ADR-0022. Не запускать full/QA/E2/merge автоматически.
+- PR33Draft/Refs #13,20files; issue открыта. Архив оператора не пересоздавать.
+  Команды и формат аудита — E1_INDEXING, принятый протокол — ADR-0023/SPEC.
 
 ## История — не текущие инструкции запуска
 

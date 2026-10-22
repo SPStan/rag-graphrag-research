@@ -761,7 +761,9 @@ def verify_plan(plan, row, config):
         or row["output"]
         != f"indexes/e1/{plan['batch_id']}/{row['method']}/{row['dataset']}"
         + (
-            "-schema-preflight1"
+            "-mixed1"
+            if row.get("resume_kind") == "mixed_native"
+            else "-schema-preflight1"
             if row.get("resume_kind") == "native_schema"
             and plan.get("schema_preflight_parent")
             else "-schema1"
@@ -810,6 +812,8 @@ def verify_plan(plan, row, config):
             raise ValueError("cycle_repair_requires_successful_MuSiQue_probe_and_index")
     if row.get("resume_kind") == "native_schema":
         verify_native_schema_plan(plan, row)
+    if row.get("resume_kind") == "mixed_native":
+        verify_mixed_plan(plan, row)
     response = requests.get("http://localhost:11434/api/tags", timeout=10)
     response.raise_for_status()
     actual = next(
@@ -841,6 +845,508 @@ def exclusive(directory):
         path.unlink()
 
 
+MIXED_EXTRACTOR = {
+    "version": "hipporag2_qwen_primary_gptoss_length_fallback_source_v1",
+    "fallback_model": "iairlab/gpt-oss-120b",
+    "fallback_limit": 20,
+    "source_policy": "source_faithfulness_v1",
+    "audit_seed": 42,
+    "audit_per_model": 8,
+    "max_new_posts": 40000,
+    "max_llm_posts": {"musique": 4814, "hotpotqa": 11020},
+}
+
+
+def mixed_payload(primary):
+    payload, _ = gpt_extractor_payload(primary)
+    systems = [m for m in payload["messages"] if m["role"] == "system"]
+    if len(systems) != 1 or "source_faithfulness_v1" in systems[0]["content"]:
+        raise ValueError("mixed_requires_single_original_system")
+    systems[0]["content"] += "\n\n" + SOURCE_FAITHFULNESS_POLICY
+    return gpt_extractor_payload(payload)[0]
+
+
+def mixed_audit_selection(dataset, producers, warnings, calibration):
+    """Source-only audit IDs; no questions, labels, scores or accuracy cutoff."""
+    selected = set(warnings)
+    strata = {}
+    for model in sorted(set(producers.values())):
+        pool = [
+            pid for pid, m in producers.items() if m == model and pid not in calibration
+        ]
+        ranked = sorted(
+            pool,
+            key=lambda pid: hashlib.sha256(
+                f"e1-source-audit-v1|42|{dataset}|{model}|{pid}".encode()
+            ).hexdigest(),
+        )
+        strata[model] = ranked[:8]
+        selected.update(strata[model])
+    if not set(warnings) <= set(producers):
+        raise ValueError("mixed_audit_unknown_warning_source")
+    return {
+        "version": "e1-source-audit-v1",
+        "dataset": dataset,
+        "seed": 42,
+        "strata": strata,
+        "eligible_by_model": {
+            m: sum(
+                model == m and pid not in calibration
+                for pid, model in producers.items()
+            )
+            for m in strata
+        },
+        "warning_ids": sorted(warnings),
+        "selected_ids": sorted(selected),
+        "calibration_ids": sorted(calibration),
+        "accuracy_threshold": None,
+    }
+
+
+def verify_mixed_approval(plan):
+    if plan.get("mixed_extractor") != MIXED_EXTRACTOR:
+        raise ValueError("mixed_policy_changed")
+    pin = plan["mixed_approval"]
+    path = Path(pin["path"])
+    if dense.sha256_file(path) != pin["sha256"]:
+        raise ValueError("mixed_approval_changed")
+    record = dense.read_json(path)
+    if (
+        record.get("protocol") != MIXED_EXTRACTOR
+        or record.get("curator_approval_source") != "reported_by_user"
+        or not record.get("user_statement")
+    ):
+        raise ValueError("mixed_reported_approval_scope_missing")
+
+
+def verify_mixed_adoption(plan):
+    pin = plan["mixed_adoption"]
+    mp, pp = Path(pin["manifest"]), Path(pin["plan"])
+    if (
+        dense.sha256_file(mp) != pin["manifest_sha256"]
+        or dense.sha256_file(pp) != pin["plan_sha256"]
+    ):
+        raise ValueError("mixed_adoption_changed")
+    manifest, prepared = dense.read_json(mp), dense.read_json(pp)
+    review = Path(pin["source_review"])
+    negative = dense.read_json(review)
+    if negative["producer_manifest_sha256"] != dense.sha256_file(mp) or negative[
+        "approved_plan_sha256"
+    ] != dense.sha256_file(pp):
+        raise ValueError("mixed_negative_review_producer_changed")
+    if (
+        pin.get("acceptance") != "structural_with_observed_errors"
+        or dense.sha256_file(review) != pin["source_review_sha256"]
+        or dense.read_json(review)["semantic_status"] != "not_accepted_for_continuation"
+    ):
+        raise ValueError("mixed_structural_adoption_or_negative_review_changed")
+    ref = verified_reference(manifest, mp)
+    if (
+        manifest["approved_plan_sha256"] != dense.sha256_file(pp)
+        or prepared["kind"] != EXTRACTOR_POLICY_PROBE
+        or prepared.get("parent_index_plan_sha256") != plan["parent_plan"]["sha256"]
+        or prepared.get("policy") != SOURCE_FAITHFULNESS_POLICY
+        or prepared.get("policy_version") != MIXED_EXTRACTOR["source_policy"]
+        or ref["status"] != "verified"
+        or not ref["summary"]["complete"]
+    ):
+        raise ValueError("mixed_adoption_producer_not_verified")
+    for name, sha in manifest["artifacts"].items():
+        if dense.sha256_file(mp.parent / name) != sha:
+            raise ValueError("mixed_adoption_artifact_changed")
+    records = read_records(Path(ref["path"]))
+    starts = [r for r in records if r["event"] == "started"]
+    if (
+        len(starts) != 5
+        or {r["object_id"] for r in starts}
+        != {c["request_sha256"] for c in prepared["cases"]}
+        or any(r["model"] != MIXED_EXTRACTOR["fallback_model"] for r in starts)
+    ):
+        raise ValueError("mixed_adoption_attempts_changed")
+    cache = {}
+    for case in prepared["cases"]:
+        payload = case["payload"]
+        key = target.digest(
+            {"payload": payload, "kind": "llm", "operation": "openie_triples"}
+        )
+        response = mp.parent / "requests" / f"{key}.response.json"
+        if (
+            key != case["request_sha256"]
+            or payload["model"] != MIXED_EXTRACTOR["fallback_model"]
+            or payload["max_tokens"] != 3072
+        ):
+            raise ValueError("mixed_adoption_payload_changed")
+        body = dense.read_json(response)
+        if not validate_schema_probe_response(body, allow_literal_duplicates=True):
+            raise ValueError("mixed_adoption_empty")
+        cache[key] = {
+            "path": response,
+            "sha256": dense.sha256_file(response),
+            "run_id": manifest["run_id"],
+            "operation": "openie_triples",
+            "kind": "llm",
+            "provider": "target_api",
+            "model": payload["model"],
+            "producer_complete": True,
+        }
+    return cache
+
+
+def mixed_history(prior, dataset):
+    row = next(
+        r
+        for r in prior["rows"]
+        if (r["method"], r["dataset"]) == ("hipporag2", dataset)
+    )
+    history = copy.deepcopy(row.get("history_runs", []))
+    sources = copy.deepcopy(row.get("resume_sources", []))
+    mp = ROOT / row["output"] / "manifest.json"
+    if dataset == "musique":
+        paths = [
+            mp,
+            mp.parent.parent / "musique-gpt-oss-probe1/manifest.json",
+            mp.parent.parent / "musique-gpt-oss-policy-probe1/manifest.json",
+        ]
+        for path in paths:
+            manifest = dense.read_json(path)
+            ref = verified_reference(manifest, path)
+            if ref["status"] != "verified" or not ref["summary"]["complete"]:
+                raise ValueError("mixed_current_history_unknown_or_corrupt")
+            for name, sha in manifest["artifacts"].items():
+                if dense.sha256_file(path.parent / name) != sha:
+                    raise ValueError("mixed_history_artifact_changed")
+            history.append(
+                {
+                    "output": path.parent.relative_to(ROOT).as_posix(),
+                    "run_id": manifest["run_id"],
+                    "manifest_sha256": dense.sha256_file(path),
+                    "summary": ref["summary"],
+                    "unknown_reserved_upper_bound": 0,
+                }
+            )
+        sources.append(
+            {"output": row["output"], "manifest_sha256": dense.sha256_file(mp)}
+        )
+    if len({h["run_id"] for h in history}) != len(history):
+        raise ValueError("mixed_duplicate_history")
+    for entry in history:
+        path = ROOT / entry["output"] / "manifest.json"
+        if (
+            dense.sha256_file(path) != entry["manifest_sha256"]
+            or verified_reference(dense.read_json(path), path)["summary"]
+            != entry["summary"]
+        ):
+            raise ValueError("mixed_historical_pin_changed")
+    return history, sources
+
+
+def mixed_plan_claim(plan):
+    return {
+        "parent_plan_sha256": plan["parent_plan"]["sha256"],
+        "children": {
+            r["dataset"]: r["run_id"]
+            for r in plan["rows"]
+            if r.get("resume_kind") == "mixed_native"
+        },
+    }
+
+
+def prepare_mixed_continuation(prior_path, approval_path, probe_plan):
+    prior = dense.read_json(prior_path)
+    if prior["workspace"] != str(ROOT.resolve()) or prior.get("mixed_extractor"):
+        raise ValueError("mixed_requires_original_workspace_and_parent")
+    plan = copy.deepcopy(prior)
+    plan.pop("cycle_repair", None)
+    pin = {
+        "path": str(prior_path.resolve()),
+        "sha256": dense.sha256_file(prior_path),
+        "digest": target.digest(prior),
+    }
+    plan["lineage"] = list(
+        {
+            p["sha256"]: p
+            for p in [
+                *prior.get("lineage", []),
+                *([prior["parent_plan"]] if prior.get("parent_plan") else []),
+            ]
+        }.values()
+    )
+    plan["parent_plan"] = pin
+    plan["mixed_extractor"] = MIXED_EXTRACTOR
+    plan["mixed_approval"] = {
+        "path": str(approval_path.resolve()),
+        "sha256": dense.sha256_file(approval_path),
+    }
+    verify_mixed_approval(plan)
+    mu = next(
+        r
+        for r in prior["rows"]
+        if (r["method"], r["dataset"]) == ("hipporag2", "musique")
+    )
+    old = ROOT / mu["output"]
+    plan["mixed_claim_root"] = str((old / "mixed-continuation-claims").resolve())
+    mp = old.parent / "musique-gpt-oss-policy-probe1/manifest.json"
+    review = mp.parent / "source-review.json"
+    plan["mixed_adoption"] = {
+        "manifest": str(mp.resolve()),
+        "manifest_sha256": dense.sha256_file(mp),
+        "plan": str(probe_plan.resolve()),
+        "plan_sha256": dense.sha256_file(probe_plan),
+        "source_review": str(review.resolve()),
+        "source_review_sha256": dense.sha256_file(review),
+        "acceptance": "structural_with_observed_errors",
+    }
+    verify_mixed_adoption(plan)
+    old_probe_plan = dense.read_json(probe_plan)
+    plan["audit_calibration_ids"] = [c["source_id"] for c in old_probe_plan["cases"]]
+    for row in plan["rows"]:
+        if row["method"] != "hipporag2":
+            continue
+        history, sources = mixed_history(prior, row["dataset"])
+        charge = sum(
+            sum(h["summary"]["known_subtotal"].values())
+            + h["unknown_reserved_upper_bound"]
+            for h in history
+        )
+        row.update(
+            run_id=str(uuid.uuid4()),
+            code_commit=git("rev-parse", "HEAD"),
+            resume_kind="mixed_native",
+            output=f"indexes/e1/{plan['batch_id']}/hipporag2/{row['dataset']}-mixed1",
+            history_runs=history,
+            resume_sources=sources,
+            prior_budget_charge=charge,
+            token_limit=LIMITS["hipporag2"] - charge,
+            max_new_posts=40000,
+            max_llm_posts=MIXED_EXTRACTOR["max_llm_posts"][row["dataset"]],
+            diagnostics_in_history=True,
+            extractor_configuration=MIXED_EXTRACTOR,
+        )
+        if row["token_limit"] <= 0 or (ROOT / row["output"]).exists():
+            raise ValueError("mixed_output_or_budget_unavailable")
+    plan["combined_token_limit"] = sum(r["token_limit"] for r in plan["rows"])
+    if (Path(plan["mixed_claim_root"]) / "plan.claim.json").exists():
+        raise ValueError("mixed_continuation_already_claimed")
+    return plan
+
+
+def verify_mixed_plan(plan, row):
+    verify_mixed_approval(plan)
+    parent = dense.read_json(Path(plan["parent_plan"]["path"]))
+    history, sources = mixed_history(parent, row["dataset"])
+    mu = next(
+        r
+        for r in parent["rows"]
+        if (r["method"], r["dataset"]) == ("hipporag2", "musique")
+    )
+    root = (ROOT / mu["output"] / "mixed-continuation-claims").resolve()
+    if Path(plan["mixed_claim_root"]).resolve() != root or dense.read_json(
+        root / "plan.claim.json"
+    ) != mixed_plan_claim(plan):
+        raise ValueError("mixed_canonical_plan_claim_changed")
+    charge = sum(
+        sum(h["summary"]["known_subtotal"].values()) + h["unknown_reserved_upper_bound"]
+        for h in history
+    )
+    if (
+        row["history_runs"] != history
+        or row["resume_sources"] != sources
+        or row["prior_budget_charge"] != charge
+        or row["max_llm_posts"] != MIXED_EXTRACTOR["max_llm_posts"][row["dataset"]]
+        or row["max_new_posts"] != 40000
+    ):
+        raise ValueError("mixed_history_or_request_bounds_changed")
+    verify_mixed_adoption(plan)
+    if row["dataset"] == "hotpotqa":
+        first = next(
+            r
+            for r in plan["rows"]
+            if (r["method"], r["dataset"]) == ("hipporag2", "musique")
+        )
+        first_path = ROOT / first["output"] / "manifest.json"
+        result = dense.read_json(first_path)
+        if result["status"] != "completed":
+            raise ValueError("mixed_hotpot_requires_completed_musique_audit")
+        if (
+            result["plan_sha256"] != target.digest(plan)
+            or verified_reference(result, first_path)["status"] != "verified"
+            or result["validation"]["source_audit"]["status"]
+            != "structurally_verified_with_observed_extraction_errors"
+        ):
+            raise ValueError("mixed_hotpot_musique_audit_not_verified")
+        for name, sha in result["artifacts"].items():
+            if dense.sha256_file(first_path.parent / name) != sha:
+                raise ValueError("mixed_hotpot_musique_artifact_changed")
+
+
+def prepare_mixed_audit(plan, row):
+    directory = ROOT / row["output"]
+    mp = directory / "manifest.json"
+    manifest = dense.read_json(mp)
+    reference = verified_reference(manifest, mp)
+    if (
+        manifest.get("plan_sha256") != target.digest(plan)
+        or not reference["summary"]["complete"]
+        or any(p["errors"] or p["unfinished"] for p in reference["summary"]["phases"])
+        or manifest["status"] != "indexed_pending_audit"
+        or verified_reference(manifest, mp)["status"] != "verified"
+    ):
+        raise ValueError("mixed_audit_requires_finished_index")
+    for name, sha in manifest["artifacts"].items():
+        if dense.sha256_file(directory / name) != sha:
+            raise ValueError("mixed_audit_index_changed")
+    corpus = dense.read_json(
+        Path(plan["data_root"]) / f"data/processed/{row['dataset']}/corpus.json"
+    )
+    if dense.corpus_fingerprint(corpus) != row["corpus_fingerprint"]:
+        raise ValueError("mixed_audit_corpus_changed")
+    source_map = dense.read_json(directory / "source-map.json")
+    outcomes = dense.read_json(directory / "openie-validation.json")
+    routes = dense.read_json(directory / "mixed-routes.json")
+    lookup = {r["actual_request_sha256"]: r for r in routes.values()}
+    if set(source_map) != {p["id"] for p in corpus} or set(source_map.values()) != set(
+        outcomes
+    ):
+        raise ValueError("mixed_audit_source_coverage_changed")
+    producers = {
+        pid: outcomes[chunk]["extractor_model"] for pid, chunk in source_map.items()
+    }
+    warnings = [pid for pid, chunk in source_map.items() if outcomes[chunk]["warning"]]
+    calibration = plan["audit_calibration_ids"] if row["dataset"] == "musique" else []
+    selection = mixed_audit_selection(row["dataset"], producers, warnings, calibration)
+    by_id = {p["id"]: p for p in corpus}
+    cases = []
+    for pid in selection["selected_ids"]:
+        state = outcomes[source_map[pid]]
+        route = lookup[state["triples_request_sha256"]]
+        path = Path(route["response_path"])
+        if (
+            dense.sha256_file(path) != route["response_sha256"]
+            or route["model"] != state["extractor_model"]
+        ):
+            raise ValueError("mixed_audit_response_changed")
+        body = dense.read_json(path)
+        triples = json.loads(body["choices"][0]["message"]["content"])["triples"]
+        doc = by_id[pid]
+        cases.append(
+            {
+                "id": pid,
+                "source_text": f"{doc['title']}\n{doc['text']}",
+                "model": route["model"],
+                "request_sha256": route["actual_request_sha256"],
+                "response_path": str(path),
+                "response_sha256": route["response_sha256"],
+                "triples": triples,
+                "structural_warning": state["warning"],
+            }
+        )
+    snapshot = directory / "index-build-manifest.json"
+    if snapshot.exists():
+        if snapshot.read_bytes() != mp.read_bytes():
+            raise ValueError("mixed_audit_snapshot_changed")
+    else:
+        with snapshot.open("xb") as stream:
+            stream.write(mp.read_bytes())
+    return {
+        **selection,
+        "index_manifest_sha256": dense.sha256_file(snapshot),
+        "journal_sha256": manifest["token_accounting"]["journal_sha256"],
+        "calibration_review_sha256": plan["mixed_adoption"]["source_review_sha256"],
+        "cases": cases,
+        "review_status": "requires_manual_source_review",
+        "new_model_calls": 0,
+    }
+
+
+def finalize_mixed_audit(plan, row, review_path):
+    directory = ROOT / row["output"]
+    with exclusive(directory):
+        mp = directory / "manifest.json"
+        manifest = dense.read_json(mp)
+        audit_path = directory / "source-audit.json"
+        audit = dense.read_json(audit_path)
+        rebuilt = prepare_mixed_audit(plan, row)
+        review = dense.read_json(review_path)
+        if audit != rebuilt or review.get("audit_sha256") != dense.sha256_file(
+            audit_path
+        ):
+            raise ValueError("mixed_audit_or_review_binding_changed")
+        if not review.get("reviewer"):
+            raise ValueError("mixed_audit_reviewer_required")
+        rows = {r["id"]: r for r in review["reviews"]}
+        if len(rows) != len(review["reviews"]) or set(rows) != set(
+            audit["selected_ids"]
+        ):
+            raise ValueError("mixed_audit_all_selected_sources_required")
+        for case in audit["cases"]:
+            r = rows[case["id"]]
+            if (
+                r.get("status") not in ("supported", "observed_error", "needs_review")
+                or r.get("all_triples_reviewed") is not True
+                or not r.get("comment")
+                or not r.get("source_evidence")
+                or r["source_evidence"] not in case["source_text"]
+            ):
+                raise ValueError("mixed_audit_manual_evidence_missing")
+            categories = r.get("categories", [])
+            allowed = {
+                "unsupported_relation",
+                "attachment",
+                "attribution",
+                "negation",
+                "uncertainty",
+                "dates_counts",
+                "omission",
+            }
+            if (
+                not isinstance(categories, list)
+                or any(not isinstance(c, str) or c not in allowed for c in categories)
+                or (r["status"] == "observed_error" and not categories)
+            ):
+                raise ValueError("mixed_audit_error_categories_required")
+            if (
+                case["structural_warning"]
+                and r.get("structural_warning_resolved") is not True
+            ):
+                raise ValueError("mixed_audit_unresolved_structural_warning")
+        copied = directory / "source-audit-review.json"
+        if copied.resolve() != review_path.resolve():
+            with copied.open("xb") as stream:
+                stream.write(review_path.read_bytes())
+        manifest["status"] = "completed"
+        manifest["validation"]["source_audit"] = {
+            "audit_sha256": dense.sha256_file(audit_path),
+            "review_sha256": dense.sha256_file(copied),
+            "selected_sources": len(rows),
+            "declared_reviewer": review["reviewer"],
+            "warning_sources": len(audit["warning_ids"]),
+            "strata_sizes": {m: len(ids) for m, ids in audit["strata"].items()},
+            "eligible_by_model": audit["eligible_by_model"],
+            "observed_error_categories": {
+                c: sum(c in r.get("categories", []) for r in rows.values())
+                for c in sorted(
+                    {c for r in rows.values() for c in r.get("categories", [])}
+                )
+            },
+            "observed_error_sources": sum(
+                r["status"] == "observed_error" for r in rows.values()
+            ),
+            "needs_review_sources": sum(
+                r["status"] == "needs_review" for r in rows.values()
+            ),
+            "calibration_review_sha256": audit["calibration_review_sha256"],
+            "status": "structurally_verified_with_observed_extraction_errors",
+            "semantic_verified": False,
+        }
+        manifest["artifacts"] = {
+            p.relative_to(directory).as_posix(): dense.sha256_file(p)
+            for p in directory.rglob("*")
+            if p.is_file() and p.name not in ("manifest.json", "running.lock")
+        }
+        dense.write_json_atomic(mp, manifest)
+    return manifest
+
+
 class Transport:
     def __init__(self, plan, row, config, directory, journal, session=None):
         self.plan, self.row, self.config = plan, row, config
@@ -854,6 +1360,14 @@ class Transport:
         self.last_embedding_started = 0.0
         self.last_cache_hit = False
         self.parent_cache = {}
+        self.mixed_failures = {}
+        self.blocked_failures = set()
+        self.mixed_routes_path = directory / "mixed-routes.json"
+        self.mixed_routes = (
+            dense.read_json(self.mixed_routes_path)
+            if self.mixed_routes_path.exists()
+            else {}
+        )
         self.replayed_count = 0
         self.require_cache = False
         self.require_repair_key = False
@@ -869,8 +1383,10 @@ class Transport:
             if sources and row["method"] == "raptor"
             else None
         )
-        if row.get("resume_kind") == "native_schema":
+        if row.get("resume_kind") in ("native_schema", "mixed_native"):
             self.schema_adoption_verified = verify_schema_recovery(plan, row)
+            if row.get("resume_kind") == "mixed_native" and row["dataset"] == "musique":
+                self.parent_cache.update(self.schema_adoption_verified[1])
         if row.get("summary_adoption"):
             from scripts import e1_summary_recovery as recovery
 
@@ -899,21 +1415,60 @@ class Transport:
             self.parent_cache, source_failures, source_reference = verified_checkpoints(
                 parent,
                 inherited=self.parent_cache,
-                allow_length=row.get("resume_kind") in ("cycle", "native_schema"),
+                allow_length=row.get("resume_kind")
+                in ("cycle", "native_schema", "mixed_native"),
                 allow_summary_length=row.get("resume_kind") == "summary_native",
                 leaf_producer=leaf_producer,
             )
 
-        if row.get("resume_kind") == "native_schema":
+            if row.get("resume_kind") == "mixed_native":
+                for started, terminal, _ in source_failures:
+                    key = started["object_id"]
+                    self.blocked_failures.add(key)
+                    response = parent.parent / "requests" / f"{key}.response.json"
+                    if (
+                        started["operation"] == "openie_triples"
+                        and terminal["usage_status"] == "complete"
+                        and response.exists()
+                    ):
+                        body = dense.read_json(response)
+                        choice = body.get("choices", [{}])[0]
+                        if (
+                            choice.get("finish_reason") == "length"
+                            and triple_cycle(
+                                choice.get("message", {}).get("content") or ""
+                            )["cycle"]
+                        ):
+                            self.mixed_failures[key] = {
+                                "response_path": str(response),
+                                "response_sha256": dense.sha256_file(response),
+                            }
+
+        if row.get("resume_kind") in ("native_schema", "mixed_native"):
             record, adopted_cache = self.schema_adoption_verified
             if row["dataset"] == "musique":
-                if set(adopted_cache) & set(self.parent_cache):
+                if (
+                    set(adopted_cache) & set(self.parent_cache)
+                    and row.get("resume_kind") != "mixed_native"
+                ):
                     raise ValueError("duplicate_schema_physical_source")
+                if row.get("resume_kind") == "mixed_native" and any(
+                    self.parent_cache[k]["sha256"] != v["sha256"]
+                    or self.parent_cache[k]["run_id"] != v["run_id"]
+                    for k, v in adopted_cache.items()
+                ):
+                    raise ValueError("mixed_schema_producer_changed")
                 self.parent_cache.update(adopted_cache)
             self.schema_aliases = {
                 c["original_request_sha256"]: c["schema_request_sha256"]
                 for c in record["cases"]
             }
+
+        if row.get("resume_kind") == "mixed_native":
+            verify_mixed_approval(plan)
+            adopted = verify_mixed_adoption(plan)
+            if row["dataset"] == "musique":
+                self.parent_cache.update(adopted)
 
         if (
             plan.get("raptor_summary_network_resume")
@@ -1019,7 +1574,7 @@ class Transport:
                 phase="index",
                 operation=operation,
                 provider="target_api" if kind == "llm" else "local_ollama",
-                model=self.plan["model"]
+                model=payload["model"]
                 if kind == "llm"
                 else self.plan["embedding_model"],
                 kind=kind,
@@ -1036,6 +1591,16 @@ class Transport:
             and key != self.row["network_first_request_key"]
         ):
             raise ValueError("summary_network_first_uncached_request_changed")
+        if self.row.get("resume_kind") == "mixed_native":
+            if key in self.blocked_failures:
+                raise ValueError("mixed_prior_failed_request_cannot_repeat")
+            if kind == "llm":
+                attempts = sum(
+                    r["event"] == "started" and r["kind"] == "llm"
+                    for r in read_records(self.journal.path)
+                )
+                if attempts >= self.row["max_llm_posts"]:
+                    raise ValueError("mixed_llm_request_limit")
         # UTF-8 byte upper bound plus framing and output reservation, before HTTP.
         input_bound = len(json.dumps(payload, ensure_ascii=False).encode()) + 2048
         if (
@@ -1067,7 +1632,7 @@ class Transport:
             phase="index",
             operation=operation,
             provider="target_api" if remote else "local_ollama",
-            model=self.plan["model"] if remote else self.plan["embedding_model"],
+            model=payload["model"] if remote else self.plan["embedding_model"],
             kind=kind,
             object_id=key,
             headers={
@@ -1081,7 +1646,8 @@ class Transport:
             timeout=tuple(self.plan["network_policy"]["timeout_seconds"])
             if remote and self.plan.get("raptor_summary_network_resume")
             else (30, 300)
-            if remote and self.row.get("resume_kind") == "native_schema"
+            if remote
+            and self.row.get("resume_kind") in ("native_schema", "mixed_native")
             else (5, 300),
         )
         # Invalid content is not a usable checkpoint, even with known usage.
@@ -1143,6 +1709,12 @@ class Transport:
         return dense.normalize_rows(vectors)
 
     def generate(self, messages, max_tokens, operation, response_format=None):
+        if self.row.get("resume_kind") == "mixed_native" and (
+            operation not in ("openie_ner", "openie_triples")
+            or max_tokens != (1024 if operation == "openie_ner" else 3072)
+            or response_format != {"type": "json_object"}
+        ):
+            raise ValueError("mixed_index_operation_or_cap_changed")
         payload = {
             **target.OPTIONS,
             "model": self.plan["model"],
@@ -1162,6 +1734,11 @@ class Transport:
                     "finish_reason": "stop",
                     "cache_hit": True,
                 }
+        if (
+            operation == "openie_triples"
+            and self.row.get("resume_kind") == "mixed_native"
+        ):
+            return self.generate_mixed(payload)
         if (
             operation == "openie_triples"
             and self.row.get("resume_kind") == "native_schema"
@@ -1219,6 +1796,115 @@ class Transport:
             "finish_reason": body["choices"][0]["finish_reason"],
             "cache_hit": self.last_cache_hit,
         }
+
+    def generate_mixed(self, original):
+        primary = copy.deepcopy(original)
+        original_key = target.digest(
+            {"payload": primary, "kind": "llm", "operation": "openie_triples"}
+        )
+        if original_key not in self.parent_cache:
+            primary, _ = schema_probe_payload(primary, compatible=True)
+        key = target.digest(
+            {"payload": primary, "kind": "llm", "operation": "openie_triples"}
+        )
+        try:
+            if key in self.mixed_failures and key not in self.parent_cache:
+                failure = self.mixed_failures[key]
+                if (
+                    dense.sha256_file(Path(failure["response_path"]))
+                    != failure["response_sha256"]
+                ):
+                    raise ValueError("mixed_primary_failure_changed")
+                body = None
+            else:
+                try:
+                    body = self.call(primary, kind="llm", operation="openie_triples")
+                except ValueError as exc:
+                    if str(exc) != "generation_not_complete":
+                        raise
+                    rp = self.calls / f"{key}.response.json"
+                    failed = dense.read_json(rp)
+                    choice = failed["choices"][0]
+                    if (
+                        choice["finish_reason"] != "length"
+                        or not triple_cycle(choice["message"]["content"])["cycle"]
+                    ):
+                        raise
+                    self.mixed_failures[key] = {
+                        "response_path": str(rp),
+                        "response_sha256": dense.sha256_file(rp),
+                    }
+                    body = None
+            actual, model = key, primary["model"]
+            if body is None:
+                fallback = mixed_payload(primary)
+                actual = target.digest(
+                    {"payload": fallback, "kind": "llm", "operation": "openie_triples"}
+                )
+                model = fallback["model"]
+                claims = Path(self.plan["mixed_claim_root"]) / self.row["dataset"]
+                claims.mkdir(parents=True, exist_ok=True)
+                claim = claims / f"{key}.claim.json"
+                with exclusive(claims):
+                    if claim.exists():
+                        saved = dense.read_json(claim)
+                        if (
+                            saved.get("status") != "complete"
+                            or saved.get("fallback_sha256") != actual
+                            or key not in self.mixed_routes
+                        ):
+                            raise ValueError("mixed_unresolved_fallback_claim")
+                    else:
+                        if len(list(claims.glob("*.claim.json"))) >= 20:
+                            raise ValueError("mixed_fallback_limit")
+                        with claim.open("x", encoding="utf-8") as stream:
+                            json.dump(
+                                {
+                                    "status": "started",
+                                    "primary_sha256": key,
+                                    "fallback_sha256": actual,
+                                },
+                                stream,
+                            )
+                            stream.flush()
+                            os.fsync(stream.fileno())
+                body = self.call(fallback, kind="llm", operation="openie_triples")
+                if not validate_schema_probe_response(
+                    body, allow_literal_duplicates=True
+                ):
+                    raise ValueError("mixed_fallback_empty")
+                dense.write_json_atomic(
+                    claim,
+                    {
+                        "status": "complete",
+                        "primary_sha256": key,
+                        "fallback_sha256": actual,
+                    },
+                )
+            elif primary.get("response_format", {}).get("type") == "json_schema":
+                validate_schema_probe_response(body, allow_literal_duplicates=True)
+            item = self.parent_cache.get(actual)
+            rp = item["path"] if item else self.calls / f"{actual}.response.json"
+            self.mixed_routes[key] = {
+                "primary_request_sha256": key,
+                "actual_request_sha256": actual,
+                "model": model,
+                "response_path": str(rp),
+                "response_sha256": dense.sha256_file(rp),
+                "fallback": model == MIXED_EXTRACTOR["fallback_model"],
+                "primary_failure": self.mixed_failures.get(key),
+            }
+            dense.write_json_atomic(self.mixed_routes_path, self.mixed_routes)
+            return body["choices"][0]["message"]["content"], {
+                **body["usage"],
+                "finish_reason": "stop",
+                "cache_hit": self.last_cache_hit,
+                "extractor_model": model,
+                "triples_request_sha256": actual,
+            }
+        except BaseException:
+            self.schema_failed = True
+            raise
 
     def repair_cycle(self, payload, key, operation):
         if operation != "openie_triples":
@@ -1572,6 +2258,8 @@ def export(plan, plan_path):
                 )
                 if probe_path.exists():
                     probe = dense.read_json(probe_path)
+                    if probe["run_id"] in {h["run_id"] for h in history}:
+                        continue
                     if probe["parent_manifest_sha256"] != dense.sha256_file(manifest):
                         raise ValueError(f"{probe_kind}_probe_parent_manifest_changed")
                     if verified_reference(probe, probe_path)["status"] != "verified":
@@ -1666,6 +2354,22 @@ def export(plan, plan_path):
                         )
         if manifest.exists():
             public["artifact_manifest_sha256"] = dense.sha256_file(manifest)
+        if row.get("resume_kind") == "mixed_native":
+            from scripts.token_accounting import summarize
+
+            model_records = []
+            for h in history:
+                model_records.extend(read_records(ROOT / h["output"] / "usage.jsonl"))
+            if (manifest.parent / "usage.jsonl").exists():
+                model_records.extend(read_records(manifest.parent / "usage.jsonl"))
+            models = sorted({r["model"] for r in model_records if r["kind"] == "llm"})
+            public["llm_by_model"] = {
+                m: summarize(
+                    [r for r in model_records if r["kind"] == "llm" and r["model"] == m]
+                )
+                for m in models
+            }
+            public["extractor_configuration"] = MIXED_EXTRACTOR
         exported_row = {**row, **public}
         if "cycle_repair_request_key" in exported_row:
             exported_row["cycle_repair_request_sha256"] = exported_row.pop(
@@ -1691,6 +2395,11 @@ def export(plan, plan_path):
         "complete": all(r["status"] == "completed" for r in rows),
         "limitations": "E1 measures indexing cost/coverage, not retrieval or answer quality. Historical smoke unknowns are preserved outside these new runs.",
     }
+    if plan.get("mixed_extractor"):
+        report["mixed_extractor"] = MIXED_EXTRACTOR
+        report["protocol_approval_source"] = (
+            "reported_by_user; individual bot status not independently checked"
+        )
     report["physical_known_tokens"] = sum(
         sum(row_usage(r).get("known_subtotal", {}).values()) for r in rows
     )
@@ -3534,7 +4243,7 @@ def execute(plan, row, config, source=None):
             for name, sha in manifest.get("artifacts", {}).items():
                 if dense.sha256_file(directory / name) != sha:
                     raise ValueError("saved_E1_artifact_changed")
-        if manifest["status"] in ("failed", "completed"):
+        if manifest["status"] in ("failed", "completed", "indexed_pending_audit"):
             raise ValueError("terminal_run_cannot_repeat")
         journal_path = directory / "usage.jsonl"
         resume = journal_path.exists() and bool(journal_path.stat().st_size)
@@ -3564,7 +4273,12 @@ def execute(plan, row, config, source=None):
                     hipporag_index if row["method"] == "hipporag2" else raptor_index
                 )
                 validation = builder(corpus, transport, directory, source)
-            manifest.update(status="completed", validation=validation)
+            manifest.update(
+                status="indexed_pending_audit"
+                if row.get("resume_kind") == "mixed_native"
+                else "completed",
+                validation=validation,
+            )
         except BaseException as exc:
             manifest.update(status="failed", error_type=type(exc).__name__)
             raise
@@ -3598,6 +4312,9 @@ def main():
         "command",
         choices=(
             "prepare",
+            "prepare-mixed",
+            "prepare-mixed-audit",
+            "finalize-mixed-audit",
             "continue",
             "network-resume",
             "cycle-resume",
@@ -3640,9 +4357,77 @@ def main():
     parser.add_argument("--network-audit", type=Path)
     parser.add_argument("--native-gguf", type=Path)
     parser.add_argument("--native-library-dir", type=Path)
+    parser.add_argument("--protocol-approval", type=Path)
+    parser.add_argument("--approved-plan-sha256")
+    parser.add_argument("--audit-review", type=Path)
     args = parser.parse_args()
     config = dotenv_values(args.env_file) if args.env_file else {}
-    if args.command == "prepare":
+    if args.command == "prepare-mixed":
+        if (
+            args.plan.resolve() != (ROOT / ".cache/e1-mixed-plan.json").resolve()
+            or args.plan.exists()
+            or code_dirty()
+        ):
+            raise ValueError("mixed_requires_unused_canonical_plan_and_clean_code")
+        plan = prepare_mixed_continuation(
+            args.prior_plan, args.protocol_approval, args.probe_plan
+        )
+        root = Path(plan["mixed_claim_root"])
+        root.mkdir(parents=True, exist_ok=True)
+        with (root / "plan.claim.json").open("x", encoding="utf-8") as stream:
+            json.dump(mixed_plan_claim(plan), stream)
+            stream.flush()
+            os.fsync(stream.fileno())
+        with args.plan.open("x", encoding="utf-8") as stream:
+            json.dump(plan, stream, ensure_ascii=False, indent=2)
+        print(
+            json.dumps(
+                {
+                    "status": "prepared_requires_execution_approval",
+                    "http_calls": 0,
+                    "plan_sha256": dense.sha256_file(args.plan),
+                    "rows": [
+                        {k: r[k] for k in ("dataset", "token_limit", "max_llm_posts")}
+                        for r in plan["rows"]
+                        if r.get("resume_kind") == "mixed_native"
+                    ],
+                }
+            )
+        )
+        return
+    elif args.command in ("prepare-mixed-audit", "finalize-mixed-audit"):
+        plan = dense.read_json(args.plan)
+        verify_mixed_approval(plan)
+        row = next(
+            r
+            for r in plan["rows"]
+            if (r["method"], r["dataset"]) == ("hipporag2", args.dataset)
+        )
+        if args.command == "prepare-mixed-audit":
+            audit = prepare_mixed_audit(plan, row)
+            with (ROOT / row["output"] / "source-audit.json").open(
+                "x", encoding="utf-8"
+            ) as stream:
+                json.dump(audit, stream, ensure_ascii=False, indent=2)
+            print(
+                json.dumps(
+                    {"selected_sources": len(audit["cases"]), "new_model_calls": 0}
+                )
+            )
+        else:
+            finalize_mixed_audit(plan, row, args.audit_review)
+            export(plan, args.plan)
+            print(
+                json.dumps(
+                    {
+                        "status": "completed_structural_and_audit",
+                        "semantic_verified": False,
+                        "new_model_calls": 0,
+                    }
+                )
+            )
+        return
+    elif args.command == "prepare":
         canonical = args.data_root.resolve() / "indexes/e1/issue13-plan.json"
         if args.plan.resolve() != canonical:
             raise ValueError("prepare_requires_canonical_data_root_plan")
@@ -3925,6 +4710,10 @@ def main():
                     if dense.sha256_file(path.parent / name) != sha:
                         raise ValueError("index_artifact_changed")
         if args.command == "run":
+            if plan.get(
+                "mixed_extractor"
+            ) and args.approved_plan_sha256 != dense.sha256_file(args.plan):
+                raise ValueError("mixed_requires_approved_plan_sha256")
             row = next(
                 r
                 for r in plan["rows"]

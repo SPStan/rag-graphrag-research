@@ -1772,7 +1772,110 @@ def test_policy_followup_canonical_claim_and_cumulative_cost(
             a["budget_charge_upper_bound"]
             == expected + prepared["cases"][0]["reserved_tokens_upper_bound"]
         )
+    future = copy.deepcopy(dense.read_json(prior))
+    future["mixed_extractor"] = e1.MIXED_EXTRACTOR
+    future_row = future["rows"][0]
+    future_row.update(
+        output="future-pending",
+        run_id="future",
+        resume_kind="mixed_native",
+        history_runs=[],
+    )
+    for ancestor in [tmp_path / "stopped", parent, output]:
+        previous = dense.read_json(ancestor / "manifest.json")
+        future_row["history_runs"].append(
+            {
+                "output": ancestor.relative_to(tmp_path).as_posix(),
+                "run_id": previous["run_id"],
+                "manifest_sha256": dense.sha256_file(ancestor / "manifest.json"),
+                "summary": previous["token_accounting"]["summary"],
+                "unknown_reserved_upper_bound": previous.get(
+                    "unknown_reserved_upper_bound", 0
+                ),
+            }
+        )
+    fp = tmp_path / "future.json"
+    dense.write_json_atomic(fp, future)
+    future_report = e1.export(future, fp)
+    assert future_report["physical_known_tokens"] == expected
+    assert future_report["budget_charge_upper_bound"] == a["budget_charge_upper_bound"]
     # Even losing/moving the new output cannot permit another follow-up of this producer.
     output.rename(tmp_path / "archived-new-output")
     with pytest.raises(ValueError, match="already_claimed"):
         e1.prepare_extractor_policy_probe(pp, parent, prior)
+
+
+def test_mixed_adoption_has_separate_negative_review_and_exact_policy(
+    rejected_extractor_probe, tmp_path, monkeypatch
+):
+    from unittest.mock import Mock
+
+    pp, parent = rejected_extractor_probe
+    prior = tmp_path / "index-plan.json"
+    monkeypatch.setattr(e1, "ROOT", tmp_path)
+    monkeypatch.setattr(e1, "git", lambda *a: "head")
+    monkeypatch.setattr(e1, "code_dirty", lambda: False)
+    prepared = e1.prepare_extractor_policy_probe(pp, parent, prior)
+    proposal = tmp_path / "source-policy.json"
+    dense.write_json_atomic(proposal, prepared)
+    body = {
+        "choices": [
+            {
+                "finish_reason": "stop",
+                "message": {"content": '{"triples":[["A","in","B"]]}'},
+            }
+        ],
+        "usage": {"prompt_tokens": 10, "completion_tokens": 8},
+    }
+    response = Mock(status_code=200)
+    response.json.return_value = body
+    session = requests.Session()
+    session.post = Mock(return_value=response)
+    monkeypatch.setattr(e1.requests, "Session", lambda: session)
+    output = e1.execute_schema_probe(
+        proposal,
+        prior,
+        tmp_path,
+        {
+            "TARGET_API_MODEL": "qwen",
+            "TARGET_API_BASE_URL": "https://example.invalid/v1",
+            "LITELLM_API_KEY": "fake",
+        },
+        dense.sha256_file(proposal),
+        compatible=True,
+    )
+    manifest = output / "manifest.json"
+    review = output / "source-review.json"
+    dense.write_json_atomic(
+        review,
+        {
+            "producer_manifest_sha256": dense.sha256_file(manifest),
+            "approved_plan_sha256": dense.sha256_file(proposal),
+            "semantic_status": "not_accepted_for_continuation",
+        },
+    )
+    pin = {
+        "manifest": str(manifest),
+        "manifest_sha256": dense.sha256_file(manifest),
+        "plan": str(proposal),
+        "plan_sha256": dense.sha256_file(proposal),
+        "source_review": str(review),
+        "source_review_sha256": dense.sha256_file(review),
+        "acceptance": "structural_with_observed_errors",
+    }
+    mixed = {
+        "mixed_adoption": pin,
+        "parent_plan": {"sha256": prepared["parent_index_plan_sha256"]},
+    }
+    cache = e1.verify_mixed_adoption(mixed)
+    assert len(cache) == 5 and all(
+        c["model"] == "iairlab/gpt-oss-120b" for c in cache.values()
+    )
+    old = manifest.read_bytes()
+    bad = dense.read_json(review)
+    bad["producer_manifest_sha256"] = "foreign"
+    dense.write_json_atomic(review, bad)
+    pin["source_review_sha256"] = dense.sha256_file(review)
+    with pytest.raises(ValueError, match="negative_review_producer_changed"):
+        e1.verify_mixed_adoption(mixed)
+    assert manifest.read_bytes() == old

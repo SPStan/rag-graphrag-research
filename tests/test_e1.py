@@ -761,10 +761,15 @@ def test_parent_plan_path_from_json_and_preflight_binding(tmp_path):
     not os.environ.get("E1_HIPPO_SOURCE"),
     reason="isolated pinned HippoRAG SDK required",
 )
-def test_real_hipporag_sdk_index_and_reload_without_http(tmp_path):
+@pytest.mark.parametrize("mixed", [False, True])
+def test_real_hipporag_sdk_index_and_reload_without_http(tmp_path, mixed):
     class Fake:
         plan = {"endpoint": "https://example.invalid", "model": "qwen"}
-        row = {"dataset": "musique", "cycle_probe_source_id": "a"}
+        row = {
+            "dataset": "musique",
+            "cycle_probe_source_id": "a",
+            **({"resume_kind": "mixed_native"} if mixed else {}),
+        }
         journal = Journal(
             tmp_path / "usage.jsonl",
             run_id="fake",
@@ -787,6 +792,8 @@ def test_real_hipporag_sdk_index_and_reload_without_http(tmp_path):
                 "prompt_tokens": 10,
                 "completion_tokens": 5,
                 "finish_reason": "stop",
+                "extractor_model": "iairlab/gpt-oss-120b" if mixed else "qwen",
+                "triples_request_sha256": e1.target.digest(messages),
             }
 
     corpus = [
@@ -803,6 +810,12 @@ def test_real_hipporag_sdk_index_and_reload_without_http(tmp_path):
     assert result["graph_nodes"] >= 2
     assert result["reload_model_calls"] == 0
     assert dense.read_json(tmp_path / "cycle-probe.json")["status"] == "passed"
+    if mixed:
+        outcomes = dense.read_json(tmp_path / "openie-validation.json")
+        assert all(
+            r["extractor_model"] == "iairlab/gpt-oss-120b" and r["raw_triples"] == 1
+            for r in outcomes.values()
+        )
 
 
 @pytest.mark.skipif(
@@ -991,3 +1004,544 @@ def test_offline_ready_dense_integrity_and_no_embedding_fallback(tmp_path):
         (directory / "vectors.npz").write_bytes(b"changed")
         with pytest.raises(ValueError, match="artifact_changed"):
             e1_indexers.load_ready_e1(plan, row, corpus, tmp_path)
+
+
+@pytest.fixture
+def mixed_transport_factory(tmp_path, monkeypatch):
+    monkeypatch.setattr(e1, "verify_schema_recovery", lambda *a: ({"cases": []}, {}))
+    monkeypatch.setattr(e1, "verify_mixed_approval", lambda *a: None)
+    monkeypatch.setattr(e1, "verify_mixed_adoption", lambda *a: {})
+
+    def make(out="run"):
+        directory = tmp_path / out
+        directory.mkdir()
+        journal = Journal(
+            directory / "usage.jsonl", run_id=out, method="hipporag2", dataset="musique"
+        )
+        plan = {
+            "model": "qwen",
+            "embedding_model": "bge",
+            "endpoint": "https://example.invalid/v1",
+            "mixed_extractor": e1.MIXED_EXTRACTOR,
+            "mixed_claim_root": str(tmp_path / "canonical"),
+        }
+        row = {
+            "method": "hipporag2",
+            "dataset": "musique",
+            "resume_kind": "mixed_native",
+            "token_limit": 100000,
+            "max_new_posts": 40000,
+            "max_llm_posts": 4814,
+        }
+        session = requests.Session()
+        runner = e1.Transport(
+            plan, row, {"LITELLM_API_KEY": "fake"}, directory, journal, session
+        )
+        return runner, session
+
+    return make
+
+
+def mixed_messages():
+    return [
+        {"role": "system", "content": "Extract triples."},
+        {"role": "user", "content": "A is in B."},
+    ]
+
+
+def mixed_body(finish="stop", unknown=False):
+    content = (
+        '{"triples":[["A","in","B"]]}'
+        if finish == "stop"
+        else '{"triples":' + json.dumps([["A", "in", "B"]] * 15)[:-1]
+    )
+    return {
+        "choices": [{"finish_reason": finish, "message": {"content": content}}],
+        "usage": {"prompt_tokens": 10, **({} if unknown else {"completion_tokens": 8})},
+    }
+
+
+@pytest.mark.parametrize(
+    "failure,posts",
+    [
+        ("none", 2),
+        ("primary_unknown", 1),
+        ("primary_http", 1),
+        ("ordinary_length", 1),
+        ("fallback_unknown", 2),
+        ("fallback_length", 2),
+    ],
+)
+def test_mixed_bounded_routing_and_model_usage(mixed_transport_factory, failure, posts):
+    runner, session = mixed_transport_factory()
+    first = mixed_body("length", failure == "primary_unknown")
+    if failure == "ordinary_length":
+        first["choices"][0]["message"]["content"] = '{"triples":['
+    second = mixed_body(
+        "length" if failure == "fallback_length" else "stop",
+        failure == "fallback_unknown",
+    )
+    replies = []
+    for body in [first, second]:
+        reply = Mock(status_code=200)
+        reply.json.return_value = body
+        replies.append(reply)
+    if failure == "primary_http":
+        replies[0].status_code = 400
+        replies[0].raise_for_status.side_effect = requests.HTTPError("synthetic")
+    session.post = Mock(side_effect=replies)
+    if failure == "none":
+        _, metadata = runner.generate(
+            mixed_messages(), 3072, "openie_triples", {"type": "json_object"}
+        )
+        assert metadata["extractor_model"] == "iairlab/gpt-oss-120b"
+        assert runner.journal.summary()["known_subtotal"]["llm_input_tokens"] == 20
+    else:
+        with pytest.raises((ValueError, requests.HTTPError)):
+            runner.generate(
+                mixed_messages(), 3072, "openie_triples", {"type": "json_object"}
+            )
+        with pytest.raises(ValueError):
+            runner.generate(
+                mixed_messages(), 3072, "openie_triples", {"type": "json_object"}
+            )
+    assert session.post.call_count == posts
+    if posts == 2:
+        payload = session.post.call_args_list[1].kwargs["json"]
+        assert (
+            payload["model"] == "iairlab/gpt-oss-120b"
+            and payload["reasoning_effort"] == "low"
+        )
+        assert "chat_template_kwargs" not in payload and payload["max_tokens"] == 3072
+        assert all(
+            call.kwargs["allow_redirects"] is False
+            and call.kwargs["timeout"] == (30, 300)
+            for call in session.post.call_args_list
+        )
+        starts = [
+            r for r in e1.read_records(runner.journal.path) if r["event"] == "started"
+        ]
+        assert [r["model"] for r in starts] == ["qwen", "iairlab/gpt-oss-120b"]
+
+
+def test_mixed_known_failure_reuses_gpt_without_repaying_and_claims_across_outputs(
+    mixed_transport_factory, tmp_path
+):
+    runner, session = mixed_transport_factory()
+    original = {
+        **e1.target.OPTIONS,
+        "model": "qwen",
+        "messages": mixed_messages(),
+        "max_tokens": 3072,
+        "response_format": {"type": "json_object"},
+    }
+    primary, _ = e1.schema_probe_payload(original, compatible=True)
+    pk = e1.target.digest(
+        {"payload": primary, "kind": "llm", "operation": "openie_triples"}
+    )
+    bad = tmp_path / "old-length.json"
+    dense.write_json_atomic(bad, mixed_body("length"))
+    runner.mixed_failures[pk] = {
+        "response_path": str(bad),
+        "response_sha256": dense.sha256_file(bad),
+    }
+    fallback = e1.mixed_payload(primary)
+    fk = e1.target.digest(
+        {"payload": fallback, "kind": "llm", "operation": "openie_triples"}
+    )
+    good = tmp_path / "old-gpt.json"
+    dense.write_json_atomic(good, mixed_body())
+    item = {
+        "path": good,
+        "sha256": dense.sha256_file(good),
+        "run_id": "producer",
+        "producer_complete": True,
+        "kind": "llm",
+        "operation": "openie_triples",
+        "provider": "target_api",
+        "model": "iairlab/gpt-oss-120b",
+    }
+    runner.parent_cache[fk] = item
+    session.post = Mock(side_effect=AssertionError("HTTP forbidden"))
+    for _ in range(2):
+        runner.generate(
+            mixed_messages(), 3072, "openie_triples", {"type": "json_object"}
+        )
+    assert (
+        runner.journal.summary()["attempts"] == 0
+        and runner.journal.summary()["known_subtotal"]["llm_input_tokens"] == 0
+    )
+    assert runner.last_cache_hit and session.post.call_count == 0
+    other, other_session = mixed_transport_factory("another-output")
+    other.mixed_failures = runner.mixed_failures.copy()
+    other.parent_cache[fk] = item
+    other_session.post = Mock(side_effect=AssertionError("HTTP forbidden"))
+    with pytest.raises(ValueError, match="unresolved_fallback_claim"):
+        other.generate(
+            mixed_messages(), 3072, "openie_triples", {"type": "json_object"}
+        )
+    assert other_session.post.call_count == 0
+
+
+def test_mixed_primary_full_cache_has_priority(mixed_transport_factory, tmp_path):
+    runner, session = mixed_transport_factory()
+    payload = {
+        **e1.target.OPTIONS,
+        "model": "qwen",
+        "messages": mixed_messages(),
+        "max_tokens": 3072,
+        "response_format": {"type": "json_object"},
+    }
+    key = e1.target.digest(
+        {"payload": payload, "kind": "llm", "operation": "openie_triples"}
+    )
+    response = tmp_path / "full-primary.json"
+    dense.write_json_atomic(response, mixed_body())
+    runner.parent_cache[key] = {
+        "path": response,
+        "sha256": dense.sha256_file(response),
+        "run_id": "qwen-producer",
+        "producer_complete": False,
+        "kind": "llm",
+        "operation": "openie_triples",
+        "provider": "target_api",
+        "model": "qwen",
+    }
+    runner.mixed_failures[key] = {
+        "response_path": "must not be read",
+        "response_sha256": "bad",
+    }
+    session.post = Mock(side_effect=AssertionError("HTTP forbidden"))
+    _, metadata = runner.generate(
+        mixed_messages(), 3072, "openie_triples", {"type": "json_object"}
+    )
+    assert (
+        metadata["extractor_model"] == "qwen"
+        and runner.journal.summary()["attempts"] == 0
+    )
+    assert not runner.journal.summary()["historical_cache_cost_complete"]
+
+
+def test_mixed_twenty_slots_and_deterministic_audit(mixed_transport_factory, tmp_path):
+    runner, session = mixed_transport_factory()
+    primary, _ = e1.schema_probe_payload(
+        {
+            **e1.target.OPTIONS,
+            "model": "qwen",
+            "messages": mixed_messages(),
+            "max_tokens": 3072,
+            "response_format": {"type": "json_object"},
+        },
+        compatible=True,
+    )
+    key = e1.target.digest(
+        {"payload": primary, "kind": "llm", "operation": "openie_triples"}
+    )
+    bad = tmp_path / "bad.json"
+    dense.write_json_atomic(bad, mixed_body("length"))
+    runner.mixed_failures[key] = {
+        "response_path": str(bad),
+        "response_sha256": dense.sha256_file(bad),
+    }
+    claims = Path(runner.plan["mixed_claim_root"]) / "musique"
+    claims.mkdir(parents=True)
+    for i in range(20):
+        (claims / f"{i}.claim.json").write_text("{}", encoding="utf-8")
+    session.post = Mock(side_effect=AssertionError("HTTP forbidden"))
+    with pytest.raises(ValueError, match="fallback_limit"):
+        runner.generate(
+            mixed_messages(), 3072, "openie_triples", {"type": "json_object"}
+        )
+    producers = {str(i): "qwen" if i % 2 else "gpt" for i in range(50)}
+    a = e1.mixed_audit_selection("musique", producers, ["0"], ["1"])
+    b = e1.mixed_audit_selection(
+        "musique", dict(reversed(list(producers.items()))), ["0"], ["1"]
+    )
+    assert a == b and all(len(v) == 8 for v in a["strata"].values())
+    assert (
+        "0" in a["selected_ids"]
+        and "1" not in a["selected_ids"]
+        and a["accuracy_threshold"] is None
+    )
+
+
+@pytest.fixture
+def synthetic_mixed_audit(tmp_path, monkeypatch):
+    monkeypatch.setattr(e1, "ROOT", tmp_path)
+    directory = tmp_path / "mixed"
+    directory.mkdir()
+    corpus = [
+        {"id": str(i), "title": "Synthetic", "text": f"{i} is in B."} for i in range(20)
+    ]
+    processed = tmp_path / "data/processed/musique"
+    processed.mkdir(parents=True)
+    dense.write_json_atomic(processed / "corpus.json", corpus)
+    source_map = {p["id"]: "chunk-" + p["id"] for p in corpus}
+    routes = {}
+    outcomes = {}
+    for i, doc in enumerate(corpus):
+        model = "qwen" if i % 2 else "iairlab/gpt-oss-120b"
+        response = directory / f"response-{i}.json"
+        dense.write_json_atomic(
+            response,
+            {
+                "choices": [
+                    {
+                        "finish_reason": "stop",
+                        "message": {
+                            "content": json.dumps({"triples": [[str(i), "in", "B"]]})
+                        },
+                    }
+                ],
+                "usage": {"prompt_tokens": 1, "completion_tokens": 1},
+            },
+        )
+        key = f"request-{i}"
+        routes[key] = {
+            "actual_request_sha256": key,
+            "response_path": str(response),
+            "response_sha256": dense.sha256_file(response),
+            "model": model,
+        }
+        outcomes["chunk-" + str(i)] = {
+            "extractor_model": model,
+            "triples_request_sha256": key,
+            "warning": i == 0,
+        }
+    dense.write_json_atomic(directory / "source-map.json", source_map)
+    dense.write_json_atomic(directory / "mixed-routes.json", routes)
+    dense.write_json_atomic(directory / "openie-validation.json", outcomes)
+    journal = Journal(
+        directory / "usage.jsonl",
+        run_id="synthetic",
+        method="hipporag2",
+        dataset="musique",
+    )
+    journal.cache_hit(
+        phase="index",
+        operation="openie_triples",
+        provider="target_api",
+        model="qwen",
+        kind="llm",
+        object_id="request-1",
+        producer_run_id="known",
+        producer_usage_complete=False,
+    )
+    plan = {
+        "data_root": str(tmp_path),
+        "audit_calibration_ids": ["1"],
+        "mixed_adoption": {"source_review_sha256": "old-negative-calibration-review"},
+    }
+    row = {
+        "output": "mixed",
+        "dataset": "musique",
+        "corpus_fingerprint": dense.corpus_fingerprint(corpus),
+    }
+    dense.write_json_atomic(
+        directory / "manifest.json",
+        {
+            "run_id": "synthetic",
+            "status": "indexed_pending_audit",
+            "seconds": 1,
+            "plan_sha256": e1.target.digest(plan),
+            "validation": {"passages": 20},
+            "token_accounting": journal.reference(),
+            "artifacts": {
+                p.name: dense.sha256_file(p) for p in directory.iterdir() if p.is_file()
+            },
+        },
+    )
+    return plan, row, directory
+
+
+@pytest.mark.parametrize(
+    "change", ["none", "missing", "warning", "sha", "evidence", "response", "category"]
+)
+def test_mixed_audit_required_before_completion(
+    synthetic_mixed_audit, tmp_path, change
+):
+    plan, row, directory = synthetic_mixed_audit
+    old = (directory / "manifest.json").read_bytes()
+    with patch(
+        "requests.sessions.Session.request",
+        side_effect=AssertionError("HTTP forbidden"),
+    ):
+        audit = e1.prepare_mixed_audit(plan, row)
+        assert "0" in audit["selected_ids"] and "1" not in audit["selected_ids"]
+        ap = directory / "source-audit.json"
+        dense.write_json_atomic(ap, audit)
+        reviews = [
+            {
+                "id": c["id"],
+                "status": "observed_error" if c["id"] == "0" else "supported",
+                "all_triples_reviewed": True,
+                "comment": "Synthetic source manually checked; errors retained.",
+                "categories": ["attachment"] if c["id"] == "0" else [],
+                "source_evidence": "is in B.",
+                "structural_warning_resolved": True,
+            }
+            for c in audit["cases"]
+        ]
+        review = {
+            "audit_sha256": dense.sha256_file(ap),
+            "reviewer": "assistant_synthetic_fixture",
+            "reviews": reviews,
+        }
+        if change == "missing":
+            reviews.pop()
+        if change == "warning":
+            next(r for r in reviews if r["id"] == "0")[
+                "structural_warning_resolved"
+            ] = False
+        if change == "sha":
+            review["audit_sha256"] = "wrong"
+        if change == "evidence":
+            reviews[0]["source_evidence"] = "not in source"
+        if change == "category":
+            next(r for r in reviews if r["id"] == "0")["categories"] = []
+        if change == "response":
+            (directory / "response-0.json").write_text("{}", encoding="utf-8")
+        rp = tmp_path / "review.json"
+        dense.write_json_atomic(rp, review)
+        if change == "none":
+            final = e1.finalize_mixed_audit(plan, row, rp)
+            assert final["status"] == "completed"
+            assert final["validation"]["source_audit"]["observed_error_sources"] == 1
+            assert final["validation"]["source_audit"]["semantic_verified"] is False
+            assert (directory / "index-build-manifest.json").read_bytes() == old
+            assert not final["token_accounting"]["summary"][
+                "historical_cache_cost_complete"
+            ]
+        else:
+            with pytest.raises(ValueError):
+                e1.finalize_mixed_audit(plan, row, rp)
+            assert (directory / "manifest.json").read_bytes() == old
+
+
+def test_mixed_invalid_operation_rejected_before_post(mixed_transport_factory):
+    runner, session = mixed_transport_factory()
+    session.post = Mock(side_effect=AssertionError("HTTP forbidden"))
+    for op, cap in [("reader", 1024), ("openie_triples", 4096), ("openie_ner", 512)]:
+        with pytest.raises(ValueError, match="operation_or_cap_changed"):
+            runner.generate(mixed_messages(), cap, op, {"type": "json_object"})
+    assert session.post.call_count == 0
+
+
+def test_mixed_plan_claim_bounds_and_hotpot_gate_before_any_http(tmp_path, monkeypatch):
+    monkeypatch.setattr(e1, "ROOT", tmp_path)
+    monkeypatch.setattr(e1, "git", lambda *a: "head")
+    monkeypatch.setattr(e1, "code_dirty", lambda: False)
+    monkeypatch.setattr(e1, "verify_mixed_approval", lambda *a: None)
+    monkeypatch.setattr(e1, "verify_mixed_adoption", lambda *a: {})
+    monkeypatch.setattr(e1, "mixed_history", lambda *a: ([], []))
+    parent = {
+        "rows": [{"method": "hipporag2", "dataset": "musique", "output": "old-mu"}]
+    }
+    pp = tmp_path / "parent.json"
+    dense.write_json_atomic(pp, parent)
+    rows = [
+        {
+            "method": m,
+            "dataset": d,
+            "run_id": m + d,
+            "code_commit": "head",
+            "token_limit": e1.LIMITS[m],
+            "output": f"indexes/e1/batch/{m}/{d}-mixed1"
+            if m == "hipporag2"
+            else f"ready/{m}/{d}",
+            **(
+                {
+                    "resume_kind": "mixed_native",
+                    "history_runs": [],
+                    "resume_sources": [],
+                    "prior_budget_charge": 0,
+                    "max_new_posts": 40000,
+                    "max_llm_posts": e1.MIXED_EXTRACTOR["max_llm_posts"][d],
+                }
+                if m == "hipporag2"
+                else {}
+            ),
+        }
+        for m in e1.METHODS
+        for d in e1.DATASETS
+    ]
+    root = tmp_path / "old-mu/mixed-continuation-claims"
+    root.mkdir(parents=True)
+    plan = {
+        "kind": "E1_full_corpus_indexing",
+        "parameters": e1.PARAMETERS,
+        "workspace": str(tmp_path),
+        "batch_id": "batch",
+        "parent_plan": {"path": str(pp), "sha256": dense.sha256_file(pp)},
+        "rows": rows,
+        "combined_token_limit": sum(r["token_limit"] for r in rows),
+        "mixed_claim_root": str(root),
+        "model": "qwen",
+        "endpoint": "https://example.invalid/v1",
+    }
+    dense.write_json_atomic(root / "plan.claim.json", e1.mixed_plan_claim(plan))
+    mu = next(
+        r for r in rows if (r["method"], r["dataset"]) == ("hipporag2", "musique")
+    )
+    hot = next(
+        r for r in rows if (r["method"], r["dataset"]) == ("hipporag2", "hotpotqa")
+    )
+    (tmp_path / mu["output"]).mkdir(parents=True)
+    dense.write_json_atomic(
+        tmp_path / mu["output"] / "manifest.json", {"status": "indexed_pending_audit"}
+    )
+    config = {"TARGET_API_MODEL": "qwen", "TARGET_API_BASE_URL": plan["endpoint"]}
+    with patch(
+        "requests.sessions.Session.request",
+        side_effect=AssertionError("HTTP forbidden"),
+    ):
+        with pytest.raises(ValueError, match="completed_musique_audit"):
+            e1.verify_plan(plan, hot, config)
+        mu["max_llm_posts"] += 1
+        with pytest.raises(ValueError, match="history_or_request_bounds_changed"):
+            e1.verify_plan(plan, mu, config)
+        mu["max_llm_posts"] -= 1
+        dense.write_json_atomic(
+            root / "plan.claim.json",
+            {"children": {}, "parent_plan_sha256": dense.sha256_file(pp)},
+        )
+        with pytest.raises(ValueError, match="canonical_plan_claim_changed"):
+            e1.verify_plan(plan, mu, config)
+
+
+def test_mixed_pending_export_has_no_journal_or_double_initial_cost(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr(e1, "ROOT", tmp_path)
+    (tmp_path / "results/summary").mkdir(parents=True)
+    plan = {
+        "batch_id": "batch",
+        "model": "qwen",
+        "embedding_model": "bge",
+        "embedding_digest": "digest",
+        "parameters": {},
+        "combined_token_limit": 20000000,
+        "mixed_extractor": e1.MIXED_EXTRACTOR,
+        "rows": [
+            {
+                "method": "hipporag2",
+                "dataset": "musique",
+                "run_id": "new",
+                "output": "pending",
+                "resume_kind": "mixed_native",
+                "history_runs": [],
+                "diagnostics_in_history": True,
+            }
+        ],
+    }
+    pp = tmp_path / "plan.json"
+    dense.write_json_atomic(pp, plan)
+    with patch(
+        "requests.sessions.Session.request",
+        side_effect=AssertionError("HTTP forbidden"),
+    ):
+        report = e1.export(plan, pp)
+    assert report["physical_known_tokens"] == 0
+    assert report["rows"][0]["llm_by_model"] == {}
+    assert report["cost_complete"] is False
+    assert not (tmp_path / "pending").exists()
