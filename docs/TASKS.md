@@ -15,6 +15,9 @@
   и shape schema не устранили цикл; причину модели/decoding по raw не установить.
 - Нужен ответ оператора о Qwen/backend. GPT-OSS доступна по metadata GET, но
   deployment limits не сообщены; смена LLM меняет единые условия SPEC и не принята.
+- Готов локальный пакет .cache/e1-provider-repro-9f12b07f.zip: request/response/
+  usage/SHA без ключа; содержит passage/NER, не публиковать целиком. SAFE_REPORT
+  без данных рядом. Контакт/разрешение отправки оператору пока не получены.
 - После подтверждённого исправления сначала один bounded gate на полном failed
   passage/cachedNER, exact payload/reserve/согласие доPOST; full не автоматически.
 - PR33Draft/Refs13; E2/QA/merge не запускать. SHA, coverage и причины — E1_INDEXING.

@@ -83,6 +83,26 @@ iairlab/qwen3.8-27b иiairlab/gpt-oss-120b. API не сообщил context/max 
 Новых одноразовых диагностических исполнителей не добавлено. Текущий cache/индексы,
 планы, raw и failed не меняются. PR Draft/Refs #13, E2/QA/merge не запускаются.
 
+### Готовый локальный пакет для оператора
+
+Без новых HTTP подготовлен `<worktree>/.cache/e1-provider-repro-9f12b07f.zip`
+(7351bytes,7файлов), SHA
+`3bd6d0766ef8430c0fc572824bb2c68959875d5c8502ff99891bf649fb96064b`.
+Внутри exact request body, byte-for-byte response, одна пара journal events,
+metadata с provider response ID/usage/SHA, README, SAFE_REPORT и checksums.
+ZIP распакован в памяти и все SHA проверены; действующего API-ключа/Authorization
+нет. JSON body ответа API читается; оборван именно сгенерированный JSON в
+message.content. Request identity SHA включает payload+kind+operation и отличается
+от byte SHA отформатированного request.json; оба указаны в metadata.
+
+Архив содержит один passage, NER и generated content, поэтому остаётся ignored
+локальным артефактом и в GitHub не загружается. Отдельный SAFE_REPORT.md рядом с
+архивом не содержит корпуса/generated facts/credentials и пригоден для первого
+обращения. Executable replay/POST command в пакет не включён. Ничего оператору
+не отправлено; контакт/разрешение пересылки ещё не получены. Нужны его фактические
+revision/template/decoding settings и проверяемый вариант исправления; вопросы
+сформулированы в README. Код runner и политика эксперимента не менялись.
+
 ## Исправление нулевого preflight после согласия на оба Hippo-прогона
 
 На планcaf265ad/7f0c6ed получено явное согласие «Разрешаю передачу и оба
