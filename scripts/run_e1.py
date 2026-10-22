@@ -761,7 +761,10 @@ def verify_plan(plan, row, config):
         or row["output"]
         != f"indexes/e1/{plan['batch_id']}/{row['method']}/{row['dataset']}"
         + (
-            "-mixed1"
+            "-mixed-counter1"
+            if plan.get("mixed_counter_recovery")
+            and row.get("resume_kind") == "mixed_native"
+            else "-mixed1"
             if row.get("resume_kind") == "mixed_native"
             else "-schema-preflight1"
             if row.get("resume_kind") == "native_schema"
@@ -1042,7 +1045,9 @@ def mixed_history(prior, dataset):
 
 def mixed_plan_claim(plan):
     return {
-        "parent_plan_sha256": plan["parent_plan"]["sha256"],
+        "parent_plan_sha256": plan.get("mixed_counter_recovery", {}).get(
+            "plan_sha256", plan["parent_plan"]["sha256"]
+        ),
         "children": {
             r["dataset"]: r["run_id"]
             for r in plan["rows"]
@@ -1130,10 +1135,210 @@ def prepare_mixed_continuation(prior_path, approval_path, probe_plan):
     return plan
 
 
+def mixed_counter_state(pin):
+    """Reconcile one local-counter failure; retain the original protocol root."""
+    pp, mp, log = (Path(pin[k]) for k in ("plan", "manifest", "stderr"))
+    for path, key in (
+        (pp, "plan_sha256"),
+        (mp, "manifest_sha256"),
+        (log, "stderr_sha256"),
+    ):
+        if dense.sha256_file(path) != pin[key]:
+            raise ValueError("mixed_counter_recovery_pin_changed")
+    prior = dense.read_json(pp)
+    if "mixed_counter_recovery" in prior:
+        raise ValueError("mixed_counter_recovery_only_once")
+    mu = next(
+        r
+        for r in prior["rows"]
+        if (r["method"], r["dataset"]) == ("hipporag2", "musique")
+    )
+    verify_mixed_plan(prior, mu)
+    if mp.resolve() != (ROOT / mu["output"] / "manifest.json").resolve():
+        raise ValueError("mixed_counter_wrong_producer")
+    manifest = dense.read_json(mp)
+    ref = verified_reference(manifest, mp)
+    text = log.read_text(encoding="utf-8")
+    if (
+        manifest.get("status") != "failed"
+        or manifest.get("error_type") != "ValueError"
+        or manifest.get("plan_sha256") != target.digest(prior)
+        or ref["status"] != "verified"
+        or not ref["summary"]["complete"]
+        or any(x["errors"] or x["unfinished"] for x in ref["summary"]["phases"])
+        or "mixed_llm_request_limit" not in text
+        or "unresolved_ner_stop" not in text
+        or (mp.parent / "running.lock").exists()
+    ):
+        raise ValueError("mixed_counter_requires_stopped_known_local_failure")
+    for name, sha in manifest["artifacts"].items():
+        if dense.sha256_file(mp.parent / name) != sha:
+            raise ValueError("mixed_counter_artifact_changed")
+    records = read_records(Path(ref["path"]))
+    physical = [
+        r for r in records if r["event"] == "finished" and not r.get("cache_hit")
+    ]
+    llm = sum(r["kind"] == "llm" for r in physical)
+    logical = sum(r["event"] == "started" and r["kind"] == "llm" for r in records)
+    if logical < mu["max_llm_posts"] or llm >= mu["max_llm_posts"]:
+        raise ValueError("mixed_counter_failure_not_reproduced")
+    routes = dense.read_json(mp.parent / "mixed-routes.json")
+    claims = {}
+    for key, route in routes.items():
+        if not route["fallback"]:
+            continue
+        rp = Path(route["response_path"])
+        cp = Path(prior["mixed_claim_root"]) / "musique" / f"{key}.claim.json"
+        record = dense.read_json(cp)
+        if (
+            record
+            != {
+                "status": "complete",
+                "primary_sha256": key,
+                "fallback_sha256": route["actual_request_sha256"],
+            }
+            or dense.sha256_file(rp) != route["response_sha256"]
+            or route["model"] != MIXED_EXTRACTOR["fallback_model"]
+        ):
+            raise ValueError("mixed_counter_completed_fallback_changed")
+        validate_schema_probe_response(
+            dense.read_json(rp), allow_literal_duplicates=True
+        )
+        claims[cp.name] = dense.sha256_file(cp)
+    # Every non-complete physical response must be the primary of a saved full fallback.
+    for end in physical:
+        key = end["object_id"]
+        saved = dense.read_json(mp.parent / "requests" / f"{key}.json")
+        if saved["status"] == "complete":
+            continue
+        rp = mp.parent / "requests" / f"{key}.response.json"
+        choice = dense.read_json(rp)["choices"][0]
+        route = routes.get(key, {})
+        if (
+            end["operation"] != "openie_triples"
+            or end["usage_status"] != "complete"
+            or choice["finish_reason"] != "length"
+            or not triple_cycle(choice["message"]["content"])["cycle"]
+            or not route.get("fallback")
+            or route["primary_failure"]["response_sha256"] != dense.sha256_file(rp)
+        ):
+            raise ValueError("mixed_counter_unresolved_model_failure")
+    if claims != pin["completed_claims"]:
+        raise ValueError("mixed_counter_prior_claims_changed")
+    states = {}
+    for r in prior["rows"]:
+        if r["method"] != "hipporag2":
+            continue
+        history, sources = (
+            copy.deepcopy(r["history_runs"]),
+            copy.deepcopy(r["resume_sources"]),
+        )
+        posts, used_llm = 0, 0
+        if r["dataset"] == "musique":
+            history.append(
+                {
+                    "output": r["output"],
+                    "run_id": manifest["run_id"],
+                    "manifest_sha256": dense.sha256_file(mp),
+                    "summary": ref["summary"],
+                    "unknown_reserved_upper_bound": 0,
+                }
+            )
+            sources.append(
+                {"output": r["output"], "manifest_sha256": dense.sha256_file(mp)}
+            )
+            posts, used_llm = len(physical), llm
+        elif (ROOT / r["output"]).exists():
+            raise ValueError("mixed_counter_hotpot_already_started")
+        if len({h["run_id"] for h in history}) != len(history):
+            raise ValueError("mixed_counter_duplicate_history")
+        charge = sum(
+            sum(h["summary"]["known_subtotal"].values())
+            + h["unknown_reserved_upper_bound"]
+            for h in history
+        )
+        states[r["dataset"]] = {
+            "history_runs": history,
+            "resume_sources": sources,
+            "prior_budget_charge": charge,
+            "token_limit": LIMITS["hipporag2"] - charge,
+            "max_llm_posts": r["max_llm_posts"] - used_llm,
+            "max_new_posts": r["max_new_posts"] - posts,
+        }
+    return prior, states
+
+
+def prepare_mixed_counter_recovery(prior_path, stderr_path):
+    prior = dense.read_json(prior_path)
+    mu = next(
+        r
+        for r in prior["rows"]
+        if (r["method"], r["dataset"]) == ("hipporag2", "musique")
+    )
+    mp = ROOT / mu["output"] / "manifest.json"
+    routes = dense.read_json(mp.parent / "mixed-routes.json")
+    root = Path(prior["mixed_claim_root"])
+    claims = {
+        f"{k}.claim.json": dense.sha256_file(root / "musique" / f"{k}.claim.json")
+        for k, v in routes.items()
+        if v["fallback"]
+    }
+    if set(claims) != {p.name for p in (root / "musique").glob("*.claim.json")}:
+        raise ValueError("mixed_counter_unresolved_claims")
+    pin = {
+        "plan": str(prior_path.resolve()),
+        "plan_sha256": dense.sha256_file(prior_path),
+        "manifest": str(mp.resolve()),
+        "manifest_sha256": dense.sha256_file(mp),
+        "stderr": str(stderr_path.resolve()),
+        "stderr_sha256": dense.sha256_file(stderr_path),
+        "completed_claims": claims,
+    }
+    prior, states = mixed_counter_state(pin)
+    plan = copy.deepcopy(prior)
+    plan["mixed_counter_recovery"] = pin
+    plan["lineage"].append(
+        {
+            "path": pin["plan"],
+            "sha256": pin["plan_sha256"],
+            "digest": target.digest(prior),
+        }
+    )
+    for r in plan["rows"]:
+        if r["method"] != "hipporag2":
+            continue
+        r.update(
+            states[r["dataset"]],
+            run_id=str(uuid.uuid4()),
+            code_commit=git("rev-parse", "HEAD"),
+            output=f"indexes/e1/{plan['batch_id']}/hipporag2/{r['dataset']}-mixed-counter1",
+        )
+        if (ROOT / r["output"]).exists() or r["token_limit"] <= 0:
+            raise ValueError("mixed_counter_output_or_budget_unavailable")
+    plan["combined_token_limit"] = sum(r["token_limit"] for r in plan["rows"])
+    if (root / "counter-recovery.claim.json").exists():
+        raise ValueError("mixed_counter_recovery_already_claimed")
+    return plan
+
+
 def verify_mixed_plan(plan, row):
     verify_mixed_approval(plan)
     parent = dense.read_json(Path(plan["parent_plan"]["path"]))
-    history, sources = mixed_history(parent, row["dataset"])
+    recovery = plan.get("mixed_counter_recovery")
+    if recovery:
+        original, states = mixed_counter_state(recovery)
+        expected = states[row["dataset"]]
+        history, sources = expected["history_runs"], expected["resume_sources"]
+        parent = dense.read_json(Path(original["parent_plan"]["path"]))
+        if (
+            plan["parent_plan"] != original["parent_plan"]
+            or plan["mixed_claim_root"] != original["mixed_claim_root"]
+            or plan["mixed_adoption"] != original["mixed_adoption"]
+            or any(row[k] != v for k, v in expected.items())
+        ):
+            raise ValueError("mixed_counter_recovery_bounds_changed")
+    else:
+        history, sources = mixed_history(parent, row["dataset"])
     mu = next(
         r
         for r in parent["rows"]
@@ -1141,7 +1346,7 @@ def verify_mixed_plan(plan, row):
     )
     root = (ROOT / mu["output"] / "mixed-continuation-claims").resolve()
     if Path(plan["mixed_claim_root"]).resolve() != root or dense.read_json(
-        root / "plan.claim.json"
+        root / ("counter-recovery.claim.json" if recovery else "plan.claim.json")
     ) != mixed_plan_claim(plan):
         raise ValueError("mixed_canonical_plan_claim_changed")
     charge = sum(
@@ -1152,8 +1357,11 @@ def verify_mixed_plan(plan, row):
         row["history_runs"] != history
         or row["resume_sources"] != sources
         or row["prior_budget_charge"] != charge
-        or row["max_llm_posts"] != MIXED_EXTRACTOR["max_llm_posts"][row["dataset"]]
-        or row["max_new_posts"] != 40000
+        or (
+            not recovery
+            and row["max_llm_posts"] != MIXED_EXTRACTOR["max_llm_posts"][row["dataset"]]
+        )
+        or (not recovery and row["max_new_posts"] != 40000)
     ):
         raise ValueError("mixed_history_or_request_bounds_changed")
     verify_mixed_adoption(plan)
@@ -1368,6 +1576,18 @@ class Transport:
             if self.mixed_routes_path.exists()
             else {}
         )
+        if plan.get("mixed_counter_recovery") and row["dataset"] == "musique":
+            pin = plan["mixed_counter_recovery"]
+            mp = Path(pin["manifest"])
+            if dense.sha256_file(mp) != pin["manifest_sha256"]:
+                raise ValueError("mixed_counter_recovery_pin_changed")
+            routes_path = mp.parent / "mixed-routes.json"
+            if (
+                dense.sha256_file(routes_path)
+                != dense.read_json(mp)["artifacts"]["mixed-routes.json"]
+            ):
+                raise ValueError("mixed_counter_routes_changed")
+            self.mixed_routes = {**dense.read_json(routes_path), **self.mixed_routes}
         self.replayed_count = 0
         self.require_cache = False
         self.require_repair_key = False
@@ -1387,6 +1607,7 @@ class Transport:
             self.schema_adoption_verified = verify_schema_recovery(plan, row)
             if row.get("resume_kind") == "mixed_native" and row["dataset"] == "musique":
                 self.parent_cache.update(self.schema_adoption_verified[1])
+                self.parent_cache.update(verify_mixed_adoption(plan))
         if row.get("summary_adoption"):
             from scripts import e1_summary_recovery as recovery
 
@@ -1860,6 +2081,10 @@ class Transport:
                             saved.get("status") != "complete"
                             or saved.get("fallback_sha256") != actual
                             or key not in self.mixed_routes
+                            or (
+                                actual not in self.parent_cache
+                                and not (self.calls / f"{actual}.json").exists()
+                            )
                         ):
                             raise ValueError("mixed_unresolved_fallback_claim")
                     else:
@@ -4321,6 +4546,7 @@ def main():
         choices=(
             "prepare",
             "prepare-mixed",
+            "prepare-mixed-counter-recovery",
             "prepare-mixed-audit",
             "finalize-mixed-audit",
             "continue",
@@ -4368,21 +4594,33 @@ def main():
     parser.add_argument("--protocol-approval", type=Path)
     parser.add_argument("--approved-plan-sha256")
     parser.add_argument("--audit-review", type=Path)
+    parser.add_argument("--counter-stderr", type=Path)
     args = parser.parse_args()
     config = dotenv_values(args.env_file) if args.env_file else {}
-    if args.command == "prepare-mixed":
+    if args.command in ("prepare-mixed", "prepare-mixed-counter-recovery"):
+        is_recovery = args.command == "prepare-mixed-counter-recovery"
+        canonical = (
+            ".cache/e1-mixed-counter-plan.json"
+            if is_recovery
+            else ".cache/e1-mixed-plan.json"
+        )
         if (
-            args.plan.resolve() != (ROOT / ".cache/e1-mixed-plan.json").resolve()
+            args.plan.resolve() != (ROOT / canonical).resolve()
             or args.plan.exists()
             or code_dirty()
         ):
             raise ValueError("mixed_requires_unused_canonical_plan_and_clean_code")
-        plan = prepare_mixed_continuation(
-            args.prior_plan, args.protocol_approval, args.probe_plan
+        plan = (
+            prepare_mixed_counter_recovery(args.prior_plan, args.counter_stderr)
+            if is_recovery
+            else prepare_mixed_continuation(
+                args.prior_plan, args.protocol_approval, args.probe_plan
+            )
         )
         root = Path(plan["mixed_claim_root"])
         root.mkdir(parents=True, exist_ok=True)
-        with (root / "plan.claim.json").open("x", encoding="utf-8") as stream:
+        claim_name = "counter-recovery.claim.json" if is_recovery else "plan.claim.json"
+        with (root / claim_name).open("x", encoding="utf-8") as stream:
             json.dump(mixed_plan_claim(plan), stream)
             stream.flush()
             os.fsync(stream.fileno())

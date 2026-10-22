@@ -1,5 +1,44 @@
 # E1: индексы полного корпуса (#13)
 
+## Одноразовый child после локального POST guard — подготовка без HTTP
+
+`prepare-mixed-counter-recovery` продолжает исходный mixed plan только после
+подтверждённой локальной ошибки счётчика: stopped failed/ValueError, известный
+usage, logical LLM events достиглиcap, physicalPOST ещё нижеcap, pinnedstderr
+mixed_llm_request_limit/unresolved_ner_stop. Каждый incomplete primary должен
+иметь полный сохранённый fallback. Новые ошибки модели этим путём не обходятся.
+Нулевой preflight exception ADR-0022 здесь неприменим:2069POST уже потрачены.
+
+Команда требует чистый HEAD, canonical unused .cache/e1-mixed-counter-plan.json.
+Новые IDs/output -mixed-counter1, старые parent/manifest/journal/claim SHA неизменны.
+История10Mu runs учитывается ровно один раз. Root fallback claims прежний;
+новый canonical counter-recovery.claim.json разрешает ровно один такой child
+между worktrees/output directories. Повторное recovery после него запрещено.
+Успешный старый fallback replay использует actual GPT payload/model/response SHA
+и тот же claim, не новую оплату. Length primary остаётся rejected.
+
+```powershell
+./.venv-check/Scripts/python.exe -m scripts.run_e1 prepare-mixed-counter-recovery --prior-plan '.cache/e1-mixed-plan.json' --counter-stderr '.cache/e1-hippo-mixed-musique.stderr.log' --plan '.cache/e1-mixed-counter-plan.json'
+# Только после допуска exact SHA: прежняя команда run, новый --plan и --approved-plan-sha256.
+# Затем prepare-mixed-audit/finalize-mixed-audit; Hotpot только после Mu source audit.
+```
+
+Mu≤13650487новых combined tokens/2745новых внешнихLLMPOST/37931всехPOST,
+Hotpot≤20M/11020/40000. Уже использован1из20fallbackslots, остаётся≤19новых.
+Кэш снижает фактическое число POST. Model/prompt/cap/retry/timeout/stop-policy
+не меняются, старыйunknown55054 остаётся. Новый exact plan требует отдельного
+допуска пользователя по ADR-0022. Подготовка не разрешает запросов, QA/E2/merge.
+Целевые E1/schema146passed/3skipped и дополнительные10counter/claim regressions
+прошли. Native SDK proof на закреплённых prompts/parser:8452entries,
+4136полных NER+triples; Qwen и full GPT replay из нового каталога с0physicalPOST,
+старый claim SHA неизменен. В первой проверочной команде OPTIONS ошибочно
+перезаписали cap; исправленная проверка использует реальные1024/3072. Код
+runner в обоих случаях собирал payload правильно. Никаких probe API запросов.
+Export child проверен с перехватом записи:known18095826/upper18150880 прежние,
+старый unknown55054 сохранён и GPT diagnostics не начислены дважды. Публичные
+summary SHA неизменны. Proof не подтверждает реальный завершённый graph.
+
+
 ## Последняя остановка — mixed Mu, 22 октября21:40MSK
 
 Разрешённый plan01fd6b059d5e наf545ba1, runb2dc4e51-39df-49eb-874a-f4b72c456251,

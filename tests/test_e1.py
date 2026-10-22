@@ -1580,3 +1580,242 @@ def test_mixed_llm_limit_counts_physical_posts_not_cache_events(
         )
     assert session.post.call_count == 1
     assert runner.journal.summary()["attempts"] == 1
+
+
+@pytest.fixture
+def mixed_counter_fixture(tmp_path, monkeypatch):
+    monkeypatch.setattr(e1, "ROOT", tmp_path)
+    monkeypatch.setattr(e1, "git", lambda *a: "new-head")
+    monkeypatch.setattr(e1, "verify_mixed_plan", lambda *a: None)
+    root = tmp_path / "baseline/mixed-continuation-claims"
+    root.mkdir(parents=True)
+    directory = tmp_path / "mixed-old"
+    directory.mkdir()
+    (directory / "requests").mkdir()
+    journal = Journal(
+        directory / "usage.jsonl",
+        run_id="old-mixed",
+        method="hipporag2",
+        dataset="musique",
+    )
+    for i in range(2):
+        journal.cache_hit(
+            phase="index",
+            operation="openie_ner",
+            provider="target_api",
+            model="qwen",
+            kind="llm",
+            object_id=f"cache-{i}",
+            producer_run_id="old",
+            producer_usage_complete=True,
+        )
+    started = journal.start(
+        phase="index",
+        operation="openie_ner",
+        provider="target_api",
+        model="qwen",
+        kind="llm",
+        object_id="physical",
+    )
+    journal.finish(
+        started,
+        status="success",
+        usage={"llm_input_tokens": 10, "llm_output_tokens": 8},
+    )
+    dense.write_json_atomic(directory / "requests/physical.response.json", mixed_body())
+    dense.write_json_atomic(
+        directory / "requests/physical.json", {"status": "complete"}
+    )
+    dense.write_json_atomic(directory / "mixed-routes.json", {})
+    parent = tmp_path / "parent.json"
+    dense.write_json_atomic(
+        parent,
+        {"rows": [{"method": "hipporag2", "dataset": "musique", "output": "baseline"}]},
+    )
+    prior = {
+        "batch_id": "batch",
+        "mixed_extractor": e1.MIXED_EXTRACTOR,
+        "mixed_claim_root": str(root),
+        "parent_plan": {"path": str(parent), "sha256": dense.sha256_file(parent)},
+        "mixed_adoption": {},
+        "lineage": [],
+        "rows": [
+            {
+                "method": "hipporag2",
+                "dataset": d,
+                "run_id": d,
+                "resume_kind": "mixed_native",
+                "output": "mixed-old" if d == "musique" else "hot-old",
+                "max_llm_posts": 2 if d == "musique" else 11020,
+                "max_new_posts": 10 if d == "musique" else 40000,
+                "history_runs": [],
+                "resume_sources": [],
+                "token_limit": 20000000,
+            }
+            for d in e1.DATASETS
+        ],
+    }
+    pp = tmp_path / "mixed-original.json"
+    dense.write_json_atomic(pp, prior)
+    mp = directory / "manifest.json"
+    manifest = {
+        "status": "failed",
+        "error_type": "ValueError",
+        "run_id": "old-mixed",
+        "plan_sha256": e1.target.digest(prior),
+        "token_accounting": journal.reference(),
+        "artifacts": {
+            p.relative_to(directory).as_posix(): dense.sha256_file(p)
+            for p in directory.rglob("*")
+            if p.is_file()
+        },
+    }
+    dense.write_json_atomic(mp, manifest)
+    log = tmp_path / "stderr.log"
+    log.write_text("mixed_llm_request_limit\nunresolved_ner_stop\n", encoding="utf-8")
+    return pp, mp, log, root
+
+
+@pytest.mark.parametrize(
+    "change", ["none", "sha", "unknown", "artifact", "lock", "hotpot", "recursion"]
+)
+def test_mixed_counter_recovery_requires_known_immutable_local_failure(
+    mixed_counter_fixture, change
+):
+    pp, mp, log, root = mixed_counter_fixture
+    if change == "sha":
+        log.write_text("other failure", encoding="utf-8")
+    if change == "unknown":
+        m = dense.read_json(mp)
+        m["token_accounting"]["summary"]["complete"] = False
+        dense.write_json_atomic(mp, m)
+    if change == "artifact":
+        (mp.parent / "requests/physical.response.json").write_text(
+            "{}", encoding="utf-8"
+        )
+    if change == "lock":
+        (mp.parent / "running.lock").write_text("123", encoding="utf-8")
+    if change == "hotpot":
+        (mp.parent.parent / "hot-old").mkdir()
+    if change == "recursion":
+        p = dense.read_json(pp)
+        p["mixed_counter_recovery"] = {}
+        # A nonempty pin, as used by every actual child, disallows another child.
+        p["mixed_counter_recovery"]["plan"] = "old"
+        dense.write_json_atomic(pp, p)
+    before = mp.read_bytes()
+    with patch(
+        "requests.sessions.Session.request",
+        side_effect=AssertionError("HTTP forbidden"),
+    ):
+        if change != "none":
+            with pytest.raises((ValueError, KeyError)):
+                e1.prepare_mixed_counter_recovery(pp, log)
+        else:
+            plan = e1.prepare_mixed_counter_recovery(pp, log)
+            mu, hot = plan["rows"]
+            assert plan["mixed_claim_root"] == str(root)
+            assert mu["max_llm_posts"] == 1 and mu["max_new_posts"] == 9
+            assert mu["token_limit"] == 20000000 - 18
+            assert mu["history_runs"][-1]["run_id"] == "old-mixed"
+            assert mu["resume_sources"][-1]["manifest_sha256"] == dense.sha256_file(mp)
+            assert mu["output"].endswith("-mixed-counter1")
+            assert hot["max_llm_posts"] == 11020 and hot["token_limit"] == 20000000
+            dense.write_json_atomic(
+                root / "counter-recovery.claim.json", e1.mixed_plan_claim(plan)
+            )
+            with pytest.raises(ValueError, match="already_claimed"):
+                e1.prepare_mixed_counter_recovery(pp, log)
+    assert mp.read_bytes() == before
+
+
+def test_mixed_counter_child_reconciles_limits_before_http(
+    mixed_counter_fixture, monkeypatch
+):
+    pp, mp, log, root = mixed_counter_fixture
+    # The fixture bypasses only verification of the ancestor's original protocol.
+    real_verify = _REAL_VERIFY_MIXED_PLAN
+    monkeypatch.setattr(e1, "verify_mixed_approval", lambda *a: None)
+    monkeypatch.setattr(e1, "verify_mixed_adoption", lambda *a: {})
+    plan = e1.prepare_mixed_counter_recovery(pp, log)
+    dense.write_json_atomic(
+        root / "counter-recovery.claim.json", e1.mixed_plan_claim(plan)
+    )
+    mu = plan["rows"][0]
+    with patch(
+        "requests.sessions.Session.request",
+        side_effect=AssertionError("HTTP forbidden"),
+    ):
+        real_verify(plan, mu)
+        mu["max_llm_posts"] += 1
+        with pytest.raises(ValueError, match="recovery_bounds_changed"):
+            real_verify(plan, mu)
+        mu["max_llm_posts"] -= 1
+        plan["mixed_counter_recovery"]["manifest_sha256"] = "changed"
+        with pytest.raises(ValueError, match="pin_changed"):
+            real_verify(plan, mu)
+
+
+_REAL_VERIFY_MIXED_PLAN = e1.verify_mixed_plan
+
+
+@pytest.mark.parametrize("reuse", [True, False])
+def test_mixed_completed_claim_replay_never_reposts_across_outputs(
+    mixed_transport_factory, tmp_path, reuse
+):
+    first, session = mixed_transport_factory("first")
+    session.post = Mock(side_effect=AssertionError("HTTP forbidden"))
+    original = {
+        **e1.target.OPTIONS,
+        "model": "qwen",
+        "messages": mixed_messages(),
+        "max_tokens": 3072,
+        "response_format": {"type": "json_object"},
+    }
+    primary, _ = e1.schema_probe_payload(original, compatible=True)
+    pk = e1.target.digest(
+        {"payload": primary, "kind": "llm", "operation": "openie_triples"}
+    )
+    bad, good = tmp_path / "length.json", tmp_path / "gpt.json"
+    dense.write_json_atomic(bad, mixed_body("length"))
+    dense.write_json_atomic(good, mixed_body())
+    first.mixed_failures[pk] = {
+        "response_path": str(bad),
+        "response_sha256": dense.sha256_file(bad),
+    }
+    fk = e1.target.digest(
+        {
+            "payload": e1.mixed_payload(primary),
+            "kind": "llm",
+            "operation": "openie_triples",
+        }
+    )
+    first.parent_cache[fk] = {
+        "path": good,
+        "sha256": dense.sha256_file(good),
+        "run_id": "old-gpt",
+        "producer_complete": True,
+        "kind": "llm",
+        "operation": "openie_triples",
+        "provider": "target_api",
+        "model": "iairlab/gpt-oss-120b",
+    }
+    first.generate_mixed(original)
+    claims = list((tmp_path / "canonical/musique").glob("*.claim.json"))
+    assert len(claims) == 1
+    before = claims[0].read_bytes()
+    child, child_session = mixed_transport_factory("child")
+    child_session.post = Mock(side_effect=AssertionError("HTTP forbidden"))
+    child.mixed_failures = first.mixed_failures.copy()
+    child.mixed_routes = first.mixed_routes.copy()
+    if reuse:
+        child.parent_cache = first.parent_cache.copy()
+        _, meta = child.generate_mixed(original)
+        assert meta["cache_hit"] and meta["extractor_model"] == "iairlab/gpt-oss-120b"
+    else:
+        with pytest.raises(ValueError, match="unresolved_fallback_claim"):
+            child.generate_mixed(original)
+    assert claims[0].read_bytes() == before
+    assert (
+        child.journal.summary()["attempts"] == 0 and child_session.post.call_count == 0
+    )

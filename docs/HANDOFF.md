@@ -2,27 +2,27 @@
 
 **E1 status:** 4/6 indexes completed; physical known tokens=18095826; cost_complete=False. Last stage=hipporag2 native schema continuation. Raw/indexes remain local. PR Draft; E2 requires all six verified indexes.
 
-## Текущая очередь — 22 октября: mixed Mu остановлен; исправлен счётчик POST
+## Текущая очередь — 22 октября: child после ошибки счётчика готовится offline
 
-- Пользователь разрешил оба Hippo stage exact plan01fd6b059d5e наf545ba1;
-  Mu runb2dc4e51 стартовал20:02MSK и остановлен21:40MSK на2410/5500sources.
-  Причина клиентская: mixed_llm_request_limit считал cache-hit started как новые
-  POST; SDK обернул это в unresolved_ner_stop. Ошибки NER generation не установлено.
-- Новый расход1375138known(1021323input/353815output),2069physicalPOST,
-  2924cache replay; current usage complete. Один полный GPT fallback после
-  нового Qwen length+cycle сохранён. Новых unknown0; старый unknown55054 остаётся.
-- E1 прежний4/6; known18095826/upper18150880,cost_complete=false.
-  Mu остаток13650487tokens; Hotpot20M, не запускался. Предки immutable.
-- Счётчик исправлен: cache events исключены, physical starts учитываются;
-  regression проверяет replay до/после cap и отказ второго нового POST при cap1.
-  После исправления реальных POST0, failed run не возобновлялся.
-- Следующий блок: child plan на исправленном clean HEAD, включить этот failed
-  run/cost/cache и сохранённый fallback claim; не сбрасывать использованные
-  2069из4814physical LLMPOST и1из20fallback slots. Остаётся≤2745новых LLMPOST
-  в пределах прежнего допуска, новый stage требует отдельного решения по ADR-0022.
-- Продолжение не выдавать за повтор того же canonical plan; terminal failed
-  сохраняется. Нельзя слепо повторять POST. Затем Mu audit, только потом Hotpot.
-- PR33Draft/Refs #13,20files; QA/E2/merge не запускать. Main checkout не трогать.
+- Исходный mixed plan01fd6b059d5e/f545ba1 разрешён пользователем для обоих Hippo;
+  Mu runb2dc4e51 failed на2410/5500 из-за учёта cache events в POST cap.
+  Исправлениеb5ab964 проверено. Это клиентский guard, не NER model failure.
+- Known18095826/upper18150880,cost_complete=false; E1 прежний4/6.
+  Failed run1375138tokens/2069physicalPOST/2924replay полностью сохранён,
+  новых unknown0; исторический unknown55054 не снят.
+- Existing runner готовит один .cache/e1-mixed-counter-plan.json на clean HEAD:
+  новые run/output -mixed-counter1,10history Mu, старые manifests immutable.
+  Mu≤13650487tokens,≤2745новыхLLMPOST,≤37931всехPOST; Hotpot20M/11020/40000.
+  Канонический root прежний, один завершённый fallback claim переносится без
+  повторной оплаты/сброса:≤19новыхslots из20. Частичный primary не используется.
+- Offline146passed/3skipped по E1/schema; guard неизвестного usage/подмены SHA,
+  active lock, повторного child и reset лимитов. После исправления реальных POST0.
+- Native SDK offline proof:8452verified cache entries/4136полных пар; Qwen и GPT
+  replay из нового каталога,0POST, старые claims SHA неизменны. Export сохраняет
+  known18095826/upper18150880, без двойного учёта; публичные summary не менялись.
+- Следующий шаг: final exact child SHA/HEAD и отдельный допуск расходов по ADR-0022.
+  Прежнее согласие не переименовывать в согласие на child. После Mu build source
+  audit обязателен до Hotpot. QA/E2/merge запрещены, PR33Draft/Refs #13,20files.
 
 ## История — не текущие инструкции запуска
 

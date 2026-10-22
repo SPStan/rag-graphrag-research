@@ -482,3 +482,24 @@ upper16762447,cost_complete=false; Mu остаток15038920/Hotpot20M.
 Следующий возможный gate после подтверждённого исправления Qwen — один тот же
 full passage+cachedNER, cap3072, без retry/NER/embedding; exact reserve/plan до
 разрешения, stop на ошибке. Raw/coverage/SHA и ограничения в E1_INDEXING.
+
+
+### 22 октября: отдельный child после ошибки physical POST counter
+
+Разрешённый mixed runb2dc4e51 остановлен локальным guard на2410/5500:
+2752LLM cache events ошибочно вошли в cap4814 вместе с2069physicalPOST.
+Исправлениеb5ab964 исключает replay. Known1375138/current unknown0 сохранены;
+это не новый generative failure. Старый zero-attempt preflight exception не
+применяется: расходы уже были. Failed/план/response SHA не переопределяются.
+
+Один согласуемый child в existing runner: canonical plan/once claim, новый output,
+прежний общий fallback claim root,10history Mu. Строгая проверка local-counter
+причины, terminal known journal, всех artifacts и завершённых fallback claims.
+Любой unknown/unresolved model failure/активный worker запрещает подготовку.
+Пределы уменьшаются на все использованные physical POST/tokens: Mu13650487tokens,
+2745внешнихLLMPOST/37931всехPOST, один из20fallback slots занят. Hotpot прежний.
+Сохранённый full fallback replay сохраняет реальную модель/response identity.
+Второй такой child запрещён. Partial primary не принимается и не отправляется снова.
+После offline gates/clean HEAD требуется отдельный допуск exact child SHA/расходов;
+старое согласие на original plan не подменяется. Mu source audit предшествует Hotpot,
+QA/E2/merge не запускаются. Это восстановление исполнения, не изменение benchmark.
