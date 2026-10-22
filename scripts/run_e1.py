@@ -1553,7 +1553,7 @@ def export(plan, plan_path):
         )
         diagnostic_records = []
         probe_kinds = (
-            [probe_kind, "schema_shape", "gpt_oss"]
+            [probe_kind, "schema_shape", "gpt_oss", "gpt_oss_policy"]
             if (row["method"], row["dataset"]) == ("hipporag2", "musique")
             else [probe_kind]
         )
@@ -1561,7 +1561,10 @@ def export(plan, plan_path):
             if (
                 probe_kind
                 and (row["dataset"] == "musique" or probe_kind == "summary")
-                and (probe_kind == "gpt_oss" or not row.get("diagnostics_in_history"))
+                and (
+                    probe_kind in ("gpt_oss", "gpt_oss_policy")
+                    or not row.get("diagnostics_in_history")
+                )
             ):
                 probe_path = (
                     manifest.parent.parent
@@ -1616,6 +1619,26 @@ def export(plan, plan_path):
                             if k in probe
                         }
                     )
+                    if probe_kind == "gpt_oss_policy":
+                        parent = probe_path.parent.parent / "musique-gpt-oss-probe1"
+                        if probe["parent_probe_manifest_sha256"] != dense.sha256_file(
+                            parent / "manifest.json"
+                        ) or probe["source_review_sha256"] != dense.sha256_file(
+                            parent / "source-review.json"
+                        ):
+                            raise ValueError(
+                                "source_policy_probe_parent_or_review_changed"
+                            )
+                        public["gpt_oss_policy_probe"].update(
+                            {
+                                k: probe[k]
+                                for k in (
+                                    "parent_probe_manifest_sha256",
+                                    "source_review_sha256",
+                                    "policy_version",
+                                )
+                            }
+                        )
                     if probe["status"] == "failed":
                         public[f"{probe_kind}_probe"]["failure_diagnostic"] = (
                             failure_diagnostic(probe_path.parent)
@@ -1690,7 +1713,14 @@ def export(plan, plan_path):
         + sum(
             r.get(f"{kind}_probe", {}).get("unknown_reserved_upper_bound", 0)
             for r in rows
-            for kind in ("schema", "schema_shape", "gpt_oss", "embedding", "summary")
+            for kind in (
+                "schema",
+                "schema_shape",
+                "gpt_oss",
+                "gpt_oss_policy",
+                "embedding",
+                "summary",
+            )
         )
         + sum(r.get("current_unknown_reserved_upper_bound") or 0 for r in rows)
     )
@@ -2615,6 +2645,59 @@ def prepare_extractor_policy(probe_plan, directory):
     }
 
 
+EXTRACTOR_POLICY_PROBE = "hippo_extractor_policy_probe_v1"
+
+
+def prepare_extractor_policy_probe(probe_plan, directory, prior_path):
+    """One follow-up of the rejected producer, within the same remaining budget."""
+    prior = dense.read_json(prior_path)
+    parent = dense.read_json(probe_plan)
+    row = next(
+        r
+        for r in prior["rows"]
+        if (r["method"], r["dataset"]) == ("hipporag2", "musique")
+    )
+    stopped = ROOT / row["output"] / "manifest.json"
+    expected = stopped.parent.parent / "musique-gpt-oss-probe1"
+    if (
+        prior["workspace"] != str(ROOT.resolve())
+        or directory.resolve() != expected.resolve()
+        or parent["parent_plan_sha256"] != dense.sha256_file(prior_path)
+        or parent["failed_manifest_sha256"] != dense.sha256_file(stopped)
+        or dense.read_json(stopped)["status"] != "failed"
+        or (stopped.parent / "running.lock").exists()
+    ):
+        raise ValueError("source_policy_parent_index_or_canonical_probe_changed")
+    if (directory / "source-policy-probe-once.claim.json").exists() or (
+        directory.parent / "musique-gpt-oss-policy-probe1"
+    ).exists():
+        raise ValueError("source_policy_followup_already_claimed")
+    prepared = prepare_extractor_policy(probe_plan, directory)
+    reference = verified_reference(dense.read_json(stopped), stopped)
+    if reference["status"] != "verified" or current_unknown_reservation(stopped.parent):
+        raise ValueError("source_policy_current_parent_unknown_or_corrupt")
+    remaining = row["token_limit"] - sum(
+        reference["summary"]["known_subtotal"].values()
+    )
+    if remaining != parent["remaining_hippo_budget_before_probe"]:
+        raise ValueError("source_policy_parent_budget_changed")
+    return {
+        **prepared,
+        "kind": EXTRACTOR_POLICY_PROBE,
+        "status": "prepared_requires_separate_execution_approval",
+        "failed_manifest_sha256": parent["failed_manifest_sha256"],
+        "parent_index_plan_sha256": dense.sha256_file(prior_path),
+        "parent_probe_plan": {
+            "path": str(probe_plan.resolve()),
+            "sha256": dense.sha256_file(probe_plan),
+        },
+        "parent_probe_output": directory.resolve()
+        .relative_to(ROOT.resolve())
+        .as_posix(),
+        "limitation": "One source-fidelity follow-up only; all 5 need source review. No full indexing, cache promotion or further prompt retries.",
+    }
+
+
 def execute_schema_probe(
     probe_path, prior_path, source, config, approved_sha256, *, compatible=False
 ):
@@ -2640,7 +2723,8 @@ def execute_schema_probe(
     ):
         raise ValueError("schema_probe_target_config_mismatch")
     prepared = dense.read_json(probe_path)
-    diagnostic = prepared.get("kind") == EXTRACTOR_DIAGNOSTIC["kind"]
+    policy_probe = prepared.get("kind") == EXTRACTOR_POLICY_PROBE
+    diagnostic = policy_probe or prepared.get("kind") == EXTRACTOR_DIAGNOSTIC["kind"]
     expected_cases = 5 if diagnostic else 2
     if (
         len(prepared.get("cases", [])) != expected_cases
@@ -2652,7 +2736,13 @@ def execute_schema_probe(
     ):
         raise ValueError("compatible_schema_requires_pinned_code")
     rebuilt = (
-        prepare_extractor_diagnostic(prior_path, source)
+        prepare_extractor_policy_probe(
+            Path(prepared["parent_probe_plan"]["path"]),
+            ROOT / prepared["parent_probe_output"],
+            prior_path,
+        )
+        if policy_probe
+        else prepare_extractor_diagnostic(prior_path, source)
         if diagnostic
         else prepare_schema_probe(prior_path, source, compatible=compatible)
     )
@@ -2665,7 +2755,9 @@ def execute_schema_probe(
     )
     prior = ROOT / row["output"]
     directory = prior.parent / (
-        "musique-gpt-oss-probe1"
+        "musique-gpt-oss-policy-probe1"
+        if policy_probe
+        else "musique-gpt-oss-probe1"
         if diagnostic
         else "musique-schema-shape-probe1"
         if compatible
@@ -2675,13 +2767,16 @@ def execute_schema_probe(
         raise ValueError("schema_probe_output_already_exists")
     run_id = str(uuid.uuid4())
     claim_name = (
-        "gpt-oss-probe-once.claim.json"
+        "source-policy-probe-once.claim.json"
+        if policy_probe
+        else "gpt-oss-probe-once.claim.json"
         if diagnostic
         else "schema-shape-probe-once.claim.json"
         if compatible
         else "schema-probe-once.claim.json"
     )
-    with (prior / claim_name).open("x", encoding="utf-8") as stream:
+    claim_parent = ROOT / prepared["parent_probe_output"] if policy_probe else prior
+    with (claim_parent / claim_name).open("x", encoding="utf-8") as stream:
         json.dump(
             {
                 "approved_plan_sha256": approved_sha256,
@@ -2707,7 +2802,20 @@ def execute_schema_probe(
         "model": prepared["model"] if diagnostic else plan["model"],
         "reserved_tokens_upper_bound": prepared["reserved_tokens_upper_bound"],
         "cases": [],
-        "schema_variant": "gpt_oss_diagnostic_v1"
+        **(
+            {
+                "parent_probe_manifest_sha256": prepared[
+                    "parent_probe_manifest_sha256"
+                ],
+                "source_review_sha256": prepared["source_review_sha256"],
+                "policy_version": prepared["policy_version"],
+            }
+            if policy_probe
+            else {}
+        ),
+        "schema_variant": "gpt_oss_source_faithfulness_v1"
+        if policy_probe
+        else "gpt_oss_diagnostic_v1"
         if diagnostic
         else "shape_local_unique_v2"
         if compatible
@@ -3504,6 +3612,7 @@ def main():
             "prepare-compatible-schema-probe",
             "prepare-extractor-diagnostic",
             "prepare-extractor-policy",
+            "prepare-extractor-policy-probe",
             "adopt-schema-responses",
             "prepare-native-schema-continuation",
             "run-schema-probe",
@@ -3711,11 +3820,16 @@ def main():
         "prepare-compatible-schema-probe",
         "prepare-extractor-diagnostic",
         "prepare-extractor-policy",
+        "prepare-extractor-policy-probe",
     ):
         if args.plan.exists():
             raise ValueError("schema_probe_prepare_requires_unused_output")
         probe = (
-            prepare_extractor_policy(args.prior_plan, args.source)
+            prepare_extractor_policy_probe(
+                args.probe_plan, args.source, args.prior_plan
+            )
+            if args.command == "prepare-extractor-policy-probe"
+            else prepare_extractor_policy(args.prior_plan, args.source)
             if args.command == "prepare-extractor-policy"
             else prepare_extractor_diagnostic(args.prior_plan, args.source)
             if args.command == "prepare-extractor-diagnostic"
@@ -3741,7 +3855,10 @@ def main():
                 compatible=args.command == "run-compatible-schema-probe",
             )
         finally:
-            if dense.read_json(args.plan).get("kind") == EXTRACTOR_DIAGNOSTIC["kind"]:
+            if dense.read_json(args.plan).get("kind") in (
+                EXTRACTOR_DIAGNOSTIC["kind"],
+                EXTRACTOR_POLICY_PROBE,
+            ):
                 export(dense.read_json(args.prior_plan), args.prior_plan)
         print(
             json.dumps(

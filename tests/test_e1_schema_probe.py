@@ -1397,8 +1397,57 @@ def test_gpt_diagnostic_one_claim_no_retry_and_cost_export(
 def rejected_extractor_probe(tmp_path):
     import hashlib
 
-    directory = tmp_path / "probe"
+    directory = tmp_path / "musique-gpt-oss-probe1"
     (directory / "requests").mkdir(parents=True)
+    stopped = tmp_path / "stopped"
+    stopped.mkdir()
+    old = Journal(
+        stopped / "usage.jsonl", run_id="old", method="hipporag2", dataset="musique"
+    )
+    attempt = old.start(
+        phase="index",
+        operation="openie_triples",
+        provider="target_api",
+        model="qwen",
+        kind="llm",
+    )
+    old.finish(
+        attempt, status="success", usage={"llm_input_tokens": 7, "llm_output_tokens": 0}
+    )
+    dense.write_json_atomic(
+        stopped / "manifest.json",
+        {
+            "run_id": "old",
+            "status": "failed",
+            "seconds": 1,
+            "token_accounting": old.reference(),
+            "artifacts": {"usage.jsonl": dense.sha256_file(old.path)},
+        },
+    )
+    prior = tmp_path / "index-plan.json"
+    dense.write_json_atomic(
+        prior,
+        {
+            "workspace": str(tmp_path),
+            "model": "qwen",
+            "endpoint": "https://example.invalid/v1",
+            "batch_id": "batch",
+            "embedding_model": "bge",
+            "embedding_digest": "digest",
+            "parameters": {},
+            "combined_token_limit": 68000000,
+            "rows": [
+                {
+                    "method": "hipporag2",
+                    "dataset": "musique",
+                    "output": "stopped",
+                    "run_id": "old",
+                    "token_limit": 100007,
+                    "diagnostics_in_history": True,
+                }
+            ],
+        },
+    )
     journal = Journal(
         directory / "usage.jsonl",
         run_id="gpt-producer",
@@ -1407,6 +1456,8 @@ def rejected_extractor_probe(tmp_path):
     )
     plan = {
         **e1.EXTRACTOR_DIAGNOSTIC,
+        "parent_plan_sha256": dense.sha256_file(prior),
+        "failed_manifest_sha256": dense.sha256_file(stopped / "manifest.json"),
         "cases": [],
         "remaining_hippo_budget_before_probe": 100000,
         "semantic_acceptance": "Review full source, qualifiers, dates; no gold",
@@ -1479,6 +1530,9 @@ def rejected_extractor_probe(tmp_path):
     dense.write_json_atomic(
         mp,
         {
+            "parent_manifest_sha256": dense.sha256_file(stopped / "manifest.json"),
+            "full_index_authorized": False,
+            "seconds": 1,
             "approved_plan_sha256": dense.sha256_file(pp),
             "model": plan["model"],
             "status": "awaiting_source_review",
@@ -1589,3 +1643,136 @@ def test_source_review_rejects_stale_or_incomplete_evidence(
         pytest.raises(ValueError),
     ):
         e1.prepare_extractor_policy(pp, directory)
+
+
+@pytest.mark.parametrize(
+    "outcome,posts",
+    [
+        ("success", 5),
+        ("length", 1),
+        ("unknown", 1),
+        ("connection", 1),
+        ("payload_changed", 0),
+        ("review_changed", 0),
+        ("claimed", 0),
+        ("other_directory", 0),
+    ],
+)
+def test_policy_followup_canonical_claim_and_cumulative_cost(
+    rejected_extractor_probe, tmp_path, monkeypatch, outcome, posts
+):
+    from unittest.mock import Mock
+
+    pp, parent = rejected_extractor_probe
+    prior = tmp_path / "index-plan.json"
+    monkeypatch.setattr(e1, "ROOT", tmp_path)
+    monkeypatch.setattr(e1, "code_dirty", lambda: False)
+    monkeypatch.setattr(e1, "git", lambda *a: "head")
+    prepared = e1.prepare_extractor_policy_probe(pp, parent, prior)
+    assert prepared["remaining_hippo_budget_snapshot"] == 99910
+    proposal = tmp_path / "policy.json"
+    if outcome == "payload_changed":
+        prepared["cases"][0]["payload"]["seed"] = 43
+    if outcome == "other_directory":
+        prepared["parent_probe_output"] = "another-output"
+    dense.write_json_atomic(proposal, prepared)
+    if outcome == "review_changed":
+        review = dense.read_json(parent / "source-review.json")
+        review["cases"][0]["reason"] = "another review"
+        dense.write_json_atomic(parent / "source-review.json", review)
+    if outcome == "claimed":
+        (parent / "source-policy-probe-once.claim.json").write_text(
+            "claimed", encoding="utf-8"
+        )
+    body = {
+        "choices": [
+            {
+                "finish_reason": "length" if outcome == "length" else "stop",
+                "message": {"content": '{"triples":[["A","supposedly visited","B"]]}'},
+            }
+        ],
+        "usage": {"prompt_tokens": 10, "completion_tokens": 8},
+    }
+    if outcome == "unknown":
+        body["usage"].pop("completion_tokens")
+    response = Mock(status_code=200)
+    response.json.return_value = body
+    session = requests.Session()
+
+    def send(*a, **kw):
+        assert (parent / "source-policy-probe-once.claim.json").exists()
+        if outcome == "connection":
+            raise requests.ConnectionError("synthetic")
+        return response
+
+    session.post = Mock(side_effect=send)
+    monkeypatch.setattr(e1.requests, "Session", lambda: session)
+    config = {
+        "TARGET_API_MODEL": "qwen",
+        "TARGET_API_BASE_URL": "https://example.invalid/v1",
+        "LITELLM_API_KEY": "fake",
+    }
+    before = (parent / "manifest.json").read_bytes()
+    if outcome == "success":
+        output = e1.execute_schema_probe(
+            proposal,
+            prior,
+            tmp_path,
+            config,
+            dense.sha256_file(proposal),
+            compatible=True,
+        )
+    else:
+        with pytest.raises((ValueError, requests.ConnectionError, FileNotFoundError)):
+            e1.execute_schema_probe(
+                proposal,
+                prior,
+                tmp_path,
+                config,
+                dense.sha256_file(proposal),
+                compatible=True,
+            )
+        output = tmp_path / "musique-gpt-oss-policy-probe1"
+    assert session.post.call_count == posts
+    assert (parent / "manifest.json").read_bytes() == before
+    if not posts:
+        return
+    manifest = dense.read_json(output / "manifest.json")
+    assert manifest["model"] == "iairlab/gpt-oss-120b"
+    assert manifest["schema_variant"] == "gpt_oss_source_faithfulness_v1"
+    assert manifest["status"] == (
+        "awaiting_source_review" if outcome == "success" else "failed"
+    )
+    with pytest.raises(ValueError, match="already_claimed"):
+        e1.execute_schema_probe(
+            proposal,
+            prior,
+            tmp_path,
+            config,
+            dense.sha256_file(proposal),
+            compatible=True,
+        )
+    assert session.post.call_count == posts
+    (tmp_path / "results/summary").mkdir(parents=True)
+    a = e1.export(dense.read_json(prior), prior)
+    b = e1.export(dense.read_json(prior), prior)
+    expected = 97 + (
+        90
+        if outcome == "success"
+        else 10
+        if outcome == "unknown"
+        else 0
+        if outcome == "connection"
+        else 18
+    )
+    assert a["physical_known_tokens"] == b["physical_known_tokens"] == expected
+    assert a["cost_complete"] is (outcome not in ("unknown", "connection"))
+    if outcome in ("unknown", "connection"):
+        assert (
+            a["budget_charge_upper_bound"]
+            == expected + prepared["cases"][0]["reserved_tokens_upper_bound"]
+        )
+    # Even losing/moving the new output cannot permit another follow-up of this producer.
+    output.rename(tmp_path / "archived-new-output")
+    with pytest.raises(ValueError, match="already_claimed"):
+        e1.prepare_extractor_policy_probe(pp, parent, prior)

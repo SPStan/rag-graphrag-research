@@ -47,6 +47,21 @@ Candidate намеренно не исполняется существующи�
 подготовка не расходует предложенный reserve48929 и не разрешает новый POST.
 После повторного semantic failure — разбор протокола вместо новых prompt retries.
 
+## Техническая готовность одного source-policy follow-up
+
+Отдельный executable proposal hippo_extractor_policy_probe_v1 готовит те же payload,
+что проверенный candidate10e82514, и использует existing execute_schema_probe.
+Новый output/run, canonical exclusive claim у предыдущего GPT producer и проверка
+negative review/parent budget запрещают повторные дочерние попытки между output
+folders. Aggregate export включает обе GPT-пробы/старый history ровно один раз;
+unknown сохраняется. Transport retry0/timeout30/300/cap3072,5POST/48929reserve.
+
+Это только механизм исполнения после отдельного разрешения точного plan SHA/HEAD.
+Old offline candidate не разблокирован. Пока POST0, policy generation не проверена.
+После успеха всё ещё необходим source review всех5, решение benchmark/cache и
+отдельный continuation plan/расходы. После semantic failure не вводить следующий
+prompt retry без разбора причины и принятого изменения протокола.
+
 ## Решение о benchmark после пробы — ещё не принято
 
 A. Сохранить исходный единый Qwen extractor:3102пары reuse при точных request/SHA,

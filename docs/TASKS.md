@@ -2,27 +2,27 @@
 
 **E1 status:** 4/6 indexes completed; physical known tokens=16713498; cost_complete=False. Last stage=hipporag2 native schema continuation. Raw/indexes remain local. PR Draft; E2 requires all six verified indexes.
 
-## Текущая очередь — 22 октября: source-fidelity policy подготовлена offline
+## Текущая очередь — 22 октября: bounded source-policy follow-up готов к согласованию
 
-- E1 прежний4/6, known16713498/upper16768552,cost_complete=false. Старыйunknown55054
-  сохранён; новых LLM/embedding0. Mu остаток15032815, Hotpot20M.
-- GPT probe789bffd0:5stop/полныхJSON,6105tokens, semantic gate не пройден.
-  Старые manifests/answers и отрицательный review392ff920 не изменены.
-- В run_e1 добавлена одна общая source_faithfulness_v1 policy: attribution,
-  uncertainty/quantifiers, disjoint dates, modifier attachment, no outside repairs.
-  Она относится к5сохранённым замечаниям, но генерацией пока не проверена.
-- prepare-extractor-policy проверяет5реальных попыток, journal/artifact/SHA и
-  буквальные evidence всех5source-review случаев, затем меняет только system prompt.
-  Новый candidate не исполняется transport и не разрешает model calls.
-- Для возможной отдельной следующей пробы рассчитаны exact payload: те же5cases,
-  максимум5POST/48929reserve, NER/embedding/retry0, прежнийcap3072/low.
-  Это предложение, не уже разрешённый запуск. Нужны executable plan/claim и допуск.
-- ADR-0023 остаётся предложением benchmark/cache;3102Qwen пары не переименованы.
-  Готовые Dense/RAPTOR×4 и offline общий reader/evaluator сохраняются.
-- Не принимать старые ответы задним числом, не повторять GPT/Qwen/full/QA/E2/merge
-  автоматически. После ещё одного semantic failure — разбор вместо цепочки retries.
-- PR33Draft/Refs #13,19файлов. Архив оператора не пересоздавать/не отправлять.
-  Подробное обоснование и критерии — E1_INDEXING.
+- E1 прежний4/6, known16713498/upper16768552,cost_complete=false; unknown55054
+  сохранён. Mu остаток15032815, Hotpot20M. В этом блоке model/embeddingPOST0.
+- Первая GPT-проба789bffd0:5stop/6105tokens, semantic gate failed; её manifest5417b157
+  и negative review392ff920 immutable,3102Qwen pairs не переименованы.
+- В existing runner добавлен отдельный executable proposal той же source_faithfulness_v1
+  policy: payload равен offline candidate10e82514. Old candidate не исполняется.
+- Следующий предложенный bounded gate: те же5passages+cachedNER, GPT-OSS low,
+  cap3072/temp0/seed42/schema без uniqueItems/безenable_thinking,≤5POST/48929reserve,
+  NER/embedding/retry0, connect30/read300. Первая ошибка/unknown/length/cycle→stop.
+- Canonical exclusive claim у предыдущего GPT producer доHTTP; новый policy-probe1
+  output/run. Подмена SHA/review/параметров/parent budget и повторный claim отклоняются.
+  Export учитывает оба GPT run+index history без двойного начисления, включая unknown.
+-84targeted tests passed; actual offline preparation подтвердила exact payload/
+  reserve и неизменность прежних файлов. Следом clean commit/gate, exact plan SHA,
+  отдельное разрешение пользователя. Наличие бюджета не разрешает новые вызовы.
+- После machine-pass нужен source review всех5; даже успех не разрешает full Hippo,
+  mixed cache, QA/E2/merge. После semantic failure — разбор вместо новых prompt retries.
+- ADR-0023 benchmark proposal ещё не принят. PR33Draft/Refs #13/19files;
+  архив оператора не пересоздавать/не отправлять. Детали — E1_INDEXING.
 
 ## История — не текущие инструкции запуска
 

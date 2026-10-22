@@ -1,5 +1,71 @@
 # E1: индексы полного корпуса (#13)
 
+## Ограниченный исполняемый план source-fidelity — подготовлен, POST не разрешены
+
+Подготовленный ранее offline candidate10e82514 остаётся неизменным и неисполняемым.
+Теперь тот же existing executor поддерживает отдельный тип
+`hippo_extractor_policy_probe_v1`: ровно один follow-up исходной GPT-пробы789bffd0,
+с теми же5source cases и неизменными payload из проверенного candidate. Это
+техническая подготовка исполнения, не принятие GPT extractor/benchmark и не
+разрешение продолжать расходовать токены. Политика source_faithfulness_v1 прежняя.
+
+- Endpoint https://api.duckduck.cloud/v1; iairlab/gpt-oss-120b,
+  reasoning_effort=low, temperature0/seed42/stream=false, cap3072,
+  shape JSON Schema без uniqueItems, без Qwen chat_template_kwargs.
+- Передаются5сохранённых полных passages/cached NER и исходные SDK few-shot
+  messages с общей system-инструкцией. Questions/gold/support labels отсутствуют.
+- Максимум5POST, одна попытка/case, connect30/read300, retry0/redirects0;
+  новых NER/embedding0. Резерв48929 из15032815, исторические unknown55054 остаются.
+- Первая HTTP/transport error/unknown/length/partial/invalid/degeneration → stop.
+  После пяти machine-pass — только awaiting_source_review. Все5нуждаются в
+  source-only проверке factual support, attribution/uncertainty/dates/attachment
+  и существенных пропусков. Literal совпадение с Qwen не требуется.
+- Даже успех не запускает full Hippo, QA/E2, cache promotion или следующую пробу.
+  Повторный semantic failure завершает этот prompt-fix блок: дальше разбор
+  протокола, а не новая цепочка prompt retries.
+
+### Связь с неизменными предками и claim
+
+До HTTP заново проверяются approved plan исходной GPT-пробы, manifest5417b157,
+negative source-review392ff920, literal evidence и все5физических attempts/SHA.
+Parent index plan0310dad2 и failed manifeste3bb6654 тоже закреплены; token_limit
+и remaining должны совпасть с исходным snapshot. Из него вычтены6105известных
+токенов первой GPT-пробы. Отсутствующий/stale review, unknown producer, подмена
+payload/параметров или source directory останавливают подготовку/исполнение.
+
+Exclusive `source-policy-probe-once.claim.json` создаётся **в каноническом
+musique-gpt-oss-probe1**, до новогоPOST. Claim не привязан к произвольному output;
+перемещение output или другой worktree не даёт второй попытки того же producer.
+Новый run/output `musique-gpt-oss-policy-probe1`, прежние manifests/results immutable.
+При аварии claim сохраняется. Полный exact plan и clean code HEAD проверяются
+по SHA и повторной реконструкции до Session/HTTP. Старый candidate по-прежнему
+отклоняется; требуются новый plan kind и отдельное согласие на его SHA.
+
+Existing export суммирует index history, первые5GPT attempts и новый follow-up
+однократно. Own unknown резерв сохраняется вместе с known usage. В public metadata
+отдельная модель/variant, parent probe SHA, negative review SHA; это не Qwen cache hit.
+Старые4индекса и3102Qwen пары не меняются. Пока actual new cost0, E1known16713498.
+
+```powershell
+# Только подготовка, без HTTP; --source здесь обозначает предыдущий GPT output.
+& ./.venv-check/Scripts/python.exe -m scripts.run_e1 prepare-extractor-policy-probe `
+  --prior-plan <data-root>/indexes/e1/issue13-hippo-schema-preflight-plan.json `
+  --probe-plan .cache/e1-gpt-oss-diagnostic-plan-a6625f7.json `
+  --source indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/hipporag2/musique-gpt-oss-probe1 `
+  --plan .cache/e1-extractor-policy-approved-proposal.json
+# Только после отдельного разрешения конкретного SHA/HEAD:
+& <hippo-python> -m scripts.run_e1 run-compatible-schema-probe `
+  --plan <exact-followup-plan> `
+  --prior-plan <data-root>/indexes/e1/issue13-hippo-schema-preflight-plan.json `
+  --env-file <data-root>/<env-file> --approved-probe-sha256 <approved-sha>
+```
+
+Offline:84targeted tests passed. Fake transport проверяет5POST cap, first-error
+stop, unknown reserve, claim/reuse после перемещения output, подмены payload/review,
+actual model journal и cumulative no-double-count export. На actual сохранённых
+данных подтверждены payload equality с candidate10e82514, reserve48929 и неизменность
+source manifests/journals/review/public summary. Новых модельных запросов нет.
+
 ## Offline source-fidelity policy — подготовлена, моделью не проверена
 
 После пяти технически успешных GPT-OSS ответов сформулировано одно общее
