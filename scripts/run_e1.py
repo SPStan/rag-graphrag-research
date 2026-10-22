@@ -110,6 +110,12 @@ def validate_schema_probe_response(body):
     usage = extract_usage(body, "llm", "target_api")
     if usage["llm_input_tokens"] is None or usage["llm_output_tokens"] is None:
         raise ValueError("schema_probe_unknown_usage")
+    if (
+        usage["llm_output_tokens"] > 3072
+        or usage["llm_input_tokens"] + usage["llm_output_tokens"]
+        > PARAMETERS["target_context"]
+    ):
+        raise ValueError("schema_probe_usage_exceeds_cap")
 
     def unique_fields(pairs):
         if len(dict(pairs)) != len(pairs):
@@ -999,64 +1005,91 @@ def export(plan, plan_path):
             if (row["method"], row["dataset"]) == ("raptor", "hotpotqa")
             else {"hipporag2": "schema", "raptor": "embedding"}.get(row["method"])
         )
-        if (
-            probe_kind
-            and (row["dataset"] == "musique" or probe_kind == "summary")
-            and not row.get("diagnostics_in_history")
-        ):
-            probe_path = (
-                manifest.parent.parent
-                / f"{row['dataset']}-{probe_kind}-probe1/manifest.json"
-            )
-            if probe_path.exists():
-                probe = dense.read_json(probe_path)
-                if probe["parent_manifest_sha256"] != dense.sha256_file(manifest):
-                    raise ValueError(f"{probe_kind}_probe_parent_manifest_changed")
-                if verified_reference(probe, probe_path)["status"] != "verified":
-                    raise ValueError(f"{probe_kind}_probe_journal_not_intact")
-                for name, sha in probe["artifacts"].items():
-                    if dense.sha256_file(probe_path.parent / name) != sha:
-                        raise ValueError(f"{probe_kind}_probe_artifact_changed")
-                from scripts.token_accounting import summarize
-
-                records = []
-                for prior_row in history:
-                    records.extend(
-                        read_records(ROOT / prior_row["output"] / "usage.jsonl")
-                    )
-                if (manifest.parent / "usage.jsonl").exists():
-                    records.extend(read_records(manifest.parent / "usage.jsonl"))
-                records.extend(read_records(probe_path.parent / "usage.jsonl"))
-                public["cumulative_accounting"] = summarize(records)
-                public["cumulative_seconds"] = (
-                    public.get("cumulative_seconds", result.get("seconds", 0))
-                    + probe["seconds"]
+        diagnostic_records = []
+        probe_kinds = (
+            [probe_kind, "schema_shape"]
+            if (row["method"], row["dataset"]) == ("hipporag2", "musique")
+            else [probe_kind]
+        )
+        for probe_kind in probe_kinds:
+            if (
+                probe_kind
+                and (row["dataset"] == "musique" or probe_kind == "summary")
+                and not row.get("diagnostics_in_history")
+            ):
+                probe_path = (
+                    manifest.parent.parent
+                    / f"{row['dataset']}-{probe_kind.replace('_', '-')}-probe1/manifest.json"
                 )
-                public[f"{probe_kind}_probe"] = {
-                    k: probe[k]
-                    for k in (
-                        "status",
-                        "run_id",
-                        "unknown_reserved_upper_bound",
-                        "full_index_authorized",
-                        "cases",
+                if probe_path.exists():
+                    probe = dense.read_json(probe_path)
+                    if probe["parent_manifest_sha256"] != dense.sha256_file(manifest):
+                        raise ValueError(f"{probe_kind}_probe_parent_manifest_changed")
+                    if verified_reference(probe, probe_path)["status"] != "verified":
+                        raise ValueError(f"{probe_kind}_probe_journal_not_intact")
+                    for name, sha in probe["artifacts"].items():
+                        if dense.sha256_file(probe_path.parent / name) != sha:
+                            raise ValueError(f"{probe_kind}_probe_artifact_changed")
+                    from scripts.token_accounting import summarize
+
+                    records = []
+                    for prior_row in history:
+                        records.extend(
+                            read_records(ROOT / prior_row["output"] / "usage.jsonl")
+                        )
+                    if (manifest.parent / "usage.jsonl").exists():
+                        records.extend(read_records(manifest.parent / "usage.jsonl"))
+                    diagnostic_records.extend(
+                        read_records(probe_path.parent / "usage.jsonl")
                     )
-                }
-                if probe_kind == "embedding":
-                    public["embedding_probe"].update(
+                    records.extend(diagnostic_records)
+                    public["cumulative_accounting"] = summarize(records)
+                    public["cumulative_seconds"] = (
+                        public.get("cumulative_seconds", result.get("seconds", 0))
+                        + probe["seconds"]
+                    )
+                    public[f"{probe_kind}_probe"] = {
+                        k: probe[k]
+                        for k in (
+                            "status",
+                            "run_id",
+                            "unknown_reserved_upper_bound",
+                            "full_index_authorized",
+                            "cases",
+                        )
+                    }
+                    public[f"{probe_kind}_probe"].update(
                         {
                             k: probe[k]
                             for k in (
-                                "embedding_options",
-                                "producer_response_sha256",
-                                "native_tokens_with_special",
-                                "native_tokens_without_special",
+                                "schema_variant",
                                 "code_commit",
-                                "operator_sha256",
+                                "timeout_seconds",
                             )
                             if k in probe
                         }
                     )
+                    if probe_kind == "schema_shape" and probe.get(
+                        "prior_failed_schema_manifest_sha256"
+                    ) != dense.sha256_file(
+                        manifest.parent.parent / "musique-schema-probe1/manifest.json"
+                    ):
+                        raise ValueError("compatible_schema_prior_manifest_changed")
+                    if probe_kind == "embedding":
+                        public["embedding_probe"].update(
+                            {
+                                k: probe[k]
+                                for k in (
+                                    "embedding_options",
+                                    "producer_response_sha256",
+                                    "native_tokens_with_special",
+                                    "native_tokens_without_special",
+                                    "code_commit",
+                                    "operator_sha256",
+                                )
+                                if k in probe
+                            }
+                        )
         if manifest.exists():
             public["artifact_manifest_sha256"] = dense.sha256_file(manifest)
         exported_row = {**row, **public}
@@ -1102,7 +1135,7 @@ def export(plan, plan_path):
         + sum(
             r.get(f"{kind}_probe", {}).get("unknown_reserved_upper_bound", 0)
             for r in rows
-            for kind in ("schema", "embedding", "summary")
+            for kind in ("schema", "schema_shape", "embedding", "summary")
         )
         + sum(r.get("current_unknown_reserved_upper_bound") or 0 for r in rows)
     )
@@ -1649,6 +1682,8 @@ def prepare_schema_probe(prior_path, source, *, compatible=False):
         )
         previous = {
             "variant": "shape_local_unique_v2",
+            "code_commit": git("rev-parse", "HEAD"),
+            "timeout_seconds": [30, 300],
             "execution_authorized": False,
             "prior_failed_schema_manifest_sha256": dense.sha256_file(previous_path),
             "prior_unknown_reservation": previous_reserve,
@@ -1677,7 +1712,9 @@ def prepare_schema_probe(prior_path, source, *, compatible=False):
     }
 
 
-def execute_schema_probe(probe_path, prior_path, source, config, approved_sha256):
+def execute_schema_probe(
+    probe_path, prior_path, source, config, approved_sha256, *, compatible=False
+):
     """Two approved POSTs at most; a canonical claim survives failure or a crash."""
     if dense.sha256_file(probe_path) != approved_sha256 or code_dirty():
         raise ValueError("schema_probe_requires_approved_sha_and_clean_code")
@@ -1700,7 +1737,9 @@ def execute_schema_probe(probe_path, prior_path, source, config, approved_sha256
     prepared = dense.read_json(probe_path)
     if len(prepared.get("cases", [])) != 2 or prepared.get("max_new_posts") != 2:
         raise ValueError("schema_probe_requires_two_cases")
-    if prepared != prepare_schema_probe(prior_path, source):
+    if compatible and prepared.get("code_commit") != git("rev-parse", "HEAD"):
+        raise ValueError("compatible_schema_requires_pinned_code")
+    if prepared != prepare_schema_probe(prior_path, source, compatible=compatible):
         raise ValueError("schema_probe_prepared_inputs_changed")
     row = next(
         r
@@ -1708,11 +1747,18 @@ def execute_schema_probe(probe_path, prior_path, source, config, approved_sha256
         if (r["method"], r["dataset"]) == ("hipporag2", "musique")
     )
     prior = ROOT / row["output"]
-    directory = prior.parent / "musique-schema-probe1"
+    directory = prior.parent / (
+        "musique-schema-shape-probe1" if compatible else "musique-schema-probe1"
+    )
     if directory.exists():
         raise ValueError("schema_probe_output_already_exists")
     run_id = str(uuid.uuid4())
-    with (prior / "schema-probe-once.claim.json").open("x", encoding="utf-8") as stream:
+    claim_name = (
+        "schema-shape-probe-once.claim.json"
+        if compatible
+        else "schema-probe-once.claim.json"
+    )
+    with (prior / claim_name).open("x", encoding="utf-8") as stream:
         json.dump(
             {
                 "approved_plan_sha256": approved_sha256,
@@ -1737,7 +1783,19 @@ def execute_schema_probe(probe_path, prior_path, source, config, approved_sha256
         "max_new_posts": 2,
         "reserved_tokens_upper_bound": prepared["reserved_tokens_upper_bound"],
         "cases": [],
-        "unique_items_server_enforcement": "unverified",
+        "schema_variant": "shape_local_unique_v2" if compatible else "legacy_unique_v1",
+        "code_commit": git("rev-parse", "HEAD"),
+        "timeout_seconds": [30, 300] if compatible else [5, 300],
+        **(
+            {
+                "prior_failed_schema_manifest_sha256": prepared[
+                    "prior_failed_schema_manifest_sha256"
+                ]
+            }
+            if compatible
+            else {}
+        ),
+        "unique_items_server_enforcement": "local_only" if compatible else "unverified",
         "full_index_authorized": False,
     }
     dense.write_json_atomic(directory / "manifest.json", result)
@@ -1764,7 +1822,7 @@ def execute_schema_probe(probe_path, prior_path, source, config, approved_sha256
                 },
                 response_path=requests_dir / f"{case['request_sha256']}.response.json",
                 token_limit=prepared["reserved_tokens_upper_bound"],
-                timeout=(5, 300),
+                timeout=(30, 300) if compatible else (5, 300),
             )
             triples = validate_schema_probe_response(body)
             result["cases"].append(
@@ -2511,6 +2569,7 @@ def main():
             "prepare-schema-probe",
             "prepare-compatible-schema-probe",
             "run-schema-probe",
+            "run-compatible-schema-probe",
             "seal",
             "run",
             "report",
@@ -2688,9 +2747,14 @@ def main():
             json.dump(probe, stream, ensure_ascii=False, indent=2)
         print(json.dumps({k: v for k, v in probe.items() if k != "cases"}))
         return
-    elif args.command == "run-schema-probe":
+    elif args.command in ("run-schema-probe", "run-compatible-schema-probe"):
         directory = execute_schema_probe(
-            args.plan, args.prior_plan, args.source, config, args.approved_probe_sha256
+            args.plan,
+            args.prior_plan,
+            args.source,
+            config,
+            args.approved_probe_sha256,
+            compatible=args.command == "run-compatible-schema-probe",
         )
         print(
             json.dumps(

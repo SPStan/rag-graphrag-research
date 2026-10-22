@@ -352,3 +352,24 @@ results/summary/e1-raptor-summary-adoption.json.
 zeroHTTP при подмене audit/key/attempts. Условия пересмотра: новый отказ или
 невоспроизводимый payload, расход выше reserve либо несовпадение источников.
 Научное O/N/R/H и merge отдельно; Hippo и E2 этим решением не разрешены.
+
+### 22 октября: оба RAPTOR завершены; ограниченный compatible-schema executor
+
+Hotpotbb177a66 completed:5500leaves/7595nodes,слои5500/1411/684,
+347новыхPOST/697411known,0ошибок; отдельный fresh-process exactreload/0HTTP.
+Готово4/6. TLS continuation в данном запуске позволила закончить этап;
+это не доказывает устранение всех сетевых причин. Старый unknown8432сохранён.
+
+Совместимый schema-вариант встроен в существующий execute_schema_probe, а не
+одноразовый скрипт. Своя claim/output, exact approved SHA и code pin, max2POST,
+cap3072,connect30/read300/retry0/stopfirst. Одно правило полного JSON/формы/
+локальных дубликатов. Old uniqueItems manifest/unknown8679сохраняется; exporter
+суммирует обе диагностики без двойного учёта. Предложенный резерв17625из16057275,
+passage и cached NER прежние, NER/embedding/full rebuild не разрешаются.
+После старогоHTTP400 требуется отдельное согласие на новый schema-вариант;
+согласие на RAPTOR TLS этот scope не покрывает. Успех2случаев не является
+доказательством исправления цикла или достаточности full indexing.
+Проверка: offline HTTP callback показывает claim доPOST и≤2попытки, unknown
+второго ответа сохраняет первый usage, invalid JSON/дубликаты/length отвергаются,
+E1 known/reserves агрегируются ровно один раз. Условие пересмотра: server400,
+неполный output, дубликаты, unknown или неподдержанные facts при semantic audit.

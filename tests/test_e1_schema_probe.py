@@ -226,19 +226,23 @@ def test_prepare_reconstructs_both_original_hashes_without_http(tmp_path, change
             )
 
 
+@pytest.mark.parametrize("compatible", [False, True])
 @pytest.mark.parametrize(
     "outcome,posts",
     [
         ("success", 2),
+        ("bounded_success", 2),
         ("length", 1),
         ("unknown", 1),
         ("http_error", 1),
+        ("second_unknown", 2),
+        ("connection_error", 1),
         ("bad_approval", 0),
         ("active_worker", 0),
     ],
 )
 def test_approved_probe_bounds_posts_claims_and_preserves_spending(
-    tmp_path, outcome, posts
+    tmp_path, outcome, posts, compatible
 ):
     from unittest.mock import Mock
 
@@ -254,7 +258,14 @@ def test_approved_probe_bounds_posts_claims_and_preserves_spending(
         model="qwen",
         kind="llm",
     )
-    journal.finish(a, status="unknown", usage={"llm_input_tokens": 7})
+    journal.finish(
+        a,
+        status="success" if outcome == "bounded_success" else "unknown",
+        usage={
+            "llm_input_tokens": 7,
+            **({"llm_output_tokens": 0} if outcome == "bounded_success" else {}),
+        },
+    )
     dense.write_json_atomic(
         failed / "manifest.json",
         {
@@ -290,6 +301,37 @@ def test_approved_probe_bounds_posts_claims_and_preserves_spending(
         (tmp_path / "busy/running.lock").write_text("123", encoding="utf-8")
     prior = tmp_path / "prior.json"
     dense.write_json_atomic(prior, plan)
+    legacy = tmp_path / "musique-schema-probe1"
+    if compatible:
+        legacy.mkdir()
+        old_journal = Journal(
+            legacy / "usage.jsonl",
+            run_id="legacy-schema",
+            method="hipporag2",
+            dataset="musique",
+        )
+        old_attempt = old_journal.start(
+            phase="index",
+            operation="openie_triples",
+            provider="target_api",
+            model="qwen",
+            kind="llm",
+        )
+        old_journal.finish(old_attempt, status="unknown")
+        dense.write_json_atomic(
+            legacy / "manifest.json",
+            {
+                "status": "failed",
+                "run_id": "legacy-schema",
+                "seconds": 1,
+                "parent_manifest_sha256": dense.sha256_file(failed / "manifest.json"),
+                "token_accounting": old_journal.reference(),
+                "unknown_reserved_upper_bound": 8679,
+                "artifacts": {"usage.jsonl": dense.sha256_file(old_journal.path)},
+                "full_index_authorized": False,
+                "cases": [],
+            },
+        )
     prepared = {
         "max_new_posts": 2,
         "failed_manifest_sha256": dense.sha256_file(failed / "manifest.json"),
@@ -302,7 +344,8 @@ def test_approved_probe_bounds_posts_claims_and_preserves_spending(
                 "max_tokens": 3072,
                 "messages": [{"role": "user", "content": str(i)}],
                 "response_format": {"type": "json_object"},
-            }
+            },
+            compatible=compatible,
         )
         prepared["cases"].append(
             {
@@ -317,6 +360,16 @@ def test_approved_probe_bounds_posts_claims_and_preserves_spending(
     prepared["reserved_tokens_upper_bound"] = sum(
         c["reserved_tokens_upper_bound"] for c in prepared["cases"]
     )
+    if compatible:
+        prepared.update(
+            variant="shape_local_unique_v2",
+            code_commit="new",
+            timeout_seconds=[30, 300],
+            execution_authorized=False,
+            prior_failed_schema_manifest_sha256=dense.sha256_file(
+                legacy / "manifest.json"
+            ),
+        )
     probe_path = tmp_path / "probe.json"
     dense.write_json_atomic(probe_path, prepared)
     sha = dense.sha256_file(probe_path)
@@ -337,7 +390,26 @@ def test_approved_probe_bounds_posts_claims_and_preserves_spending(
     if outcome == "http_error":
         response.status_code = 400
         response.raise_for_status.side_effect = requests.HTTPError("schema unsupported")
-    session.post = Mock(return_value=response)
+    sent_responses = [response]
+    if outcome == "second_unknown":
+        second = Mock(status_code=200)
+        second.json.return_value = {**body, "usage": {"prompt_tokens": 10}}
+        sent_responses.append(second)
+
+    def post(*args, **kwargs):
+        assert (
+            failed
+            / (
+                "schema-shape-probe-once.claim.json"
+                if compatible
+                else "schema-probe-once.claim.json"
+            )
+        ).exists()
+        if outcome == "connection_error":
+            raise requests.ConnectionError("transport unavailable")
+        return sent_responses.pop(0) if outcome == "second_unknown" else response
+
+    session.post = Mock(side_effect=post)
     config = {
         "TARGET_API_MODEL": "qwen",
         "TARGET_API_BASE_URL": plan["endpoint"],
@@ -350,53 +422,101 @@ def test_approved_probe_bounds_posts_claims_and_preserves_spending(
         patch.object(e1, "prepare_schema_probe", return_value=prepared),
         patch.object(e1.requests, "Session", return_value=session),
     ):
-        if outcome == "success":
-            output = e1.execute_schema_probe(probe_path, prior, tmp_path, config, sha)
+        if outcome in ("success", "bounded_success"):
+            output = e1.execute_schema_probe(
+                probe_path, prior, tmp_path, config, sha, compatible=compatible
+            )
         else:
-            with pytest.raises((ValueError, requests.HTTPError)):
+            with pytest.raises(
+                (ValueError, requests.HTTPError, requests.ConnectionError)
+            ):
                 e1.execute_schema_probe(
                     probe_path,
                     prior,
                     tmp_path,
                     config,
                     "wrong" if outcome == "bad_approval" else sha,
+                    compatible=compatible,
                 )
-            output = tmp_path / "musique-schema-probe1"
+            output = tmp_path / (
+                "musique-schema-shape-probe1" if compatible else "musique-schema-probe1"
+            )
         assert session.post.call_count == posts
         if posts:
             manifest = dense.read_json(output / "manifest.json")
             assert manifest["full_index_authorized"] is False
             assert manifest["token_accounting"]["summary"]["attempts"] == posts
             assert manifest["status"] == (
-                "completed" if outcome == "success" else "failed"
+                "completed" if outcome in ("success", "bounded_success") else "failed"
             )
             for call in session.post.call_args_list:
                 assert call.kwargs["allow_redirects"] is False
-                assert call.kwargs["timeout"] == (5, 300)
+                assert call.kwargs["timeout"] == ((30, 300) if compatible else (5, 300))
                 assert call.kwargs["json"]["max_tokens"] == 3072
             with pytest.raises(ValueError, match="output_already_exists"):
-                e1.execute_schema_probe(probe_path, prior, tmp_path, config, sha)
+                e1.execute_schema_probe(
+                    probe_path, prior, tmp_path, config, sha, compatible=compatible
+                )
             assert session.post.call_count == posts
             (tmp_path / "results/summary").mkdir(parents=True)
             report = e1.export(plan, prior)
             expected = (
                 7 + posts * 18
-                if outcome not in ("unknown", "http_error")
+                if outcome
+                not in ("unknown", "http_error", "second_unknown", "connection_error")
+                else 35
+                if outcome == "second_unknown"
                 else 17
                 if outcome == "unknown"
                 else 7
             )
             assert report["physical_known_tokens"] == expected
-            assert report["cost_complete"] is False
-            assert report["rows"][0]["schema_probe"]["status"] == manifest["status"]
-            if outcome in ("unknown", "http_error"):
+            assert report["cost_complete"] == (
+                outcome == "bounded_success" and not compatible
+            )
+            if outcome == "bounded_success":
+                assert report["budget_charge_upper_bound"] == expected + (
+                    8679 if compatible else 0
+                )
+                assert report["budget_reservation_complete"] is True
+            assert (
+                report["rows"][0][
+                    "schema_shape_probe" if compatible else "schema_probe"
+                ]["status"]
+                == manifest["status"]
+            )
+            if compatible:
+                assert (
+                    report["rows"][0]["schema_probe"]["unknown_reserved_upper_bound"]
+                    == 8679
+                )
+                assert (
+                    report["rows"][0]["cumulative_accounting"]["attempts"] == posts + 2
+                )
+                for call in session.post.call_args_list:
+                    assert "uniqueItems" not in json.dumps(
+                        call.kwargs["json"]["response_format"]
+                    )
+            if outcome in (
+                "unknown",
+                "http_error",
+                "second_unknown",
+                "connection_error",
+            ):
                 assert manifest["unknown_reserved_upper_bound"] > 0
                 # The synthetic parent has unknown usage without a saved bound.
                 # A probe reserve cannot make the whole history's bound complete.
                 assert report["budget_charge_upper_bound"] is None
                 assert report["budget_reservation_complete"] is False
         else:
-            assert not (failed / "schema-probe-once.claim.json").exists()
+            assert not (
+                failed
+                / (
+                    "schema-shape-probe-once.claim.json"
+                    if compatible
+                    else "schema-probe-once.claim.json"
+                )
+            ).exists()
 
 
 def test_compatible_schema_keeps_shape_and_local_duplicate_rejection():
@@ -425,3 +545,18 @@ def test_compatible_schema_keeps_shape_and_local_duplicate_rejection():
     }
     with pytest.raises(ValueError, match="duplicate"):
         e1.validate_schema_probe_response(duplicated)
+
+
+@pytest.mark.parametrize(
+    "field,value", [("completion_tokens", 3073), ("prompt_tokens", 262144)]
+)
+def test_schema_probe_rejects_reported_usage_beyond_output_or_context_cap(field, value):
+    body = {
+        "choices": [
+            {"finish_reason": "stop", "message": {"content": '{"triples":[]}'}}
+        ],
+        "usage": {"prompt_tokens": 10, "completion_tokens": 8},
+    }
+    body["usage"][field] = value
+    with pytest.raises(ValueError, match="exceeds_cap"):
+        e1.validate_schema_probe_response(body)

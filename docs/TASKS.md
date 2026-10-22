@@ -2,14 +2,22 @@
 
 **E1 status:** 4/6 indexes completed; physical known tokens=15689038; cost_complete=False. Last stage=raptor_hotpotqa_terminal. Raw/indexes remain local. PR Draft; E2 requires all six verified indexes.
 
-## Текущая очередь — HotpotQA continuation, 22 октября 2026
+## Текущая очередь — 22 октября: 4/6, подготовлена Hippo schema-проба
 
-- Ограниченный HotpotQA runbb177a66 завершил выполнение; status=completed.
-- **E1 status:** 4/6 indexes completed; physical known tokens=15689038; cost_complete=False. Last stage=raptor_hotpotqa_terminal. Raw/indexes remain local. PR Draft; E2 requires all six verified indexes.
-- Полная сводка: results/summary/e1-indexing.md; raw/manifest остаются локально.
-- Старые failed/probe и unknown сохранены; автоматических повторов нет.
-- Hippo-проба, полный Hippo rebuild, QA/E2 и merge не запускались.
-- Следующий шаг: проверить итоговый manifest и save/reload; при отказе сначала разобрать причину. Hippo candidate требует отдельно подготовленного исполнителя.
+- Dense×2/RAPTOR×2 completed. Hotpotbb177a66:5500leaves/7595nodes,
+  слои5500/1411/684;347новыхPOST/697411known,0ошибок.
+- Отдельный fresh-process pinned SDK reload: exact round-trip/artifact SHA,
+  journal неизменен, HTTP0. Proof .cache/e1-hotpot-reload-proof.json;
+  безопасные SHA/команды — E1_INDEXING.md. Новых модельных запросов нет.
+- E1 known15689038/upper15744092,cost_complete=false. Все failed/unknown
+  сохранены, включая последнее8432. Историческую неполноту не скрывать.
+- HippoMu failed2329/5500, Hotpot pending. Совместимая schema shape_local_unique_v2
+  встроена в прежний executor и E1 exporter. СтарыйHTTP400/unknown8679неизменен.
+- Подготовить конкретный plan на чистом HEAD; перед выполнением получить отдельное
+  согласие на новый schema-вариант поADR-0022:≤2POST/2старых passage+cached NER,
+  cap3072,резерв17625из16057275,connect30/read300,retry0,stopfirst.
+- Успех не запускает full Hippo автоматически. E2/QA/merge не запускать;
+  PR33Draft/Refs13. Научное O/N/R/H проверяется отдельно перед Ready.
 
 ## История — не текущие инструкции запуска
 

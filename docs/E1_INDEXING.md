@@ -1,5 +1,63 @@
 # E1: индексы полного корпуса (#13)
 
+## Текущее состояние — 22 октября: RAPTOR×2 готовы, Hippo-проба подготовлена
+
+RAPTOR HotpotQA runbb177a66 completed:5500leaves,7595nodes,2095summaries,
+слои5500/1411/684. Последнее сетевое продолжение347POST/697411known tokens,
+0ошибок,3129.293s. Все родительские расходы/unknown8432 сохранены;
+сумма измеренных durations истории19623.594s — attribution, не cold-run time.
+
+Свежий отдельный процесс pinned RAPTOR SDK проверил все artifact SHA,
+restore/serialize exact round-trip и неизменность журнала, HTTP0.
+Tree SHA14500441ec9a1a6b9088c8bf7036819edcf349255148219d0eb6fa07b9198ec0;
+manifest SHAccaccda5fd3541196af3afdaf365fde5d44e1e08f957e7ae852fbb9009b74042;
+journal SHAabb5f5f3c734cb3684a23289341d4d9a9c7d2e62d23ddae427776543c7fc5bef.
+Native proof — ignored .cache/e1-hotpot-reload-proof.json, без private text в Git.
+Готово4/6, E1 physical known15689038/upper charge15744092/cost_complete=false.
+Неполнота относится к расходу истории; два RAPTOR индекса готовы к последующим
+проверкам retrieval, но E2 не запускается до готовности всех шести.
+
+### Исполнитель ограниченной Hippo schema-пробы
+
+В существующем `execute_schema_probe`/CLI теперь есть явный режим
+`run-compatible-schema-probe`. Он проверяет точный approved SHA, чистый и
+закреплённый code commit, pinned SDK prompts/corpus/cache/старые manifests и
+новый canonical claim доHTTP. Отдельный output musique-schema-shape-probe1,
+неизменный старый musique-schema-probe1/HTTP400/unknown8679.
+E1 exporter учитывает обе диагностики ровно один раз, включая известный usage
+при неверном JSON, частичный usage и upper reserve при неизвестном расходе.
+
+Новый план:2POST максимум, по одному на2исторических passage+их cached NER,
+та же iairlab/qwen3.8-27b/URL, temp0/seed42/thinkingfalse/cap3072;
+connect30/read300,retry0,redirectsfalse. Это явно заданная политика новой
+диагностики; она не наследует разрешение TLS-прогона RAPTOR. При первой ошибке,
+length, неизвестном usage, invalid/partial JSON, неверной форме или дубликате —
+остановка. Никаких новых NER/embedding и full rebuild. Резерв17625=8657+8968
+из оставшихся16057275Hippo tokens; неиспользованный RAPTOR бюджет не переносится.
+
+Schema без unsupported uniqueItems проверяет форму, а строгая локальная проверка
+полный JSON/повторные поля/тройки/дубликаты проверяет принятие результата.
+Успех2/2 не доказывает устранение генеративного цикла на корпусе или истинность
+triples; semantic support остаётся отдельной проверкой на исходных passage.
+SDK используется для точного воспроизведения prompts/NER; физические POST идут
+через общий measured requests transport, не скрытый SDK retry.
+
+```powershell
+# Подготовка безHTTP, только в изолированной среде pinned Hippo SDK:
+<hippo-python> -m scripts.run_e1 prepare-compatible-schema-probe --prior-plan '<latest-e1-plan>' --source '<pinned-hippo-source>' --plan '<new-private-compatible-plan>'
+# Только после отдельного согласия на новую schema-пробу по ADR-0022:
+<hippo-python> -m scripts.run_e1 run-compatible-schema-probe --prior-plan '<latest-e1-plan>' --source '<pinned-hippo-source>' --plan '<new-private-compatible-plan>' --approved-probe-sha256 '<exact-plan-sha>' --env-file '<data-root>/<env-file>'
+# Обновление E1 из того же latest plan, в том числе после ошибки:
+./.venv-check/Scripts/python.exe -m scripts.run_e1 report --plan '<latest-e1-plan>'
+```
+
+Предыдущее согласие на uniqueItems-пробу уже израсходовано старымHTTP400.
+По ADR-0022 для нового варианта нужно отдельное согласие пользователя на передачу
+двух passage/cached NER и2POST. Кураторская O/N/R/H карточка — отдельное условие
+готовности PR, не автоматическая блокировка подготовки этой технической пробы.
+Сейчас новых модельных вызовов нет. Issue13 остаётся открытой, PR33Draft/Refs13.
+
+
 ## HotpotQA: восстановление после TLS timeout — 22 октября 2026
 
 Run17fdc09a остановлен после1005новых POST: known1935267,
