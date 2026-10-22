@@ -1,5 +1,63 @@
 # E1: индексы полного корпуса (#13)
 
+## Offline-принятие и готовый путь продолжения Hippo — 22 октября
+
+[Отдельная запись принятия](../results/summary/e1-hippo-schema-adoption.json)
+фиксирует `native_graph_set_schema_v1`: полный исходный JSON передаётся штатному
+parser SDK1438aba3 с `recover_partial=False`, удаляются только точные одинаковые
+triples. Проверено на реальных сохранённых ответах:16→16 и62→14, HTTP0.
+Строгая проба и её manifest остаются failed; 3234 уже потраченных токена входят
+в E1 один раз. Это техническая нормализация существующего индекса, а не
+подтверждение качества фактов или устранения генеративного цикла. Years/counts
+и modality, потерянные моделью, дедупликация не восстанавливает.
+
+Единое правило обоих датасетов: старые полные успешные json_object ответы
+переиспользуются без смены идентичности. Для ещё не оплаченных triple-запросов
+используется прежний prompt/cap3072 со shape schema без uniqueItems. NER остаётся
+json_object/cap1024. Для двух принятых случаев проверяется связь original request
+→ schema request → producer run/response SHA/usage. Журнал cache_hit записывает
+реальный schema request, а не исходный json_object. Raw не сокращается.
+Фактическая история смешивает старый json_object и новые schema ответы; это
+раскрыто, успешные старые извлечения не перегенерируются. Непустой полный JSON
+и валидная форма обязательны; пустой список triples допустим штатным SDK.
+Length, partial, duplicate JSON fields, unknown usage, неверная форма — остановка.
+
+Используется существующий runner. Новые outputs `musique-schema1`, затем
+`hotpotqa-schema1`; Hotpot допускается после завершения/проверки MuSiQue.
+Canonical claim рядом с исходным MuSiQue failed manifest общий для разных output
+и worktrees; повторная подготовка отклоняется. Immutable ancestors, новые run IDs.
+Пять историй MuSiQue (три индексных, две schema) учитываются один раз: charge3945959,
+из них16601 unknown reserve; остаток **16054041**. Hotpot лимит **20000000**,
+суммарный новый предел **36054041** combined LLM+embedding tokens. Общий E1
+known15692272/upper15747326 не меняется от offline-принятия; cost_complete=false.
+Остальные старые unknown, включая RAPTOR, сохраняются.
+
+Предел каждого dataset:40000 физических POST суммарно во внешний API и локальный
+embedding, дополнительно ограниченных token budget; максимум11000 LLM POST
+(по одному NER и triples на каждый из5500 passages), для MuSiQue меньше за счёт
+проверенного кэша. Не более одной новой попытки на uncached payload, corrective0,
+retry0, redirects=false, target connect30/read300. Счётчик включает embeddings;
+это верхняя граница, а не прогноз числа запросов. Внешнему API передаются только
+passage и сохранённые/новые NER; локальному BGE-M3 — passages/entities/facts.
+QA, gold, supporting labels не передаются. Dense/RAPTOR не запускаются.
+На первой ошибке, unknown, length, неверном JSON/векторе, смене SHA/модели/SDK,
+исчерпании cap/бюджета/POST — остановка с сохранением failed manifest и расхода;
+новой коррекции и автоматического повтора нет.
+
+Команды offline (первый output должен быть новым, принятие затем коммитится):
+
+```powershell
+<hippo-python> -m scripts.run_e1 adopt-schema-responses --prior-plan '<latest-e1-plan>' --probe-plan '<approved-compatible-probe-plan>' --source '<pinned-hippo-source>' --plan '<new-adoption-record>'
+<hippo-python> -m scripts.run_e1 prepare-native-schema-continuation --prior-plan '<latest-e1-plan>' --probe-plan '<approved-compatible-probe-plan>' --schema-adoption results/summary/e1-hippo-schema-adoption.json --source '<pinned-hippo-source>' --plan '<data-root>/indexes/e1/issue13-hippo-schema-plan.json'
+```
+
+Подготовка фиксирует clean HEAD, все SHA, бюджеты и canonical claim; HTTP0.
+Само принятие и позднее согласие на уже выполненную пробу6d0d0dc3 **не разрешают**
+новые full-corpus вызовы. Перед `run` требуется отдельное согласие пользователя
+по ADR-0022 на этот точный план; автоматического требования нового решения
+куратора для использования штатного parser протокол не вводит. Научные O/N/R/H
+проверяются отдельно перед ревью. PR остаётся Draft/Refs #13, готово4/6.
+
 ## Измеренный результат compatible-schema пробы — 22 октября
 
 План6d0d0dc3 выполнен после нового согласия в чате. Run
@@ -44,13 +102,13 @@ HTTP0; raw и failed manifest не изменились. Этот факт не 
 
 Более строгая диагностика потребовала уникальности самого model output,
 а штатная семантика индекса использует уникальное множество relations.
-Следующий предлагаемый путь: отдельное принятие сохранённых **полных** responses
+Реализованный offline-путь: отдельное принятие сохранённых **полных** responses
 для штатного SDK parser с учётом raw/unique counts и явной original→schema
 provenance; затем offline-интеграция replay и план ограниченного продолжения.
 Политика должна быть общей для обоих датасетов. Partial JSON, length, неизвестный
 usage и неверная форма по-прежнему не принимаются; старый failed остаётся failed.
-Решение о таком принятии ещё не активировано; новых модельных проб для изучения
-дубликатов сейчас не нужно. Если этот путь отвергнут, требуется новый протокол
+Принятие оформлено отдельным артефактом ниже; новых модельных проб для изучения
+дубликатов сейчас не нужно. При изменении этой семантики требуется новый протокол
 извлечения counts/years, а не слепой повтор нынешнего запроса.
 
 Форматный успехValencia не равен семантической проверке16фактов: в output

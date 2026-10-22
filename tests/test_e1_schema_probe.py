@@ -1,5 +1,6 @@
 import copy
 import json
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -587,3 +588,423 @@ def test_schema_probe_rejects_reported_usage_beyond_output_or_context_cap(field,
     body["usage"][field] = value
     with pytest.raises(ValueError, match="exceeds_cap"):
         e1.validate_schema_probe_response(body)
+
+
+@pytest.fixture
+def adoption_case(tmp_path, monkeypatch):
+    monkeypatch.setattr(e1, "ROOT", tmp_path)
+    prior = tmp_path / "prior.json"
+    dense.write_json_atomic(
+        prior,
+        {
+            "model": "qwen",
+            "rows": [
+                {"method": "hipporag2", "dataset": "musique", "output": "hippo/stopped"}
+            ],
+        },
+    )
+    directory = tmp_path / "hippo/musique-schema-shape-probe1"
+    (directory / "requests").mkdir(parents=True)
+    journal = Journal(
+        directory / "usage.jsonl",
+        run_id="producer",
+        method="hipporag2",
+        dataset="musique",
+    )
+    prepared = {"code_commit": "old", "failed_manifest_sha256": "parent", "cases": []}
+    for i in range(2):
+        payload, _ = e1.schema_probe_payload(
+            {
+                **e1.target.OPTIONS,
+                "model": "qwen",
+                "messages": [{"role": "user", "content": str(i)}],
+                "max_tokens": 3072,
+                "response_format": {"type": "json_object"},
+            },
+            compatible=True,
+        )
+        key = e1.target.digest(
+            {"payload": payload, "kind": "llm", "operation": "openie_triples"}
+        )
+        prepared["cases"].append(
+            {
+                "payload": payload,
+                "request_sha256": key,
+                "original_request_sha256": f"original{i}",
+                "ner_response_sha256": f"ner{i}",
+                "source_id": str(i),
+            }
+        )
+        body = {
+            "choices": [
+                {
+                    "finish_reason": "stop",
+                    "message": {
+                        "content": '{"triples":[["A","in","B"],["A","in","B"]]}'
+                    },
+                }
+            ],
+            "usage": {"prompt_tokens": 10, "completion_tokens": 8},
+        }
+        dense.write_json_atomic(directory / f"requests/{key}.response.json", body)
+        attempt = journal.start(
+            phase="index",
+            operation="openie_triples",
+            provider="target_api",
+            model="qwen",
+            kind="llm",
+            object_id=key,
+        )
+        journal.finish(
+            attempt, status="success", usage=e1.extract_usage(body, "llm", "target_api")
+        )
+    probe = tmp_path / "probe.json"
+    dense.write_json_atomic(probe, prepared)
+    manifest = {
+        "status": "failed",
+        "run_id": "producer",
+        "schema_variant": "shape_local_unique_v2",
+        "approved_plan_sha256": dense.sha256_file(probe),
+        "parent_manifest_sha256": "parent",
+        "unknown_reserved_upper_bound": 0,
+        "token_accounting": journal.reference(),
+        "artifacts": {
+            p.relative_to(directory).as_posix(): dense.sha256_file(p)
+            for p in directory.rglob("*")
+            if p.is_file()
+        },
+    }
+    dense.write_json_atomic(directory / "manifest.json", manifest)
+    monkeypatch.setattr(
+        e1,
+        "prepare_schema_probe",
+        lambda *a, **kw: {**prepared, "code_commit": "current"},
+    )
+
+    def parse(stage, text, *, recover_partial):
+        assert stage == "openie_triples" and recover_partial is False
+        return [
+            list(t)
+            for t in dict.fromkeys(tuple(t) for t in json.loads(text)["triples"])
+        ]
+
+    monkeypatch.setattr(
+        "scripts.hipporag_repair_executor.make_pinned_openie_parser", lambda: parse
+    )
+    monkeypatch.setattr(
+        "requests.sessions.Session.request",
+        lambda *a, **k: pytest.fail("HTTP forbidden"),
+    )
+    return prior, probe, directory, prepared
+
+
+def test_offline_adoption_keeps_failed_and_physical_cost(adoption_case):
+    prior, probe, directory, _ = adoption_case
+    old = (directory / "manifest.json").read_bytes()
+    record, cache = e1.schema_adoption(probe, prior, Path("sdk"))
+    assert [(c["raw_triples"], c["unique_triples"]) for c in record["cases"]] == [
+        (2, 1),
+        (2, 1),
+    ]
+    assert record["physical_known_tokens"] == 36
+    assert record["new_http_calls"] == 0
+    assert len(cache) == 2
+    assert (directory / "manifest.json").read_bytes() == old
+    assert record["probe_status"] == "failed"
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        "sha",
+        "length",
+        "partial",
+        "unknown",
+        "duplicate_field",
+        "shape",
+        "parser",
+        "empty",
+    ],
+)
+def test_adoption_rejects_corruption_and_incomplete_output(
+    adoption_case, change, monkeypatch
+):
+    prior, probe, directory, prepared = adoption_case
+    path = (
+        directory / f"requests/{prepared['cases'][0]['request_sha256']}.response.json"
+    )
+    body = dense.read_json(path)
+    if change == "length":
+        body["choices"][0]["finish_reason"] = "length"
+    elif change == "unknown":
+        body["usage"].pop("completion_tokens")
+    elif change == "parser":
+        monkeypatch.setattr(
+            "scripts.hipporag_repair_executor.make_pinned_openie_parser",
+            lambda: lambda *a, **k: [],
+        )
+    elif change in ("partial", "duplicate_field", "shape", "empty"):
+        body["choices"][0]["message"]["content"] = {
+            "partial": '{"triples":[',
+            "duplicate_field": '{"triples":[],"triples":[]}',
+            "shape": '{"triples":[["A","B"]]}',
+            "empty": '{"triples":[]}',
+        }[change]
+    else:
+        body["id"] = "changed"
+    dense.write_json_atomic(path, body)
+    if change != "sha":
+        manifest = dense.read_json(directory / "manifest.json")
+        manifest["artifacts"][path.relative_to(directory).as_posix()] = (
+            dense.sha256_file(path)
+        )
+        dense.write_json_atomic(directory / "manifest.json", manifest)
+    with pytest.raises(ValueError):
+        e1.schema_adoption(probe, prior, Path("sdk"))
+
+
+def test_adopted_replay_names_actual_schema_request_and_cost_once(
+    adoption_case, tmp_path
+):
+    prior, probe, _, prepared = adoption_case
+    record, cache = e1.schema_adoption(probe, prior, Path("sdk"))
+    original = {
+        **prepared["cases"][0]["payload"],
+        "response_format": {"type": "json_object"},
+    }
+    original_key = e1.target.digest(
+        {"payload": original, "kind": "llm", "operation": "openie_triples"}
+    )
+    row = {
+        "method": "hipporag2",
+        "dataset": "musique",
+        "run_id": "child",
+        "resume_kind": "native_schema",
+        "token_limit": 1000,
+    }
+    plan = {
+        "model": "qwen",
+        "embedding_model": "bge",
+        "hippo_schema_policy": e1.HIPPO_SCHEMA_POLICY,
+        "raptor_summary_network_resume": True,
+        "independent_raptor": True,
+    }
+    child = tmp_path / "child"
+    child.mkdir()
+    journal = Journal(
+        child / "usage.jsonl", run_id="child", method="hipporag2", dataset="musique"
+    )
+    with patch.object(e1, "verify_schema_recovery", return_value=(record, cache)):
+        transport = e1.Transport(plan, row, {}, child, journal)
+    transport.schema_aliases = {original_key: prepared["cases"][0]["request_sha256"]}
+    for _ in range(2):
+        text, metadata = transport.generate(
+            original["messages"], 3072, "openie_triples", {"type": "json_object"}
+        )
+        assert metadata["cache_hit"] is True
+        assert (
+            len(json.loads(text)["triples"]) == 2
+        )  # Raw preserved; SDK normalizes later.
+    summary = journal.summary()
+    assert summary["attempts"] == 0
+    assert sum(summary["known_subtotal"].values()) == 0
+    assert sum(p["cache_hits"] for p in summary["phases"]) == 2
+    from scripts.token_accounting import read_records, summarize
+
+    hits = [r for r in read_records(journal.path) if r["event"] == "finished"]
+    assert all(
+        r["object_id"] == prepared["cases"][0]["request_sha256"]
+        and r["producer_run_id"] == "producer"
+        for r in hits
+    )
+    combined = summarize(
+        [
+            *read_records(
+                next(iter(cache.values()))["path"].parent.parent / "usage.jsonl"
+            ),
+            *read_records(journal.path),
+        ]
+    )
+    assert sum(combined["known_subtotal"].values()) == 36
+    transport.close()
+
+
+@pytest.mark.parametrize("change", ["length", "unknown", "partial"])
+def test_new_schema_failure_keeps_usage_and_forbids_next_post(
+    tmp_path, monkeypatch, change
+):
+    row = {
+        "method": "hipporag2",
+        "dataset": "hotpotqa",
+        "run_id": "child",
+        "resume_kind": "native_schema",
+        "token_limit": 20000,
+        "max_new_posts": 2,
+    }
+    plan = {
+        "model": "qwen",
+        "embedding_model": "bge",
+        "hippo_schema_policy": e1.HIPPO_SCHEMA_POLICY,
+        "endpoint": "https://example.invalid/v1",
+    }
+    journal = Journal(
+        tmp_path / "usage.jsonl", run_id="child", method="hipporag2", dataset="hotpotqa"
+    )
+    with patch.object(e1, "verify_schema_recovery", return_value=({"cases": []}, {})):
+        transport = e1.Transport(
+            plan, row, {"LITELLM_API_KEY": "fake"}, tmp_path, journal
+        )
+    body = {
+        "choices": [
+            {
+                "finish_reason": "length" if change == "length" else "stop",
+                "message": {
+                    "content": '{"triples":['
+                    if change == "partial"
+                    else '{"triples":[["A","in","B"]]}'
+                },
+            }
+        ],
+        "usage": {
+            "prompt_tokens": 10,
+            **({} if change == "unknown" else {"completion_tokens": 8}),
+        },
+    }
+    from unittest.mock import Mock
+
+    response = Mock(status_code=200)
+    response.json.return_value = body
+    transport.session.post = Mock(return_value=response)
+    args = (
+        [{"role": "user", "content": "text"}],
+        3072,
+        "openie_triples",
+        {"type": "json_object"},
+    )
+    with pytest.raises(ValueError):
+        transport.generate(*args)
+    assert journal.summary()["known_subtotal"]["llm_input_tokens"] == 10
+    with pytest.raises(ValueError, match="schema_failure_cannot_continue"):
+        transport.generate(
+            [{"role": "user", "content": "another passage"}],
+            3072,
+            "openie_triples",
+            {"type": "json_object"},
+        )
+    assert transport.session.post.call_count == 1
+    transport.close()
+
+
+def test_native_schema_plan_claim_shared_across_outputs(tmp_path, monkeypatch):
+    monkeypatch.setattr(e1, "ROOT", tmp_path)
+    monkeypatch.setattr(e1, "code_dirty", lambda: False)
+    monkeypatch.setattr(e1, "git", lambda *a: "code")
+    monkeypatch.setattr(e1, "schema_adoption", lambda *a: ({"accepted": True}, {}))
+    monkeypatch.setattr(e1, "schema_resume_history", lambda *a: ([], []))
+    (tmp_path / "old-mu").mkdir()
+    prior = tmp_path / "prior.json"
+    dense.write_json_atomic(
+        prior,
+        {
+            "workspace": str(tmp_path),
+            "batch_id": "batch",
+            "rows": [
+                {
+                    "method": "hipporag2",
+                    "dataset": d,
+                    "output": "old-mu" if d == "musique" else "old-hot",
+                }
+                for d in e1.DATASETS
+            ],
+        },
+    )
+    probe, adoption = tmp_path / "probe.json", tmp_path / "adoption.json"
+    dense.write_json_atomic(probe, {})
+    dense.write_json_atomic(adoption, {"accepted": True})
+    plan = e1.prepare_native_schema_continuation(prior, probe, adoption, tmp_path)
+    assert [r["token_limit"] for r in plan["rows"]] == [20000000, 20000000]
+    assert (tmp_path / "old-mu/schema-resume-once.claim.json").exists()
+    assert not (tmp_path / plan["rows"][0]["output"]).exists()
+    with pytest.raises(FileExistsError):
+        e1.prepare_native_schema_continuation(prior, probe, adoption, tmp_path)
+
+
+@pytest.mark.parametrize("change", ["adoption_sha", "probe_sha", "policy"])
+def test_recovery_input_changes_fail_before_http(adoption_case, tmp_path, change):
+    prior, probe, _, _ = adoption_case
+    record, _ = e1.schema_adoption(probe, prior, Path("sdk"))
+    adoption = tmp_path / "adoption.json"
+    dense.write_json_atomic(adoption, record)
+    plan = {
+        "hippo_schema_policy": e1.HIPPO_SCHEMA_POLICY,
+        "hippo_schema_inputs": {
+            "prior": {"path": str(prior), "sha256": dense.sha256_file(prior)},
+            "probe": {"path": str(probe), "sha256": dense.sha256_file(probe)},
+            "source": {"path": "sdk"},
+        },
+    }
+    row = {
+        "schema_adoption": {
+            "path": "adoption.json",
+            "sha256": dense.sha256_file(adoption),
+        }
+    }
+    if change == "adoption_sha":
+        dense.write_json_atomic(adoption, {**record, "physical_known_tokens": 0})
+    elif change == "probe_sha":
+        dense.write_json_atomic(probe, {})
+    else:
+        plan["hippo_schema_policy"] = {**e1.HIPPO_SCHEMA_POLICY, "retry": 1}
+    with pytest.raises(ValueError):
+        e1.verify_schema_recovery(plan, row)
+
+
+@pytest.mark.parametrize("change", ["budget", "sources", "claim", "post_limit"])
+def test_schema_plan_tampering_rejected_before_http(tmp_path, monkeypatch, change):
+    monkeypatch.setattr(e1, "ROOT", tmp_path)
+    monkeypatch.setattr(e1, "schema_resume_history", lambda *a: ([], []))
+    monkeypatch.setattr(
+        "requests.sessions.Session.request",
+        lambda *a, **k: pytest.fail("HTTP forbidden"),
+    )
+    prior = tmp_path / "prior.json"
+    dense.write_json_atomic(
+        prior,
+        {"rows": [{"method": "hipporag2", "dataset": "musique", "output": "old"}]},
+    )
+    probe = tmp_path / "probe.json"
+    dense.write_json_atomic(probe, {})
+    row = {
+        "method": "hipporag2",
+        "dataset": "musique",
+        "run_id": "child",
+        "max_new_posts": 40000,
+        "history_runs": [],
+        "resume_sources": [],
+        "prior_budget_charge": 0,
+        "token_limit": 20000000,
+        "diagnostics_in_history": True,
+        "schema_adoption": {"sha256": "adoption"},
+    }
+    plan = {
+        "hippo_schema_policy": e1.HIPPO_SCHEMA_POLICY,
+        "hippo_schema_inputs": {
+            "prior": {"path": str(prior), "sha256": dense.sha256_file(prior)},
+            "probe": {"path": str(probe)},
+        },
+        "rows": [row],
+    }
+    (tmp_path / "old").mkdir()
+    claim_path = tmp_path / "old/schema-resume-once.claim.json"
+    dense.write_json_atomic(claim_path, e1.schema_claim(plan))
+    e1.verify_native_schema_plan(plan, row)
+    if change == "budget":
+        row["prior_budget_charge"] = -1
+    elif change == "sources":
+        row["resume_sources"] = [{"output": "elsewhere"}]
+    elif change == "claim":
+        row["run_id"] = "different_child"
+    else:
+        row["max_new_posts"] = 40001
+    with pytest.raises(ValueError):
+        e1.verify_native_schema_plan(plan, row)

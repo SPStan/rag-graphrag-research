@@ -397,3 +397,35 @@ full индекса. Принятие ещё не активировано, repl
 не доказана; output теряет временные/количественные qualifiers и часть modality.
 Новый запрос ради удаления дубликатов сейчас не требуется. При отказе от этой
 семантики нужен другой заранее заданный протокол извлечения counts/years.
+
+
+### 22 октября: native graph-set adoption и offline-интеграция continuation
+
+Принято техническое решение `native_graph_set_schema_v1`: использовать полные
+сохранённые responses штатным parser SDK1438aba3 (exact literal dedup), сохраняя
+raw и failed строгой пробы. Отдельный публичный adoption содержит исходный/schema
+request, response/manifest SHA, producer и raw/unique counts16/16и62/14. Прямой
+вызов закреплённого SDK воспроизвёл counts offline, requests запрещены.
+Альтернативы: ещё одна генерация ради уникальности — лишняя оплата без необходимости;
+частичный JSON — отвергнут; извлечение count/year qualifiers — другой протокол,
+не реализуется молча в этом блоке. Семантическая истинность не доказана.
+
+Для обоих datasets новые triples используют ту же совместимую shape schema;
+старые успешные json_object кэшируются с прежним ключом. Adoption replay в runner
+записывает фактический schema key/producer; проверяет полный JSON, usage и SHA до
+использования. Никакого возобновления старых manifests. Общий canonical claim,
+новые outputs/run IDs, history обоих probes включена один раз. Пределы исходных
+20M/dataset не расширены: Mu16054041, Hotpot20M, вместе36054041 новых combined
+токенов. POST≤40000/dataset включая embeddings, LLM≤11000 до вычета кэша,
+corrective0/retry0/redirect0, connect30/read300. На первой ошибке остановка,
+known/unknown сохраняются. Политика не обещает, что length больше не возникнет.
+
+Проверка: целевые offline-тесты corruption/length/partial/unknown/duplicate fields,
+parser mismatch, provenance replay без двойной стоимости, общий повторный claim,
+запрет следующего POST после ошибки. Команды и остановки в E1_INDEXING.
+Это offline-разрешение принятия и подготовка плана, не разрешение новых HTTP;
+новый full-corpus этап требует отдельного scoped согласия пользователя. Научные
+O/N/R/H и готовность6/6 остаются отдельными проверками; куратор автоматически
+не назначается согласующим техническую нормализацию. Условия пересмотра: смена
+SDK/schema/модели, необходимость новых corrective attempts, потеря provenance или
+изменение исследовательской семантики facts. Старые failed и unknown не меняются.

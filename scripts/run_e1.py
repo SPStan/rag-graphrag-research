@@ -102,7 +102,7 @@ def schema_probe_payload(original, *, compatible=False):
     return payload, reserve
 
 
-def validate_schema_probe_response(body):
+def validate_schema_probe_response(body, *, allow_literal_duplicates=False):
     """Strict local acceptance; semantic support and server enforcement are separate."""
     choice = body["choices"][0]
     if choice["finish_reason"] != "stop":
@@ -133,9 +133,394 @@ def validate_schema_probe_response(body):
         for x in values
     ):
         raise ValueError("schema_probe_invalid_triples")
-    if len({tuple(x) for x in values}) != len(values):
+    if not allow_literal_duplicates and len({tuple(x) for x in values}) != len(values):
         raise ValueError("schema_probe_duplicate_triples")
     return values
+
+
+HIPPO_SCHEMA_POLICY = {
+    "version": "native_graph_set_schema_v1",
+    "timeout_seconds": [30, 300],
+    "max_new_posts_per_dataset": 40000,
+    "corrective_attempts": 0,
+    "retry": 0,
+    "partial_json": False,
+    "literal_duplicates": "pinned_sdk_ordered_unique",
+}
+
+
+def schema_adoption(probe_plan_path, prior_path, source):
+    """Offline acceptance for graph-set semantics, separate from the failed probe."""
+    from scripts.hipporag_repair_executor import make_pinned_openie_parser
+
+    prepared = dense.read_json(probe_plan_path)
+    reconstructed = prepare_schema_probe(prior_path, source, compatible=True)
+    reconstructed["code_commit"] = prepared["code_commit"]
+    if reconstructed != prepared:
+        raise ValueError("schema_adoption_inputs_changed")
+    plan = dense.read_json(prior_path)
+    row = next(
+        r
+        for r in plan["rows"]
+        if (r["method"], r["dataset"]) == ("hipporag2", "musique")
+    )
+    mp = ROOT / row["output"]
+    mp = mp.parent / "musique-schema-shape-probe1/manifest.json"
+    manifest = dense.read_json(mp)
+    ref = verified_reference(manifest, mp)
+    if (
+        manifest["status"] != "failed"
+        or ref["status"] != "verified"
+        or manifest["approved_plan_sha256"] != dense.sha256_file(probe_plan_path)
+        or manifest["parent_manifest_sha256"] != prepared["failed_manifest_sha256"]
+        or manifest["schema_variant"] != "shape_local_unique_v2"
+        or manifest["unknown_reserved_upper_bound"] != 0
+    ):
+        raise ValueError("schema_adoption_producer_not_verified")
+    for name, sha in manifest["artifacts"].items():
+        if dense.sha256_file(mp.parent / name) != sha:
+            raise ValueError("schema_adoption_artifact_changed")
+    records = read_records(ref["path"])
+    starts = [r for r in records if r["event"] == "started"]
+    finishes = {r["attempt_id"]: r for r in records if r["event"] == "finished"}
+    expected = {c["request_sha256"]: c for c in prepared["cases"]}
+    if (
+        len(starts) != 2
+        or len(finishes) != 2
+        or {r["object_id"] for r in starts} != set(expected)
+    ):
+        raise ValueError("schema_adoption_attempts_changed")
+    parse = make_pinned_openie_parser()
+    cases, cache = [], {}
+    for start in starts:
+        key = start["object_id"]
+        case, terminal = expected[key], finishes[start["attempt_id"]]
+        if (
+            terminal["status"] != "success"
+            or terminal["usage_status"] != "complete"
+            or terminal.get("cache_hit")
+            or start["run_id"] != manifest["run_id"]
+            or any(
+                start[k] != v
+                for k, v in {
+                    "operation": "openie_triples",
+                    "kind": "llm",
+                    "provider": "target_api",
+                    "model": plan["model"],
+                    "method": "hipporag2",
+                    "dataset": "musique",
+                }.items()
+            )
+        ):
+            raise ValueError("schema_adoption_attempt_not_successful")
+        path = mp.parent / "requests" / f"{key}.response.json"
+        body = dense.read_json(path)
+        usage = extract_usage(body, "llm", "target_api")
+        if any(terminal[k] != v for k, v in usage.items()):
+            raise ValueError("schema_adoption_usage_changed")
+        raw = validate_schema_probe_response(body, allow_literal_duplicates=True)
+        unique = parse(
+            "openie_triples",
+            body["choices"][0]["message"]["content"],
+            recover_partial=False,
+        )
+        expected_unique = [list(t) for t in dict.fromkeys(tuple(t) for t in raw)]
+        if not raw or unique != expected_unique:
+            raise ValueError("schema_adoption_native_parser_mismatch")
+        cases.append(
+            {
+                "source_id": case["source_id"],
+                "original_request_sha256": case["original_request_sha256"],
+                "schema_request_sha256": key,
+                "response_sha256": dense.sha256_file(path),
+                "raw_triples": len(raw),
+                "unique_triples": len(unique),
+                "ner_response_sha256": case["ner_response_sha256"],
+            }
+        )
+        cache[key] = {
+            "path": path,
+            "sha256": dense.sha256_file(path),
+            "run_id": manifest["run_id"],
+            "operation": "openie_triples",
+            "kind": "llm",
+            "provider": "target_api",
+            "model": plan["model"],
+            "producer_complete": ref["summary"]["complete"]
+            and ref["summary"]["historical_cache_cost_complete"],
+        }
+    return {
+        "policy": HIPPO_SCHEMA_POLICY,
+        "status": "accepted_for_native_graph_set_only",
+        "probe_status": "failed",
+        "probe_plan_sha256": dense.sha256_file(probe_plan_path),
+        "producer_manifest_sha256": dense.sha256_file(mp),
+        "producer_run_id": manifest["run_id"],
+        "physical_known_tokens": sum(ref["summary"]["known_subtotal"].values()),
+        "semantic_support": "not_established; temporal/count qualifiers and modality may be lost",
+        "new_http_calls": 0,
+        "cases": cases,
+    }, cache
+
+
+def verify_schema_recovery(plan, row):
+    """Verify every adoption input before replay or any uncached request."""
+    if plan.get("hippo_schema_policy") != HIPPO_SCHEMA_POLICY:
+        raise ValueError("hippo_schema_policy_changed")
+    inputs = plan["hippo_schema_inputs"]
+    for name, entry in inputs.items():
+        if name == "source":
+            continue
+        if dense.sha256_file(Path(entry["path"])) != entry["sha256"]:
+            raise ValueError("hippo_schema_input_changed")
+    record, cache = schema_adoption(
+        Path(inputs["probe"]["path"]),
+        Path(inputs["prior"]["path"]),
+        Path(inputs["source"]["path"]),
+    )
+    adoption = row["schema_adoption"]
+    if (
+        dense.sha256_file(ROOT / adoption["path"]) != adoption["sha256"]
+        or dense.read_json(ROOT / adoption["path"]) != record
+    ):
+        raise ValueError("hippo_schema_adoption_changed")
+    return record, cache
+
+
+def schema_resume_history(prior_row, prepared):
+    """Count each physical run once; diagnostics are history, not new spending."""
+    history = copy.deepcopy(prior_row.get("history_runs", []))
+    if prior_row["dataset"] == "hotpotqa":
+        return [], []
+    current = ROOT / prior_row["output"] / "manifest.json"
+    paths = [
+        current,
+        current.parent.parent / "musique-schema-probe1/manifest.json",
+        current.parent.parent / "musique-schema-shape-probe1/manifest.json",
+    ]
+    for path in paths:
+        manifest = dense.read_json(path)
+        ref = verified_reference(manifest, path)
+        reserve = current_unknown_reservation(path.parent)
+        if path == paths[1]:
+            reserve = prepared["prior_unknown_reservation"]
+        if ref["status"] != "verified" or type(reserve) is not int or reserve < 0:
+            raise ValueError("schema_resume_history_not_verified")
+        for name, sha in manifest["artifacts"].items():
+            if dense.sha256_file(path.parent / name) != sha:
+                raise ValueError("schema_resume_history_artifact_changed")
+        history.append(
+            {
+                "output": path.parent.relative_to(ROOT).as_posix(),
+                "run_id": manifest["run_id"],
+                "manifest_sha256": dense.sha256_file(path),
+                "summary": ref["summary"],
+                "unknown_reserved_upper_bound": reserve,
+            }
+        )
+    if len({h["run_id"] for h in history}) != len(history) or len(
+        {h["output"] for h in history}
+    ) != len(history):
+        raise ValueError("schema_resume_duplicate_history")
+    for h in history:
+        path = ROOT / h["output"] / "manifest.json"
+        if (
+            dense.sha256_file(path) != h["manifest_sha256"]
+            or verified_reference(dense.read_json(path), path)["summary"]
+            != h["summary"]
+        ):
+            raise ValueError("schema_resume_prior_history_changed")
+        # Historical reserves remain charged even if usage cannot be recovered.
+        actual = current_unknown_reservation(path.parent)
+        if path != paths[1] and actual != h["unknown_reserved_upper_bound"]:
+            raise ValueError("schema_resume_prior_reserve_changed")
+    sources = [
+        *prior_row["resume_sources"],
+        {"output": prior_row["output"], "manifest_sha256": dense.sha256_file(current)},
+    ]
+    cache = {}
+    for h in sources:
+        cache, _, _ = verified_checkpoints(
+            ROOT / h["output"] / "manifest.json", inherited=cache, allow_length=True
+        )
+    return history, sources
+
+
+def schema_claim(plan):
+    return {
+        "parent_plan_sha256": plan["hippo_schema_inputs"]["prior"]["sha256"],
+        "adoption_sha256": next(
+            r["schema_adoption"]["sha256"]
+            for r in plan["rows"]
+            if r["method"] == "hipporag2"
+        ),
+        "children": {
+            r["dataset"]: r["run_id"]
+            for r in plan["rows"]
+            if r["method"] == "hipporag2"
+        },
+    }
+
+
+def verify_native_schema_plan(plan, row):
+    inputs = plan["hippo_schema_inputs"]
+    if (
+        plan["hippo_schema_policy"] != HIPPO_SCHEMA_POLICY
+        or row["method"] != "hipporag2"
+        or row.get("max_new_posts") != HIPPO_SCHEMA_POLICY["max_new_posts_per_dataset"]
+        or any(
+            row.get(k) for k in ("cycle_probe_source_id", "cycle_repair_request_key")
+        )
+    ):
+        raise ValueError("schema_resume_scope_changed")
+    prior = dense.read_json(Path(inputs["prior"]["path"]))
+    if dense.sha256_file(Path(inputs["prior"]["path"])) != inputs["prior"]["sha256"]:
+        raise ValueError("schema_resume_prior_plan_changed")
+    old = next(
+        r
+        for r in prior["rows"]
+        if (r["method"], r["dataset"]) == ("hipporag2", row["dataset"])
+    )
+    history, sources = schema_resume_history(
+        old, dense.read_json(Path(inputs["probe"]["path"]))
+    )
+    charge = sum(
+        sum(h["summary"]["known_subtotal"].values()) + h["unknown_reserved_upper_bound"]
+        for h in history
+    )
+    if (
+        row.get("history_runs") != history
+        or row.get("resume_sources") != sources
+        or row["prior_budget_charge"] != charge
+        or row["token_limit"] != LIMITS["hipporag2"] - charge
+        or row.get("diagnostics_in_history") is not True
+    ):
+        raise ValueError("schema_resume_budget_or_sources_changed")
+    mu = next(
+        r
+        for r in prior["rows"]
+        if (r["method"], r["dataset"]) == ("hipporag2", "musique")
+    )
+    claim_path = ROOT / mu["output"] / "schema-resume-once.claim.json"
+    if dense.read_json(claim_path) != schema_claim(plan):
+        raise ValueError("schema_resume_claim_changed")
+    if row["dataset"] == "hotpotqa":
+        first = next(
+            r
+            for r in plan["rows"]
+            if (r["method"], r["dataset"]) == ("hipporag2", "musique")
+        )
+        path = ROOT / first["output"] / "manifest.json"
+        result = dense.read_json(path)
+        if (
+            result["status"] != "completed"
+            or verified_reference(result, path)["status"] != "verified"
+        ):
+            raise ValueError("schema_resume_requires_completed_MuSiQue")
+        for name, sha in result["artifacts"].items():
+            if dense.sha256_file(path.parent / name) != sha:
+                raise ValueError("schema_resume_MuSiQue_artifact_changed")
+
+
+def prepare_native_schema_continuation(prior_path, probe_path, adoption_path, source):
+    """Reserve a single new pair of outputs, offline; do not start either index."""
+    original = dense.read_json(prior_path)
+    if (
+        code_dirty()
+        or original["workspace"] != str(ROOT.resolve())
+        or original.get("hippo_schema_policy")
+    ):
+        raise ValueError("schema_resume_requires_clean_live_prior")
+    record, _ = schema_adoption(probe_path, prior_path, source)
+    if dense.read_json(adoption_path) != record:
+        raise ValueError("schema_resume_adoption_changed")
+    parent = {
+        "path": str(prior_path.resolve()),
+        "sha256": dense.sha256_file(prior_path),
+        "digest": target.digest(original),
+    }
+    plan = copy.deepcopy(original)
+    plan.update(
+        parent_plan=parent,
+        lineage=[parent, *original.get("lineage", [])],
+        hippo_schema_policy=HIPPO_SCHEMA_POLICY,
+        hippo_schema_inputs={
+            "prior": parent,
+            "probe": {
+                "path": str(probe_path.resolve()),
+                "sha256": dense.sha256_file(probe_path),
+            },
+            "source": {"path": str(source.resolve())},
+        },
+    )
+    for pin in plan["lineage"]:
+        if dense.sha256_file(Path(pin["path"])) != pin["sha256"]:
+            raise ValueError("lineage_plan_changed")
+    prepared = dense.read_json(probe_path)
+    old_mu = next(
+        r
+        for r in original["rows"]
+        if (r["method"], r["dataset"]) == ("hipporag2", "musique")
+    )
+    claim_path = ROOT / old_mu["output"] / "schema-resume-once.claim.json"
+    for row in plan["rows"]:
+        path = ROOT / row["output"] / "manifest.json"
+        if (path.parent / "running.lock").exists():
+            raise ValueError("schema_resume_requires_stopped_workers")
+        if row["method"] != "hipporag2":
+            manifest = dense.read_json(path)
+            if (
+                manifest["status"] != "completed"
+                or verified_reference(manifest, path)["status"] != "verified"
+            ):
+                raise ValueError("schema_resume_requires_four_completed_indexes")
+            for name, sha in manifest["artifacts"].items():
+                if dense.sha256_file(path.parent / name) != sha:
+                    raise ValueError("schema_resume_completed_artifact_changed")
+            continue
+        if row["dataset"] == "hotpotqa" and path.parent.exists():
+            raise ValueError("schema_resume_requires_untouched_HotpotQA")
+        history, sources = schema_resume_history(row, prepared)
+        charge = sum(
+            sum(h["summary"]["known_subtotal"].values())
+            + h["unknown_reserved_upper_bound"]
+            for h in history
+        )
+        if charge >= LIMITS["hipporag2"]:
+            raise ValueError("schema_resume_budget_exhausted")
+        for k in (
+            "cycle_probe_source_id",
+            "cycle_repair_request_key",
+            "cycle_diagnostic",
+            "verified_response_cache_count",
+            "prior_run",
+            "resume_from",
+        ):
+            row.pop(k, None)
+        row.update(
+            output=f"indexes/e1/{plan['batch_id']}/hipporag2/{row['dataset']}-schema1",
+            run_id=str(uuid.uuid4()),
+            code_commit=git("rev-parse", "HEAD"),
+            resume_kind="native_schema",
+            history_runs=history,
+            resume_sources=sources,
+            diagnostics_in_history=True,
+            prior_budget_charge=charge,
+            token_limit=LIMITS["hipporag2"] - charge,
+            max_new_posts=HIPPO_SCHEMA_POLICY["max_new_posts_per_dataset"],
+            schema_adoption={
+                "path": adoption_path.relative_to(ROOT).as_posix(),
+                "sha256": dense.sha256_file(adoption_path),
+            },
+        )
+        if (ROOT / row["output"]).exists():
+            raise ValueError("schema_resume_output_must_be_new")
+    plan["combined_token_limit"] = sum(r["token_limit"] for r in plan["rows"])
+    with claim_path.open("x", encoding="utf-8") as stream:
+        json.dump(schema_claim(plan), stream)
+        stream.flush()
+        os.fsync(stream.fileno())
+    return plan
 
 
 def triple_cycle(text):
@@ -242,7 +627,11 @@ def make_plan(data_root, config, embedding_digest):
 
 
 def verify_plan(plan, row, config):
-    if plan.get("independent_raptor") and row["method"] != "raptor":
+    if (
+        plan.get("independent_raptor")
+        and not plan.get("hippo_schema_policy")
+        and row["method"] != "raptor"
+    ):
         raise ValueError("independent_plan_allows_only_raptor")
     for item in plan.get("lineage", []):
         if dense.sha256_file(Path(item["path"])) != item["sha256"]:
@@ -272,7 +661,9 @@ def verify_plan(plan, row, config):
         or row["output"]
         != f"indexes/e1/{plan['batch_id']}/{row['method']}/{row['dataset']}"
         + (
-            "-summary-network1"
+            "-schema1"
+            if row.get("resume_kind") == "native_schema"
+            else "-summary-network1"
             if plan.get("raptor_summary_network_resume")
             and row.get("resume_kind") == "summary_native"
             else "-summary1"
@@ -291,9 +682,14 @@ def verify_plan(plan, row, config):
         )
     ):
         raise ValueError("E1_plan_or_code_mismatch")
-    if plan.get("cycle_repair") and (row["method"], row["dataset"]) == (
-        "hipporag2",
-        "hotpotqa",
+    if (
+        plan.get("cycle_repair")
+        and not plan.get("hippo_schema_policy")
+        and (row["method"], row["dataset"])
+        == (
+            "hipporag2",
+            "hotpotqa",
+        )
     ):
         pilot = next(
             r
@@ -309,6 +705,8 @@ def verify_plan(plan, row, config):
             or dense.read_json(probe)["status"] != "passed"
         ):
             raise ValueError("cycle_repair_requires_successful_MuSiQue_probe_and_index")
+    if row.get("resume_kind") == "native_schema":
+        verify_native_schema_plan(plan, row)
     response = requests.get("http://localhost:11434/api/tags", timeout=10)
     response.raise_for_status()
     actual = next(
@@ -368,6 +766,8 @@ class Transport:
             if sources and row["method"] == "raptor"
             else None
         )
+        if row.get("resume_kind") == "native_schema":
+            self.schema_adoption_verified = verify_schema_recovery(plan, row)
         if row.get("summary_adoption"):
             from scripts import e1_summary_recovery as recovery
 
@@ -396,12 +796,26 @@ class Transport:
             self.parent_cache, source_failures, source_reference = verified_checkpoints(
                 parent,
                 inherited=self.parent_cache,
-                allow_length=row.get("resume_kind") == "cycle",
+                allow_length=row.get("resume_kind") in ("cycle", "native_schema"),
                 allow_summary_length=row.get("resume_kind") == "summary_native",
                 leaf_producer=leaf_producer,
             )
 
-        if plan.get("raptor_summary_network_resume"):
+        if row.get("resume_kind") == "native_schema":
+            record, adopted_cache = self.schema_adoption_verified
+            if row["dataset"] == "musique":
+                if set(adopted_cache) & set(self.parent_cache):
+                    raise ValueError("duplicate_schema_physical_source")
+                self.parent_cache.update(adopted_cache)
+            self.schema_aliases = {
+                c["original_request_sha256"]: c["schema_request_sha256"]
+                for c in record["cases"]
+            }
+
+        if (
+            plan.get("raptor_summary_network_resume")
+            and row.get("resume_kind") == "summary_native"
+        ):
             if plan.get("network_policy") != recovery.TLS_POLICY or (
                 row["method"],
                 row["dataset"],
@@ -432,6 +846,8 @@ class Transport:
         self.session.close()
 
     def call(self, payload, *, kind, operation):
+        if getattr(self, "schema_failed", False):
+            raise ValueError("schema_failure_cannot_continue")
         key = target.digest({"payload": payload, "kind": kind, "operation": operation})
         checkpoint = self.calls / f"{key}.json"
         response = self.calls / f"{key}.response.json"
@@ -561,6 +977,8 @@ class Transport:
             token_limit=self.row["token_limit"],
             timeout=tuple(self.plan["network_policy"]["timeout_seconds"])
             if remote and self.plan.get("raptor_summary_network_resume")
+            else (30, 300)
+            if remote and self.row.get("resume_kind") == "native_schema"
             else (5, 300),
         )
         # Invalid content is not a usable checkpoint, even with known usage.
@@ -641,6 +1059,30 @@ class Transport:
                     "finish_reason": "stop",
                     "cache_hit": True,
                 }
+        if (
+            operation == "openie_triples"
+            and self.row.get("resume_kind") == "native_schema"
+        ):
+            # Old successful json_object responses remain exact cache hits. The two
+            # adopted answers name the actual paid schema payload, never the old key.
+            if key not in self.parent_cache:
+                payload, _ = schema_probe_payload(payload, compatible=True)
+                actual = target.digest(
+                    {"payload": payload, "kind": "llm", "operation": operation}
+                )
+                if key in self.schema_aliases and actual != self.schema_aliases[key]:
+                    raise ValueError("schema_replay_association_changed")
+            try:
+                body = self.call(payload, kind="llm", operation=operation)
+                validate_schema_probe_response(body, allow_literal_duplicates=True)
+            except BaseException:
+                self.schema_failed = True
+                raise
+            return body["choices"][0]["message"]["content"], {
+                **body["usage"],
+                "finish_reason": "stop",
+                "cache_hit": self.last_cache_hit,
+            }
         if self.require_repair_key and key != self.row.get("cycle_repair_request_key"):
             raise ValueError("probe_request_does_not_match_truncated_request")
         policy = self.plan.get("cycle_repair")
@@ -2576,6 +3018,8 @@ def main():
             "run-summary-probe",
             "prepare-schema-probe",
             "prepare-compatible-schema-probe",
+            "adopt-schema-responses",
+            "prepare-native-schema-continuation",
             "run-schema-probe",
             "run-compatible-schema-probe",
             "seal",
@@ -2595,6 +3039,8 @@ def main():
     parser.add_argument("--approved-probe-sha256")
     parser.add_argument("--recovered-payload", type=Path)
     parser.add_argument("--summary-adoption", type=Path)
+    parser.add_argument("--schema-adoption", type=Path)
+    parser.add_argument("--probe-plan", type=Path)
     parser.add_argument("--network-audit", type=Path)
     parser.add_argument("--native-gguf", type=Path)
     parser.add_argument("--native-library-dir", type=Path)
@@ -2739,6 +3185,36 @@ def main():
         print(
             json.dumps(
                 {"status": dense.read_json(directory / "manifest.json")["status"]}
+            )
+        )
+        return
+    elif args.command == "adopt-schema-responses":
+        if args.plan.exists():
+            raise ValueError("adoption_output_must_be_new")
+        record, _ = schema_adoption(args.probe_plan, args.prior_plan, args.source)
+        with args.plan.open("x", encoding="utf-8") as stream:
+            json.dump(record, stream, ensure_ascii=False, indent=2)
+            stream.write("\n")
+        print(json.dumps({"status": record["status"], "http_calls": 0}))
+        return
+    elif args.command == "prepare-native-schema-continuation":
+        canonical = (
+            Path(dense.read_json(args.prior_plan)["data_root"])
+            / "indexes/e1/issue13-hippo-schema-plan.json"
+        )
+        if args.plan.resolve() != canonical.resolve() or args.plan.exists():
+            raise ValueError("schema_resume_requires_unused_canonical_plan")
+        plan = prepare_native_schema_continuation(
+            args.prior_plan, args.probe_plan, args.schema_adoption, args.source
+        )
+        with args.plan.open("x", encoding="utf-8") as stream:
+            json.dump(plan, stream, ensure_ascii=False, indent=2)
+        print(
+            json.dumps(
+                {
+                    "status": "prepared_requires_separate_execution_approval",
+                    "http_calls": 0,
+                }
             )
         )
         return

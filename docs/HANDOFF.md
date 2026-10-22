@@ -2,23 +2,23 @@
 
 **E1 status:** 4/6 indexes completed; physical known tokens=15692272; cost_complete=False. Last stage=hipporag2/musique-schema-shape-probe1. Raw/indexes remain local. PR Draft; E2 requires all six verified indexes.
 
-## Текущая очередь — 22 октября: 4/6, compatible-schema probe failed
+## Текущая очередь — 22 октября: 4/6, native-schema continuation offline
 
-- Dense×2/RAPTOR×2 completed. Hotpot5500leaves/7595nodes, fresh SDK reload0HTTP.
-- Hippo run052f9558:2POST/0retry/0NER/0embedding,1774in+1460out=3234known,
-  unknown0. Первый ответValencia stop/16unique прошёл формат; второйKobe stop/
-  62triples/14unique/48повторов отклонён. Manifest failed, старые raw неизменны.
-- E1 known15692272/upper15747326,cost_complete=false. Старыеunknown, включая
-  schemaHTTP400reserve8679иRAPTOR8432, сохранены. Оба Hippo индекса не готовы.
-- ПовторыKobe следуют кратности наград в passage. На pinned SDK уже имеется
-  literal dedup: offline parser16→16,62→14,HTTP0; установка61файл проверена.
-  Это предложение дальнейшего применения штатного parser, не успех строгой пробы.
-- Следующий путь: отдельно принять полные saved responses по штатной семантике
-  SDK с raw/unique counts/provenance; затем интегрировать replay и подготовить
-  bounded continuation. Принятие пока не активировано; новых API-проб не делать.
-- Не принимать partial/length/unknown, не менять failed manifest и не подниматьcap.
-  Full Hippo/QA/E2/merge не запускались. PR33Draft/Refs13, issue открыта.
-- Подробности, SHA, ограничения semantic support — E1_INDEXING.md/ADR-0022.
+- Dense×2/RAPTOR×2 готовы, Hippo Mu2329/5500failed, Hotpot pending.
+- Строгая schema-проба052f9558 остаётся failed:2POST,3234known, unknown0.
+  Полные ответы отдельно приняты для штатного graph-set parser:16→16и62→14.
+  Public provenance: results/summary/e1-hippo-schema-adoption.json; HTTP0.
+- Replay встроен в runner с фактическим schema key/producer; старые успешные
+  json_object ответы не перегенерируются. Новый uncached triples — shape schema.
+- Подготовка prepare-native-schema-continuation: новые outputs/run IDs,
+  canonical claim у старого Mu, пять historical runs без двойного учёта.
+  Бюджет Mu16054041 + Hotpot20000000 =36054041; corrective0/retry0, стоп на ошибке.
+- E1 known15692272/upper15747326,cost_complete=false; все unknown сохранены.
+  Новых модельных/embedding вызовов в offline-блоке нет. Проба не повторяется.
+- Следующий шаг: отдельное согласие на точный новый full-corpus план после
+  offline-проверок. Текущая инструкция и позднее согласие на6d0d0dc3 его не дают.
+  PR33Draft/Refs13; full Hippo/QA/E2/merge не запускаются.
+- Параметры/данные/пределы/остановки и команды — E1_INDEXING/ADR-0022.
 
 ## История — не текущие инструкции запуска
 
