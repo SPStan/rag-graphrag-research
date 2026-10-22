@@ -236,6 +236,7 @@ def test_prepare_reconstructs_both_original_hashes_without_http(tmp_path, change
         ("unknown", 1),
         ("http_error", 1),
         ("second_unknown", 2),
+        ("second_duplicate", 2),
         ("connection_error", 1),
         ("bad_approval", 0),
         ("active_worker", 0),
@@ -391,9 +392,23 @@ def test_approved_probe_bounds_posts_claims_and_preserves_spending(
         response.status_code = 400
         response.raise_for_status.side_effect = requests.HTTPError("schema unsupported")
     sent_responses = [response]
-    if outcome == "second_unknown":
+    if outcome in ("second_unknown", "second_duplicate"):
         second = Mock(status_code=200)
-        second.json.return_value = {**body, "usage": {"prompt_tokens": 10}}
+        second.json.return_value = (
+            {**body, "usage": {"prompt_tokens": 10}}
+            if outcome == "second_unknown"
+            else {
+                **body,
+                "choices": [
+                    {
+                        "finish_reason": "stop",
+                        "message": {
+                            "content": '{"triples":[["A","in","B"],["A","in","B"]]}'
+                        },
+                    }
+                ],
+            }
+        )
         sent_responses.append(second)
 
     def post(*args, **kwargs):
@@ -407,7 +422,11 @@ def test_approved_probe_bounds_posts_claims_and_preserves_spending(
         ).exists()
         if outcome == "connection_error":
             raise requests.ConnectionError("transport unavailable")
-        return sent_responses.pop(0) if outcome == "second_unknown" else response
+        return (
+            sent_responses.pop(0)
+            if outcome in ("second_unknown", "second_duplicate")
+            else response
+        )
 
     session.post = Mock(side_effect=post)
     config = {
@@ -485,6 +504,14 @@ def test_approved_probe_bounds_posts_claims_and_preserves_spending(
                 ]["status"]
                 == manifest["status"]
             )
+            if outcome == "second_duplicate":
+                diag = report["rows"][0][
+                    "schema_shape_probe" if compatible else "schema_probe"
+                ]["failure_diagnostic"]
+                assert diag["finish_reason"] == "stop"
+                assert diag["repetition"]["complete_tuples"] == 2
+                assert diag["repetition"]["unique_tuples"] == 1
+                assert diag["request_sha256"] == prepared["cases"][1]["request_sha256"]
             if compatible:
                 assert (
                     report["rows"][0]["schema_probe"]["unknown_reserved_upper_bound"]

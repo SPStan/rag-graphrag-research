@@ -1,23 +1,24 @@
 # Текущая работа и критерии завершения
 
-**E1 status:** 4/6 indexes completed; physical known tokens=15689038; cost_complete=False. Last stage=raptor_hotpotqa_terminal. Raw/indexes remain local. PR Draft; E2 requires all six verified indexes.
+**E1 status:** 4/6 indexes completed; physical known tokens=15692272; cost_complete=False. Last stage=hipporag2/musique-schema-shape-probe1. Raw/indexes remain local. PR Draft; E2 requires all six verified indexes.
 
-## Текущая очередь — 22 октября: 4/6, подготовлена Hippo schema-проба
+## Текущая очередь — 22 октября: 4/6, compatible-schema probe failed
 
-- Dense×2/RAPTOR×2 completed. Hotpotbb177a66:5500leaves/7595nodes,
-  слои5500/1411/684;347новыхPOST/697411known,0ошибок.
-- Отдельный fresh-process pinned SDK reload: exact round-trip/artifact SHA,
-  journal неизменен, HTTP0. Proof .cache/e1-hotpot-reload-proof.json;
-  безопасные SHA/команды — E1_INDEXING.md. Новых модельных запросов нет.
-- E1 known15689038/upper15744092,cost_complete=false. Все failed/unknown
-  сохранены, включая последнее8432. Историческую неполноту не скрывать.
-- HippoMu failed2329/5500, Hotpot pending. Совместимая schema shape_local_unique_v2
-  встроена в прежний executor и E1 exporter. СтарыйHTTP400/unknown8679неизменен.
-- Подготовить конкретный plan на чистом HEAD; перед выполнением получить отдельное
-  согласие на новый schema-вариант поADR-0022:≤2POST/2старых passage+cached NER,
-  cap3072,резерв17625из16057275,connect30/read300,retry0,stopfirst.
-- Успех не запускает full Hippo автоматически. E2/QA/merge не запускать;
-  PR33Draft/Refs13. Научное O/N/R/H проверяется отдельно перед Ready.
+- Dense×2/RAPTOR×2 completed. Hotpot5500leaves/7595nodes, fresh SDK reload0HTTP.
+- Hippo run052f9558:2POST/0retry/0NER/0embedding,1774in+1460out=3234known,
+  unknown0. Первый ответValencia stop/16unique прошёл формат; второйKobe stop/
+  62triples/14unique/48повторов отклонён. Manifest failed, старые raw неизменны.
+- E1 known15692272/upper15747326,cost_complete=false. Старыеunknown, включая
+  schemaHTTP400reserve8679иRAPTOR8432, сохранены. Оба Hippo индекса не готовы.
+- ПовторыKobe следуют кратности наград в passage. На pinned SDK уже имеется
+  literal dedup: offline parser16→16,62→14,HTTP0; установка61файл проверена.
+  Это предложение дальнейшего применения штатного parser, не успех строгой пробы.
+- Следующий путь: отдельно принять полные saved responses по штатной семантике
+  SDK с raw/unique counts/provenance; затем интегрировать replay и подготовить
+  bounded continuation. Принятие пока не активировано; новых API-проб не делать.
+- Не принимать partial/length/unknown, не менять failed manifest и не подниматьcap.
+  Full Hippo/QA/E2/merge не запускались. PR33Draft/Refs13, issue открыта.
+- Подробности, SHA, ограничения semantic support — E1_INDEXING.md/ADR-0022.
 
 ## История — не текущие инструкции запуска
 

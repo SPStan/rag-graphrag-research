@@ -1,5 +1,64 @@
 # E1: индексы полного корпуса (#13)
 
+## Измеренный результат compatible-schema пробы — 22 октября
+
+План6d0d0dc3 выполнен после нового согласия в чате. Run
+052f9558-abef-46a3-a72e-7d955bdea323, code09ec0b4, output
+`hipporag2/musique-schema-shape-probe1`. Ровно2POST/0retry/0NER/0embedding,
+проверенные источники/claim доHTTP. Остановка на первом локальном отказе,
+который произошёл во втором ответе. Full_index_authorized=false.
+
+| Случай | HTTP/generation | Input/output | JSON triples/unique | Результат строгой пробы |
+|---|---|---:|---:|---|
+| Valencia | завершён, stop | 736/332 | 16/16 | формат прошёл |
+| Kobe Bryant | завершён, stop | 1038/1128 | 62/14 | 48повторных вхождений, rejected |
+
+Всего1774input+1460output=3234known, новогоunknown0. Manifest failed/ValueError
+сохранён, оба полных raw JSON неизменны. Journal и все artifacts SHA проверены.
+Manifest SHAfd9c1b68c5abea7c5be1de81f32a8cc8c968819dc6bccc9a57379fcd3e23bcec;
+responses SHA1abdf7846e3d434f4608f2fb0312259d7610fa1bad6adaff9b223ab64d4cbf73
+иa5702cb7fb2e3a315d2a4202913515b8244291897811ebc1a6184fe32823d75b.
+Второй request SHA436abd1de70f4fcb34831bf2b953a88daa1d6dd1b98d60afee531965108e0182.
+E1 physical known15692272, upper15747326,cost_complete=false. СтарыйHTTP400
+unknown8679и все остальныеunknown сохранены. Hippo остаток16054041после
+известного расхода3234; весь резерв17625за фактический расход не выдаётся.
+Готово4/6. Никакого дополнительногоPOST, full Hippo/QA/E2/merge нет.
+
+### Содержательный разбор и следующий путь без новой генерации
+
+API принял shape schema и выдал2полных JSON. Это подтверждает совместимость
+этой schema на двух случаях, но строгий критерий «без дубликатов» выполнен1/2.
+В Kobe output частоты совпадают с количеством наград:5championship,18All-Star,
+11First Team и т.д. Ответ конечный/stop; его повторы описывают кратность событий,
+а years/counts не представлены как отличающие атрибуты triples. Это не основание
+увеличивать cap или объявлять устранённым прежний length/cycle.
+
+Проверена закреплённая реализацияSDK1438aba3 и61файл установки:
+`utils/llm_utils.py::filter_invalid_triples` уже удаляет точные дубликаты;
+`utils/misc_utils.py::flatten_facts` строит множество triples.
+Наш обычный индексатор уже использует этот parser через
+`make_pinned_openie_parser(... recover_partial=False)`. Прямой offline вызов
+на сохранённых полных responses дал16→16и62→14, exact literal dedup,
+HTTP0; raw и failed manifest не изменились. Этот факт не меняет gate проведённой
+пробы и не разрешает автоматически индексировать весь корпус.
+
+Более строгая диагностика потребовала уникальности самого model output,
+а штатная семантика индекса использует уникальное множество relations.
+Следующий предлагаемый путь: отдельное принятие сохранённых **полных** responses
+для штатного SDK parser с учётом raw/unique counts и явной original→schema
+provenance; затем offline-интеграция replay и план ограниченного продолжения.
+Политика должна быть общей для обоих датасетов. Partial JSON, length, неизвестный
+usage и неверная форма по-прежнему не принимаются; старый failed остаётся failed.
+Решение о таком принятии ещё не активировано; новых модельных проб для изучения
+дубликатов сейчас не нужно. Если этот путь отвергнут, требуется новый протокол
+извлечения counts/years, а не слепой повтор нынешнего запроса.
+
+Форматный успехValencia не равен семантической проверке16фактов: в output
+снята часть оговорок some/supposedly, а тождество Cathedral/Basilica из контекста
+не подтверждено однозначно. Дедупликация также не восстанавливает годы/числа и
+не подтверждает истинность triples. Вопросы/gold/supporting labels не читались.
+
+
 ## Текущее состояние — 22 октября: RAPTOR×2 готовы, Hippo-проба подготовлена
 
 RAPTOR HotpotQA runbb177a66 completed:5500leaves,7595nodes,2095summaries,

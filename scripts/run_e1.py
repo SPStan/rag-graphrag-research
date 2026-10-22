@@ -1069,6 +1069,10 @@ def export(plan, plan_path):
                             if k in probe
                         }
                     )
+                    if probe["status"] == "failed":
+                        public[f"{probe_kind}_probe"]["failure_diagnostic"] = (
+                            failure_diagnostic(probe_path.parent)
+                        )
                     if probe_kind == "schema_shape" and probe.get(
                         "prior_failed_schema_manifest_sha256"
                     ) != dense.sha256_file(
