@@ -761,7 +761,10 @@ def verify_plan(plan, row, config):
         or row["output"]
         != f"indexes/e1/{plan['batch_id']}/{row['method']}/{row['dataset']}"
         + (
-            "-mixed-counter1"
+            "-mixed-embed1"
+            if plan.get("mixed_embedding_recovery")
+            and row.get("resume_kind") == "mixed_native"
+            else "-mixed-counter1"
             if plan.get("mixed_counter_recovery")
             and row.get("resume_kind") == "mixed_native"
             else "-mixed1"
@@ -857,6 +860,16 @@ MIXED_EXTRACTOR = {
     "audit_per_model": 8,
     "max_new_posts": 40000,
     "max_llm_posts": {"musique": 4814, "hotpotqa": 11020},
+}
+
+
+MIXED_EMBEDDING_RECOVERY = {
+    "version": "hippo_local_socket_resume_v1",
+    "batch_size": 8,
+    "seconds_per_text": 0.25,
+    "minimum_pause_after_response": 2.0,
+    "canonical_uncached_order": True,
+    "save_embedding_inputs": True,
 }
 
 
@@ -1045,9 +1058,10 @@ def mixed_history(prior, dataset):
 
 def mixed_plan_claim(plan):
     return {
-        "parent_plan_sha256": plan.get("mixed_counter_recovery", {}).get(
-            "plan_sha256", plan["parent_plan"]["sha256"]
-        ),
+        "parent_plan_sha256": (
+            plan.get("mixed_embedding_recovery")
+            or plan.get("mixed_counter_recovery", {})
+        ).get("plan_sha256", plan["parent_plan"]["sha256"]),
         "children": {
             r["dataset"]: r["run_id"]
             for r in plan["rows"]
@@ -1321,12 +1335,201 @@ def prepare_mixed_counter_recovery(prior_path, stderr_path):
     return plan
 
 
+def mixed_embedding_state(pin):
+    pp, mp = Path(pin["plan"]), Path(pin["manifest"])
+    if (
+        dense.sha256_file(pp) != pin["plan_sha256"]
+        or dense.sha256_file(mp) != pin["manifest_sha256"]
+    ):
+        raise ValueError("mixed_embedding_recovery_pin_changed")
+    prior = dense.read_json(pp)
+    if "mixed_embedding_recovery" in prior or not prior.get("mixed_counter_recovery"):
+        raise ValueError("mixed_embedding_recovery_requires_counter_parent_once")
+    mu = next(
+        r
+        for r in prior["rows"]
+        if (r["method"], r["dataset"]) == ("hipporag2", "musique")
+    )
+    verify_mixed_plan(prior, mu)
+    if mp.resolve() != (ROOT / mu["output"] / "manifest.json").resolve():
+        raise ValueError("mixed_embedding_wrong_producer")
+    m = dense.read_json(mp)
+    ref = verified_reference(m, mp)
+    if (
+        m.get("status") != "failed"
+        or m.get("error_type") != "HTTPError"
+        or m["plan_sha256"] != target.digest(prior)
+        or ref["status"] != "verified"
+        or any(x["unfinished"] for x in ref["summary"]["phases"])
+        or (mp.parent / "running.lock").exists()
+    ):
+        raise ValueError("mixed_embedding_requires_stopped_socket_failure")
+    for name, sha in m["artifacts"].items():
+        if dense.sha256_file(mp.parent / name) != sha:
+            raise ValueError("mixed_embedding_artifact_changed")
+    rows = read_records(Path(ref["path"]))
+    physical = [r for r in rows if r["event"] == "finished" and not r.get("cache_hit")]
+    bad = [
+        r
+        for r in physical
+        if r["status"] != "success" or r["usage_status"] != "complete"
+    ]
+    if (
+        len(bad) != 1
+        or bad[0]["kind"] != "embedding"
+        or bad[0].get("error_code") != "HTTPError"
+        or bad[0]["operation"] != "index_embedding"
+        or bad[0]["provider"] != "local_ollama"
+    ):
+        raise ValueError("mixed_embedding_requires_one_local_failure")
+    failed = bad[0]
+    response = dense.read_json(
+        mp.parent / "requests" / f"{failed['object_id']}.response.json"
+    )
+    error = response.get("error", "")
+    if "/tokenize" not in error or not any(
+        x in error for x in ("buffer space", "queue was full")
+    ):
+        raise ValueError("mixed_embedding_socket_error_not_verified")
+    reserve = current_unknown_reservation(mp.parent)
+    if reserve <= 0 or reserve != pin["unknown_reserved_upper_bound"]:
+        raise ValueError("mixed_embedding_unknown_reserve_changed")
+    outcomes = dense.read_json(mp.parent / "openie-validation.json")
+    if len(outcomes) != 5500:
+        raise ValueError("mixed_embedding_requires_finished_extraction")
+    routes = dense.read_json(mp.parent / "mixed-routes.json")
+    root = Path(prior["mixed_claim_root"]) / "musique"
+    claims = {
+        f"{k}.claim.json": dense.sha256_file(root / f"{k}.claim.json")
+        for k, v in routes.items()
+        if v["fallback"]
+    }
+    if claims != pin["completed_claims"]:
+        raise ValueError("mixed_embedding_claims_changed")
+    for k, route in routes.items():
+        if route["fallback"]:
+            cp = dense.read_json(root / f"{k}.claim.json")
+            if cp != {
+                "status": "complete",
+                "primary_sha256": k,
+                "fallback_sha256": route["actual_request_sha256"],
+            }:
+                raise ValueError("mixed_embedding_unresolved_fallback")
+    states = {}
+    for r in prior["rows"]:
+        if r["method"] != "hipporag2":
+            continue
+        history, sources = (
+            copy.deepcopy(r["history_runs"]),
+            copy.deepcopy(r["resume_sources"]),
+        )
+        posts = 0
+        if r["dataset"] == "musique":
+            history.append(
+                {
+                    "output": r["output"],
+                    "run_id": m["run_id"],
+                    "manifest_sha256": dense.sha256_file(mp),
+                    "summary": ref["summary"],
+                    "unknown_reserved_upper_bound": reserve,
+                }
+            )
+            sources.append(
+                {"output": r["output"], "manifest_sha256": dense.sha256_file(mp)}
+            )
+            posts = len(physical)
+        elif (ROOT / r["output"]).exists():
+            raise ValueError("mixed_embedding_hotpot_already_started")
+        if len({h["run_id"] for h in history}) != len(history):
+            raise ValueError("mixed_embedding_duplicate_history")
+        charge = sum(
+            sum(h["summary"]["known_subtotal"].values())
+            + h["unknown_reserved_upper_bound"]
+            for h in history
+        )
+        states[r["dataset"]] = {
+            "history_runs": history,
+            "resume_sources": sources,
+            "prior_budget_charge": charge,
+            "token_limit": LIMITS["hipporag2"] - charge,
+            "max_new_posts": r["max_new_posts"] - posts,
+            "max_llm_posts": 0 if r["dataset"] == "musique" else r["max_llm_posts"],
+        }
+    return prior, states
+
+
+def prepare_mixed_embedding_recovery(prior_path):
+    prior = dense.read_json(prior_path)
+    mu = next(
+        r
+        for r in prior["rows"]
+        if (r["method"], r["dataset"]) == ("hipporag2", "musique")
+    )
+    mp = ROOT / mu["output"] / "manifest.json"
+    routes = dense.read_json(mp.parent / "mixed-routes.json")
+    root = Path(prior["mixed_claim_root"])
+    claims = {
+        f"{k}.claim.json": dense.sha256_file(root / "musique" / f"{k}.claim.json")
+        for k, v in routes.items()
+        if v["fallback"]
+    }
+    if set(claims) != {p.name for p in (root / "musique").glob("*.claim.json")}:
+        raise ValueError("mixed_embedding_unresolved_claims")
+    pin = {
+        "plan": str(prior_path.resolve()),
+        "plan_sha256": dense.sha256_file(prior_path),
+        "manifest": str(mp.resolve()),
+        "manifest_sha256": dense.sha256_file(mp),
+        "unknown_reserved_upper_bound": current_unknown_reservation(mp.parent),
+        "completed_claims": claims,
+    }
+    prior, states = mixed_embedding_state(pin)
+    plan = copy.deepcopy(prior)
+    plan["mixed_embedding_recovery"] = pin
+    plan["embedding_recovery_policy"] = MIXED_EMBEDDING_RECOVERY
+    plan["lineage"].append(
+        {
+            "path": pin["plan"],
+            "sha256": pin["plan_sha256"],
+            "digest": target.digest(prior),
+        }
+    )
+    for r in plan["rows"]:
+        if r["method"] == "hipporag2":
+            r.update(
+                states[r["dataset"]],
+                run_id=str(uuid.uuid4()),
+                code_commit=git("rev-parse", "HEAD"),
+                output=f"indexes/e1/{plan['batch_id']}/hipporag2/{r['dataset']}-mixed-embed1",
+            )
+            if (
+                (ROOT / r["output"]).exists()
+                or r["token_limit"] <= 0
+                or r["max_new_posts"] <= 0
+            ):
+                raise ValueError("mixed_embedding_output_or_budget_unavailable")
+    plan["combined_token_limit"] = sum(r["token_limit"] for r in plan["rows"])
+    if (root / "embedding-recovery.claim.json").exists():
+        raise ValueError("mixed_embedding_recovery_already_claimed")
+    return plan
+
+
 def verify_mixed_plan(plan, row):
     verify_mixed_approval(plan)
     parent = dense.read_json(Path(plan["parent_plan"]["path"]))
-    recovery = plan.get("mixed_counter_recovery")
+    embedding_recovery = plan.get("mixed_embedding_recovery")
+    recovery = embedding_recovery or plan.get("mixed_counter_recovery")
     if recovery:
-        original, states = mixed_counter_state(recovery)
+        if (
+            embedding_recovery
+            and plan.get("embedding_recovery_policy") != MIXED_EMBEDDING_RECOVERY
+        ):
+            raise ValueError("mixed_embedding_policy_changed")
+        original, states = (
+            mixed_embedding_state(recovery)
+            if embedding_recovery
+            else mixed_counter_state(recovery)
+        )
         expected = states[row["dataset"]]
         history, sources = expected["history_runs"], expected["resume_sources"]
         parent = dense.read_json(Path(original["parent_plan"]["path"]))
@@ -1346,7 +1549,14 @@ def verify_mixed_plan(plan, row):
     )
     root = (ROOT / mu["output"] / "mixed-continuation-claims").resolve()
     if Path(plan["mixed_claim_root"]).resolve() != root or dense.read_json(
-        root / ("counter-recovery.claim.json" if recovery else "plan.claim.json")
+        root
+        / (
+            "embedding-recovery.claim.json"
+            if embedding_recovery
+            else "counter-recovery.claim.json"
+            if recovery
+            else "plan.claim.json"
+        )
     ) != mixed_plan_claim(plan):
         raise ValueError("mixed_canonical_plan_claim_changed")
     charge = sum(
@@ -1566,6 +1776,7 @@ class Transport:
         self.calls.mkdir(exist_ok=True)
         self.logical_calls = 0
         self.last_embedding_started = 0.0
+        self.last_embedding_finished = 0.0
         self.last_cache_hit = False
         self.parent_cache = {}
         self.mixed_failures = {}
@@ -1577,7 +1788,7 @@ class Transport:
             else {}
         )
         if plan.get("mixed_counter_recovery") and row["dataset"] == "musique":
-            pin = plan["mixed_counter_recovery"]
+            pin = plan.get("mixed_embedding_recovery") or plan["mixed_counter_recovery"]
             mp = Path(pin["manifest"])
             if dense.sha256_file(mp) != pin["manifest_sha256"]:
                 raise ValueError("mixed_counter_recovery_pin_changed")
@@ -1844,7 +2055,16 @@ class Transport:
         dense.write_json_atomic(checkpoint, saved)
         remote = kind == "llm"
         self.last_cache_hit = False
-        if not remote:
+        socket_policy = self.plan.get("embedding_recovery_policy")
+        if socket_policy and socket_policy != MIXED_EMBEDDING_RECOVERY:
+            raise ValueError("mixed_embedding_policy_changed")
+        if not remote and socket_policy:
+            dense.write_json_atomic(self.calls / f"{key}.input.json", payload)
+            pause = max(2.0, len(payload["input"]) * 0.25)
+            delay = pause - (time.monotonic() - self.last_embedding_finished)
+            if delay > 0:
+                time.sleep(delay)
+        elif not remote:
             delay = len(payload["input"]) * PARAMETERS[
                 "embedding_pacing_seconds_per_text"
             ] - (time.monotonic() - self.last_embedding_started)
@@ -1879,6 +2099,8 @@ class Transport:
             and self.row.get("resume_kind") in ("native_schema", "mixed_native")
             else (5, 300),
         )
+        if not remote:
+            self.last_embedding_finished = time.monotonic()
         # Invalid content is not a usable checkpoint, even with known usage.
         if remote:
             choice = body["choices"][0]
@@ -1902,6 +2124,8 @@ class Transport:
         return body
 
     def embed(self, texts):
+        if self.plan.get("embedding_recovery_policy"):
+            return self.embed_socket_recovery(texts)
         options = self.row.get("embedding_options")
         if options is not None and (
             self.row["method"] != "raptor" or options != RAPTOR_EMBEDDING_OPTIONS
@@ -1936,6 +2160,47 @@ class Transport:
             )
             vectors.extend(body["embeddings"])
         return dense.normalize_rows(vectors)
+
+    def embed_socket_recovery(self, texts):
+        if self.plan["embedding_recovery_policy"] != MIXED_EMBEDDING_RECOVERY:
+            raise ValueError("mixed_embedding_policy_changed")
+        legacy = [
+            {
+                "model": self.plan["embedding_model"],
+                "input": texts[i : i + 32],
+                "truncate": False,
+            }
+            for i in range(0, len(texts), 32)
+        ]
+        keys = [
+            target.digest(
+                {"payload": p, "kind": "embedding", "operation": "index_embedding"}
+            )
+            for p in legacy
+        ]
+        if all(k in self.parent_cache for k in keys):
+            vectors = []
+            for payload in legacy:
+                body = self.call(payload, kind="embedding", operation="index_embedding")
+                if len(body["embeddings"]) != len(payload["input"]):
+                    raise ValueError("embedding_replay_shape_changed")
+                vectors.extend(body["embeddings"])
+            return dense.normalize_rows(vectors)
+        # Partial unordered historical fact batches cannot define a stable mapping.
+        # Use the whole canonical sequence so future restarts recover identical batches.
+        result = [None] * len(texts)
+        indices = sorted(range(len(texts)), key=lambda i: (texts[i], i))
+        for start in range(0, len(indices), 8):
+            group = indices[start : start + 8]
+            payload = {
+                "model": self.plan["embedding_model"],
+                "input": [texts[i] for i in group],
+                "truncate": False,
+            }
+            body = self.call(payload, kind="embedding", operation="index_embedding")
+            for i, vector in zip(group, body["embeddings"]):
+                result[i] = vector
+        return dense.normalize_rows(result)
 
     def generate(self, messages, max_tokens, operation, response_format=None):
         if self.row.get("resume_kind") == "mixed_native" and (
@@ -2628,6 +2893,16 @@ def export(plan, plan_path):
         "complete": all(r["status"] == "completed" for r in rows),
         "limitations": "E1 measures indexing cost/coverage, not retrieval or answer quality. Historical smoke unknowns are preserved outside these new runs.",
     }
+    if plan.get("mixed_embedding_recovery"):
+        pin = plan["mixed_embedding_recovery"]
+        report["embedding_recovery"] = {
+            "policy": plan["embedding_recovery_policy"],
+            "prior_plan_sha256": pin["plan_sha256"],
+            "failed_manifest_sha256": pin["manifest_sha256"],
+            "unknown_reserved_upper_bound": pin["unknown_reserved_upper_bound"],
+            "partial_unordered_historical_batches": "not_reused",
+            "fresh_musique_llm_posts": 0,
+        }
     if plan.get("mixed_extractor"):
         report["mixed_extractor"] = MIXED_EXTRACTOR
         report["protocol_approval_source"] = (
@@ -4547,6 +4822,7 @@ def main():
             "prepare",
             "prepare-mixed",
             "prepare-mixed-counter-recovery",
+            "prepare-mixed-embedding-recovery",
             "prepare-mixed-audit",
             "finalize-mixed-audit",
             "continue",
@@ -4597,10 +4873,17 @@ def main():
     parser.add_argument("--counter-stderr", type=Path)
     args = parser.parse_args()
     config = dotenv_values(args.env_file) if args.env_file else {}
-    if args.command in ("prepare-mixed", "prepare-mixed-counter-recovery"):
+    if args.command in (
+        "prepare-mixed",
+        "prepare-mixed-counter-recovery",
+        "prepare-mixed-embedding-recovery",
+    ):
+        is_embedding = args.command == "prepare-mixed-embedding-recovery"
         is_recovery = args.command == "prepare-mixed-counter-recovery"
         canonical = (
-            ".cache/e1-mixed-counter-plan.json"
+            ".cache/e1-mixed-embedding-plan.json"
+            if is_embedding
+            else ".cache/e1-mixed-counter-plan.json"
             if is_recovery
             else ".cache/e1-mixed-plan.json"
         )
@@ -4611,7 +4894,9 @@ def main():
         ):
             raise ValueError("mixed_requires_unused_canonical_plan_and_clean_code")
         plan = (
-            prepare_mixed_counter_recovery(args.prior_plan, args.counter_stderr)
+            prepare_mixed_embedding_recovery(args.prior_plan)
+            if is_embedding
+            else prepare_mixed_counter_recovery(args.prior_plan, args.counter_stderr)
             if is_recovery
             else prepare_mixed_continuation(
                 args.prior_plan, args.protocol_approval, args.probe_plan
@@ -4619,7 +4904,13 @@ def main():
         )
         root = Path(plan["mixed_claim_root"])
         root.mkdir(parents=True, exist_ok=True)
-        claim_name = "counter-recovery.claim.json" if is_recovery else "plan.claim.json"
+        claim_name = (
+            "embedding-recovery.claim.json"
+            if is_embedding
+            else "counter-recovery.claim.json"
+            if is_recovery
+            else "plan.claim.json"
+        )
         with (root / claim_name).open("x", encoding="utf-8") as stream:
             json.dump(mixed_plan_claim(plan), stream)
             stream.flush()

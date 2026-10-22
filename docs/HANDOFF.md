@@ -1,28 +1,31 @@
 # Передача контекста Sol / Luna
 
-**E1 status:** 4/6 indexes completed; physical known tokens=18095826; cost_complete=False. Last stage=hipporag2 native schema continuation. Raw/indexes remain local. PR Draft; E2 requires all six verified indexes.
+**E1 status:** 4/6 indexes completed; physical known tokens=20379030; cost_complete=False. Last stage=hipporag2 native schema continuation. Raw/indexes remain local. PR Draft; E2 requires all six verified indexes.
 
-## Текущая очередь — 22 октября: child после ошибки счётчика готовится offline
+## Текущая очередь — 23 октября: восстановление локальных embeddings подготовлено offline
 
-- Исходный mixed plan01fd6b059d5e/f545ba1 разрешён пользователем для обоих Hippo;
-  Mu runb2dc4e51 failed на2410/5500 из-за учёта cache events в POST cap.
-  Исправлениеb5ab964 проверено. Это клиентский guard, не NER model failure.
-- Known18095826/upper18150880,cost_complete=false; E1 прежний4/6.
-  Failed run1375138tokens/2069physicalPOST/2924replay полностью сохранён,
-  новых unknown0; исторический unknown55054 не снят.
-- Existing runner готовит один .cache/e1-mixed-counter-plan.json на clean HEAD:
-  новые run/output -mixed-counter1,10history Mu, старые manifests immutable.
-  Mu≤13650487tokens,≤2745новыхLLMPOST,≤37931всехPOST; Hotpot20M/11020/40000.
-  Канонический root прежний, один завершённый fallback claim переносится без
-  повторной оплаты/сброса:≤19новыхslots из20. Частичный primary не используется.
-- Offline146passed/3skipped по E1/schema; guard неизвестного usage/подмены SHA,
-  active lock, повторного child и reset лимитов. После исправления реальных POST0.
-- Native SDK offline proof:8452verified cache entries/4136полных пар; Qwen и GPT
-  replay из нового каталога,0POST, старые claims SHA неизменны. Export сохраняет
-  known18095826/upper18150880, без двойного учёта; публичные summary не менялись.
-- Следующий шаг: final exact child SHA/HEAD и отдельный допуск расходов по ADR-0022.
-  Прежнее согласие не переименовывать в согласие на child. После Mu build source
-  audit обязателен до Hotpot. QA/E2/merge запрещены, PR33Draft/Refs #13,20files.
+- Mixed child75391ad20f6e/06ee684 разрешён пользователем для обоих Hippo;
+  Mu extraction5500/5500 завершён. Runacdf13d5 failed на local /api/embed HTTP400:
+  внутренний /tokenize bind: insufficient buffer space/queue full. Retry не было.
+- Сохранены54721вектор, known2283204childtokens, один local unknown3967reserved.
+  E1 known20379030/upper20438051,cost_complete=false, исторический+новый reserve59021.
+  Четыре готовых Dense/RAPTOR не менялись; E1 ещё4/6. Hotpot не запускался.
+- Сейчас сокеты освобождены; причина transient resource error точно не установлена.
+  Native proof:45857entity vectors точно совпали с verified responses.8864partial
+  fact vectors без input mapping после смены set order не считаются reusable.
+- Existing runner: один .cache/e1-mixed-embedding-plan.json на clean HEAD,
+  shared fallback claims2 сохранены. Mu LLM POST cap0, cache-only extraction,
+ 11history; остаток11363316tokens/33494всехPOST. Hotpot20M/11020LLM/40000всехPOST.
+- Полные32-text legacy embedding stages reuse без оплаты; новые facts canonical
+  sorted batches≤8, caller order restored, pause≥2s после ответа/0.25s на текст,
+  private input JSON сохраняется. Это mitigation, не доказанное лечение сервера.
+  На первой ошибке/unknown stop, retry0. Новый socket child только один.
+- Offline158passed/3skipped; export сохраняет20379030/20438051 без double cost.
+  Нужны clean commit/общий gate, final plan SHA и отдельный допуск ADR-0022.
+  Новых model/embeddingPOST после остановки0.19source review cases подготовлены
+  в .cache/e1-mixed-counter-source-review-draft.json, до final SHA/coverage binding
+  не принимаются как завершённый audit. Mu build/audit предшествуют Hotpot.
+- PR33Draft/Refs #13,20files; научная карточка прежняя. QA/E2/merge не запускать.
 
 ## История — не текущие инструкции запуска
 

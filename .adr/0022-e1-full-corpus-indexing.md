@@ -503,3 +503,30 @@ full passage+cachedNER, cap3072, без retry/NER/embedding; exact reserve/plan 
 После offline gates/clean HEAD требуется отдельный допуск exact child SHA/расходов;
 старое согласие на original plan не подменяется. Mu source audit предшествует Hotpot,
 QA/E2/merge не запускаются. Это восстановление исполнения, не изменение benchmark.
+
+
+### 23 октября: один local embedding socket child после полного extraction
+
+Mu06ee684/acdf13d5 завершил5500extractions и failed на /api/embed HTTP400:
+внутренний /tokenize bind WSAENOBUFS (buffer space/queue full). Причина ресурса
+не доказана, после паузы socket counts малы. Server restart/probe не делались.
+Unknown3967reserved, known2283204сохранены; E1cost_complete=false/4из6.
+
+Решение для отдельного допуска: existing runner создаёт один canonical socket
+child, новый output/run и11history Mu, прежний fallback root/2claims. Mu новый
+LLMPOST cap0, extraction только verified cache; новый остаток11363316tokens/
+33494всехPOST. Hotpot20M/11020LLM/40000всехPOST остаётся за Mu source audit.
+Параметры extraction/reader/model/digest/vector dimension/truncate не меняются.
+Пауза после response≥2s/0.25s per text, новые physical embedding batches≤8;
+canonical sorting с восстановлением caller order и private per-request inputs.
+Это mitigation без утверждения доказанного исправления сервера. Первая ошибка
+останавливает child, повторного socket child/скрытого retry нет.
+
+Полные совместимые32-text stages reuse:45857entity vectors сопоставлены с
+verified normalized responses; частичные8864fact vectors сохранены, но без input
+mapping после set order shift их reuse не установлен. Альтернатива угадать mapping
+отвергнута. Facts66082могут потребовать нового local encode; расходы прежних
+8864иunknown не возвращаются. Новая physical grouping отражается в export,
+численные результаты свежих batches не объявляются битово равными старым.
+Отдельное согласие exact SHA требуется до HTTP; это не новый benchmark и не
+автоматическое требование нового научного согласования. QA/E2/merge запрещены.

@@ -1819,3 +1819,216 @@ def test_mixed_completed_claim_replay_never_reposts_across_outputs(
     assert (
         child.journal.summary()["attempts"] == 0 and child_session.post.call_count == 0
     )
+
+
+def test_socket_embedding_canonical_batches_restore_order_and_persist_inputs(
+    mixed_transport_factory,
+):
+    runner, session = mixed_transport_factory()
+    runner.plan["embedding_recovery_policy"] = e1.MIXED_EMBEDDING_RECOVERY
+    texts = [f"text-{i:02}" for i in range(18)][::-1]
+    sent = []
+
+    def reply(url, **kwargs):
+        payload = kwargs["json"]
+        sent.append(payload)
+        vectors = []
+        for text in payload["input"]:
+            v = [0.0] * 1024
+            v[int(text[-2:])] = 1.0
+            vectors.append(v)
+        r = Mock(status_code=200)
+        r.json.return_value = {"embeddings": vectors, "prompt_eval_count": len(vectors)}
+        return r
+
+    session.post = Mock(side_effect=reply)
+    with patch("scripts.run_e1.time.sleep"):
+        result = runner.embed(texts)
+    assert [len(x["input"]) for x in sent] == [8, 8, 2]
+    assert [x for p in sent for x in p["input"]] == sorted(texts)
+    assert np.argmax(result, axis=1).tolist() == list(range(18))[::-1]
+    inputs = list(runner.calls.glob("*.input.json"))
+    assert len(inputs) == 3 and all(dense.read_json(p) in sent for p in inputs)
+    with patch("scripts.run_e1.time.sleep"):
+        again = runner.embed(list(reversed(texts)))
+    assert session.post.call_count == 3
+    assert np.argmax(again, axis=1).tolist() == list(range(18))
+
+
+def test_socket_embedding_replays_full_legacy_cache_without_repartition(
+    mixed_transport_factory, tmp_path
+):
+    runner, session = mixed_transport_factory()
+    runner.plan["embedding_recovery_policy"] = e1.MIXED_EMBEDDING_RECOVERY
+    texts = [str(i) for i in range(33)]
+    for offset in range(0, 33, 32):
+        payload = {
+            "model": "bge",
+            "input": texts[offset : offset + 32],
+            "truncate": False,
+        }
+        key = e1.target.digest(
+            {"payload": payload, "kind": "embedding", "operation": "index_embedding"}
+        )
+        rp = tmp_path / f"{offset}.json"
+        dense.write_json_atomic(
+            rp,
+            {
+                "embeddings": [[1.0] + [0.0] * 1023 for _ in payload["input"]],
+                "prompt_eval_count": len(payload["input"]),
+            },
+        )
+        runner.parent_cache[key] = {
+            "path": rp,
+            "sha256": dense.sha256_file(rp),
+            "kind": "embedding",
+            "operation": "index_embedding",
+            "provider": "local_ollama",
+            "model": "bge",
+            "run_id": "known",
+            "producer_complete": False,
+        }
+    session.post = Mock(side_effect=AssertionError("HTTP forbidden"))
+    assert runner.embed(texts).shape == (33, 1024)
+    assert session.post.call_count == 0 and runner.journal.summary()["attempts"] == 0
+
+
+def test_socket_embedding_requires_pause_after_response(mixed_transport_factory):
+    runner, session = mixed_transport_factory()
+    runner.plan["embedding_recovery_policy"] = e1.MIXED_EMBEDDING_RECOVERY
+    runner.last_embedding_finished = 100.0
+    response = Mock(status_code=200)
+    response.json.return_value = {
+        "embeddings": [[1.0] + [0.0] * 1023],
+        "prompt_eval_count": 1,
+    }
+    session.post = Mock(return_value=response)
+    with (
+        patch("scripts.run_e1.time.monotonic", return_value=101.0),
+        patch("scripts.run_e1.time.sleep") as sleep,
+    ):
+        runner.embed(["text"])
+    sleep.assert_called_once_with(1.0)
+    assert runner.last_embedding_finished == 101.0
+
+
+@pytest.fixture
+def mixed_socket_fixture(mixed_counter_fixture):
+    pp, mp, log, root = mixed_counter_fixture
+    prior = dense.read_json(pp)
+    prior["mixed_counter_recovery"] = {"plan": "earlier"}
+    dense.write_json_atomic(pp, prior)
+    journal = Journal(
+        mp.parent / "usage.jsonl",
+        run_id="old-mixed",
+        method="hipporag2",
+        dataset="musique",
+        resume=True,
+    )
+    start = journal.start(
+        phase="index",
+        operation="index_embedding",
+        provider="local_ollama",
+        model="bge",
+        kind="embedding",
+        object_id="failed-embedding",
+    )
+    journal.finish(start, status="error", error_code="HTTPError")
+    dense.write_json_atomic(
+        mp.parent / "requests/failed-embedding.json",
+        {
+            "request_sha256": "failed-embedding",
+            "status": "started",
+            "operation": "index_embedding",
+            "reserved_tokens": 3967,
+        },
+    )
+    dense.write_json_atomic(
+        mp.parent / "requests/failed-embedding.response.json",
+        {
+            "error": "Post http://localhost/tokenize: bind: insufficient buffer space or queue was full"
+        },
+    )
+    dense.write_json_atomic(
+        mp.parent / "openie-validation.json", {str(i): {} for i in range(5500)}
+    )
+    m = dense.read_json(mp)
+    m.update(
+        error_type="HTTPError",
+        plan_sha256=e1.target.digest(prior),
+        token_accounting=journal.reference(),
+    )
+    m["artifacts"] = {
+        p.relative_to(mp.parent).as_posix(): dense.sha256_file(p)
+        for p in mp.parent.rglob("*")
+        if p.is_file() and p.name != "manifest.json"
+    }
+    dense.write_json_atomic(mp, m)
+    return pp, mp, root
+
+
+@pytest.mark.parametrize(
+    "bad", ["none", "error_text", "active", "reserve", "post_cap", "claim"]
+)
+def test_mixed_embedding_child_preserves_unknown_and_requires_socket_failure(
+    mixed_socket_fixture, bad
+):
+    pp, mp, root = mixed_socket_fixture
+    if bad == "error_text":
+        p = mp.parent / "requests/failed-embedding.response.json"
+        dense.write_json_atomic(p, {"error": "input too long"})
+        m = dense.read_json(mp)
+        m["artifacts"][p.relative_to(mp.parent).as_posix()] = dense.sha256_file(p)
+        dense.write_json_atomic(mp, m)
+    if bad == "active":
+        m = dense.read_json(mp)
+        m["status"] = "running"
+        dense.write_json_atomic(mp, m)
+    if bad == "post_cap":
+        prior = dense.read_json(pp)
+        prior["rows"][0]["max_new_posts"] = 1
+        dense.write_json_atomic(pp, prior)
+        m = dense.read_json(mp)
+        m["plan_sha256"] = e1.target.digest(prior)
+        dense.write_json_atomic(mp, m)
+    if bad == "claim":
+        (root / "musique").mkdir()
+        dense.write_json_atomic(
+            root / "musique/pending.claim.json", {"status": "started"}
+        )
+    before = mp.read_bytes()
+    with patch(
+        "requests.sessions.Session.request",
+        side_effect=AssertionError("HTTP forbidden"),
+    ):
+        if bad not in ("none", "reserve"):
+            with pytest.raises(ValueError):
+                e1.prepare_mixed_embedding_recovery(pp)
+        else:
+            plan = e1.prepare_mixed_embedding_recovery(pp)
+            mu, hot = plan["rows"]
+            assert mu["max_llm_posts"] == 0 and mu["max_new_posts"] == 8
+            assert mu["token_limit"] == 20000000 - 18 - 3967
+            assert mu["history_runs"][-1]["unknown_reserved_upper_bound"] == 3967
+            assert hot["max_llm_posts"] == 11020 and hot["token_limit"] == 20000000
+            if bad == "reserve":
+                plan["mixed_embedding_recovery"]["unknown_reserved_upper_bound"] = 0
+                with pytest.raises(ValueError, match="unknown_reserve_changed"):
+                    e1.mixed_embedding_state(plan["mixed_embedding_recovery"])
+            else:
+                dense.write_json_atomic(
+                    root / "embedding-recovery.claim.json", e1.mixed_plan_claim(plan)
+                )
+                with pytest.raises(ValueError, match="already_claimed"):
+                    e1.prepare_mixed_embedding_recovery(pp)
+    assert mp.read_bytes() == before
+
+
+def test_socket_musique_zero_fresh_llm_cap(mixed_transport_factory):
+    runner, session = mixed_transport_factory()
+    runner.plan["embedding_recovery_policy"] = e1.MIXED_EMBEDDING_RECOVERY
+    runner.row["max_llm_posts"] = 0
+    session.post = Mock(side_effect=AssertionError("HTTP forbidden"))
+    with pytest.raises(ValueError, match="mixed_llm_request_limit"):
+        runner.generate(mixed_messages(), 1024, "openie_ner", {"type": "json_object"})
+    assert runner.journal.summary()["attempts"] == 0 and session.post.call_count == 0

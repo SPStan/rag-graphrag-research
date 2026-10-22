@@ -1,5 +1,67 @@
 # E1: индексы полного корпуса (#13)
 
+## Текущий socket recovery — 23 октября: без новых запросов
+
+Mu extraction5500/5500 завершён. Runacdf13d5-7a3b-4748-8e34-348a02b28788
+на06ee684/plan75391ad20f6e остановлен02:05MSK23октября на local BGE-M3 HTTP400.
+Сохранённый ответ: внутренний /tokenize bind — insufficient buffer space/queue full.
+Это наблюдаемая ресурсная ошибка; её точная причина не установлена. Проверка после
+остановки:24TIME_WAIT/101BOUND/89ESTABLISHED при16384dynamic ports, текущего
+массового исчерпания не видно. Сервис не перезапускался, probe запросов не было.
+
+Новый child known2283204 (LLM1343346input+452180output, embedding487678),
+4437physicalPOST, в том числе2725LLM/1712embedding. Последний embedding usage
+unknown; reserve3967 остаётся, не ноль. E1 known20379030/upper20438051,
+cost_complete=false, total reserve59021. Старые failed/results immutable.
+
+### Что доказано reusable
+
+Native offline proof проверил12888cache entries. Полный entity parquet45857
+векторов точно совпал с нормализованными verified responses всех32-text batches.
+5500chunk vectors также имеют совместимый прежний batch cache. Сохранены ещё8864
+частичных fact vectors, но input strings не записывались, а SDK flatten_facts
+использует set: порядок меняется между процессами. Без подтверждённого input mapping
+их replay не заявляется. Они сохраняются с расходом; полный новый facts stage
+может заново обработать66082строки. Не подставлять векторы по предполагаемому порядку.
+
+### Один bounded путь в existing runner
+
+```powershell
+./.venv-check/Scripts/python.exe -m scripts.run_e1 prepare-mixed-embedding-recovery --prior-plan '.cache/e1-mixed-counter-plan.json' --plan '.cache/e1-mixed-embedding-plan.json'
+# После допуска exact SHA: прежний run --plan нового файла --approved-plan-sha256 '<sha>'.
+# Source audit: prepare-mixed-audit/finalize-mixed-audit, только после build/save/reload.
+```
+
+Canonical plan/once claim рядом с прежним shared fallback root; новые run/output
+-mixed-embed1,11history Mu. Parent plan/manifests/оба завершённых fallback claims
+не меняются. Mu новый LLM cap0: только проверенный NER/triples cache. Mu остаток
+11363316combined tokens/33494всехPOST; unknown3967вычтен. Hotpot20Mtokens,
+11020внешнихLLMPOST/40000всехPOST, новый transport одинаков обоим datasets.
+
+Если все исторические32-text batches stage доступны, они reuse точно. Иначе весь
+stage сортируется канонически, physical batches≤8; порядок векторов возвращается
+в исходный caller order. Частичные неупорядоченные batches не задают mapping.
+Новые local input JSON сохраняются приватно в requests вместе с response SHA,
+чтобы повторный анализ не зависел от Python set order. Model/digest/размер1024,
+truncate=false/context прежние; physical grouping раскрывается в export отдельно
+от SDK embedding_batch_size32. Для новых HTTP пауза≥2s после предыдущего ответа
+и0.25s/text, без скрытых retries. Это снижение нагрузки, не подтверждённое лечение
+Ollama. При первой ошибке/unknown остановка; ещё одного socket recovery нет.
+
+Offline158passed/3skipped: canonical grouping и restore order, сохранение inputs,
+cache-only stage, пауза после ответа, Mu0freshLLM, positive socket child и отказ
+при другом HTTP400/active/сбросе reserve/исчерпанном cap/pending claim. Export
+проверен без записи публичных результатов:known20379030/upper20438051 прежние,
+unknown/failed включены один раз. Новый HTTP только после согласования final
+plan SHA по ADR-0022. Предыдущий допуск не переименовывается в новый.
+
+Source review19cases уже выполнен assistant по исходникам:3supported,
+13observed_error,3needs_review, включая11warnings. Private draft требует сравнения
+с финальными audit cases/response SHA, coverage5500 и save/reload; пока не completed.
+Это не corpus precision. Никаких исправлений графа/QA gold/model judge.
+Готовы4/6; Hotpot не стартует до Mu build/source audit. QA/E2/merge запрещены.
+
+
 ## Одноразовый child после локального POST guard — подготовка без HTTP
 
 `prepare-mixed-counter-recovery` продолжает исходный mixed plan только после
