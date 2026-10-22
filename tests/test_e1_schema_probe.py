@@ -1008,3 +1008,187 @@ def test_schema_plan_tampering_rejected_before_http(tmp_path, monkeypatch, chang
         row["max_new_posts"] = 40001
     with pytest.raises(ValueError):
         e1.verify_native_schema_plan(plan, row)
+
+
+def test_legacy_json_object_cache_keeps_its_original_contract(adoption_case, tmp_path):
+    prior, probe, _, prepared = adoption_case
+    record, cache = e1.schema_adoption(probe, prior, Path("sdk"))
+    original = {
+        **prepared["cases"][0]["payload"],
+        "response_format": {"type": "json_object"},
+    }
+    key = e1.target.digest(
+        {"payload": original, "kind": "llm", "operation": "openie_triples"}
+    )
+    body = {
+        "choices": [
+            {
+                "finish_reason": "stop",
+                "message": {
+                    "content": '{"named_entities":["A","B"],"triples":[["A","in","B"]]}'
+                },
+            }
+        ],
+        "usage": {"prompt_tokens": 10, "completion_tokens": 8},
+    }
+    old = tmp_path / "old.response.json"
+    dense.write_json_atomic(old, body)
+    row = {"method": "hipporag2", "dataset": "musique", "resume_kind": "native_schema"}
+    child = tmp_path / "legacy-child"
+    child.mkdir()
+    journal = Journal(
+        child / "usage.jsonl", run_id="child", method="hipporag2", dataset="musique"
+    )
+    with patch.object(e1, "verify_schema_recovery", return_value=(record, cache)):
+        transport = e1.Transport({"model": "qwen"}, row, {}, child, journal)
+    transport.parent_cache[key] = {
+        **next(iter(cache.values())),
+        "path": old,
+        "sha256": dense.sha256_file(old),
+        "run_id": "old-producer",
+    }
+    text, metadata = transport.generate(
+        original["messages"], 3072, "openie_triples", {"type": "json_object"}
+    )
+    assert json.loads(text) == json.loads(body["choices"][0]["message"]["content"])
+    assert metadata["cache_hit"] is True
+    assert journal.summary()["attempts"] == 0
+    from scripts.token_accounting import read_records
+
+    assert read_records(journal.path)[-1]["object_id"] == key
+    transport.close()
+
+
+@pytest.mark.parametrize("physical", [False, True])
+def test_preflight_child_only_for_zero_physical_attempts(
+    tmp_path, monkeypatch, physical
+):
+    monkeypatch.setattr(e1, "ROOT", tmp_path)
+    directory = tmp_path / "failed"
+    directory.mkdir()
+    journal = Journal(
+        directory / "usage.jsonl",
+        run_id="failed",
+        method="hipporag2",
+        dataset="musique",
+    )
+    if physical:
+        a = journal.start(
+            phase="index",
+            operation="openie_triples",
+            provider="target_api",
+            model="qwen",
+            kind="llm",
+        )
+        journal.finish(
+            a, status="success", usage={"llm_input_tokens": 1, "llm_output_tokens": 1}
+        )
+    else:
+        journal.cache_hit(
+            phase="index",
+            operation="openie_triples",
+            provider="target_api",
+            model="qwen",
+            kind="llm",
+            object_id="cached",
+            producer_run_id="old",
+            producer_usage_complete=False,
+        )
+    dense.write_json_atomic(
+        directory / "manifest.json",
+        {
+            "run_id": "failed",
+            "status": "failed",
+            "token_accounting": journal.reference(),
+            "artifacts": {"usage.jsonl": dense.sha256_file(journal.path)},
+        },
+    )
+    pin = {
+        "output": "failed",
+        "manifest_sha256": dense.sha256_file(directory / "manifest.json"),
+    }
+    if physical:
+        with pytest.raises(ValueError, match="zero_physical"):
+            e1.schema_preflight_history(pin)
+    else:
+        history = e1.schema_preflight_history(pin)
+        assert history["unknown_reserved_upper_bound"] == 0
+        assert history["summary"]["attempts"] == 0
+        assert (directory / "manifest.json").exists()
+
+
+def test_zero_attempt_child_preserves_ancestor_budget_and_claims_once(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr(e1, "ROOT", tmp_path)
+    monkeypatch.setattr(e1, "code_dirty", lambda: False)
+    monkeypatch.setattr(e1, "git", lambda *a: "fixed-code")
+    monkeypatch.setattr(e1, "verify_native_schema_plan", lambda *a: None)
+    monkeypatch.setattr(e1, "verify_schema_recovery", lambda *a: None)
+    directory = tmp_path / "mu-schema1"
+    directory.mkdir()
+    journal = Journal(
+        directory / "usage.jsonl",
+        run_id="old-child",
+        method="hipporag2",
+        dataset="musique",
+    )
+    journal.cache_hit(
+        phase="index",
+        operation="openie_triples",
+        provider="target_api",
+        model="qwen",
+        kind="llm",
+        object_id="cached",
+        producer_run_id="producer",
+        producer_usage_complete=True,
+    )
+    dense.write_json_atomic(
+        directory / "manifest.json",
+        {
+            "status": "failed",
+            "run_id": "old-child",
+            "token_accounting": journal.reference(),
+            "artifacts": {"usage.jsonl": dense.sha256_file(journal.path)},
+        },
+    )
+    prior = tmp_path / "approved-plan.json"
+    original = {
+        "workspace": str(tmp_path),
+        "batch_id": "batch",
+        "hippo_schema_policy": e1.HIPPO_SCHEMA_POLICY,
+        "hippo_schema_inputs": {"prior": {"sha256": "root"}},
+        "rows": [
+            {
+                "method": "hipporag2",
+                "dataset": d,
+                "output": "mu-schema1" if d == "musique" else "hot-schema1",
+                "run_id": d,
+                "history_runs": [],
+                "token_limit": 12345,
+                "prior_budget_charge": 678,
+                "schema_adoption": {"sha256": "adoption"},
+            }
+            for d in e1.DATASETS
+        ],
+    }
+    dense.write_json_atomic(prior, original)
+    old_bytes = prior.read_bytes()
+    old_manifest = (directory / "manifest.json").read_bytes()
+    plan = e1.prepare_schema_preflight_continuation(prior)
+    assert prior.read_bytes() == old_bytes
+    assert (directory / "manifest.json").read_bytes() == old_manifest
+    assert plan["parent_plan"]["sha256"] == dense.sha256_file(prior)
+    for row in plan["rows"]:
+        assert row["token_limit"] == 12345 and row["prior_budget_charge"] == 678
+        assert row["code_commit"] == "fixed-code"
+        assert row["output"].endswith("-schema-preflight1")
+        assert not (tmp_path / row["output"]).exists()
+    assert len(plan["rows"][0]["history_runs"]) == 1
+    assert (directory / "preflight-resume-once.claim.json").exists()
+    with pytest.raises(FileExistsError):
+        e1.prepare_schema_preflight_continuation(prior)
+    next_path = tmp_path / "child-plan.json"
+    dense.write_json_atomic(next_path, plan)
+    with pytest.raises(ValueError, match="clean_first_schema_plan"):
+        e1.prepare_schema_preflight_continuation(next_path)

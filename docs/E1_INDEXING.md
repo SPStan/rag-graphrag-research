@@ -1,5 +1,38 @@
 # E1: индексы полного корпуса (#13)
 
+## Исправление нулевого preflight после согласия на оба Hippo-прогона
+
+На планcaf265ad/7f0c6ed получено явное согласие «Разрешаю передачу и оба
+Hippo-прогона». Первый runner326a7eb4 остановился при чтении старого успешного
+json_object: новый schema-validator ошибочно запретил дополнительные поля
+старого формата. Физических POST0, новых токенов0; только172embedding и2LLM
+cache hits. Hotpot не запускался. Failed manifest/планcaf265ad неизменны.
+Два более ранних отказа launcher также произошли до runner/HTTP (политика .ps1,
+затем старый PowerShell); рабочий launcher использует PowerShell7.6.5/UTF-8.
+
+Исправление разделяет контракты: старый verified json_object проверяется прежним
+pinned parser; строгая shape-валидация применяется к actual schema payload.
+Offline проверен весь кэш4836:2332NER/2332triples, включая1919старых triples
+с дополнительными полями, partial recovery=false, HTTP0. Новые schema ответы
+по-прежнему проходят полный строгий валидатор. Регрессия воспроизводит именно
+старый ответ с named_entities+triples; preflight guards запрещают продолжение
+после любого physical attempt и повторную цепочку локальных revisions.
+
+Существующий prepare-native-schema-continuation принимает approved schema plan
+и создаёт ровно один preflight child, если проверены failed/attempts0/known0/
+unknown0 и все SHA. Новый output *-schema-preflight1/run IDs, claim рядом с этим
+нулевым failed manifest. Он включён шестой историей Mu, расходы0; исходные
+16054041/20000000 и ограничения попыток/данных/модели не меняются. Это исправление
+локального replay до первого запроса в пределах уже полученного согласия на оба
+прогона, а не новая генеративная политика или model retry. После любого
+физического запроса этот путь недоступен; новый model отказ вновь останавливает
+очередь. Старое согласие и техническая ревизия связываются явно, новый ответ
+пользователя на другой SHA не выдумывается.
+
+```powershell
+<hippo-python> -m scripts.run_e1 prepare-native-schema-continuation --prior-plan '<approved-first-schema-plan>' --plan '<data-root>/indexes/e1/issue13-hippo-schema-preflight-plan.json'
+```
+
 ## Offline-принятие и готовый путь продолжения Hippo — 22 октября
 
 [Отдельная запись принятия](../results/summary/e1-hippo-schema-adoption.json)

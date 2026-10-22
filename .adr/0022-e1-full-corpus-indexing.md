@@ -429,3 +429,26 @@ O/N/R/H и готовность6/6 остаются отдельными про�
 не назначается согласующим техническую нормализацию. Условия пересмотра: смена
 SDK/schema/модели, необходимость новых corrective attempts, потеря provenance или
 изменение исследовательской семантики facts. Старые failed и unknown не меняются.
+
+
+### 22 октября: локальный preflight failed с нулём физических попыток
+
+Согласие на оба Hippo datasets получено дляcaf265ad/7f0c6ed. Runner остановился
+на первом старом triples cache hit: strict schema-проверка ошибочно применялась
+к прежнему json_object с extra fields. HTTP0, новые tokens0, Hotpot не запускался.
+Контракты разделены: verified старые ответы используют прежний pinned parser,
+actual schema payload — строгую проверку. Полный offline-аудит4836cache entries:
+2332NER/2332triples,1919legacy extra-fields, recover_partial=False, без запросов.
+
+Решение: один preflight child в существующей подготовке плана, только при
+failed journal с attempts0/known0/unknown0 и проверенных SHA. Failed и исходный
+approved plan не меняются. Новый claim рядом с нулевым failed, новые run IDs/outputs,
+эта история включена с расходом0; бюджет, model/data/caps/stop/retry0 прежние.
+Применимое согласие на оба прогона сохраняется: ни одной оплаченной попытки ещё
+не использовано, исправляется локальный replay. Происхождение согласия содержит
+исходный approved SHA и отдельный execution revision, не подменяет слова пользователя.
+Альтернатива reset failed/claim отвергнута; бесконечные revisions запрещены.
+Путь не применим после любого physical request, в том числе успешного с известным
+usage; новой генеративной политики/повтора после model failure он не разрешает.
+Проверки: regression legacy extra fields, positive/negative zero-attempt guard,
+immutable ancestors/unchanged budget/new outputs/once-only claim;60targeted passed.

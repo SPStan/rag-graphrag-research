@@ -2,15 +2,23 @@
 
 **E1 status:** 4/6 indexes completed; physical known tokens=15692272; cost_complete=False. Last stage=hipporag2 native schema continuation. Raw/indexes remain local. PR Draft; E2 requires all six verified indexes.
 
-## Текущая очередь — измеренный Hippo native-schema этап, 22 октября
+## Текущая очередь — 22 октября: исправлен нулевой Hippo preflight
 
-- Планcaf265ad, runtime7f0c6ed: согласие на передачу и оба прогона получено в чате.
-- Hippo musique: failed; run 326a7eb4-7170-46ad-9a19-9ab1b3e5bdba.
-- Hippo hotpotqa: pending; run 730e871a-ea32-46b0-ad3c-6f5eff480a9d.
-- 4/6; known15692272, upper15747326; cost_complete=False.
-- Все failed/probe/unknown сохранены; новых retry/corrective нет. QA/E2/merge не запускались.
-- Следующий шаг: проверить manifests, coverage/reload и CI; при failed сначала разобрать причину.
-- PR33Draft/Refs13; итоговая таблица results/summary/e1-indexing.md.
+- Готово4/6; E1 known15692272/upper15747326,cost_complete=false.
+- Получено согласие на оба Hippo-прогонаcaf265ad/7f0c6ed. Mu326a7eb4 failed
+  при старом cache hit: schema-validator ошибочно применялся к json_object.
+  Новых POST0/tokens0; Hotpot не начинался. Failed/approved plan сохранены.
+- Legacy/schema контракты разделены. Весь кэш4836проверен pinned parser offline:
+  2332NER/2332triples,1919legacy extra-fields; partial recovery false/HTTP0.
+- Подготовить единственный preflight child существующим runner; допускается лишь
+  после failed с attempts0/known0/unknown0, новый claim/output/run, без reset.
+- Прежнее согласие на оба datasets применимо к локальному исправлению до первого
+  HTTP; бюджеты Mu16054041/Hotpot20000000, data/model/caps/retry0 не меняются.
+  Новую пользовательскую реплику на другой SHA не приписывать: записать derivation.
+- Следующий этап Mu→Hotpot, остановка на первой ошибке. После любого physical
+  request этот preflight-путь запрещён; новых model-retry он не разрешает.
+- PR33Draft/Refs13; QA/E2/merge не запускать. Статус активного launcher проверять
+  в .cache/e1-hippo-schema-job-status.json; детали E1_INDEXING/ADR-0022.
 
 ## История — не текущие инструкции запуска
 

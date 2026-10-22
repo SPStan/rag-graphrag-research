@@ -346,9 +346,98 @@ def schema_resume_history(prior_row, prepared):
     return history, sources
 
 
+def schema_preflight_history(pin):
+    path = ROOT / pin["output"] / "manifest.json"
+    if (
+        dense.sha256_file(path) != pin["manifest_sha256"]
+        or (path.parent / "running.lock").exists()
+    ):
+        raise ValueError("schema_preflight_parent_changed")
+    manifest = dense.read_json(path)
+    ref = verified_reference(manifest, path)
+    summary = ref["summary"]
+    if (
+        manifest["status"] != "failed"
+        or ref["status"] != "verified"
+        or summary["attempts"] != 0
+        or not summary["complete"]
+        or any(summary["known_subtotal"].values())
+        or current_unknown_reservation(path.parent) != 0
+    ):
+        raise ValueError("schema_preflight_requires_zero_physical_attempts")
+    for name, sha in manifest["artifacts"].items():
+        if dense.sha256_file(path.parent / name) != sha:
+            raise ValueError("schema_preflight_artifact_changed")
+    return {
+        **pin,
+        "run_id": manifest["run_id"],
+        "summary": summary,
+        "unknown_reserved_upper_bound": 0,
+    }
+
+
+def prepare_schema_preflight_continuation(prior_path):
+    """One local pre-HTTP repair; original plan, failure and budget stay immutable."""
+    original = dense.read_json(prior_path)
+    if (
+        code_dirty()
+        or original.get("hippo_schema_policy") != HIPPO_SCHEMA_POLICY
+        or original.get("schema_preflight_parent")
+        or original["workspace"] != str(ROOT.resolve())
+    ):
+        raise ValueError("schema_preflight_requires_clean_first_schema_plan")
+    mu = next(
+        r
+        for r in original["rows"]
+        if (r["method"], r["dataset"]) == ("hipporag2", "musique")
+    )
+    verify_native_schema_plan(original, mu)
+    verify_schema_recovery(original, mu)
+    path = ROOT / mu["output"] / "manifest.json"
+    pin = {"output": mu["output"], "manifest_sha256": dense.sha256_file(path)}
+    history = schema_preflight_history(pin)
+    parent = {
+        "path": str(prior_path.resolve()),
+        "sha256": dense.sha256_file(prior_path),
+        "digest": target.digest(original),
+    }
+    plan = copy.deepcopy(original)
+    plan.update(
+        parent_plan=parent,
+        lineage=[parent, *original.get("lineage", [])],
+        schema_preflight_parent=pin,
+    )
+    for row in plan["rows"]:
+        if row["method"] != "hipporag2":
+            continue
+        if row["dataset"] == "hotpotqa" and (ROOT / row["output"]).exists():
+            raise ValueError("schema_preflight_requires_untouched_HotpotQA")
+        if row["dataset"] == "musique":
+            row["history_runs"].append(history)
+        row.update(
+            output=f"indexes/e1/{plan['batch_id']}/hipporag2/{row['dataset']}-schema-preflight1",
+            run_id=str(uuid.uuid4()),
+            code_commit=git("rev-parse", "HEAD"),
+        )
+        if (ROOT / row["output"]).exists():
+            raise ValueError("schema_preflight_output_must_be_new")
+    with (path.parent / "preflight-resume-once.claim.json").open(
+        "x", encoding="utf-8"
+    ) as stream:
+        json.dump(schema_claim(plan), stream)
+        stream.flush()
+        os.fsync(stream.fileno())
+    return plan
+
+
 def schema_claim(plan):
     return {
         "parent_plan_sha256": plan["hippo_schema_inputs"]["prior"]["sha256"],
+        **(
+            {"preflight_parent": plan["schema_preflight_parent"]}
+            if plan.get("schema_preflight_parent")
+            else {}
+        ),
         "adoption_sha256": next(
             r["schema_adoption"]["sha256"]
             for r in plan["rows"]
@@ -384,6 +473,8 @@ def verify_native_schema_plan(plan, row):
     history, sources = schema_resume_history(
         old, dense.read_json(Path(inputs["probe"]["path"]))
     )
+    if plan.get("schema_preflight_parent") and row["dataset"] == "musique":
+        history.append(schema_preflight_history(plan["schema_preflight_parent"]))
     charge = sum(
         sum(h["summary"]["known_subtotal"].values()) + h["unknown_reserved_upper_bound"]
         for h in history
@@ -401,7 +492,13 @@ def verify_native_schema_plan(plan, row):
         for r in prior["rows"]
         if (r["method"], r["dataset"]) == ("hipporag2", "musique")
     )
-    claim_path = ROOT / mu["output"] / "schema-resume-once.claim.json"
+    claim_path = (
+        ROOT
+        / plan["schema_preflight_parent"]["output"]
+        / "preflight-resume-once.claim.json"
+        if plan.get("schema_preflight_parent")
+        else ROOT / mu["output"] / "schema-resume-once.claim.json"
+    )
     if dense.read_json(claim_path) != schema_claim(plan):
         raise ValueError("schema_resume_claim_changed")
     if row["dataset"] == "hotpotqa":
@@ -425,6 +522,8 @@ def verify_native_schema_plan(plan, row):
 def prepare_native_schema_continuation(prior_path, probe_path, adoption_path, source):
     """Reserve a single new pair of outputs, offline; do not start either index."""
     original = dense.read_json(prior_path)
+    if original.get("hippo_schema_policy"):
+        return prepare_schema_preflight_continuation(prior_path)
     if (
         code_dirty()
         or original["workspace"] != str(ROOT.resolve())
@@ -661,7 +760,10 @@ def verify_plan(plan, row, config):
         or row["output"]
         != f"indexes/e1/{plan['batch_id']}/{row['method']}/{row['dataset']}"
         + (
-            "-schema1"
+            "-schema-preflight1"
+            if row.get("resume_kind") == "native_schema"
+            and plan.get("schema_preflight_parent")
+            else "-schema1"
             if row.get("resume_kind") == "native_schema"
             else "-summary-network1"
             if plan.get("raptor_summary_network_resume")
@@ -1074,7 +1176,8 @@ class Transport:
                     raise ValueError("schema_replay_association_changed")
             try:
                 body = self.call(payload, kind="llm", operation=operation)
-                validate_schema_probe_response(body, allow_literal_duplicates=True)
+                if payload.get("response_format", {}).get("type") == "json_schema":
+                    validate_schema_probe_response(body, allow_literal_duplicates=True)
             except BaseException:
                 self.schema_failed = True
                 raise
@@ -3198,9 +3301,10 @@ def main():
         print(json.dumps({"status": record["status"], "http_calls": 0}))
         return
     elif args.command == "prepare-native-schema-continuation":
-        canonical = (
-            Path(dense.read_json(args.prior_plan)["data_root"])
-            / "indexes/e1/issue13-hippo-schema-plan.json"
+        canonical = Path(dense.read_json(args.prior_plan)["data_root"]) / (
+            "indexes/e1/issue13-hippo-schema-preflight-plan.json"
+            if dense.read_json(args.prior_plan).get("hippo_schema_policy")
+            else "indexes/e1/issue13-hippo-schema-plan.json"
         )
         if args.plan.resolve() != canonical.resolve() or args.plan.exists():
             raise ValueError("schema_resume_requires_unused_canonical_plan")
