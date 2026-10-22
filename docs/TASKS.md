@@ -2,15 +2,22 @@
 
 **E1 status:** 4/6 indexes completed; physical known tokens=16707393; cost_complete=False. Last stage=hipporag2 native schema continuation. Raw/indexes remain local. PR Draft; E2 requires all six verified indexes.
 
-## Текущая очередь — измеренный Hippo native-schema этап, 22 октября
+## Текущая очередь — 22 октября: Hippo schema length/cycle, offline-разбор завершён
 
-- План0310dad2, runtime0d784ed: техническое pre-HTTP продолжение согласованногоcaf265ad; прежние лимиты, предокattempts0 сохранён.
-- Hippo musique: failed; run 3eab6c1d-d87e-42d3-8e12-618ca2adf0bc.
-- Hippo hotpotqa: pending; run cea6cbe8-b715-4445-9121-95f3ae33d2b8.
-- 4/6; known16707393, upper16762447; cost_complete=False.
-- Все failed/probe/unknown сохранены; новых retry/corrective нет. QA/E2/merge не запускались.
-- Следующий шаг: проверить manifests, coverage/reload и CI; при failed сначала разобрать причину.
-- PR33Draft/Refs13; итоговая таблица results/summary/e1-indexing.md.
+- Готово4/6. Run3eab6c1d failed1357/5500,1544POST,1015121known; Hotpot pending.
+- Последний input891/output3072, length:26unique fragments,142одинаковых подряд.
+  Полного JSON нет, поздние факты источника пропущены; partial не принимается.
+- Offline восстановлены source/NER/payload SHA, проверены весь cache и canonical
+  requests:3102полныхNER+triples,2NER-only,2396безNER. Это reuse, не готовый граф.
+- E1known16707393/upper16762447,cost_complete=false. Mu остаток15038920,
+  Hotpot20M; failed/probe/unknown сохранены. В offline-блоке model/embedding0.
+- Не повторять запрос, не поднимать cap/не дописывать JSON. Prompt uniqueness
+  и shape schema не устранили цикл; причину модели/decoding по raw не установить.
+- Нужен ответ оператора о Qwen/backend. GPT-OSS доступна по metadata GET, но
+  deployment limits не сообщены; смена LLM меняет единые условия SPEC и не принята.
+- После подтверждённого исправления сначала один bounded gate на полном failed
+  passage/cachedNER, exact payload/reserve/согласие доPOST; full не автоматически.
+- PR33Draft/Refs13; E2/QA/merge не запускать. SHA, coverage и причины — E1_INDEXING.
 
 ## История — не текущие инструкции запуска
 

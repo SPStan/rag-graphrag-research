@@ -452,3 +452,33 @@ approved plan не меняются. Новый claim рядом с нулевы
 usage; новой генеративной политики/повтора после model failure он не разрешает.
 Проверки: regression legacy extra fields, positive/negative zero-attempt guard,
 immutable ancestors/unchanged budget/new outputs/once-only claim;60targeted passed.
+
+
+### 22 октября: shape schema не остановила генеративный цикл
+
+Run3eab6c1d остановился после1357passages/1544POST/1015121known. Последний
+response length3072 при input891:168complete tuple fragments/26unique,
+142одинаковых подряд; источник не содержит такого числа событий, поздние
+сведения passage отсутствуют. Полный JSON отсутствует; partial не принимается.
+Known3963 этой попытки уже включён, transport errors0 не равны extraction success.
+Manifest/raw SHA и точный payload из source+cachedNER восстановлены offline.
+
+Решение: не повторять POST с теми же условиями, не повышать cap, не дописывать
+JSON и не выбирать число facts по наблюдаемым26unique. Форма schema не является
+устранением цикла, SDK dedup применим только к полным accepted responses.
+После двух безрезультатных мер (prompt uniqueness/shape schema) нужен короткий
+разбор и внешний ответ о Qwen/backend перед следующим расходом, а не ещё одна
+цепочка одноразовых проб. Причина на уровне модели/decoder не установлена.
+
+Совместимый reuse проверен для всех5500source requests:3102полныхNER+triples,
+2NER-only/2396безNER;6379response entries. Никакого готового Hippo графа это
+не доказывает. Старый failed/unknown не сбрасывается. E1known16707393,
+upper16762447,cost_complete=false; Mu остаток15038920/Hotpot20M.
+В этом разборе generation/embedding0; один GET /models без данных корпуса
+подтвердил наличие gpt-oss-120b, но не deployment limits. Альтернативная модель
+не принята: SPEC фиксирует общую Qwen, изменение требует явного пересмотра
+условий и актуальных научных формулировок. До контрактов/payload/ограниченной
+проверки новый полный запуск не готов. Параметры следующей пробы не выдумываются.
+Следующий возможный gate после подтверждённого исправления Qwen — один тот же
+full passage+cachedNER, cap3072, без retry/NER/embedding; exact reserve/plan до
+разрешения, stop на ошибке. Raw/coverage/SHA и ограничения в E1_INDEXING.
