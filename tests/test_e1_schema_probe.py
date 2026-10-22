@@ -1391,3 +1391,201 @@ def test_gpt_diagnostic_one_claim_no_retry_and_cost_export(
     assert first["cost_complete"] is (outcome != "unknown")
     if outcome == "unknown":
         assert first["budget_charge_upper_bound"] > first["physical_known_tokens"]
+
+
+@pytest.fixture
+def rejected_extractor_probe(tmp_path):
+    import hashlib
+
+    directory = tmp_path / "probe"
+    (directory / "requests").mkdir(parents=True)
+    journal = Journal(
+        directory / "usage.jsonl",
+        run_id="gpt-producer",
+        method="hipporag2",
+        dataset="musique",
+    )
+    plan = {
+        **e1.EXTRACTOR_DIAGNOSTIC,
+        "cases": [],
+        "remaining_hippo_budget_before_probe": 100000,
+        "semantic_acceptance": "Review full source, qualifiers, dates; no gold",
+    }
+    reviews = []
+    for i in range(5):
+        source = f"Synthetic source {i}: A supposedly visited B."
+        payload, reserve = e1.gpt_extractor_payload(
+            {
+                **e1.target.OPTIONS,
+                "model": "qwen",
+                "max_tokens": 3072,
+                "messages": [
+                    {"role": "system", "content": "Extract source triples."},
+                    {"role": "user", "content": source},
+                ],
+                "response_format": {"type": "json_schema"},
+            }
+        )
+        key = e1.target.digest(
+            {"payload": payload, "kind": "llm", "operation": "openie_triples"}
+        )
+        body = {
+            "choices": [
+                {
+                    "finish_reason": "stop",
+                    "message": {"content": '{"triples":[["A","visited","B"]]}'},
+                }
+            ],
+            "usage": {"prompt_tokens": 10, "completion_tokens": 8},
+        }
+        response = directory / "requests" / f"{key}.response.json"
+        dense.write_json_atomic(response, body)
+        a = journal.start(
+            phase="index",
+            operation="openie_triples",
+            provider="target_api",
+            model=payload["model"],
+            kind="llm",
+            object_id=key,
+        )
+        journal.finish(
+            a, status="success", usage={"llm_input_tokens": 10, "llm_output_tokens": 8}
+        )
+        sha = hashlib.sha256(source.encode()).hexdigest()
+        plan["cases"].append(
+            {
+                "source_id": str(i),
+                "source_text": source,
+                "source_text_sha256": sha,
+                "payload": payload,
+                "request_sha256": key,
+                "reserved_tokens_upper_bound": reserve,
+            }
+        )
+        reviews.append(
+            {
+                "source_id": str(i),
+                "source_text_sha256": sha,
+                "request_sha256": key,
+                "response_sha256": dense.sha256_file(response),
+                "status": "not_accepted",
+                "source_evidence": "supposedly",
+                "response_evidence": ["A", "visited", "B"],
+            }
+        )
+    pp = tmp_path / "plan.json"
+    dense.write_json_atomic(pp, plan)
+    mp = directory / "manifest.json"
+    dense.write_json_atomic(
+        mp,
+        {
+            "approved_plan_sha256": dense.sha256_file(pp),
+            "model": plan["model"],
+            "status": "awaiting_source_review",
+            "run_id": "gpt-producer",
+            "unknown_reserved_upper_bound": 0,
+            "token_accounting": journal.reference(),
+            "cases": [{"request_sha256": c["request_sha256"]} for c in plan["cases"]],
+            "artifacts": {
+                p.relative_to(directory).as_posix(): dense.sha256_file(p)
+                for p in directory.rglob("*")
+                if p.is_file()
+            },
+        },
+    )
+    dense.write_json_atomic(
+        directory / "source-review.json",
+        {
+            "producer_manifest_sha256": dense.sha256_file(mp),
+            "approved_plan_sha256": dense.sha256_file(pp),
+            "producer_run_id": "gpt-producer",
+            "semantic_status": "not_accepted_for_continuation",
+            "full_index_authorized": False,
+            "cases": reviews,
+        },
+    )
+    return pp, directory
+
+
+def test_source_fidelity_candidate_changes_only_system_and_cannot_execute(
+    rejected_extractor_probe, monkeypatch
+):
+    pp, directory = rejected_extractor_probe
+    monkeypatch.setattr(e1, "git", lambda *a: "head")
+    monkeypatch.setattr(e1, "code_dirty", lambda: False)
+    originals = {p: p.read_bytes() for p in directory.rglob("*") if p.is_file()}
+    original_plan = dense.read_json(pp)
+    with patch(
+        "requests.Session.request", side_effect=AssertionError("HTTP forbidden")
+    ):
+        candidate = e1.prepare_extractor_policy(pp, directory)
+        assert candidate["remaining_hippo_budget_snapshot"] == 100000 - 90
+        assert candidate["new_http_calls"] == 0
+        assert candidate["execution_authorized"] is False
+        assert candidate["full_index_authorized"] is False
+        assert candidate["reserved_tokens_upper_bound"] == sum(
+            c["reserved_tokens_upper_bound"] for c in candidate["cases"]
+        )
+        for old, new in zip(original_plan["cases"], candidate["cases"], strict=True):
+            assert new["request_sha256"] != old["request_sha256"]
+            assert new["payload"]["messages"][1:] == old["payload"]["messages"][1:]
+            assert {k: v for k, v in new["payload"].items() if k != "messages"} == {
+                k: v for k, v in old["payload"].items() if k != "messages"
+            }
+            assert (
+                new["payload"]["messages"][0]["content"]
+                == old["payload"]["messages"][0]["content"]
+                + "\n\n"
+                + e1.SOURCE_FAITHFULNESS_POLICY
+            )
+        out = pp.with_name("candidate.json")
+        dense.write_json_atomic(out, candidate)
+        with pytest.raises(ValueError, match="offline_policy_candidate_not_executable"):
+            e1.execute_schema_probe(
+                out, pp, directory, {}, dense.sha256_file(out), compatible=True
+            )
+    assert all(p.read_bytes() == content for p, content in originals.items())
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        "response",
+        "source",
+        "quote",
+        "triple",
+        "missing_case",
+        "duplicate_case",
+        "accepted",
+        "manifest",
+    ],
+)
+def test_source_review_rejects_stale_or_incomplete_evidence(
+    rejected_extractor_probe, change
+):
+    pp, directory = rejected_extractor_probe
+    rp = directory / "source-review.json"
+    review = dense.read_json(rp)
+    if change == "response":
+        response = next((directory / "requests").glob("*.json"))
+        response.write_text("{}", encoding="utf-8")
+    elif change == "source":
+        review["cases"][0]["source_text_sha256"] = "changed"
+    elif change == "quote":
+        review["cases"][0]["source_evidence"] = "not actually in the source"
+    elif change == "triple":
+        review["cases"][0]["response_evidence"] = ["Invented", "in", "B"]
+    elif change == "missing_case":
+        review["cases"].pop()
+    elif change == "duplicate_case":
+        review["cases"][-1] = review["cases"][0]
+    elif change == "accepted":
+        review["semantic_status"] = "accepted"
+    elif change == "manifest":
+        review["producer_manifest_sha256"] = "other"
+    dense.write_json_atomic(rp, review)
+    with (
+        patch("requests.Session.request", side_effect=AssertionError("HTTP forbidden")),
+        pytest.raises(ValueError),
+    ):
+        e1.prepare_extractor_policy(pp, directory)

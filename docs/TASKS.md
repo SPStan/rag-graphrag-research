@@ -2,27 +2,27 @@
 
 **E1 status:** 4/6 indexes completed; physical known tokens=16713498; cost_complete=False. Last stage=hipporag2 native schema continuation. Raw/indexes remain local. PR Draft; E2 requires all six verified indexes.
 
-## Текущая очередь — 22 октября: GPT-OSS diagnostic завершён, semantic gate не пройден
+## Текущая очередь — 22 октября: source-fidelity policy подготовлена offline
 
-- E1 остаётся4/6. physical known16713498/upper16768552,cost_complete=false.
-  Старый unknown55054 сохранён; новыйunknown0. Mu остаток15032815, Hotpot20M.
-- На clean a6625f7 и plan ffbfdeb9bf69 пользователь разрешил передачу/5POST.
-  Run789bffd0 завершил5/5 stop/full JSON, input3955/output2150=6105tokens,
-  без новогоNER/embedding/retry. Модель GPT-OSS low, cap3072, shape schema.
-- Source-only проверка всех5не разрешила continuation: потеря fiction/uncertainty
-  qualifiers, неверный непрерывный диапазон лет Kobe и temporal scope ice.
-  Source review SHA392ff920 закреплён отдельно; machine manifest5417b157 immutable
-  awaiting_source_review. Это не benchmark metric/не утверждение превосходства Qwen.
-- Ответы GPT не приняты в Qwen cache;3102полных Qwen пары сохранены. Граф Hippo
-  по-прежнему не готов. Cause Qwen cycle неизвестна; новой клиентской ошибки нет.
-- Offline готова загрузка4Dense/RAPTOR×5500, native retrieval→общий reader/evaluator
-  на synthetic/cache без HTTP, старые manifest/journal SHA неизменны.
-- Следующий небольшой offline-блок: обосновать policy attribution/uncertainty/
-  disjoint dates по сохранённым ответам, затем решить конфигурацию ADR-0023.
-  Не повторять GPT/Qwen и не запускать full Hippo/QA/E2/merge автоматически.
-- Оператор не является обязательным блокером независимой работы. Архив уже готов,
-  не пересоздавать/не отправлять без адресата и отдельного разрешения.
-- PR33Draft/Refs #13; публичные результаты/ограничения — E1_INDEXING.
+- E1 прежний4/6, known16713498/upper16768552,cost_complete=false. Старыйunknown55054
+  сохранён; новых LLM/embedding0. Mu остаток15032815, Hotpot20M.
+- GPT probe789bffd0:5stop/полныхJSON,6105tokens, semantic gate не пройден.
+  Старые manifests/answers и отрицательный review392ff920 не изменены.
+- В run_e1 добавлена одна общая source_faithfulness_v1 policy: attribution,
+  uncertainty/quantifiers, disjoint dates, modifier attachment, no outside repairs.
+  Она относится к5сохранённым замечаниям, но генерацией пока не проверена.
+- prepare-extractor-policy проверяет5реальных попыток, journal/artifact/SHA и
+  буквальные evidence всех5source-review случаев, затем меняет только system prompt.
+  Новый candidate не исполняется transport и не разрешает model calls.
+- Для возможной отдельной следующей пробы рассчитаны exact payload: те же5cases,
+  максимум5POST/48929reserve, NER/embedding/retry0, прежнийcap3072/low.
+  Это предложение, не уже разрешённый запуск. Нужны executable plan/claim и допуск.
+- ADR-0023 остаётся предложением benchmark/cache;3102Qwen пары не переименованы.
+  Готовые Dense/RAPTOR×4 и offline общий reader/evaluator сохраняются.
+- Не принимать старые ответы задним числом, не повторять GPT/Qwen/full/QA/E2/merge
+  автоматически. После ещё одного semantic failure — разбор вместо цепочки retries.
+- PR33Draft/Refs #13,19файлов. Архив оператора не пересоздавать/не отправлять.
+  Подробное обоснование и критерии — E1_INDEXING.
 
 ## История — не текущие инструкции запуска
 

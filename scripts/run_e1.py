@@ -2475,12 +2475,154 @@ def prepare_extractor_diagnostic(prior_path, source):
     }
 
 
+SOURCE_FAITHFULNESS_POLICY = """Source fidelity rules (source_faithfulness_v1):
+- Preserve attribution: distinguish fiction, predictions, beliefs and reported claims
+  from actual events. Encode essential scope in the relation or entity strings.
+- Preserve uncertainty, negation and quantifiers such as supposedly, may, some,
+  most and only. Do not turn qualified statements into unconditional facts.
+- Preserve exact dates and disjoint intervals; never fill gaps or extend ranges.
+- Attach locations and dates to the entity, event or restriction actually modified
+  in the source. An end date of a restriction is not an end date of its subject.
+- Use only source-supported relations. If attachment is ambiguous, omit that
+  relation rather than invent certainty. Do not repair contradictions with outside
+  knowledge. Preserve other supported information; do not return an empty shortcut.
+Return the same triples JSON shape. These rules override lossy shortcuts in examples.
+"""
+
+
+def verify_extractor_rejection(probe_plan, directory):
+    """Verify evidence provenance, not the truth of an arbitrary semantic verdict."""
+    plan = dense.read_json(probe_plan)
+    mp = directory / "manifest.json"
+    manifest = dense.read_json(mp)
+    review_path = directory / "source-review.json"
+    review = dense.read_json(review_path)
+    if (
+        plan.get("kind") != EXTRACTOR_DIAGNOSTIC["kind"]
+        or len(plan["cases"]) != 5
+        or manifest["approved_plan_sha256"] != dense.sha256_file(probe_plan)
+        or manifest["model"] != plan["model"]
+        or manifest["status"] != "awaiting_source_review"
+        or verified_reference(manifest, mp)["status"] != "verified"
+        or not manifest["token_accounting"]["summary"]["complete"]
+        or manifest["unknown_reserved_upper_bound"] != 0
+        or review["producer_manifest_sha256"] != dense.sha256_file(mp)
+        or review["approved_plan_sha256"] != dense.sha256_file(probe_plan)
+        or review["producer_run_id"] != manifest["run_id"]
+        or review["semantic_status"] != "not_accepted_for_continuation"
+        or review["full_index_authorized"] is not False
+    ):
+        raise ValueError("source_review_provenance_or_rejection_changed")
+    for name, sha in manifest["artifacts"].items():
+        if dense.sha256_file(directory / name) != sha:
+            raise ValueError("source_review_artifact_changed")
+    cases = {c["request_sha256"]: c for c in plan["cases"]}
+    reviews = {c["request_sha256"]: c for c in review["cases"]}
+    completed = {c["request_sha256"] for c in manifest["cases"]}
+    starts = [
+        r for r in read_records(directory / "usage.jsonl") if r["event"] == "started"
+    ]
+    if (
+        len(starts) != 5
+        or {r["object_id"] for r in starts} != set(cases)
+        or any(
+            r["model"] != plan["model"] or r["operation"] != "openie_triples"
+            for r in starts
+        )
+    ):
+        raise ValueError("source_review_requires_five_actual_triples_attempts")
+    if (
+        len(cases) != 5
+        or len(manifest["cases"]) != 5
+        or len(review["cases"]) != 5
+        or set(reviews) != set(cases)
+        or completed != set(cases)
+    ):
+        raise ValueError("source_review_requires_all_five_cases")
+    for key, case in cases.items():
+        r = reviews[key]
+        response = directory / "requests" / f"{key}.response.json"
+        if (
+            r["source_id"] != case["source_id"]
+            or r["source_text_sha256"] != case["source_text_sha256"]
+            or hashlib.sha256(case["source_text"].encode()).hexdigest()
+            != case["source_text_sha256"]
+            or r["response_sha256"] != dense.sha256_file(response)
+            or manifest["artifacts"].get(f"requests/{key}.response.json")
+            != r["response_sha256"]
+            or target.digest(
+                {
+                    "payload": case["payload"],
+                    "kind": "llm",
+                    "operation": "openie_triples",
+                }
+            )
+            != key
+            or r["status"] != "not_accepted"
+            or not r["source_evidence"]
+            or r["source_evidence"] not in case["source_text"]
+            or r["response_evidence"]
+            not in validate_extractor_diagnostic(dense.read_json(response))
+        ):
+            raise ValueError("source_review_case_or_literal_evidence_changed")
+    return plan, manifest, review_path
+
+
+def prepare_extractor_policy(probe_plan, directory):
+    """Freeze one source-fidelity prompt proposal; deliberately not executable."""
+    plan, manifest, review_path = verify_extractor_rejection(probe_plan, directory)
+    cases = []
+    for original in plan["cases"]:
+        case = copy.deepcopy(original)
+        payload = case["payload"]
+        systems = [m for m in payload["messages"] if m["role"] == "system"]
+        if len(systems) != 1 or "source_faithfulness_v1" in systems[0]["content"]:
+            raise ValueError("source_policy_requires_one_unmodified_system_message")
+        systems[0]["content"] += "\n\n" + SOURCE_FAITHFULNESS_POLICY
+        payload, reserve = gpt_extractor_payload(payload)
+        case.update(
+            payload=payload,
+            reserved_tokens_upper_bound=reserve,
+            previous_probe_request_sha256=original["request_sha256"],
+            request_sha256=target.digest(
+                {"payload": payload, "kind": "llm", "operation": "openie_triples"}
+            ),
+        )
+        cases.append(case)
+    known = sum(manifest["token_accounting"]["summary"]["known_subtotal"].values())
+    remaining = plan["remaining_hippo_budget_before_probe"] - known
+    reserve = sum(c["reserved_tokens_upper_bound"] for c in cases)
+    if reserve > remaining:
+        raise ValueError("source_policy_snapshot_budget_exceeded")
+    return {
+        **EXTRACTOR_DIAGNOSTIC,
+        "kind": "hippo_extractor_policy_candidate_v1",
+        "status": "offline_proposal_not_executable",
+        "code_commit": git("rev-parse", "HEAD"),
+        "policy_version": "source_faithfulness_v1",
+        "policy": SOURCE_FAITHFULNESS_POLICY,
+        "parent_probe_plan_sha256": dense.sha256_file(probe_plan),
+        "parent_probe_manifest_sha256": dense.sha256_file(directory / "manifest.json"),
+        "source_review_sha256": dense.sha256_file(review_path),
+        "remaining_hippo_budget_snapshot": remaining,
+        "reserved_tokens_upper_bound": reserve,
+        "cases": cases,
+        "new_http_calls": 0,
+        "execution_authorized": False,
+        "full_index_authorized": False,
+        "semantic_acceptance": plan["semantic_acceptance"],
+        "limitation": "Rules and provenance checked offline; generated compliance unmeasured. Requires separate execution design and approval; no cache promotion.",
+    }
+
+
 def execute_schema_probe(
     probe_path, prior_path, source, config, approved_sha256, *, compatible=False
 ):
     """Execute the pinned two/five-case plan; the canonical claim survives crashes."""
     if dense.sha256_file(probe_path) != approved_sha256 or code_dirty():
         raise ValueError("schema_probe_requires_approved_sha_and_clean_code")
+    if dense.read_json(probe_path).get("kind") == "hippo_extractor_policy_candidate_v1":
+        raise ValueError("offline_policy_candidate_not_executable")
     plan = dense.read_json(prior_path)
     if Path(plan["workspace"]).resolve() != ROOT.resolve():
         raise ValueError("schema_probe_requires_integrated_live_checkout")
@@ -3361,6 +3503,7 @@ def main():
             "prepare-schema-probe",
             "prepare-compatible-schema-probe",
             "prepare-extractor-diagnostic",
+            "prepare-extractor-policy",
             "adopt-schema-responses",
             "prepare-native-schema-continuation",
             "run-schema-probe",
@@ -3567,11 +3710,14 @@ def main():
         "prepare-schema-probe",
         "prepare-compatible-schema-probe",
         "prepare-extractor-diagnostic",
+        "prepare-extractor-policy",
     ):
         if args.plan.exists():
             raise ValueError("schema_probe_prepare_requires_unused_output")
         probe = (
-            prepare_extractor_diagnostic(args.prior_plan, args.source)
+            prepare_extractor_policy(args.prior_plan, args.source)
+            if args.command == "prepare-extractor-policy"
+            else prepare_extractor_diagnostic(args.prior_plan, args.source)
             if args.command == "prepare-extractor-diagnostic"
             else prepare_schema_probe(
                 args.prior_plan,

@@ -27,6 +27,26 @@ Machine success → awaiting_source_review всех5 по исходному т�
 success не принимается. Любой отказ/unknown/length/недостоверное содержание
 останавливает план. Скрытого перехода к full corpus/следующей модели нет.
 
+## После разрешённой диагностики: источник и область утверждений
+
+Пять GPT-OSS ответов дали полный JSON/stop/known usage6105, но source review
+не прошёл. Это не доказывает качество модели или исправление Qwen cycle.
+Диагностика разрешена пользователем отдельно и исполнена; смена benchmark остаётся
+предложением. Старые ответы/manifests immutable, GPT cache не принят в Qwen.
+
+Одна offline policy source_faithfulness_v1 добавляет system rules: attribution,
+uncertainty/negation/quantifiers, disjoint dates, correct modifier attachment,
+no outside repairs. Она не содержит исправленных triples/QA gold или особых правил
+для конкретных имён. Применимость к пяти замечаниям проверена source-only;
+действие инструкции на генерацию не измерено. Один общий вариант обоим датасетам.
+
+run_e1 prepare-extractor-policy проверяет происхождение отрицательного review и
+готовит exact payload candidate; новая request identity сохраняет изменение prompt.
+Candidate намеренно не исполняется существующим transport. Следующий вариант
+потребует отдельного executable plan/claim, допуска расходов и решения о cache;
+подготовка не расходует предложенный reserve48929 и не разрешает новый POST.
+После повторного semantic failure — разбор протокола вместо новых prompt retries.
+
 ## Решение о benchmark после пробы — ещё не принято
 
 A. Сохранить исходный единый Qwen extractor:3102пары reuse при точных request/SHA,
