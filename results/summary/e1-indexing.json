@@ -1014,14 +1014,14 @@
           {
             "phase": "index",
             "provider": "target_api",
-            "attempts": 6213,
+            "attempts": 6218,
             "errors": 2,
             "unfinished": 0,
             "cache_hits": 1871,
             "cache_provenance_unknown": 1871,
             "known_subtotal": {
-              "llm_input_tokens": 3056617,
-              "llm_output_tokens": 1203302,
+              "llm_input_tokens": 3060572,
+              "llm_output_tokens": 1205452,
               "embedding_input_tokens": 0
             },
             "unknown_fields": {
@@ -1034,27 +1034,77 @@
           }
         ],
         "known_subtotal": {
-          "llm_input_tokens": 3056617,
-          "llm_output_tokens": 1203302,
+          "llm_input_tokens": 3060572,
+          "llm_output_tokens": 1205452,
           "embedding_input_tokens": 684560
         },
         "complete": false,
-        "attempts": 6385,
+        "attempts": 6390,
         "historical_cache_cost_complete": false,
         "journal_corrupt_tail": false,
         "corrupt_tail_bytes": 0
       },
-      "cumulative_seconds": 13273.52,
+      "cumulative_seconds": 13348.422,
+      "gpt_oss_probe": {
+        "status": "awaiting_source_review",
+        "run_id": "789bffd0-bc70-4471-9a0d-1e63eee5508f",
+        "unknown_reserved_upper_bound": 0,
+        "full_index_authorized": false,
+        "cases": [
+          {
+            "source_id": "sha256:00358c281c194381c99b6dfea3aeba055c12c6f7a14601ddb26a176cbc31ed41",
+            "request_sha256": "f30b25efa34dfab44bdadb7f1eeabcb26cb330f0dbd38563f5b527022a1b7795",
+            "triples": 15,
+            "format_status": "passed",
+            "semantic_support": "not_reviewed"
+          },
+          {
+            "source_id": "sha256:0153ea6260dee9cbfc76ff5d2042866508e727b5cb57656a4dd180931a6dd26f",
+            "request_sha256": "d95bddba7f098950a9741b69f52a00636e803e939ff590ad5a162d29d6a5afdf",
+            "triples": 29,
+            "format_status": "passed",
+            "semantic_support": "not_reviewed"
+          },
+          {
+            "source_id": "sha256:2389611f5617e29153530b946bf6035434f45d80ecce482aec80a41da27b588a",
+            "request_sha256": "10f5cddf7827d05d6e9f2c504f5f84cd4f90b5e0f3471b2da1305c7c8468f117",
+            "triples": 29,
+            "format_status": "passed",
+            "semantic_support": "not_reviewed"
+          },
+          {
+            "source_id": "sha256:38f7b69951335314e57c3ca0577d8c9e5e2d20717819ff5f88bf24cb3aa2c45e",
+            "request_sha256": "de992e0fddc5ddcc48d99499e20760d142cd1acd76f35b3c38ab68ed7a527c8c",
+            "triples": 18,
+            "format_status": "passed",
+            "semantic_support": "not_reviewed"
+          },
+          {
+            "source_id": "sha256:005451e99743714d3508b9ac158dd3f796f73cd9dddd93e4010e1cdde501fd98",
+            "request_sha256": "c992ee39fbc50c7de0a9aa93f24888998f083d453045d18d998db24d2215cfbd",
+            "triples": 15,
+            "format_status": "passed",
+            "semantic_support": "not_reviewed"
+          }
+        ],
+        "schema_variant": "gpt_oss_diagnostic_v1",
+        "model": "iairlab/gpt-oss-120b",
+        "code_commit": "a6625f7dfd46789b180e0407a3377b04e570edf0",
+        "timeout_seconds": [
+          30,
+          300
+        ]
+      },
       "artifact_manifest_sha256": "e3bb665491d2c1d7aa912d5bb89218ef5022cfad3190dc5c3ff068dc5ef3571a",
       "cost_semantics": "Physical new cost; replay is not charged twice.",
       "standalone_cost_complete": false,
       "standalone_known_subtotal": {
-        "llm_input_tokens": 3056617,
-        "llm_output_tokens": 1203302,
+        "llm_input_tokens": 3060572,
+        "llm_output_tokens": 1205452,
         "embedding_input_tokens": 684560
       },
       "measured_run_seconds": 3270.835,
-      "attributed_construction_seconds": 13273.52
+      "attributed_construction_seconds": 13348.422
     },
     {
       "run_id": "cea6cbe8-b715-4445-9121-95f3ae33d2b8",
@@ -2202,10 +2252,10 @@
   "combined_token_limit": 56876577,
   "complete": false,
   "limitations": "E1 measures indexing cost/coverage, not retrieval or answer quality. Historical smoke unknowns are preserved outside these new runs.",
-  "physical_known_tokens": 16707393,
+  "physical_known_tokens": 16713498,
   "physical_usage_complete": false,
   "cost_complete": false,
-  "budget_charge_upper_bound": 16762447,
+  "budget_charge_upper_bound": 16768552,
   "budget_reservation_complete": true,
   "original_combined_token_limit": 68000000
 }

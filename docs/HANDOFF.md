@@ -1,30 +1,28 @@
 # Передача контекста Sol / Luna
 
-**E1 status:** 4/6 indexes completed; physical known tokens=16707393; cost_complete=False. Last stage=hipporag2 native schema continuation. Raw/indexes remain local. PR Draft; E2 requires all six verified indexes.
+**E1 status:** 4/6 indexes completed; physical known tokens=16713498; cost_complete=False. Last stage=hipporag2 native schema continuation. Raw/indexes remain local. PR Draft; E2 requires all six verified indexes.
 
-## Текущая очередь — 22 октября: GPT-OSS план и offline E2 preparation
+## Текущая очередь — 22 октября: GPT-OSS diagnostic завершён, semantic gate не пройден
 
-- E1 остаётся4/6; known16707393/upper16762447,cost_complete=false. Старый unknown55054
-  сохранён. Mu остаток15038920, Hotpot20M; новых model/embedding запросов0.
-- Последний Hippo cycle/length подтверждён; причина неизвестна. Exact payload
-  восстановлен pinned SDK; новой клиентской ошибки не найдено. Ответ оператора
-  полезен, но не блокирует независимую offline-подготовку/ограниченную диагностику.
-- Подготовлен один GPT-OSS вариант: low reasoning, без enable_thinking, та же shape
-  schema/cap3072/temp0/seed42. Куратор заявил context131k/JSONSchema/reasoning,
-  deployment ещё не проверен.5фиксированных случаев:3failed+2cached controls.
-- Максимум5POST, резерв44124 из15038920, NER/embedding0, retry0, timeout30/300.
-  Первая ошибка/unknown/length/partial/cycle → stop. Затем обязательный source review
-  всех5 без gold/точного совпадения. Успех не разрешает full continuation.
-- Предложение ADR-0023 отделяет диагностику от смены benchmark и mixed cache.
- 3102полных Qwen пары сохраняются под своей моделью; решение об их reuse отдельно.
-- Четыре готовых Dense/RAPTOR загружены read-only; native retrieval и общий reader/
-  evaluator проверены synthetic/cache без HTTP; SHA старых manifest/journal
-  неизменны.118targeted passed/2SDK-skipped, native SDK проверены отдельно.
-  Это подготовка, не QA/E2.
-- Следующий шаг: завершить gate/commit/push, зафиксировать exact private plan SHA и
-  получить одно согласие на эти5POST. Полный E2/корпус/merge не разрешены.
-- Архив оператора уже существует, не пересоздавать/не отправлять без адресата и
-  явного разрешения. PR33Draft/Refs #13. Детали и критерии — E1_INDEXING.
+- E1 остаётся4/6. physical known16713498/upper16768552,cost_complete=false.
+  Старый unknown55054 сохранён; новыйunknown0. Mu остаток15032815, Hotpot20M.
+- На clean a6625f7 и plan ffbfdeb9bf69 пользователь разрешил передачу/5POST.
+  Run789bffd0 завершил5/5 stop/full JSON, input3955/output2150=6105tokens,
+  без новогоNER/embedding/retry. Модель GPT-OSS low, cap3072, shape schema.
+- Source-only проверка всех5не разрешила continuation: потеря fiction/uncertainty
+  qualifiers, неверный непрерывный диапазон лет Kobe и temporal scope ice.
+  Source review SHA392ff920 закреплён отдельно; machine manifest5417b157 immutable
+  awaiting_source_review. Это не benchmark metric/не утверждение превосходства Qwen.
+- Ответы GPT не приняты в Qwen cache;3102полных Qwen пары сохранены. Граф Hippo
+  по-прежнему не готов. Cause Qwen cycle неизвестна; новой клиентской ошибки нет.
+- Offline готова загрузка4Dense/RAPTOR×5500, native retrieval→общий reader/evaluator
+  на synthetic/cache без HTTP, старые manifest/journal SHA неизменны.
+- Следующий небольшой offline-блок: обосновать policy attribution/uncertainty/
+  disjoint dates по сохранённым ответам, затем решить конфигурацию ADR-0023.
+  Не повторять GPT/Qwen и не запускать full Hippo/QA/E2/merge автоматически.
+- Оператор не является обязательным блокером независимой работы. Архив уже готов,
+  не пересоздавать/не отправлять без адресата и отдельного разрешения.
+- PR33Draft/Refs #13; публичные результаты/ограничения — E1_INDEXING.
 
 ## История — не текущие инструкции запуска
 
