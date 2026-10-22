@@ -7,4 +7,4 @@
 | hipporag2 | musique | failed | 2296256/945308 | 684560 (+cache 0) | 4839 | 9964.785 | False | 1379a939-228d-458f-bb90-f120b165f2f8 / `indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/hipporag2/musique-cycle1` |
 | hipporag2 | hotpotqa | pending | —/— | — (+cache 0) | — | — | False | 122d943f-7597-4038-863a-ec03f314bafa / `indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/hipporag2/hotpotqa` |
 | raptor | musique | completed | 1720918/1621266 | 1629952 (+cache 684560) | 3852 | 17253.733 | False | 957006e6-5d60-43f6-990d-027851323111 / `indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/raptor/musique-cluster1` |
-| raptor | hotpotqa | failed | 1610371/1512581 | 1509718 (+cache 0) | 3833 | 16494.301 | False | 17fdc09a-6dad-4bfd-82a8-63838c679d42 / `indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/raptor/hotpotqa-summary1` |
+| raptor | hotpotqa | completed | 1852868/1740267 | 1736946 (+cache 776137) | 4180 | 19623.594 | False | bb177a66-f03d-4a43-979e-d53c11821903 / `indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/raptor/hotpotqa-summary-network1` |

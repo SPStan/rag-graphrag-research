@@ -1,22 +1,15 @@
 # Передача контекста Sol / Luna
 
-**E1 status:** 3/6 indexes completed; physical known tokens=14991627; cost_complete=False. Last stage=raptor/hotpotqa. Raw/indexes remain local. PR Draft; E2 requires all six verified indexes.
+**E1 status:** 4/6 indexes completed; physical known tokens=15689038; cost_complete=False. Last stage=raptor_hotpotqa_terminal. Raw/indexes remain local. PR Draft; E2 requires all six verified indexes.
 
-## Текущая очередь — HotpotQA TLS recovery, 22 октября 2026
+## Текущая очередь — HotpotQA continuation, 22 октября 2026
 
-- Готово3/6; последний Hotpot run17fdc09a failed/ReadTimeout,1005POST,
-  known1935267, unknown8432. E1 known14991627/charge15046681, cost_complete=false.
-- Traceback указывает TLS handshake timeout5секунд, не generation timeout300.
-  TLS preflight безHTTP/модели успешен; это не гарантия стабильности API.
-- В существующем runner подготовлено одно network continuation: connect30/read300,
-  retry0, новый output, canonical claim, точная привязка первого нового request key.
-  Сохранённые успешные responses/fallback/Dense leaves replay; unknown не обнуляется.
-- Остаток прежних лимитов:≤2995новыхPOST target+local,≤7358898combined tokens;
-  первая ошибка/length/unknown/nativeoverflow/SHA mismatch останавливает stage.
-- Подготовка плана и запуск — раздельные действия; точный scope/разрешение
-  сохраняются в локальной approval-записи. Новое поручение после отказа относится
-  к этому одному ограниченному восстановлению, не автоматическим retry/rebuild.
-- Hippo/QA/E2/merge не запускать; PR33Draft/Refs13. Детали: E1_INDEXING.md.
+- Ограниченный HotpotQA runbb177a66 завершил выполнение; status=completed.
+- **E1 status:** 4/6 indexes completed; physical known tokens=15689038; cost_complete=False. Last stage=raptor_hotpotqa_terminal. Raw/indexes remain local. PR Draft; E2 requires all six verified indexes.
+- Полная сводка: results/summary/e1-indexing.md; raw/manifest остаются локально.
+- Старые failed/probe и unknown сохранены; автоматических повторов нет.
+- Hippo-проба, полный Hippo rebuild, QA/E2 и merge не запускались.
+- Следующий шаг: проверить итоговый manifest и save/reload; при отказе сначала разобрать причину. Hippo candidate требует отдельно подготовленного исполнителя.
 
 ## История — не текущие инструкции запуска
 

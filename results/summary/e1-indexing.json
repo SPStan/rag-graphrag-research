@@ -1,6 +1,6 @@
 {
   "batch_id": "edff74df-c567-49de-a834-f9f1fc6f7f74",
-  "plan_sha256": "cdd845778fa12098927406bc922c65d14197e29b0f4842b41ae53946e64cae7c",
+  "plan_sha256": "548148abd45de69e11ba58e14cb91068ced00335e5e763c4a6d9f3eb1b0d5894",
   "models": {
     "model": "iairlab/qwen3.8-27b",
     "embedding_model": "bge-m3:latest",
@@ -1487,7 +1487,7 @@
       "reused_leaf_cost_complete": true
     },
     {
-      "run_id": "17fdc09a-6dad-4bfd-82a8-63838c679d42",
+      "run_id": "bb177a66-f03d-4a43-979e-d53c11821903",
       "method": "raptor",
       "dataset": "hotpotqa",
       "passages": 5500,
@@ -1502,9 +1502,9 @@
         }
       },
       "corpus_fingerprint": "1d6a33346c42cd2feae5cf71eb2c145121a74712eb51a86d95205983a4477634",
-      "code_commit": "22117bc832defce5b9bfa65fd1d9c79e89ab5f75",
-      "token_limit": 9302597,
-      "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/raptor/hotpotqa-summary1",
+      "code_commit": "a097d38ffd8d906a370624e8ac94b8959506c6ed",
+      "token_limit": 7358898,
+      "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/raptor/hotpotqa-summary-network1",
       "embedding_options": {
         "num_ctx": 4096,
         "num_batch": 4096
@@ -1626,84 +1626,79 @@
             "corrupt_tail_bytes": 0
           },
           "unknown_reserved_upper_bound": 0
+        },
+        {
+          "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/raptor/hotpotqa-summary1",
+          "run_id": "17fdc09a-6dad-4bfd-82a8-63838c679d42",
+          "manifest_sha256": "069533aac96795745886dd9c3017ee480958beda5cec805452ffc77a54cb6539",
+          "summary": {
+            "schema_version": 1,
+            "phases": [
+              {
+                "phase": "index",
+                "provider": "local_ollama",
+                "attempts": 502,
+                "errors": 0,
+                "unfinished": 0,
+                "cache_hits": 6915,
+                "cache_provenance_unknown": 0,
+                "known_subtotal": {
+                  "llm_input_tokens": 0,
+                  "llm_output_tokens": 0,
+                  "embedding_input_tokens": 625601
+                },
+                "unknown_fields": {
+                  "llm_input_tokens": 0,
+                  "llm_output_tokens": 0,
+                  "embedding_input_tokens": 0
+                },
+                "complete": true,
+                "total": {
+                  "llm_input_tokens": 0,
+                  "llm_output_tokens": 0,
+                  "embedding_input_tokens": 625601
+                }
+              },
+              {
+                "phase": "index",
+                "provider": "target_api",
+                "attempts": 503,
+                "errors": 1,
+                "unfinished": 0,
+                "cache_hits": 1415,
+                "cache_provenance_unknown": 0,
+                "known_subtotal": {
+                  "llm_input_tokens": 681483,
+                  "llm_output_tokens": 628183,
+                  "embedding_input_tokens": 0
+                },
+                "unknown_fields": {
+                  "llm_input_tokens": 1,
+                  "llm_output_tokens": 1,
+                  "embedding_input_tokens": 0
+                },
+                "complete": false,
+                "total": null
+              }
+            ],
+            "known_subtotal": {
+              "llm_input_tokens": 681483,
+              "llm_output_tokens": 628183,
+              "embedding_input_tokens": 625601
+            },
+            "complete": false,
+            "attempts": 1005,
+            "historical_cache_cost_complete": true,
+            "journal_corrupt_tail": false,
+            "corrupt_tail_bytes": 0
+          },
+          "unknown_reserved_upper_bound": 8432
         }
       ],
       "prior_run": {
-        "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/raptor/hotpotqa-summary-probe1",
-        "run_id": "384f9946-44cd-4b46-a58a-fe965724bb64",
-        "manifest_sha256": "72cc8e5951bb179ecd32eed0dd17ac2863261c872d6a6f502bc2d2458481f37b",
-        "summary": {
-          "schema_version": 1,
-          "phases": [
-            {
-              "phase": "index",
-              "provider": "target_api",
-              "attempts": 1,
-              "errors": 0,
-              "unfinished": 0,
-              "cache_hits": 0,
-              "cache_provenance_unknown": 0,
-              "known_subtotal": {
-                "llm_input_tokens": 3058,
-                "llm_output_tokens": 535,
-                "embedding_input_tokens": 0
-              },
-              "unknown_fields": {
-                "llm_input_tokens": 0,
-                "llm_output_tokens": 0,
-                "embedding_input_tokens": 0
-              },
-              "complete": true,
-              "total": {
-                "llm_input_tokens": 3058,
-                "llm_output_tokens": 535,
-                "embedding_input_tokens": 0
-              }
-            }
-          ],
-          "known_subtotal": {
-            "llm_input_tokens": 3058,
-            "llm_output_tokens": 535,
-            "embedding_input_tokens": 0
-          },
-          "complete": true,
-          "attempts": 1,
-          "historical_cache_cost_complete": true,
-          "journal_corrupt_tail": false,
-          "corrupt_tail_bytes": 0
-        },
-        "unknown_reserved_upper_bound": 0
-      },
-      "diagnostics_in_history": true,
-      "resume_sources": [
-        {
-          "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/raptor/hotpotqa",
-          "manifest_sha256": "9d6e9c32da818dae32722d35e46b960d55fc9d2e071effd16dbdddef3cbf2d87"
-        },
-        {
-          "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/raptor/hotpotqa-summary-probe1",
-          "manifest_sha256": "72cc8e5951bb179ecd32eed0dd17ac2863261c872d6a6f502bc2d2458481f37b"
-        }
-      ],
-      "resume_from": {
-        "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/raptor/hotpotqa-summary-probe1",
-        "manifest_sha256": "72cc8e5951bb179ecd32eed0dd17ac2863261c872d6a6f502bc2d2458481f37b"
-      },
-      "resume_kind": "summary_native",
-      "prior_budget_charge": 2697403,
-      "max_new_posts": 4000,
-      "summary_adoption": {
-        "path": "results/summary/e1-raptor-summary-adoption.json",
-        "sha256": "11a54e0b57d9b9dace0065a473d4eda0865f4b8b16014f1f5f5399cc69d57c8f",
-        "original_request_sha256": "b243e8505a98c45dbe7f8a85fd505444554f611bc7bc0eb7cb1d358fc185ebdf"
-      },
-      "status": "failed",
-      "seconds": 6335.754,
-      "plan_sha256": "17852c8496b5e8ed4a678730ecd3151494a5d0e4c83ca7555aefe131468e53f8",
-      "error_type": "ReadTimeout",
-      "token_accounting": {
-        "journal_file": "usage.jsonl",
-        "journal_sha256": "38d2e84b9dddcac5a3d85586058cc876b8e1c3275481d4bf7bb6c90a884ed488",
+        "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/raptor/hotpotqa-summary1",
+        "run_id": "17fdc09a-6dad-4bfd-82a8-63838c679d42",
+        "manifest_sha256": "069533aac96795745886dd9c3017ee480958beda5cec805452ffc77a54cb6539",
         "summary": {
           "schema_version": 1,
           "phases": [
@@ -1764,24 +1759,74 @@
           "historical_cache_cost_complete": true,
           "journal_corrupt_tail": false,
           "corrupt_tail_bytes": 0
-        }
+        },
+        "unknown_reserved_upper_bound": 8432
       },
-      "operations": {
-        "index_embedding": {
+      "diagnostics_in_history": true,
+      "resume_sources": [
+        {
+          "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/raptor/hotpotqa",
+          "manifest_sha256": "9d6e9c32da818dae32722d35e46b960d55fc9d2e071effd16dbdddef3cbf2d87"
+        },
+        {
+          "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/raptor/hotpotqa-summary-probe1",
+          "manifest_sha256": "72cc8e5951bb179ecd32eed0dd17ac2863261c872d6a6f502bc2d2458481f37b"
+        },
+        {
+          "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/raptor/hotpotqa-summary1",
+          "manifest_sha256": "069533aac96795745886dd9c3017ee480958beda5cec805452ffc77a54cb6539"
+        }
+      ],
+      "resume_from": {
+        "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/raptor/hotpotqa-summary1",
+        "manifest_sha256": "069533aac96795745886dd9c3017ee480958beda5cec805452ffc77a54cb6539"
+      },
+      "resume_kind": "summary_native",
+      "prior_budget_charge": 4641102,
+      "max_new_posts": 2995,
+      "summary_adoption": {
+        "path": "results/summary/e1-raptor-summary-adoption.json",
+        "sha256": "11a54e0b57d9b9dace0065a473d4eda0865f4b8b16014f1f5f5399cc69d57c8f",
+        "original_request_sha256": "b243e8505a98c45dbe7f8a85fd505444554f611bc7bc0eb7cb1d358fc185ebdf"
+      },
+      "network_prior_attempts": 1005,
+      "network_first_request_key": "f24cbd110cbdf431139dc711d894178d8fe45d79fe474e44c51451a80ed6b7fc",
+      "status": "completed",
+      "seconds": 3129.293,
+      "plan_sha256": "b401b659359e04a3b957b4c124931182c855a1c7666c7988aa43d11e1dba2b23",
+      "validation": {
+        "passages": 5500,
+        "nodes": 7595,
+        "summaries": 2095,
+        "clustering_policy": "pinned_gmm_umap_singletons_n_le_4_v1",
+        "layers": {
+          "0": 5500,
+          "1": 1411,
+          "2": 684
+        },
+        "reload_model_calls": 0,
+        "leaf_producer_manifest_sha256": "1d79a1efaaab5f1cf069011a235b3ee9959cdbfc1241455960efca1632760092",
+        "leaf_producer_run_id": "f93e2e87-e6e8-4a3a-a2c0-2b88e1bf3319",
+        "leaf_cost_attribution": "Physical embedding cost counted once in the Dense row; exact input vectors reused here."
+      },
+      "token_accounting": {
+        "journal_file": "usage.jsonl",
+        "journal_sha256": "abb5f5f3c734cb3684a23289341d4d9a9c7d2e62d23ddae427776543c7fc5bef",
+        "summary": {
           "schema_version": 1,
           "phases": [
             {
               "phase": "index",
               "provider": "local_ollama",
-              "attempts": 502,
+              "attempts": 173,
               "errors": 0,
               "unfinished": 0,
-              "cache_hits": 6915,
-              "cache_provenance_unknown": 0,
+              "cache_hits": 7422,
+              "cache_provenance_unknown": 507,
               "known_subtotal": {
                 "llm_input_tokens": 0,
                 "llm_output_tokens": 0,
-                "embedding_input_tokens": 625601
+                "embedding_input_tokens": 227228
               },
               "unknown_fields": {
                 "llm_input_tokens": 0,
@@ -1792,18 +1837,85 @@
               "total": {
                 "llm_input_tokens": 0,
                 "llm_output_tokens": 0,
-                "embedding_input_tokens": 625601
+                "embedding_input_tokens": 227228
+              }
+            },
+            {
+              "phase": "index",
+              "provider": "target_api",
+              "attempts": 174,
+              "errors": 0,
+              "unfinished": 0,
+              "cache_hits": 1921,
+              "cache_provenance_unknown": 507,
+              "known_subtotal": {
+                "llm_input_tokens": 242497,
+                "llm_output_tokens": 227686,
+                "embedding_input_tokens": 0
+              },
+              "unknown_fields": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 0
+              },
+              "complete": true,
+              "total": {
+                "llm_input_tokens": 242497,
+                "llm_output_tokens": 227686,
+                "embedding_input_tokens": 0
+              }
+            }
+          ],
+          "known_subtotal": {
+            "llm_input_tokens": 242497,
+            "llm_output_tokens": 227686,
+            "embedding_input_tokens": 227228
+          },
+          "complete": true,
+          "attempts": 347,
+          "historical_cache_cost_complete": false,
+          "journal_corrupt_tail": false,
+          "corrupt_tail_bytes": 0
+        }
+      },
+      "operations": {
+        "index_embedding": {
+          "schema_version": 1,
+          "phases": [
+            {
+              "phase": "index",
+              "provider": "local_ollama",
+              "attempts": 173,
+              "errors": 0,
+              "unfinished": 0,
+              "cache_hits": 7422,
+              "cache_provenance_unknown": 507,
+              "known_subtotal": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 227228
+              },
+              "unknown_fields": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 0
+              },
+              "complete": true,
+              "total": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 227228
               }
             }
           ],
           "known_subtotal": {
             "llm_input_tokens": 0,
             "llm_output_tokens": 0,
-            "embedding_input_tokens": 625601
+            "embedding_input_tokens": 227228
           },
           "complete": true,
-          "attempts": 502,
-          "historical_cache_cost_complete": true,
+          "attempts": 173,
+          "historical_cache_cost_complete": false,
           "journal_corrupt_tail": false,
           "corrupt_tail_bytes": 0
         },
@@ -1813,58 +1925,57 @@
             {
               "phase": "index",
               "provider": "target_api",
-              "attempts": 503,
-              "errors": 1,
+              "attempts": 174,
+              "errors": 0,
               "unfinished": 0,
-              "cache_hits": 1415,
-              "cache_provenance_unknown": 0,
+              "cache_hits": 1921,
+              "cache_provenance_unknown": 507,
               "known_subtotal": {
-                "llm_input_tokens": 681483,
-                "llm_output_tokens": 628183,
+                "llm_input_tokens": 242497,
+                "llm_output_tokens": 227686,
                 "embedding_input_tokens": 0
               },
               "unknown_fields": {
-                "llm_input_tokens": 1,
-                "llm_output_tokens": 1,
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
                 "embedding_input_tokens": 0
               },
-              "complete": false,
-              "total": null
+              "complete": true,
+              "total": {
+                "llm_input_tokens": 242497,
+                "llm_output_tokens": 227686,
+                "embedding_input_tokens": 0
+              }
             }
           ],
           "known_subtotal": {
-            "llm_input_tokens": 681483,
-            "llm_output_tokens": 628183,
+            "llm_input_tokens": 242497,
+            "llm_output_tokens": 227686,
             "embedding_input_tokens": 0
           },
-          "complete": false,
-          "attempts": 503,
-          "historical_cache_cost_complete": true,
+          "complete": true,
+          "attempts": 174,
+          "historical_cache_cost_complete": false,
           "journal_corrupt_tail": false,
           "corrupt_tail_bytes": 0
         }
       },
-      "current_unknown_reserved_upper_bound": 8432,
-      "failure_diagnostic": {
-        "operation": "summary",
-        "request_sha256": "f24cbd110cbdf431139dc711d894178d8fe45d79fe474e44c51451a80ed6b7fc",
-        "usage_status": "unknown"
-      },
+      "current_unknown_reserved_upper_bound": 0,
       "cumulative_accounting": {
         "schema_version": 1,
         "phases": [
           {
             "phase": "index",
             "provider": "local_ollama",
-            "attempts": 1915,
+            "attempts": 2088,
             "errors": 0,
             "unfinished": 0,
-            "cache_hits": 12415,
-            "cache_provenance_unknown": 0,
+            "cache_hits": 19837,
+            "cache_provenance_unknown": 507,
             "known_subtotal": {
               "llm_input_tokens": 0,
               "llm_output_tokens": 0,
-              "embedding_input_tokens": 1509718
+              "embedding_input_tokens": 1736946
             },
             "unknown_fields": {
               "llm_input_tokens": 0,
@@ -1875,20 +1986,20 @@
             "total": {
               "llm_input_tokens": 0,
               "llm_output_tokens": 0,
-              "embedding_input_tokens": 1509718
+              "embedding_input_tokens": 1736946
             }
           },
           {
             "phase": "index",
             "provider": "target_api",
-            "attempts": 1918,
+            "attempts": 2092,
             "errors": 1,
             "unfinished": 0,
-            "cache_hits": 1415,
-            "cache_provenance_unknown": 0,
+            "cache_hits": 3336,
+            "cache_provenance_unknown": 507,
             "known_subtotal": {
-              "llm_input_tokens": 1610371,
-              "llm_output_tokens": 1512581,
+              "llm_input_tokens": 1852868,
+              "llm_output_tokens": 1740267,
               "embedding_input_tokens": 0
             },
             "unknown_fields": {
@@ -1901,36 +2012,42 @@
           }
         ],
         "known_subtotal": {
-          "llm_input_tokens": 1610371,
-          "llm_output_tokens": 1512581,
-          "embedding_input_tokens": 1509718
+          "llm_input_tokens": 1852868,
+          "llm_output_tokens": 1740267,
+          "embedding_input_tokens": 1736946
         },
         "complete": false,
-        "attempts": 3833,
-        "historical_cache_cost_complete": true,
+        "attempts": 4180,
+        "historical_cache_cost_complete": false,
         "journal_corrupt_tail": false,
         "corrupt_tail_bytes": 0
       },
-      "cumulative_seconds": 16494.301,
-      "artifact_manifest_sha256": "069533aac96795745886dd9c3017ee480958beda5cec805452ffc77a54cb6539",
-      "cost_semantics": "Physical new cost; replay is not charged twice.",
+      "cumulative_seconds": 19623.594,
+      "artifact_manifest_sha256": "ccaccda5fd3541196af3afdaf365fde5d44e1e08f957e7ae852fbb9009b74042",
+      "cost_semantics": "Physical new cost; replay is not charged twice. Standalone attribution includes Dense producer history, including failed attempts and unknowns; exclude reused cost from batch physical total. Attributed seconds are a sum of measured histories, not a measured fresh run.",
       "standalone_cost_complete": false,
       "standalone_known_subtotal": {
-        "llm_input_tokens": 1610371,
-        "llm_output_tokens": 1512581,
-        "embedding_input_tokens": 1509718
+        "llm_input_tokens": 1852868,
+        "llm_output_tokens": 1740267,
+        "embedding_input_tokens": 2513083
       },
-      "measured_run_seconds": 6335.754,
-      "attributed_construction_seconds": 16494.301
+      "measured_run_seconds": 3129.293,
+      "attributed_construction_seconds": 20181.871,
+      "reused_leaf_build_cost": {
+        "llm_input_tokens": 0,
+        "llm_output_tokens": 0,
+        "embedding_input_tokens": 776137
+      },
+      "reused_leaf_cost_complete": false
     }
   ],
-  "combined_token_limit": 59789699,
+  "combined_token_limit": 57846000,
   "complete": false,
   "limitations": "E1 measures indexing cost/coverage, not retrieval or answer quality. Historical smoke unknowns are preserved outside these new runs.",
-  "physical_known_tokens": 14991627,
+  "physical_known_tokens": 15689038,
   "physical_usage_complete": false,
   "cost_complete": false,
-  "budget_charge_upper_bound": 15046681,
+  "budget_charge_upper_bound": 15744092,
   "budget_reservation_complete": true,
   "original_combined_token_limit": 68000000
 }
