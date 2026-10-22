@@ -62,6 +62,23 @@ Old offline candidate не разблокирован. Пока POST0, policy ge
 отдельный continuation plan/расходы. После semantic failure не вводить следующий
 prompt retry без разбора причины и принятого изменения протокола.
 
+## Итог разрешённого follow-up: смена benchmark не принята
+
+Plan614b9318/runtime73ab428, run81df270e:5POST/7190known tokens, все stop/full JSON,
+новый unknown0. Поправлены fiction attribution и disjoint dates на двух случаях;
+неподтверждённый modifier attachment и параллельные qualified/unqualified edges
+остались. Strict source review не пройден; private review948ac856, details E1_INDEXING.
+Производящие manifests не изменены, GPT ответы не приняты в Qwen cache.
+
+Два содержательных отказа завершают этот prompt-fix путь. Нового sampling/cap/
+prompt перебора не предлагаем. Следующий выбор — сохранить строгий gate и4/6
+либо отдельно предложить приёмку явно шумного extractor с source audit. Последнее
+меняет критерий и конфигурацию SPEC; необходимо upfront решение о допустимых
+ошибках, единых правилах обоим датасетам и cache, актуальное O/N/R/H и отдельный
+continuation budget/допуск. Текущее отрицательное заключение не заменяется успехом.
+Это протокольный выбор, не обязательное ожидание оператора. Ни один вариант
+benchmark ниже этим результатом автоматически не принят.
+
 ## Решение о benchmark после пробы — ещё не принято
 
 A. Сохранить исходный единый Qwen extractor:3102пары reuse при точных request/SHA,

@@ -1,28 +1,29 @@
 # Передача контекста Sol / Luna
 
-**E1 status:** 4/6 indexes completed; physical known tokens=16713498; cost_complete=False. Last stage=hipporag2 native schema continuation. Raw/indexes remain local. PR Draft; E2 requires all six verified indexes.
+**E1 status:** 4/6 indexes completed; physical known tokens=16720688; cost_complete=False. Last stage=hipporag2 native schema continuation. Raw/indexes remain local. PR Draft; E2 requires all six verified indexes.
 
-## Текущая очередь — 22 октября: bounded source-policy follow-up готов к согласованию
+## Текущая очередь — 22 октября: второй source review failed, prompt-fix путь остановлен
 
-- E1 прежний4/6, known16713498/upper16768552,cost_complete=false; unknown55054
-  сохранён. Mu остаток15032815, Hotpot20M. В этом блоке model/embeddingPOST0.
-- Первая GPT-проба789bffd0:5stop/6105tokens, semantic gate failed; её manifest5417b157
-  и negative review392ff920 immutable,3102Qwen pairs не переименованы.
-- В existing runner добавлен отдельный executable proposal той же source_faithfulness_v1
-  policy: payload равен offline candidate10e82514. Old candidate не исполняется.
-- Следующий предложенный bounded gate: те же5passages+cachedNER, GPT-OSS low,
-  cap3072/temp0/seed42/schema без uniqueItems/безenable_thinking,≤5POST/48929reserve,
-  NER/embedding/retry0, connect30/read300. Первая ошибка/unknown/length/cycle→stop.
-- Canonical exclusive claim у предыдущего GPT producer доHTTP; новый policy-probe1
-  output/run. Подмена SHA/review/параметров/parent budget и повторный claim отклоняются.
-  Export учитывает оба GPT run+index history без двойного начисления, включая unknown.
--84targeted tests passed; actual offline preparation подтвердила exact payload/
-  reserve и неизменность прежних файлов. Следом clean commit/gate, exact plan SHA,
-  отдельное разрешение пользователя. Наличие бюджета не разрешает новые вызовы.
-- После machine-pass нужен source review всех5; даже успех не разрешает full Hippo,
-  mixed cache, QA/E2/merge. После semantic failure — разбор вместо новых prompt retries.
-- ADR-0023 benchmark proposal ещё не принят. PR33Draft/Refs #13/19files;
-  архив оператора не пересоздавать/не отправлять. Детали — E1_INDEXING.
+- E1 остаётся4/6; physical known16720688/upper16775742,cost_complete=false.
+  Прежний unknown55054 сохранён, новыйunknown0. Mu остаток15025625, Hotpot20M.
+- Разрешённый plan614b9318/runtime73ab428 исполнен: run81df270e, ровно5POST,
+  input4870/output2320=7190tokens, все stop/full JSON, NER/embedding/retry0.
+- Source-only review: Cubs/Kobe прежние замечания исправлены; Popper Berlin
+  attachment остался, Valencia имеет qualified+unqualified версии одной связи;
+  Northwest seasonal qualifier не явен. Общая приёмка не пройдена.
+- Machine manifest876e3528 immutable awaiting_source_review; отдельный review948ac856
+  not_accepted_for_continuation. Оба GPT run:10POST/13295known; cache не принят.
+- Два содержательных отказа завершают prompt-fix путь. Не готовить очередной prompt
+  retry/cap/model sweep и не повторять Qwen вслепую. Claims/raw/failed/unknown сохранять.
+- Следующее решение — протокол: сохранить строгий gate/4из6 либо предложить явно
+  шумный extractor с заранее заданными source audit/допустимыми ошибками. Второе
+  требует изменения условий SPEC, решения homogeneous/mixed cache и актуального
+  научного согласования по BOT_REVIEW_WORKFLOW, затем нового budget/допуска.
+  Ни ослабление gate задним числом, ни full continuation сейчас не разрешены.
+-3102Qwen пары и4готовых Dense/RAPTOR не меняются. Offline общий reader/evaluator
+  готов на synthetic/cache; полный QA/E2/merge не запускать. PR33Draft/Refs #13,
+  issue открыта/19files. Оператор не обязательный блокер; архив не пересоздавать.
+- Фактические source замечания, SHA и варианты решения — E1_INDEXING/ADR-0023.
 
 ## История — не текущие инструкции запуска
 

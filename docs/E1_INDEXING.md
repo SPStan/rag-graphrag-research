@@ -1,6 +1,86 @@
 # E1: индексы полного корпуса (#13)
 
-## Ограниченный исполняемый план source-fidelity — подготовлен, POST не разрешены
+## Результат source-fidelity follow-up — 22 октября: semantic gate не пройден
+
+Пользователь разрешил передачу и5POST по plan
+`614b9318897d213140d37da4bce22e1262d06cf766b26ab297e4993d75a06e0e`,
+clean runtime `73ab42868de126519df730367eb87ee373c68b68`.
+Run `81df270e-82ba-45c8-b98f-55996124164d`, новый output
+`indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/hipporag2/musique-gpt-oss-policy-probe1`.
+
+Ровно5POST, все stop/полный shape JSON, known usage; length/cycle/HTTP errors0,
+NER/embedding/retry0. Новые **7190**tokens: input4870/output2320, меньше48929reserve.
+Новый unknown0. Вместе обе GPT-пробы:10POST/**13295**tokens, ни один их response
+не принят в Qwen cache. E1 physical known**16720688**, upper**16775742**,
+cost_complete=false; прежний unknown55054 сохранён. Mu остаток**15025625**,
+Hotpot20M. Готовность по-прежнему**4/6**, нового Hippo graph нет.
+
+| Source (префикс SHA) | in/out | triples/unique | Source-only review |
+|---|---:|---:|---|
+| Cubs00358c281c194381 | 910/263 | 9/9 | attribution на этом source сохранён |
+| Popper0153ea6260dee9cb | 1058/573 | 29/29 | не принят: прежняя привязка Berlin |
+| Kobe2389611f5617e291 | 1108/890 | 45/45 | раздельные All-Star годы сохранены |
+| Valencia38f7b69951335314 | 917/362 | 17/17 | не принят: безусловная параллельная связь |
+| Northwest005451e99743714d | 877/232 | 11/11 | нужна проверка: seasonal qualifier не явен |
+
+Полные ответы проверены по исходным passages, без questions/gold/support labels.
+Это diagnostic cases, выбранные до GPT-проб: таблица не оценка точности модели.
+Наличие2локально принятых случаев не означает разрешение продвигать их в индекс.
+
+### Что изменила инструкция и что осталось
+
+- Cubs: теперь `are depicted as winning` явно отличает сюжет фильма от события.
+  Противоречие source про Marlins не исправлялось внешними знаниями.
+- Kobe: есть отдельные `was NBA All-Star in:1998` и `2000–2016`; лишний1999
+  не добавлен. Остальные группы наград/лет сверены по этому же тексту.
+- Popper: `Otto Hahn Peace Medal — located in — Berlin` сохранился. В источнике
+  место относится к названной ассоциации; такая самостоятельная связь награды
+  не подтверждена. Новая общая инструкция её не устранила.
+- Valencia: появились `believed by some Catholics` и `supposedly brought`,
+  однако одновременно есть `Emperor Valerian — brought — Santo Caliz to Valencia's
+  Cathedral`. Оговорка первой связи не задаёт scope другой самостоятельной связи.
+- Northwest: прежнее ошибочное окончание существования льда исчезло. Осталась
+  `Arctic pack ice — prevented regular marine shipping — until2009` без явного
+  «throughout most of the year». Это не объявлено доказанно ложным утверждением,
+  но заранее установленный строгий qualifier gate такой ответ не принимает.
+
+Итог source review: **not_accepted_for_continuation**. Machine manifest immutable,
+по-прежнему awaiting_source_review, SHA
+`876e35282b3801b1a6ab207196e7b7a40664d903c995be8d519dd0826eb51f70`.
+Отдельный local `source-review.json` SHA
+`948ac856d31a8c8743b9f4650d6493d14c03b6f15e01a38e142183fa2daa58b4`
+закрепляет source/request/response SHA, literal evidence и решение каждого случая.
+Публичная JSON summary отражает исходный machine gate, итог содержательной
+проверки — этот раздел/sidecar; machine status не переписан задним числом.
+Старые producer manifests/review/raw неизменны, canonical claim остаётся.
+
+### Короткий разбор после двух содержательных отказов
+
+Транспорт/shape schema обеспечивают законченный parseable ответ на этих10POST,
+но не задают надёжную привязку модификаторов и общий scope нескольких triples.
+Одна system-инструкция дала частичные улучшения; она не подтвердила выполнение
+всего source-fidelity контракта. Кап не исчерпан: увеличение3072 не обосновано.
+Причину первоначального Qwen cycle этот результат не объясняет. Новых prompt
+retries/модельных проб по этому пути **не будет без пересмотра протокола**.
+
+Следующее решение относится к протоколу, не к ожиданию оператора:
+
+1. Сохранить строгий source-fidelity gate: зафиксировать Hippo как незавершённый,
+   оставить4/6 и не запускать его full/E2 до проверяемого решения.
+2. Предложить другую приёмку: явно исследовать конфигурацию Qwen NER + GPT-OSS
+   source-fidelity triples с измеряемым шумом extraction, source audit и раскрытыми
+   ограничениями, вместо требования отсутствия всех таких ошибок. Это **изменение
+   критерия**, не признание нынешнего gate успешным. Сначала зафиксировать допустимые
+   ошибки/аудит и homogeneous либо mixed cache по ADR-0023, согласовать изменение
+   единых условий SPEC/научные формулировки по BOT_REVIEW_WORKFLOW; затем отдельный
+   bounded continuation budget/разрешение. Готовые Dense/RAPTOR не пересчитываются.
+
+Второй вариант сейчас только предложение. Понизить критерий задним числом,
+отфильтровать вручную неудобные triples, переименовать Qwen cache или автоматически
+запустить full corpus нельзя. Независимая offline E2 preparation остаётся готовой;
+полный сравнительный E2 не разрешён. PR Draft/Refs #13, issue открыта.
+
+## План выполненного source-fidelity follow-up (история подготовки)
 
 Подготовленный ранее offline candidate10e82514 остаётся неизменным и неисполняемым.
 Теперь тот же existing executor поддерживает отдельный тип

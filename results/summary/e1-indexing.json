@@ -1014,14 +1014,14 @@
           {
             "phase": "index",
             "provider": "target_api",
-            "attempts": 6218,
+            "attempts": 6223,
             "errors": 2,
             "unfinished": 0,
             "cache_hits": 1871,
             "cache_provenance_unknown": 1871,
             "known_subtotal": {
-              "llm_input_tokens": 3060572,
-              "llm_output_tokens": 1205452,
+              "llm_input_tokens": 3065442,
+              "llm_output_tokens": 1207772,
               "embedding_input_tokens": 0
             },
             "unknown_fields": {
@@ -1034,17 +1034,17 @@
           }
         ],
         "known_subtotal": {
-          "llm_input_tokens": 3060572,
-          "llm_output_tokens": 1205452,
+          "llm_input_tokens": 3065442,
+          "llm_output_tokens": 1207772,
           "embedding_input_tokens": 684560
         },
         "complete": false,
-        "attempts": 6390,
+        "attempts": 6395,
         "historical_cache_cost_complete": false,
         "journal_corrupt_tail": false,
         "corrupt_tail_bytes": 0
       },
-      "cumulative_seconds": 13348.422,
+      "cumulative_seconds": 13427.273000000001,
       "gpt_oss_probe": {
         "status": "awaiting_source_review",
         "run_id": "789bffd0-bc70-4471-9a0d-1e63eee5508f",
@@ -1095,16 +1095,69 @@
           300
         ]
       },
+      "gpt_oss_policy_probe": {
+        "status": "awaiting_source_review",
+        "run_id": "81df270e-82ba-45c8-b98f-55996124164d",
+        "unknown_reserved_upper_bound": 0,
+        "full_index_authorized": false,
+        "cases": [
+          {
+            "source_id": "sha256:00358c281c194381c99b6dfea3aeba055c12c6f7a14601ddb26a176cbc31ed41",
+            "request_sha256": "f71b739ccd0b4e2a453080de3c4ce68c44c59e56089785a9ed461bc81373f339",
+            "triples": 9,
+            "format_status": "passed",
+            "semantic_support": "not_reviewed"
+          },
+          {
+            "source_id": "sha256:0153ea6260dee9cbfc76ff5d2042866508e727b5cb57656a4dd180931a6dd26f",
+            "request_sha256": "b3c1e0ad18adee747d61b3911ceb16d3d4f14692995c77ccdeea9262c6b85096",
+            "triples": 29,
+            "format_status": "passed",
+            "semantic_support": "not_reviewed"
+          },
+          {
+            "source_id": "sha256:2389611f5617e29153530b946bf6035434f45d80ecce482aec80a41da27b588a",
+            "request_sha256": "138d47b63fc895fa7f84b046d3090d11b0e08db6d74dd322edd1e4580248d965",
+            "triples": 45,
+            "format_status": "passed",
+            "semantic_support": "not_reviewed"
+          },
+          {
+            "source_id": "sha256:38f7b69951335314e57c3ca0577d8c9e5e2d20717819ff5f88bf24cb3aa2c45e",
+            "request_sha256": "716515aaf09ed39bedab5654534f2263899d665c9eed48639f0376bda94ea6a3",
+            "triples": 17,
+            "format_status": "passed",
+            "semantic_support": "not_reviewed"
+          },
+          {
+            "source_id": "sha256:005451e99743714d3508b9ac158dd3f796f73cd9dddd93e4010e1cdde501fd98",
+            "request_sha256": "4c0c1978a9730e8c46f23c2a53e76a5828e9ca072d4972931a8b19819514e889",
+            "triples": 11,
+            "format_status": "passed",
+            "semantic_support": "not_reviewed"
+          }
+        ],
+        "schema_variant": "gpt_oss_source_faithfulness_v1",
+        "model": "iairlab/gpt-oss-120b",
+        "code_commit": "73ab42868de126519df730367eb87ee373c68b68",
+        "timeout_seconds": [
+          30,
+          300
+        ],
+        "parent_probe_manifest_sha256": "5417b157c2159a2865f16929502682f5f0e49ea4a2aca3ccd5a5a4b8322c6439",
+        "source_review_sha256": "392ff920c98d90351b3096c8651ce134faca0b168ddb84fa0e81d32fbdcf3377",
+        "policy_version": "source_faithfulness_v1"
+      },
       "artifact_manifest_sha256": "e3bb665491d2c1d7aa912d5bb89218ef5022cfad3190dc5c3ff068dc5ef3571a",
       "cost_semantics": "Physical new cost; replay is not charged twice.",
       "standalone_cost_complete": false,
       "standalone_known_subtotal": {
-        "llm_input_tokens": 3060572,
-        "llm_output_tokens": 1205452,
+        "llm_input_tokens": 3065442,
+        "llm_output_tokens": 1207772,
         "embedding_input_tokens": 684560
       },
       "measured_run_seconds": 3270.835,
-      "attributed_construction_seconds": 13348.422
+      "attributed_construction_seconds": 13427.273000000001
     },
     {
       "run_id": "cea6cbe8-b715-4445-9121-95f3ae33d2b8",
@@ -2252,10 +2305,10 @@
   "combined_token_limit": 56876577,
   "complete": false,
   "limitations": "E1 measures indexing cost/coverage, not retrieval or answer quality. Historical smoke unknowns are preserved outside these new runs.",
-  "physical_known_tokens": 16713498,
+  "physical_known_tokens": 16720688,
   "physical_usage_complete": false,
   "cost_complete": false,
-  "budget_charge_upper_bound": 16768552,
+  "budget_charge_upper_bound": 16775742,
   "budget_reservation_complete": true,
   "original_combined_token_limit": 68000000
 }
