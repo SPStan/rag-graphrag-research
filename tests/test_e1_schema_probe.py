@@ -1192,3 +1192,202 @@ def test_zero_attempt_child_preserves_ancestor_budget_and_claims_once(
     dense.write_json_atomic(next_path, plan)
     with pytest.raises(ValueError, match="clean_first_schema_plan"):
         e1.prepare_schema_preflight_continuation(next_path)
+
+
+def test_gpt_diagnostic_payload_preserves_source_and_omits_qwen_options():
+    original, _ = e1.schema_probe_payload(
+        {
+            **e1.target.OPTIONS,
+            "model": "qwen",
+            "max_tokens": 3072,
+            "messages": [{"role": "user", "content": "source"}],
+            "response_format": {"type": "json_object"},
+        },
+        compatible=True,
+    )
+    before = copy.deepcopy(original)
+    payload, reserve = e1.gpt_extractor_payload(original)
+    assert original == before
+    assert payload["messages"] == original["messages"]
+    assert payload["response_format"] == original["response_format"]
+    assert payload["model"] == "iairlab/gpt-oss-120b"
+    assert payload["reasoning_effort"] == "low"
+    assert "chat_template_kwargs" not in payload
+    assert payload["max_tokens"] == 3072
+    assert (
+        reserve == len(json.dumps(payload, ensure_ascii=False).encode()) + 2048 + 3072
+    )
+
+
+@pytest.mark.parametrize(
+    "outcome,posts",
+    [
+        ("success", 5),
+        ("unknown", 1),
+        ("length", 1),
+        ("cycle", 1),
+        ("bad_sha", 0),
+        ("bad_head", 0),
+    ],
+)
+def test_gpt_diagnostic_one_claim_no_retry_and_cost_export(
+    tmp_path, monkeypatch, outcome, posts
+):
+    from unittest.mock import Mock
+
+    monkeypatch.setattr(e1, "ROOT", tmp_path)
+    monkeypatch.setattr(e1, "code_dirty", lambda: False)
+    monkeypatch.setattr(e1, "git", lambda *a: "head")
+    old = tmp_path / "stopped"
+    old.mkdir()
+    journal = Journal(
+        old / "usage.jsonl", run_id="old", method="hipporag2", dataset="musique"
+    )
+    a = journal.start(
+        phase="index",
+        operation="openie_triples",
+        provider="target_api",
+        model="qwen",
+        kind="llm",
+    )
+    journal.finish(
+        a, status="success", usage={"llm_input_tokens": 7, "llm_output_tokens": 0}
+    )
+    dense.write_json_atomic(
+        old / "manifest.json",
+        {
+            "run_id": "old",
+            "status": "failed",
+            "seconds": 1,
+            "token_accounting": journal.reference(),
+            "artifacts": {"usage.jsonl": dense.sha256_file(journal.path)},
+        },
+    )
+    original = (old / "manifest.json").read_bytes()
+    plan = {
+        "workspace": str(tmp_path),
+        "model": "qwen",
+        "endpoint": "https://example.invalid/v1",
+        "batch_id": "batch",
+        "embedding_model": "bge",
+        "embedding_digest": "digest",
+        "parameters": {},
+        "combined_token_limit": 68000000,
+        "rows": [
+            {
+                "method": "hipporag2",
+                "dataset": "musique",
+                "output": "stopped",
+                "run_id": "old",
+                "diagnostics_in_history": True,
+            }
+        ],
+    }
+    prior = tmp_path / "prior.json"
+    dense.write_json_atomic(prior, plan)
+    prepared = {
+        **e1.EXTRACTOR_DIAGNOSTIC,
+        "code_commit": "head",
+        "cases": [],
+        "failed_manifest_sha256": dense.sha256_file(old / "manifest.json"),
+    }
+    for i in range(5):
+        payload, reserve = e1.gpt_extractor_payload(
+            {
+                **e1.target.OPTIONS,
+                "model": "qwen",
+                "max_tokens": 3072,
+                "messages": [{"role": "user", "content": str(i)}],
+                "response_format": {"type": "json_schema"},
+            }
+        )
+        prepared["cases"].append(
+            {
+                "source_id": str(i),
+                "payload": payload,
+                "request_sha256": e1.target.digest(
+                    {"payload": payload, "kind": "llm", "operation": "openie_triples"}
+                ),
+                "reserved_tokens_upper_bound": reserve,
+            }
+        )
+    prepared["reserved_tokens_upper_bound"] = sum(
+        c["reserved_tokens_upper_bound"] for c in prepared["cases"]
+    )
+    if outcome == "bad_head":
+        prepared["code_commit"] = "other"
+    probe = tmp_path / "probe.json"
+    dense.write_json_atomic(probe, prepared)
+    monkeypatch.setattr(e1, "prepare_extractor_diagnostic", lambda *a: prepared)
+    body = {
+        "choices": [
+            {
+                "finish_reason": "length" if outcome == "length" else "stop",
+                "message": {
+                    "content": json.dumps(
+                        {
+                            "triples": [["A", "in", "B"]]
+                            * (12 if outcome == "cycle" else 1)
+                        }
+                    )
+                },
+            }
+        ],
+        "usage": {"prompt_tokens": 10, "completion_tokens": 8},
+    }
+    if outcome == "unknown":
+        body["usage"].pop("completion_tokens")
+    response = Mock(status_code=200)
+    response.json.return_value = body
+    session = requests.Session()
+
+    def post(*a, **kw):
+        assert (old / "gpt-oss-probe-once.claim.json").exists()
+        return response
+
+    session.post = Mock(side_effect=post)
+    monkeypatch.setattr(e1.requests, "Session", lambda: session)
+    config = {
+        "TARGET_API_MODEL": "qwen",
+        "TARGET_API_BASE_URL": plan["endpoint"],
+        "LITELLM_API_KEY": "fake",
+    }
+    approval = "wrong" if outcome == "bad_sha" else dense.sha256_file(probe)
+    if outcome == "success":
+        e1.execute_schema_probe(
+            probe, prior, tmp_path, config, approval, compatible=True
+        )
+    else:
+        with pytest.raises(ValueError):
+            e1.execute_schema_probe(
+                probe, prior, tmp_path, config, approval, compatible=True
+            )
+    assert session.post.call_count == posts
+    assert (old / "manifest.json").read_bytes() == original
+    if not posts:
+        return
+    manifest = dense.read_json(tmp_path / "musique-gpt-oss-probe1/manifest.json")
+    assert manifest["status"] == (
+        "awaiting_source_review" if outcome == "success" else "failed"
+    )
+    assert manifest["full_index_authorized"] is False
+    assert manifest["model"] == e1.EXTRACTOR_DIAGNOSTIC["model"]
+    for call in session.post.call_args_list:
+        assert call.kwargs["allow_redirects"] is False
+        assert call.kwargs["timeout"] == (30, 300)
+    with pytest.raises(ValueError, match="output_already_exists"):
+        e1.execute_schema_probe(
+            probe, prior, tmp_path, config, approval, compatible=True
+        )
+    assert session.post.call_count == posts
+    (tmp_path / "results/summary").mkdir(parents=True)
+    first = e1.export(plan, prior)
+    second = e1.export(plan, prior)
+    assert (
+        first["physical_known_tokens"]
+        == second["physical_known_tokens"]
+        == 7 + posts * (10 if outcome == "unknown" else 18)
+    )
+    assert first["cost_complete"] is (outcome != "unknown")
+    if outcome == "unknown":
+        assert first["budget_charge_upper_bound"] > first["physical_known_tokens"]

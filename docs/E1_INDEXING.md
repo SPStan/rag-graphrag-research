@@ -62,26 +62,130 @@ NER cached3104, совместимые пары3102/5500(~56.4%). Это сум�
 Все failed/probe остаются в стоимости, ответы не переименованы в другой model/key.
 Новые model/embedding вызовы в этом offline-разборе не выполнялись.
 
-### Следующее решение вместо очередного слепого запроса
+### Текущий блок: offline-аудит и ограниченная диагностика GPT-OSS
 
-После двух мер против циклов (инструкция уникальности и shape schema) подтверждён
-новый цикл на другом passage. Сначала требуется ответ оператора API о генерации
-Qwen/настройках decoding или проверяемом исправлении backend. Если исправление
-будет подтверждено, подготовить один ограниченный POST на этом же полном passage
-с прежним NER, cap3072/без retry/NER/embedding; исходный byte-reserve9412 относится
-к прежнему payload и должен быть пересчитан при изменении параметров. Это только
-следующий предлагаемый gate, сейчас нет подтверждённого нового payload/плана или
-разрешения продолжать full индекс. Успех одного gate не запускает rebuild автоматически.
+**Наблюдение:** Qwen вернул незавершённый JSON с повторяющимся хвостом и length.
+**Причина:** не установлена; schema не гарантирует качество или завершение.
+**Расходы:** следующие POST требуют отдельного разрешения по ADR-0022.
+**Протокол:** исходный benchmark закрепляет общий Qwen; проба GPT-OSS не меняет
+его автоматически. Помощь оператора полезна для выяснения причины, но не является
+обязательным условием offline-подготовки и отдельной ограниченной диагностики.
 
-Одним read-only GET /models (без корпуса, без generation) подтверждены доступные
-iairlab/qwen3.8-27b иiairlab/gpt-oss-120b. API не сообщил context/max output.
-У второго нет подтверждённого deployment contract; сама доступность не доказывает
-его пригодность. Переключение только Hippo на другую LLM меняет единые условия
-[SPEC](SPEC.md#единые-условия) и не может молча считаться завершением прежней
-конфигурации. Такой вариант требует отдельного изменения протокола/актуальных
-научных формулировок, а до model probe — подтверждённых лимитов и bounded плана.
-Новых одноразовых диагностических исполнителей не добавлено. Текущий cache/индексы,
-планы, raw и failed не меняются. PR Draft/Refs #13, E2/QA/merge не запускаются.
+#### Аудит фактического клиента
+
+Три прежних failed payload восстановлены из точного source + verified cached NER
+закреплённым manager SDK1438aba3. Проверка installation сверяет61 файл с Git blobs.
+Все исходные request identities совпали с physical journal; последний —9f12b07f.
+Модель iairlab/qwen3.8-27b, temperature0, seed42, stream=false,
+chat_template_kwargs.enable_thinking=false, triples cap3072, NER cap1024.
+Messages — role/content из одного render; клиент не вкладывает готовый chat template
+в другой шаблон. Серверное применение шаблона этим не проверено.
+
+Исходные Valencia/Kobe length использовали json_object; две полные пробы на тех же
+source/NER изменили response_format на shape JSON Schema без uniqueItems. Остальные
+параметры прежние. Они дали stop и известный usage1068/2166, но Kobe имел буквальные
+дубликаты; его отдельное принятие отражает штатный SDK graph-set dedup, не качество
+самой schema. Последний Popper уже использовал ту же shape schema и снова дал цикл.
+Следовательно успех двух проб не доказывает исправление причины на других passages.
+
+В native установленном OpenIE на synthetic success/error проверено по одному infer
+на NER/triples, messages совпадают с единственным render. E1 передаёт собственный
+LLM adapter, обходя CacheOpenAI; transport — requests.Session с max_retries=0,
+redirects=false. Последовательные corrective/fallback попытки прежних запусков
+журналируются отдельно; последняя schema continuation не делает corrective retry.
+Текущий сохранённый payload соответствует коду. **Новой клиентской ошибки,
+объясняющей повторяющийся хвост, не найдено.** Это не проверка внутреннего decoding
+провайдера; отсутствие доказанной клиентской ошибки не доказывает ошибку сервера.
+
+#### Один предлагаемый вариант, пока без вызовов
+
+Выбран iairlab/gpt-oss-120b, reasoning_effort=low: после повторного цикла при
+shape schema нет основания менять ещё один Qwen sampling-параметр вслепую.
+Куратор сообщил context131k и поддержку JSON mode/Schema/reasoning_effort.
+Это заявленный контракт; текущий deployment ещё не измерен. Guard131000 —
+консервативная интерпретация131k, а не результат серверного token count.
+Qwen-specific chat_template_kwargs полностью исключён. Prompt/messages,
+temperature0/seed42/stream=false и shape schema сохраняются; max_tokens3072
+остаётся пределом всего completion, включая reasoning, без повышения cap.
+
+Пять фиксированных случаев из уже известного MuSiQue cache, без новых выборок:
+
+| Порядок | Роль / source ID (префикс SHA256) | Резерв |
+|---|---|---:|
+| 1 | successful control00358c281c194381 | 8662 |
+| 2 | latest failed Popper0153ea6260dee9cb | 9388 |
+| 3 | historical failed Kobe2389611f5617e291 | 8944 |
+| 4 | historical failed Valencia38f7b69951335314 | 8633 |
+| 5 | successful control005451e99743714d | 8497 |
+| Итого | максимум5POST, одна попытка на случай | **44124** |
+
+Контроли — первые два полных cached extraction в сортировке source ID, исключая
+три failed source; правило зафиксировано до GPT-OSS вызовов. Их содержание и
+правильность старых triples не используются как gold. Внешнему API передаются
+полные эти passages, сохранённый NER и SDK few-shot messages, без questions,
+ответов, supporting labels. NER/embeddingPOST0; retry0/redirects0, connect30/read300.
+Резерв = сумма UTF-8 bytes каждого exact payload +2048 +3072. Это guard бюджета,
+не измеренный GPT tokenizer count.44124 вычитается из Mu остатка15038920;
+исторические unknown55054 сохраняются, общий E1 total остаётся неизвестным.
+
+Подготовка интегрирована в существующий runner, новый framework не добавлен:
+
+```powershell
+# В активном worktree, без HTTP. SDK установлен в отдельном окружении.
+& <hippo-python> -m scripts.run_e1 prepare-extractor-diagnostic `
+  --prior-plan <data-root>/indexes/e1/issue13-hippo-schema-preflight-plan.json `
+  --source <pinned-hippo-source> --plan .cache/e1-gpt-oss-diagnostic-plan.json
+# Read-only проверка готовых Dense/RAPTOR, без queries/labels и без export:
+& ./.venv-check/Scripts/python.exe -m scripts.run_e1 offline-ready `
+  --plan <data-root>/indexes/e1/issue13-hippo-schema-preflight-plan.json
+```
+
+Exact payload, полные source IDs, source/NER/baseline SHA и code commit сохраняются
+в локальном ignored plan; перед будущим запуском проверяются его SHA, clean HEAD,
+повторная реконструкция и canonical claim рядом с исходным failed manifest.
+Исполнение использует существующий run-compatible-schema-probe с отдельными
+musique-gpt-oss-probe1 output/run/model. Не переносить ответы в Qwen cache.
+
+При первом timeout/HTTP error/unknown usage/length/partial/невалидной форме —
+остановка без повторов. Полный непустой JSON, только triples из трёх непустых строк,
+известный usage и отсутствие вырожденного цикла обязательны. Двенадцать одинаковых
+triples подряд — консервативный stop для ручного source review, а не доказательство
+ошибочности любых повторов. Literal dedup не заменяет содержательную проверку.
+При пяти machine-pass статус лишь awaiting_source_review: вручную по каждому
+исходному passage проверить поддержку фактов, отрицания/годы/оговорки, отсутствие
+вымышленных связей и существенных пропусков. Буквальное совпадение с Qwen не нужно.
+Сомнительное содержание — остановка до решения, без автоматического шестого POST.
+
+Даже полный успех разрешает только подготовить continuation и выбор конфигурации,
+не полный индекс: сначала решение по [предложению ADR-0023](../.adr/0023-hippo-extractor-diagnostic.md),
+смешанному cache/сопоставимости и отдельное разрешение расходов. Все failed/probe
+учитываются один раз, known и unknown сохраняются; raw/старые manifests неизменны.
+
+#### Независимая подготовка E2 без сравнительного запуска
+
+В e1_indexers добавлены read-only load/retrieval и replay общего reader/evaluator;
+offline-ready встроен в run_e1. Пробел до этого блока: E1 подтверждал save/reload,
+но не давал проверяемого входа готовых артефактов в общий retrieval→reader путь.
+Теперь проверяются manifest/journal/artifact SHA, plan lineage, source order,
+BGE digest/dimension1024 и RAPTOR leaf ancestry. Cache miss, changed SHA, unknown,
+length и несовместимый query vector отклоняются без fallbackHTTP/обрезания.
+RAPTOR supporting provenance coverage отделён от passage recall@5 (null для nodes).
+Наличие cached usage не объявляется полнотой исторических затрат.
+
+Четыре готовых артефакта по5500 passages загружены offline. Native RAPTOR pinned
+TreeRetriever подключён к уже сохранённому leaf vector как **synthetic query
+vector**; общий prompt/parser/evaluator проверяются с synthetic response/label.
+Это проверка связки, не реальные QA, E2, скорость, качество или расход моделей.
+Native проверка прошла для всех4: Dense top5/5, RAPTOR Mu5/Hotpot2 nodes
+в пределах контекста3000токенов. Original manifest/journal SHA до/после совпали.
+Первый offline import остановился на отсутствии TIKTOKEN_CACHE_DIR; HTTP guard
+запретил загрузку tokenizer. Повтор с уже сохранённым cache завершился без HTTP.
+Данные holdout не читались. Целевые тесты:118passed/2SDK-skipped; native SDK
+дополнительно проверены отдельно, что не заменяет реальный модельный эксперимент.
+Оставшиеся реальные части: готовые Hippo graph×2 и их read-only retrieval adapter,
+отдельное планирование query embedding/cache provenance, run budget/journal E2,
+научное согласование выбранной конфигурации и разрешение E2. Полный reader run
+не запускался. Dense/RAPTOR перестраивать для диагностики extractor не нужно.
 
 ### Готовый локальный пакет для оператора
 
@@ -99,9 +203,9 @@ message.content. Request identity SHA включает payload+kind+operation и
 локальным артефактом и в GitHub не загружается. Отдельный SAFE_REPORT.md рядом с
 архивом не содержит корпуса/generated facts/credentials и пригоден для первого
 обращения. Executable replay/POST command в пакет не включён. Ничего оператору
-не отправлено; контакт/разрешение пересылки ещё не получены. Нужны его фактические
-revision/template/decoding settings и проверяемый вариант исправления; вопросы
-сформулированы в README. Код runner и политика эксперимента не менялись.
+не отправлено; контакт/разрешение пересылки ещё не получены. Его revision/template/decoding settings помогут разбору; вопросы
+сформулированы в README. Архив повторно не создавался и не отправлялся.
+Отдельный диагностический путь выше не требует ожидания оператора.
 
 ## Исправление нулевого preflight после согласия на оба Hippo-прогона
 

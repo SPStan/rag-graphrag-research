@@ -2,25 +2,29 @@
 
 **E1 status:** 4/6 indexes completed; physical known tokens=16707393; cost_complete=False. Last stage=hipporag2 native schema continuation. Raw/indexes remain local. PR Draft; E2 requires all six verified indexes.
 
-## Текущая очередь — 22 октября: Hippo schema length/cycle, offline-разбор завершён
+## Текущая очередь — 22 октября: GPT-OSS план и offline E2 preparation
 
-- Готово4/6. Run3eab6c1d failed1357/5500,1544POST,1015121known; Hotpot pending.
-- Последний input891/output3072, length:26unique fragments,142одинаковых подряд.
-  Полного JSON нет, поздние факты источника пропущены; partial не принимается.
-- Offline восстановлены source/NER/payload SHA, проверены весь cache и canonical
-  requests:3102полныхNER+triples,2NER-only,2396безNER. Это reuse, не готовый граф.
-- E1known16707393/upper16762447,cost_complete=false. Mu остаток15038920,
-  Hotpot20M; failed/probe/unknown сохранены. В offline-блоке model/embedding0.
-- Не повторять запрос, не поднимать cap/не дописывать JSON. Prompt uniqueness
-  и shape schema не устранили цикл; причину модели/decoding по raw не установить.
-- Нужен ответ оператора о Qwen/backend. GPT-OSS доступна по metadata GET, но
-  deployment limits не сообщены; смена LLM меняет единые условия SPEC и не принята.
-- Готов локальный пакет .cache/e1-provider-repro-9f12b07f.zip: request/response/
-  usage/SHA без ключа; содержит passage/NER, не публиковать целиком. SAFE_REPORT
-  без данных рядом. Контакт/разрешение отправки оператору пока не получены.
-- После подтверждённого исправления сначала один bounded gate на полном failed
-  passage/cachedNER, exact payload/reserve/согласие доPOST; full не автоматически.
-- PR33Draft/Refs13; E2/QA/merge не запускать. SHA, coverage и причины — E1_INDEXING.
+- E1 остаётся4/6; known16707393/upper16762447,cost_complete=false. Старый unknown55054
+  сохранён. Mu остаток15038920, Hotpot20M; новых model/embedding запросов0.
+- Последний Hippo cycle/length подтверждён; причина неизвестна. Exact payload
+  восстановлен pinned SDK; новой клиентской ошибки не найдено. Ответ оператора
+  полезен, но не блокирует независимую offline-подготовку/ограниченную диагностику.
+- Подготовлен один GPT-OSS вариант: low reasoning, без enable_thinking, та же shape
+  schema/cap3072/temp0/seed42. Куратор заявил context131k/JSONSchema/reasoning,
+  deployment ещё не проверен.5фиксированных случаев:3failed+2cached controls.
+- Максимум5POST, резерв44124 из15038920, NER/embedding0, retry0, timeout30/300.
+  Первая ошибка/unknown/length/partial/cycle → stop. Затем обязательный source review
+  всех5 без gold/точного совпадения. Успех не разрешает full continuation.
+- Предложение ADR-0023 отделяет диагностику от смены benchmark и mixed cache.
+ 3102полных Qwen пары сохраняются под своей моделью; решение об их reuse отдельно.
+- Четыре готовых Dense/RAPTOR загружены read-only; native retrieval и общий reader/
+  evaluator проверены synthetic/cache без HTTP; SHA старых manifest/journal
+  неизменны.118targeted passed/2SDK-skipped, native SDK проверены отдельно.
+  Это подготовка, не QA/E2.
+- Следующий шаг: завершить gate/commit/push, зафиксировать exact private plan SHA и
+  получить одно согласие на эти5POST. Полный E2/корпус/merge не разрешены.
+- Архив оператора уже существует, не пересоздавать/не отправлять без адресата и
+  явного разрешения. PR33Draft/Refs #13. Детали и критерии — E1_INDEXING.
 
 ## История — не текущие инструкции запуска
 

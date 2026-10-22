@@ -1,6 +1,7 @@
 """Index-only calls into the pinned HippoRAG and RAPTOR implementations."""
 
 import copy
+import json
 import logging
 import random
 
@@ -342,3 +343,164 @@ def hipporag_index(corpus, transport, directory, source):
     finally:
         reloaded.close()
     return counts
+
+
+def load_ready_e1(plan, row, corpus, workspace=ROOT):
+    """Read-only artifact gate for offline E2 preparation; never opens a model client."""
+    from scripts.token_accounting import verified_reference
+
+    path = workspace / row["output"] / "manifest.json"
+    manifest = dense.read_json(path)
+    if (
+        manifest["status"] != "completed"
+        or verified_reference(manifest, path)["status"] != "verified"
+    ):
+        raise ValueError("E2_index_not_completed_or_verified")
+    identities = [
+        target.digest(plan),
+        plan.get("parent_plan", {}).get("digest"),
+        *[p["digest"] for p in plan.get("lineage", [])],
+    ]
+    if (
+        manifest["plan_sha256"] not in identities
+        or dense.corpus_fingerprint(corpus) != row["corpus_fingerprint"]
+    ):
+        raise ValueError("E2_index_plan_or_corpus_changed")
+    for name, sha in manifest["artifacts"].items():
+        if dense.sha256_file(path.parent / name) != sha:
+            raise ValueError("E2_index_artifact_changed")
+    ids = [p["id"] for p in corpus]
+    if len(set(ids)) != len(ids):
+        raise ValueError("E2_duplicate_source_ids")
+    common = {
+        "corpus": corpus,
+        "manifest_sha256": dense.sha256_file(path),
+        "embedding_digest": plan["embedding_digest"],
+    }
+    if row["method"] == "dense":
+        with dense.np.load(path.parent / "vectors.npz", allow_pickle=False) as saved:
+            if saved["ids"].tolist() != ids:
+                raise ValueError("E2_dense_source_order_changed")
+            matrix = dense.normalize_rows(saved["vectors"])
+        if matrix.shape != (len(ids), 1024):
+            raise ValueError("E2_embedding_dimension_changed")
+        return {**common, "kind": "dense", "vectors": matrix}
+    if row["method"] == "raptor":
+        tree = dense.read_json(path.parent / "tree.json")
+        if (
+            tree["dimension"] != 1024
+            or tree["implementation_commit"] != raptor.SOURCE_COMMIT
+        ):
+            raise ValueError("E2_raptor_contract_changed")
+        ancestry = raptor.validate_tree(tree)
+        if [
+            tree["leaf_passage_ids"].get(str(i)) for i in range(len(ids))
+        ] != ids or len(tree["leaf_passage_ids"]) != len(ids):
+            raise ValueError("E2_raptor_source_mapping_changed")
+        nodes_by_id = {n["index"]: n for n in tree["nodes"]}
+        for i, doc in enumerate(corpus):
+            node = nodes_by_id[i]
+            if node["text"] != f"{doc['title']}\n{doc['text']}":
+                raise ValueError("E2_raptor_leaf_text_changed")
+        return {**common, "kind": "raptor", "tree": tree, "ancestry": ancestry}
+    raise ValueError("E2_Hippo_read_only_adapter_requires_completed_graph")
+
+
+def retrieve_ready_e1(loaded, question, query_vector, *, embedding_digest, sdk=None):
+    """Use an explicitly supplied cached/synthetic vector; no embedding fallback."""
+    if embedding_digest != loaded["embedding_digest"]:
+        raise ValueError("E2_query_embedding_model_changed")
+    vector = dense.normalize_rows([query_vector])[0]
+    if vector.shape != (1024,):
+        raise ValueError("E2_query_vector_dimension_changed")
+    if loaded["kind"] == "dense":
+        ranked = dense.top_k(vector, loaded["vectors"], 5)
+        passages = [loaded["corpus"][i] for i, _ in ranked]
+        return {
+            "kind": "passages",
+            "passages": passages,
+            "source_ids": [p["id"] for p in passages],
+            "new_embedding_calls": 0,
+        }
+    if sdk is None:
+        raise ValueError("E2_pinned_raptor_sdk_required")
+
+    class CachedEmbedding(sdk["embedding_base"]):
+        def create_embedding(self, text):
+            if text != question:
+                raise ValueError("E2_unplanned_embedding_input")
+            return vector.tolist()
+
+    tree = raptor.restore_tree(loaded["tree"], sdk)
+    retriever = sdk["retriever"](
+        sdk["retriever_config"](
+            tokenizer=sdk["tokenizer"],
+            top_k=5,
+            selection_mode="top_k",
+            context_embedding_model="BGE",
+            embedding_model=CachedEmbedding(),
+        ),
+        tree,
+    )
+    selected, _ = retriever.retrieve_information_collapse_tree(question, 5, 3000)
+    if not selected:
+        raise ValueError("E2_empty_cached_retrieval")
+    covered = sorted(set().union(*(loaded["ancestry"][n.index] for n in selected)))
+    return {
+        "kind": "raptor_nodes",
+        "passages": [
+            {"title": f"RAPTOR node {n.index}", "text": n.text} for n in selected
+        ],
+        "node_ids": [n.index for n in selected],
+        "source_ids": covered,
+        "new_embedding_calls": 0,
+    }
+
+
+def replay_cached_reader(query, retrieval, responses, label):
+    """Common prompt/parser/evaluator on synthetic/cache inputs only; never HTTP."""
+    from scripts import evaluate_dense as evaluator
+    from scripts.token_accounting import extract_usage
+
+    messages = dense.build_reader_messages(query["question"], retrieval["passages"])
+    payload = {**target.OPTIONS, "model": "iairlab/qwen3.8-27b", "messages": messages}
+    if len(json.dumps(messages, ensure_ascii=False).encode()) > target.INPUT_BYTE_LIMIT:
+        raise ValueError("E2_reader_input_byte_limit_no_truncation")
+    key = target.digest({"payload": payload, "kind": "llm", "operation": "reader"})
+    if key not in responses:
+        raise ValueError("E2_reader_cache_miss_no_http_fallback")
+    saved = responses[key]
+    body = saved["response"]
+    if target.digest(body) != saved["response_sha256"]:
+        raise ValueError("E2_reader_cached_response_changed")
+    usage = extract_usage(body, "llm", "target_api")
+    if usage["llm_input_tokens"] is None or usage["llm_output_tokens"] is None:
+        raise ValueError("E2_reader_unknown_usage")
+    choice = body["choices"][0]
+    answer, status = dense.extract_target_reader_answer(choice["message"]["content"])
+    if choice["finish_reason"] != "stop" or status != "ok":
+        raise ValueError("E2_reader_not_complete")
+    if query["id"] != label["id"] or not label["supporting_ids"]:
+        raise ValueError("E2_synthetic_label_mismatch")
+    scores = evaluator.answer_scores(
+        answer, [label["answer"], *label.get("answer_aliases", [])]
+    )
+    scores["passage_recall_at_5"] = (
+        evaluator.recall_at_k(retrieval["source_ids"], label["supporting_ids"], 5)
+        if retrieval["kind"] == "passages"
+        else None
+    )
+    scores["supporting_provenance_coverage"] = len(
+        set(retrieval["source_ids"]) & set(label["supporting_ids"])
+    ) / len(set(label["supporting_ids"]))
+    return {
+        "mode": "offline_preparation_only",
+        "answer": answer,
+        "metrics": scores,
+        "metric_version": evaluator.METRIC_VERSION,
+        "reader_prompt_version": dense.READER_PROMPT_VERSION,
+        "request_sha256": key,
+        "cached_usage": usage,
+        "historical_cost_complete": None,
+        "new_model_calls": 0,
+    }

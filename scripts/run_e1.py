@@ -2,6 +2,7 @@
 
 import argparse
 import copy
+import hashlib
 from contextlib import contextmanager
 import json
 import os
@@ -1552,7 +1553,7 @@ def export(plan, plan_path):
         )
         diagnostic_records = []
         probe_kinds = (
-            [probe_kind, "schema_shape"]
+            [probe_kind, "schema_shape", "gpt_oss"]
             if (row["method"], row["dataset"]) == ("hipporag2", "musique")
             else [probe_kind]
         )
@@ -1560,7 +1561,7 @@ def export(plan, plan_path):
             if (
                 probe_kind
                 and (row["dataset"] == "musique" or probe_kind == "summary")
-                and not row.get("diagnostics_in_history")
+                and (probe_kind == "gpt_oss" or not row.get("diagnostics_in_history"))
             ):
                 probe_path = (
                     manifest.parent.parent
@@ -1608,6 +1609,7 @@ def export(plan, plan_path):
                             k: probe[k]
                             for k in (
                                 "schema_variant",
+                                "model",
                                 "code_commit",
                                 "timeout_seconds",
                             )
@@ -1688,7 +1690,7 @@ def export(plan, plan_path):
         + sum(
             r.get(f"{kind}_probe", {}).get("unknown_reserved_upper_bound", 0)
             for r in rows
-            for kind in ("schema", "schema_shape", "embedding", "summary")
+            for kind in ("schema", "schema_shape", "gpt_oss", "embedding", "summary")
         )
         + sum(r.get("current_unknown_reserved_upper_bound") or 0 for r in rows)
     )
@@ -2265,10 +2267,218 @@ def prepare_schema_probe(prior_path, source, *, compatible=False):
     }
 
 
+EXTRACTOR_DIAGNOSTIC = {
+    "kind": "hippo_extractor_model_diagnostic_v1",
+    "model": "iairlab/gpt-oss-120b",
+    "reasoning_effort": "low",
+    "context_guard_tokens": 131000,
+    "output_cap": 3072,
+    "max_new_posts": 5,
+    "retry": 0,
+    "timeout_seconds": [30, 300],
+    "contract_source": "curator_report_131k_json_schema_reasoning; deployment_unmeasured",
+}
+
+
+def gpt_extractor_payload(qwen_payload):
+    payload = copy.deepcopy(qwen_payload)
+    payload["model"] = EXTRACTOR_DIAGNOSTIC["model"]
+    payload.pop("chat_template_kwargs", None)
+    payload["reasoning_effort"] = "low"
+    reserve = len(json.dumps(payload, ensure_ascii=False).encode("utf-8")) + 2048 + 3072
+    if (
+        payload["max_tokens"] != 3072
+        or reserve > EXTRACTOR_DIAGNOSTIC["context_guard_tokens"]
+    ):
+        raise ValueError("extractor_diagnostic_context_or_cap_changed")
+    return payload, reserve
+
+
+def validate_extractor_diagnostic(body):
+    triples = validate_schema_probe_response(body, allow_literal_duplicates=True)
+    if not triples:
+        raise ValueError("diagnostic_empty_extraction")
+    longest = run = 1
+    for before, after in zip(triples, triples[1:]):
+        run = run + 1 if before == after else 1
+        longest = max(longest, run)
+    # Flag, not a claim that every repetition is unsupported: source review remains mandatory.
+    if longest >= 12:
+        raise ValueError("diagnostic_repetition_requires_source_review_stop")
+    usage = extract_usage(body, "llm", "target_api")
+    if usage["llm_input_tokens"] + usage["llm_output_tokens"] > 131000:
+        raise ValueError("diagnostic_reported_context_exceeded")
+    return triples
+
+
+def prepare_extractor_diagnostic(prior_path, source):
+    """Five frozen source-only cases: three prior failures plus two cached controls."""
+    from scripts.preflight_hipporag_repair_prompts import (
+        verify_target_prompt_installation,
+    )
+    from scripts.hipporag_repair_executor import make_pinned_openie_parser
+
+    plan = dense.read_json(prior_path)
+    if plan["workspace"] != str(ROOT.resolve()):
+        raise ValueError("diagnostic_workspace_changed")
+    row = next(
+        r
+        for r in plan["rows"]
+        if (r["method"], r["dataset"]) == ("hipporag2", "musique")
+    )
+    mp = ROOT / row["output"] / "manifest.json"
+    if (
+        dense.read_json(mp)["status"] != "failed"
+        or (mp.parent / "running.lock").exists()
+    ):
+        raise ValueError("diagnostic_requires_stopped_failed_parent")
+    cache, rejected = {}, {}
+    for entry in row["resume_sources"]:
+        path = ROOT / entry["output"] / "manifest.json"
+        if dense.sha256_file(path) != entry["manifest_sha256"]:
+            raise ValueError("diagnostic_source_manifest_changed")
+        cache, failures, _ = verified_checkpoints(
+            path, inherited=cache, allow_length=True
+        )
+        rejected.update({f[0]["object_id"]: (path, f) for f in failures})
+    adoption, accepted = verify_schema_recovery(plan, row)
+    cache.update(accepted)
+    cache, failures, reference = verified_checkpoints(
+        mp, inherited=cache, allow_length=True
+    )
+    if len(failures) != 1 or failures[0][1]["usage_status"] != "complete":
+        raise ValueError("diagnostic_requires_one_known_failure")
+    rejected.update({f[0]["object_id"]: (mp, f) for f in failures})
+    latest = failures[0][0]["object_id"]
+    old_cases = {c["source_id"]: c for c in adoption["cases"]}
+    manager_type, verified_files = verify_target_prompt_installation(source)
+    manager = manager_type(
+        role_mapping={"system": "system", "user": "user", "assistant": "assistant"}
+    )
+    parse = make_pinned_openie_parser()
+    # Read only the corpus: do not inspect questions, labels or holdout answers.
+    corpus_path = Path(plan["data_root"]) / "data/processed/musique/corpus.json"
+    if dense.sha256_file(corpus_path) != row["corpus"]["output_sha256"]["corpus.json"]:
+        raise ValueError("diagnostic_corpus_changed")
+    corpus = dense.read_json(corpus_path)
+    if dense.corpus_fingerprint(corpus) != row["corpus_fingerprint"]:
+        raise ValueError("diagnostic_corpus_fingerprint_changed")
+    failed_cases, controls = [], []
+    for doc in sorted(corpus, key=lambda d: d["id"]):
+        text = f"{doc['title']}\n{doc['text']}"
+        ner = {
+            **target.OPTIONS,
+            "model": plan["model"],
+            "messages": manager.render(name="ner", passage=text),
+            "max_tokens": 1024,
+            "response_format": {"type": "json_object"},
+        }
+        nk = target.digest({"payload": ner, "kind": "llm", "operation": "openie_ner"})
+        if nk not in cache:
+            continue
+        entities = parse(
+            "openie_ner",
+            dense.read_json(cache[nk]["path"])["choices"][0]["message"]["content"],
+            recover_partial=False,
+        )
+        original = {
+            **target.OPTIONS,
+            "model": plan["model"],
+            "messages": manager.render(
+                name="triple_extraction",
+                passage=text,
+                named_entity_json=json.dumps({"named_entities": entities}),
+            ),
+            "max_tokens": 3072,
+            "response_format": {"type": "json_object"},
+        }
+        ok = target.digest(
+            {"payload": original, "kind": "llm", "operation": "openie_triples"}
+        )
+        qwen, _ = schema_probe_payload(original, compatible=True)
+        sk = target.digest(
+            {"payload": qwen, "kind": "llm", "operation": "openie_triples"}
+        )
+        failed_key = old_cases.get(doc["id"], {}).get("original_request_sha256")
+        if sk == latest:
+            failed_key = latest
+        if failed_key:
+            path, failure = rejected[failed_key]
+            baseline = path.parent / "requests" / f"{failed_key}.response.json"
+            baseline_payload = original if failed_key == ok else qwen
+            if (
+                target.digest(
+                    {
+                        "payload": baseline_payload,
+                        "kind": "llm",
+                        "operation": "openie_triples",
+                    }
+                )
+                != failed_key
+            ):
+                raise ValueError("diagnostic_saved_payload_not_reconstructed")
+            role = "latest_failed" if sk == latest else "historical_failed"
+        else:
+            item = cache.get(ok) or cache.get(sk)
+            if not item or len(controls) >= 2:
+                continue
+            baseline = item["path"]
+            failed_key = ok if ok in cache else sk
+            role = "fixed_success_control"
+        body = dense.read_json(baseline)
+        if (
+            role != "fixed_success_control"
+            and body["choices"][0]["finish_reason"] != "length"
+        ):
+            raise ValueError("diagnostic_failure_not_length")
+        payload, reserve = gpt_extractor_payload(qwen)
+        case = {
+            "source_id": doc["id"],
+            "role": role,
+            "source_text": text,
+            "source_text_sha256": hashlib.sha256(text.encode()).hexdigest(),
+            "ner_response_sha256": cache[nk]["sha256"],
+            "baseline_request_sha256": failed_key,
+            "baseline_response_sha256": dense.sha256_file(baseline),
+            "baseline_finish_reason": body["choices"][0]["finish_reason"],
+            "baseline_format": "json_object" if failed_key == ok else "json_schema",
+            "payload": payload,
+            "request_sha256": target.digest(
+                {"payload": payload, "kind": "llm", "operation": "openie_triples"}
+            ),
+            "reserved_tokens_upper_bound": reserve,
+        }
+        (controls if role == "fixed_success_control" else failed_cases).append(case)
+    if len(failed_cases) != 3 or len(controls) != 2:
+        raise ValueError("diagnostic_requires_three_failures_two_fixed_controls")
+    failed_cases.sort(key=lambda c: (c["role"] != "latest_failed", c["source_id"]))
+    cases = [controls[0], *failed_cases, controls[1]]
+    remaining = row["token_limit"] - sum(
+        reference["summary"]["known_subtotal"].values()
+    )
+    reserve = sum(c["reserved_tokens_upper_bound"] for c in cases)
+    if reserve > remaining or current_unknown_reservation(mp.parent) != 0:
+        raise ValueError("diagnostic_budget_or_current_unknown_changed")
+    return {
+        **EXTRACTOR_DIAGNOSTIC,
+        "code_commit": git("rev-parse", "HEAD"),
+        "parent_plan_sha256": dense.sha256_file(prior_path),
+        "failed_manifest_sha256": dense.sha256_file(mp),
+        "verified_sdk_files": verified_files,
+        "remaining_hippo_budget_before_probe": remaining,
+        "reserved_tokens_upper_bound": reserve,
+        "cases": cases,
+        "selection": "3 existing length failures; first 2 compatible successes sorted by source_id excluding failures; control/latest/history/history/control",
+        "full_index_authorized": False,
+        "execution_authorized": False,
+        "semantic_acceptance": "Manual source review of all 5: support, qualifiers, salient omissions, nondegenerate extraction; no exact-triples match; no gold",
+    }
+
+
 def execute_schema_probe(
     probe_path, prior_path, source, config, approved_sha256, *, compatible=False
 ):
-    """Two approved POSTs at most; a canonical claim survives failure or a crash."""
+    """Execute the pinned two/five-case plan; the canonical claim survives crashes."""
     if dense.sha256_file(probe_path) != approved_sha256 or code_dirty():
         raise ValueError("schema_probe_requires_approved_sha_and_clean_code")
     plan = dense.read_json(prior_path)
@@ -2288,11 +2498,23 @@ def execute_schema_probe(
     ):
         raise ValueError("schema_probe_target_config_mismatch")
     prepared = dense.read_json(probe_path)
-    if len(prepared.get("cases", [])) != 2 or prepared.get("max_new_posts") != 2:
+    diagnostic = prepared.get("kind") == EXTRACTOR_DIAGNOSTIC["kind"]
+    expected_cases = 5 if diagnostic else 2
+    if (
+        len(prepared.get("cases", [])) != expected_cases
+        or prepared.get("max_new_posts") != expected_cases
+    ):
         raise ValueError("schema_probe_requires_two_cases")
-    if compatible and prepared.get("code_commit") != git("rev-parse", "HEAD"):
+    if (compatible or diagnostic) and prepared.get("code_commit") != git(
+        "rev-parse", "HEAD"
+    ):
         raise ValueError("compatible_schema_requires_pinned_code")
-    if prepared != prepare_schema_probe(prior_path, source, compatible=compatible):
+    rebuilt = (
+        prepare_extractor_diagnostic(prior_path, source)
+        if diagnostic
+        else prepare_schema_probe(prior_path, source, compatible=compatible)
+    )
+    if prepared != rebuilt:
         raise ValueError("schema_probe_prepared_inputs_changed")
     row = next(
         r
@@ -2301,13 +2523,19 @@ def execute_schema_probe(
     )
     prior = ROOT / row["output"]
     directory = prior.parent / (
-        "musique-schema-shape-probe1" if compatible else "musique-schema-probe1"
+        "musique-gpt-oss-probe1"
+        if diagnostic
+        else "musique-schema-shape-probe1"
+        if compatible
+        else "musique-schema-probe1"
     )
     if directory.exists():
         raise ValueError("schema_probe_output_already_exists")
     run_id = str(uuid.uuid4())
     claim_name = (
-        "schema-shape-probe-once.claim.json"
+        "gpt-oss-probe-once.claim.json"
+        if diagnostic
+        else "schema-shape-probe-once.claim.json"
         if compatible
         else "schema-probe-once.claim.json"
     )
@@ -2333,22 +2561,29 @@ def execute_schema_probe(
         "run_id": run_id,
         "approved_plan_sha256": approved_sha256,
         "parent_manifest_sha256": prepared["failed_manifest_sha256"],
-        "max_new_posts": 2,
+        "max_new_posts": expected_cases,
+        "model": prepared["model"] if diagnostic else plan["model"],
         "reserved_tokens_upper_bound": prepared["reserved_tokens_upper_bound"],
         "cases": [],
-        "schema_variant": "shape_local_unique_v2" if compatible else "legacy_unique_v1",
+        "schema_variant": "gpt_oss_diagnostic_v1"
+        if diagnostic
+        else "shape_local_unique_v2"
+        if compatible
+        else "legacy_unique_v1",
         "code_commit": git("rev-parse", "HEAD"),
-        "timeout_seconds": [30, 300] if compatible else [5, 300],
+        "timeout_seconds": [30, 300] if compatible or diagnostic else [5, 300],
         **(
             {
                 "prior_failed_schema_manifest_sha256": prepared[
                     "prior_failed_schema_manifest_sha256"
                 ]
             }
-            if compatible
+            if compatible and not diagnostic
             else {}
         ),
-        "unique_items_server_enforcement": "local_only" if compatible else "unverified",
+        "unique_items_server_enforcement": "local_only"
+        if compatible or diagnostic
+        else "unverified",
         "full_index_authorized": False,
     }
     dense.write_json_atomic(directory / "manifest.json", result)
@@ -2366,7 +2601,7 @@ def execute_schema_probe(
                 phase="index",
                 operation="openie_triples",
                 provider="target_api",
-                model=plan["model"],
+                model=prepared["model"] if diagnostic else plan["model"],
                 kind="llm",
                 object_id=case["request_sha256"],
                 headers={
@@ -2375,9 +2610,13 @@ def execute_schema_probe(
                 },
                 response_path=requests_dir / f"{case['request_sha256']}.response.json",
                 token_limit=prepared["reserved_tokens_upper_bound"],
-                timeout=(30, 300) if compatible else (5, 300),
+                timeout=(30, 300) if compatible or diagnostic else (5, 300),
             )
-            triples = validate_schema_probe_response(body)
+            triples = (
+                validate_extractor_diagnostic(body)
+                if diagnostic
+                else validate_schema_probe_response(body)
+            )
             result["cases"].append(
                 {
                     "source_id": case["source_id"],
@@ -2387,7 +2626,7 @@ def execute_schema_probe(
                     "semantic_support": "not_reviewed",
                 }
             )
-        result["status"] = "completed"
+        result["status"] = "awaiting_source_review" if diagnostic else "completed"
     except BaseException as exc:
         result.update(status="failed", error_type=type(exc).__name__)
         raise
@@ -3121,6 +3360,7 @@ def main():
             "run-summary-probe",
             "prepare-schema-probe",
             "prepare-compatible-schema-probe",
+            "prepare-extractor-diagnostic",
             "adopt-schema-responses",
             "prepare-native-schema-continuation",
             "run-schema-probe",
@@ -3129,6 +3369,7 @@ def main():
             "run",
             "report",
             "verify",
+            "offline-ready",
         ),
     )
     parser.add_argument("--plan", type=Path, required=True)
@@ -3322,13 +3563,21 @@ def main():
             )
         )
         return
-    elif args.command in ("prepare-schema-probe", "prepare-compatible-schema-probe"):
+    elif args.command in (
+        "prepare-schema-probe",
+        "prepare-compatible-schema-probe",
+        "prepare-extractor-diagnostic",
+    ):
         if args.plan.exists():
             raise ValueError("schema_probe_prepare_requires_unused_output")
-        probe = prepare_schema_probe(
-            args.prior_plan,
-            args.source,
-            compatible=args.command == "prepare-compatible-schema-probe",
+        probe = (
+            prepare_extractor_diagnostic(args.prior_plan, args.source)
+            if args.command == "prepare-extractor-diagnostic"
+            else prepare_schema_probe(
+                args.prior_plan,
+                args.source,
+                compatible=args.command == "prepare-compatible-schema-probe",
+            )
         )
         args.plan.parent.mkdir(parents=True, exist_ok=True)
         with args.plan.open("x", encoding="utf-8") as stream:
@@ -3336,14 +3585,18 @@ def main():
         print(json.dumps({k: v for k, v in probe.items() if k != "cases"}))
         return
     elif args.command in ("run-schema-probe", "run-compatible-schema-probe"):
-        directory = execute_schema_probe(
-            args.plan,
-            args.prior_plan,
-            args.source,
-            config,
-            args.approved_probe_sha256,
-            compatible=args.command == "run-compatible-schema-probe",
-        )
+        try:
+            directory = execute_schema_probe(
+                args.plan,
+                args.prior_plan,
+                args.source,
+                config,
+                args.approved_probe_sha256,
+                compatible=args.command == "run-compatible-schema-probe",
+            )
+        finally:
+            if dense.read_json(args.plan).get("kind") == EXTRACTOR_DIAGNOSTIC["kind"]:
+                export(dense.read_json(args.prior_plan), args.prior_plan)
         print(
             json.dumps(
                 {
@@ -3352,6 +3605,41 @@ def main():
                     ],
                     "full_index_authorized": False,
                 }
+            )
+        )
+        return
+    elif args.command == "offline-ready":
+        from scripts.e1_indexers import load_ready_e1
+
+        plan = dense.read_json(args.plan)
+        results = []
+        for row in plan["rows"]:
+            path = ROOT / row["output"] / "manifest.json"
+            if not path.exists() or dense.read_json(path)["status"] != "completed":
+                results.append(
+                    {
+                        "method": row["method"],
+                        "dataset": row["dataset"],
+                        "load_status": "not_ready",
+                    }
+                )
+                continue
+            corpus = dense.read_json(
+                Path(plan["data_root"]) / f"data/processed/{row['dataset']}/corpus.json"
+            )
+            loaded = load_ready_e1(plan, row, corpus)
+            results.append(
+                {
+                    "method": row["method"],
+                    "dataset": row["dataset"],
+                    "load_status": "verified_offline",
+                    "passages": len(corpus),
+                    "kind": loaded["kind"],
+                }
+            )
+        print(
+            json.dumps(
+                {"mode": "offline_preparation_only", "http_calls": 0, "rows": results}
             )
         )
         return

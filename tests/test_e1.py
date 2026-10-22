@@ -887,3 +887,107 @@ def test_real_raptor_sdk_index_reuses_dense_and_reloads(tmp_path):
             tokenizer=Mock(),
             cluster_fn=Mock(side_effect=AssertionError("UMAP forbidden")),
         ) == [[n] for n in nodes]
+
+
+@pytest.mark.parametrize("kind", ["passages", "raptor_nodes"])
+def test_offline_common_reader_replay_metrics_and_no_gold_in_prompt(kind):
+    retrieval = {
+        "kind": kind,
+        "passages": [{"id": "a", "title": "Synthetic", "text": "A is in B."}],
+        "source_ids": ["a"],
+    }
+    query = {"id": "synthetic", "question": "Where is A?"}
+    label = {"id": "synthetic", "answer": "SECRET_GOLD", "supporting_ids": ["a"]}
+    messages = dense.build_reader_messages(query["question"], retrieval["passages"])
+    assert "SECRET_GOLD" not in json.dumps(messages)
+    payload = {
+        **e1.target.OPTIONS,
+        "model": "iairlab/qwen3.8-27b",
+        "messages": messages,
+    }
+    key = e1.target.digest({"payload": payload, "kind": "llm", "operation": "reader"})
+    body = {
+        "choices": [{"finish_reason": "stop", "message": {"content": "Answer: B"}}],
+        "usage": {"prompt_tokens": 20, "completion_tokens": 3},
+    }
+    responses = {key: {"response": body, "response_sha256": e1.target.digest(body)}}
+    with patch(
+        "requests.Session.request", side_effect=AssertionError("HTTP forbidden")
+    ):
+        result = e1_indexers.replay_cached_reader(query, retrieval, responses, label)
+        assert result["new_model_calls"] == 0
+        assert result["historical_cost_complete"] is None
+        assert result["metrics"]["supporting_provenance_coverage"] == 1
+        assert result["metrics"]["passage_recall_at_5"] == (
+            1 if kind == "passages" else None
+        )
+        with pytest.raises(ValueError, match="cache_miss"):
+            e1_indexers.replay_cached_reader(query, retrieval, {}, label)
+        body["usage"].pop("completion_tokens")
+        with pytest.raises(ValueError, match="response_changed"):
+            e1_indexers.replay_cached_reader(query, retrieval, responses, label)
+        responses[key]["response_sha256"] = e1.target.digest(body)
+        with pytest.raises(ValueError, match="unknown_usage"):
+            e1_indexers.replay_cached_reader(query, retrieval, responses, label)
+        body["usage"]["completion_tokens"] = 3
+        body["choices"][0]["finish_reason"] = "length"
+        responses[key]["response_sha256"] = e1.target.digest(body)
+        with pytest.raises(ValueError, match="not_complete"):
+            e1_indexers.replay_cached_reader(query, retrieval, responses, label)
+
+
+def test_offline_ready_dense_integrity_and_no_embedding_fallback(tmp_path):
+    corpus = [{"id": "a", "title": "Synthetic", "text": "A is in B."}]
+    plan = {"embedding_digest": "fixed"}
+    row = {
+        "method": "dense",
+        "output": "ready",
+        "corpus_fingerprint": dense.corpus_fingerprint(corpus),
+    }
+    directory = tmp_path / "ready"
+    directory.mkdir()
+    np.savez_compressed(
+        directory / "vectors.npz", ids=["a"], vectors=np.ones((1, 1024))
+    )
+    journal = Journal(
+        directory / "usage.jsonl", run_id="producer", method="dense", dataset="musique"
+    )
+    journal.cache_hit(
+        phase="index",
+        operation="embedding",
+        provider="local_ollama",
+        model="bge",
+        kind="embedding",
+        object_id="a",
+        producer_run_id="old",
+        producer_usage_complete=False,
+    )
+    manifest = {
+        "status": "completed",
+        "plan_sha256": e1.target.digest(plan),
+        "run_id": "producer",
+        "token_accounting": journal.reference(),
+        "artifacts": {"vectors.npz": dense.sha256_file(directory / "vectors.npz")},
+    }
+    dense.write_json_atomic(directory / "manifest.json", manifest)
+    before = (directory / "manifest.json").read_bytes()
+    with patch(
+        "requests.Session.request", side_effect=AssertionError("HTTP forbidden")
+    ):
+        loaded = e1_indexers.load_ready_e1(plan, row, corpus, tmp_path)
+        result = e1_indexers.retrieve_ready_e1(
+            loaded, "Synthetic?", np.ones(1024), embedding_digest="fixed"
+        )
+        assert result["source_ids"] == ["a"] and result["new_embedding_calls"] == 0
+        with pytest.raises(ValueError, match="model_changed"):
+            e1_indexers.retrieve_ready_e1(
+                loaded, "Synthetic?", np.ones(1024), embedding_digest="changed"
+            )
+        with pytest.raises(ValueError):
+            e1_indexers.retrieve_ready_e1(
+                loaded, "Synthetic?", np.zeros(1024), embedding_digest="fixed"
+            )
+        assert (directory / "manifest.json").read_bytes() == before
+        (directory / "vectors.npz").write_bytes(b"changed")
+        with pytest.raises(ValueError, match="artifact_changed"):
+            e1_indexers.load_ready_e1(plan, row, corpus, tmp_path)
