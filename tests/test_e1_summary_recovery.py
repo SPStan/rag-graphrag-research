@@ -352,6 +352,9 @@ def test_network_continuation_preserves_unknown_cache_and_total_limits(
     before = e.export(old, prior)
     # The live child's new known usage is counted once, in addition to its history.
     after = e.export(plan, prior)
+    public = after["rows"][5]
+    assert public["network_first_request_sha256"] == row["network_first_request_key"]
+    assert "network_first_request_key" not in public
     assert (
         before["budget_charge_upper_bound"] + 15 == after["budget_charge_upper_bound"]
     )

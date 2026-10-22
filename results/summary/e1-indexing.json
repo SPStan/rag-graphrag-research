@@ -1790,7 +1790,6 @@
         "original_request_sha256": "b243e8505a98c45dbe7f8a85fd505444554f611bc7bc0eb7cb1d358fc185ebdf"
       },
       "network_prior_attempts": 1005,
-      "network_first_request_key": "f24cbd110cbdf431139dc711d894178d8fe45d79fe474e44c51451a80ed6b7fc",
       "status": "completed",
       "seconds": 3129.293,
       "plan_sha256": "b401b659359e04a3b957b4c124931182c855a1c7666c7988aa43d11e1dba2b23",
@@ -2024,6 +2023,7 @@
       },
       "cumulative_seconds": 19623.594,
       "artifact_manifest_sha256": "ccaccda5fd3541196af3afdaf365fde5d44e1e08f957e7ae852fbb9009b74042",
+      "network_first_request_sha256": "f24cbd110cbdf431139dc711d894178d8fe45d79fe474e44c51451a80ed6b7fc",
       "cost_semantics": "Physical new cost; replay is not charged twice. Standalone attribution includes Dense producer history, including failed attempts and unknowns; exclude reused cost from batch physical total. Attributed seconds are a sum of measured histories, not a measured fresh run.",
       "standalone_cost_complete": false,
       "standalone_known_subtotal": {

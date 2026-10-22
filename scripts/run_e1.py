@@ -1097,6 +1097,10 @@ def export(plan, plan_path):
             exported_row["cycle_repair_request_sha256"] = exported_row.pop(
                 "cycle_repair_request_key"
             )
+        if "network_first_request_key" in exported_row:
+            exported_row["network_first_request_sha256"] = exported_row.pop(
+                "network_first_request_key"
+            )
         rows.append(exported_row)
     report = {
         "batch_id": plan["batch_id"],
