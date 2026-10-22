@@ -1,30 +1,28 @@
 # Текущая работа и критерии завершения
 
-**E1 status:** 4/6 indexes completed; physical known tokens=16720688; cost_complete=False. Last stage=hipporag2 native schema continuation. Raw/indexes remain local. PR Draft; E2 requires all six verified indexes.
+**E1 status:** 4/6 indexes completed; physical known tokens=18095826; cost_complete=False. Last stage=hipporag2 native schema continuation. Raw/indexes remain local. PR Draft; E2 requires all six verified indexes.
 
-## Текущая очередь — 22 октября: смешанный extractor подготовлен offline
+## Текущая очередь — 22 октября: mixed Mu остановлен; исправлен счётчик POST
 
-- Пользователь передал согласие куратора: «Куратор не против» для предложения
-  на17e7045. Источник — сообщение пользователя; индивидуальные O/N/R/H статусы
-  бота независимо не проверены. Это принятие протокола, не новых расходов.
-- E1 прежний4/6; known16720688/upper16775742,cost_complete=false,unknown55054.
-  Новых model/embedding POST0.3102Qwen пары и четыре готовых индекса неизменны.
-- В existing run_e1 реализованы Qwen primary/GPT-OSS length+cycle fallback,
-  ≤1/original и≤20/dataset; реальные model/request/response SHA сохраняются.
-  Partial не используется; обе старые strict GPT-пробы остаются failed.
-- Native SDK cache proof:6384совместимых entries, Qwen replay и полный GPT fallback,
-  0physical attempts/0новых tokens. Native synthetic index/save/reload проверен
-  для обычного и mixed пути; это не построение настоящего Hippo graph.
-- Canonical plan: .cache/e1-mixed-plan.json, подготовить на clean HEAD. Mu≤15025625
-  новых combined tokens/4814LLM POST, Hotpot≤20M/11020; allPOST≤40000/dataset.
-  Каждый POST одна попытка, connect30/read300. Старые расходы/unknown сохраняются.
-- После индексации — indexed_pending_audit; source-only аудит всех warnings и
-  до8sources/model/dataset, calibration отдельно. Не менять triples вручную.
-  До завершения Mu audit Hotpot не стартует; semantic_verified=false сохраняется.
-- Следующий шаг: зафиксировать/проверить exact plan SHA и получить отдельный
-  допуск новых расходов по ADR-0022. Не запускать full/QA/E2/merge автоматически.
-- PR33Draft/Refs #13,20files; issue открыта. Архив оператора не пересоздавать.
-  Команды и формат аудита — E1_INDEXING, принятый протокол — ADR-0023/SPEC.
+- Пользователь разрешил оба Hippo stage exact plan01fd6b059d5e наf545ba1;
+  Mu runb2dc4e51 стартовал20:02MSK и остановлен21:40MSK на2410/5500sources.
+  Причина клиентская: mixed_llm_request_limit считал cache-hit started как новые
+  POST; SDK обернул это в unresolved_ner_stop. Ошибки NER generation не установлено.
+- Новый расход1375138known(1021323input/353815output),2069physicalPOST,
+  2924cache replay; current usage complete. Один полный GPT fallback после
+  нового Qwen length+cycle сохранён. Новых unknown0; старый unknown55054 остаётся.
+- E1 прежний4/6; known18095826/upper18150880,cost_complete=false.
+  Mu остаток13650487tokens; Hotpot20M, не запускался. Предки immutable.
+- Счётчик исправлен: cache events исключены, physical starts учитываются;
+  regression проверяет replay до/после cap и отказ второго нового POST при cap1.
+  После исправления реальных POST0, failed run не возобновлялся.
+- Следующий блок: child plan на исправленном clean HEAD, включить этот failed
+  run/cost/cache и сохранённый fallback claim; не сбрасывать использованные
+  2069из4814physical LLMPOST и1из20fallback slots. Остаётся≤2745новых LLMPOST
+  в пределах прежнего допуска, новый stage требует отдельного решения по ADR-0022.
+- Продолжение не выдавать за повтор того же canonical plan; terminal failed
+  сохраняется. Нельзя слепо повторять POST. Затем Mu audit, только потом Hotpot.
+- PR33Draft/Refs #13,20files; QA/E2/merge не запускать. Main checkout не трогать.
 
 ## История — не текущие инструкции запуска
 

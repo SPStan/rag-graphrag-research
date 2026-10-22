@@ -1,6 +1,35 @@
 # E1: индексы полного корпуса (#13)
 
-## Текущее продолжение: mixed extractor, протокол принят; расходы ещё не разрешены
+## Последняя остановка — mixed Mu, 22 октября21:40MSK
+
+Разрешённый plan01fd6b059d5e наf545ba1, runb2dc4e51-39df-49eb-874a-f4b72c456251,
+output musique-mixed1. Пройдено2410/5500sources.2069physicalLLMPOST,
+2924cache replay (2752LLM/172embedding), новый известный расход1375138:
+1021323input/353815output. Current usage complete, unknown0. Один GPT fallback
+после свежего Qwen length+cycle завершён, полный ответ сохранён. Graph не готов.
+
+Остановка вызвана **клиентским счётчиком**, не подтверждённой ошибкой NER:
+`mixed_llm_request_limit` считал started cache events как physical POST.
+SDK поймал исключение и adapter выдал общее unresolved_ner_stop. В журнале
+4821LLM logical events, из них2752replay и2069physical; предел4814новыхPOST
+фактически не достигнут. Новый запрос был отклонён до HTTP; расход не потерян.
+
+Исправление исключает finished cache-hit attempt IDs из счётчика physical starts.
+Offline regression: cache replay не расходует POST cap, завершённый checkpoint
+можно reuse на cap, второй новый POST при cap1 отклоняется без HTTP.
+Нового реального запуска после исправления нет. Старые failed/manifests immutable.
+E1 known18095826/upper18150880,cost_complete=false,unknown55054; по-прежнему4/6.
+
+Для следующего child plan сохранять все cost/provenance/полные ответы этого run,
+единственный использованный fallback claim и первоначальные ограничения:
+Mu≤13650487tokens,≤2745дополнительных LLMPOST из4814,≤19новыхfallback slots из20;
+Hotpot прежний20M и не запущен. Это расчёт оставшегося допуска, не новый
+исполняемый план и не разрешение автоматического продолжения после stop.
+Нужен согласуемый child на clean исправленном HEAD по ADR-0022. До Mu audit
+Hotpot не стартует. QA/E2/merge не запускать.
+
+
+## Протокол mixed продолжения на f545ba1 (история подготовки)
 
 Пользователь передал ответ «Куратор не против» для предложения на17e7045.
 Источник — сообщение пользователя; O/N/R/H карточка независимо не проверена.

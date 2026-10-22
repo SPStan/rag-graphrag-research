@@ -1545,3 +1545,38 @@ def test_mixed_pending_export_has_no_journal_or_double_initial_cost(
     assert report["rows"][0]["llm_by_model"] == {}
     assert report["cost_complete"] is False
     assert not (tmp_path / "pending").exists()
+
+
+def test_mixed_llm_limit_counts_physical_posts_not_cache_events(
+    mixed_transport_factory,
+):
+    runner, session = mixed_transport_factory()
+    runner.row["max_llm_posts"] = 1
+    for i in range(3):
+        runner.journal.cache_hit(
+            phase="index",
+            operation="openie_ner",
+            provider="target_api",
+            model="qwen",
+            kind="llm",
+            object_id=f"cached-{i}",
+            producer_run_id="old",
+            producer_usage_complete=True,
+        )
+    reply = Mock(status_code=200)
+    reply.json.return_value = mixed_body()
+    session.post = Mock(return_value=reply)
+    payload = {"model": "qwen", "messages": mixed_messages(), "max_tokens": 3072}
+    runner.call(payload, kind="llm", operation="openie_triples")
+    assert session.post.call_count == 1
+    # A completed current-run checkpoint remains replayable at the POST cap.
+    runner.call(payload, kind="llm", operation="openie_triples")
+    assert session.post.call_count == 1 and runner.last_cache_hit
+    with pytest.raises(ValueError, match="mixed_llm_request_limit"):
+        runner.call(
+            {**payload, "messages": [{"role": "user", "content": "new"}]},
+            kind="llm",
+            operation="openie_triples",
+        )
+    assert session.post.call_count == 1
+    assert runner.journal.summary()["attempts"] == 1

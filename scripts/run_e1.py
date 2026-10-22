@@ -1595,9 +1595,17 @@ class Transport:
             if key in self.blocked_failures:
                 raise ValueError("mixed_prior_failed_request_cannot_repeat")
             if kind == "llm":
+                records = read_records(self.journal.path)
+                cached = {
+                    r["attempt_id"]
+                    for r in records
+                    if r["event"] == "finished" and r.get("cache_hit")
+                }
                 attempts = sum(
-                    r["event"] == "started" and r["kind"] == "llm"
-                    for r in read_records(self.journal.path)
+                    r["event"] == "started"
+                    and r["kind"] == "llm"
+                    and r["attempt_id"] not in cached
+                    for r in records
                 )
                 if attempts >= self.row["max_llm_posts"]:
                     raise ValueError("mixed_llm_request_limit")

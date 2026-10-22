@@ -1,6 +1,6 @@
 {
   "batch_id": "edff74df-c567-49de-a834-f9f1fc6f7f74",
-  "plan_sha256": "0310dad240a07da97fdfda71018dc3ae024660beafe1fd33acb1187e80ba5339",
+  "plan_sha256": "01fd6b059d5e9e0b5f58d3ceee4b8907bd3583d2e617c05921283dae7b75679c",
   "models": {
     "model": "iairlab/qwen3.8-27b",
     "embedding_model": "bge-m3:latest",
@@ -364,7 +364,7 @@
       "attributed_construction_seconds": 558.277
     },
     {
-      "run_id": "3eab6c1d-d87e-42d3-8e12-618ca2adf0bc",
+      "run_id": "b2dc4e51-39df-49eb-874a-f4b72c456251",
       "method": "hipporag2",
       "dataset": "musique",
       "passages": 5500,
@@ -379,10 +379,10 @@
         }
       },
       "corpus_fingerprint": "f726a739ff0def6f7517fe3185780fdc21e5d51a2cfcd83ce3f18fba277c9f9a",
-      "code_commit": "0d784ed3857ee3c132175cb96fd4a10b72262986",
-      "token_limit": 16054041,
-      "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/hipporag2/musique-schema-preflight1",
-      "prior_budget_charge": 3945959,
+      "code_commit": "f545ba117d06be35e1224036ca6046343dcc62cb",
+      "token_limit": 15025625,
+      "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/hipporag2/musique-mixed1",
+      "prior_budget_charge": 4974375,
       "history_runs": [
         {
           "run_id": "bc31760b-7f4d-4a9d-bfda-a9ff602003ea",
@@ -753,6 +753,169 @@
             "corrupt_tail_bytes": 0
           },
           "unknown_reserved_upper_bound": 0
+        },
+        {
+          "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/hipporag2/musique-schema-preflight1",
+          "run_id": "3eab6c1d-d87e-42d3-8e12-618ca2adf0bc",
+          "manifest_sha256": "e3bb665491d2c1d7aa912d5bb89218ef5022cfad3190dc5c3ff068dc5ef3571a",
+          "summary": {
+            "schema_version": 1,
+            "phases": [
+              {
+                "phase": "index",
+                "provider": "local_ollama",
+                "attempts": 0,
+                "errors": 0,
+                "unfinished": 0,
+                "cache_hits": 172,
+                "cache_provenance_unknown": 172,
+                "known_subtotal": {
+                  "llm_input_tokens": 0,
+                  "llm_output_tokens": 0,
+                  "embedding_input_tokens": 0
+                },
+                "unknown_fields": {
+                  "llm_input_tokens": 0,
+                  "llm_output_tokens": 0,
+                  "embedding_input_tokens": 0
+                },
+                "complete": true,
+                "total": {
+                  "llm_input_tokens": 0,
+                  "llm_output_tokens": 0,
+                  "embedding_input_tokens": 0
+                }
+              },
+              {
+                "phase": "index",
+                "provider": "target_api",
+                "attempts": 1544,
+                "errors": 0,
+                "unfinished": 0,
+                "cache_hits": 1172,
+                "cache_provenance_unknown": 1172,
+                "known_subtotal": {
+                  "llm_input_tokens": 758587,
+                  "llm_output_tokens": 256534,
+                  "embedding_input_tokens": 0
+                },
+                "unknown_fields": {
+                  "llm_input_tokens": 0,
+                  "llm_output_tokens": 0,
+                  "embedding_input_tokens": 0
+                },
+                "complete": true,
+                "total": {
+                  "llm_input_tokens": 758587,
+                  "llm_output_tokens": 256534,
+                  "embedding_input_tokens": 0
+                }
+              }
+            ],
+            "known_subtotal": {
+              "llm_input_tokens": 758587,
+              "llm_output_tokens": 256534,
+              "embedding_input_tokens": 0
+            },
+            "complete": true,
+            "attempts": 1544,
+            "historical_cache_cost_complete": false,
+            "journal_corrupt_tail": false,
+            "corrupt_tail_bytes": 0
+          },
+          "unknown_reserved_upper_bound": 0
+        },
+        {
+          "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/hipporag2/musique-gpt-oss-probe1",
+          "run_id": "789bffd0-bc70-4471-9a0d-1e63eee5508f",
+          "manifest_sha256": "5417b157c2159a2865f16929502682f5f0e49ea4a2aca3ccd5a5a4b8322c6439",
+          "summary": {
+            "schema_version": 1,
+            "phases": [
+              {
+                "phase": "index",
+                "provider": "target_api",
+                "attempts": 5,
+                "errors": 0,
+                "unfinished": 0,
+                "cache_hits": 0,
+                "cache_provenance_unknown": 0,
+                "known_subtotal": {
+                  "llm_input_tokens": 3955,
+                  "llm_output_tokens": 2150,
+                  "embedding_input_tokens": 0
+                },
+                "unknown_fields": {
+                  "llm_input_tokens": 0,
+                  "llm_output_tokens": 0,
+                  "embedding_input_tokens": 0
+                },
+                "complete": true,
+                "total": {
+                  "llm_input_tokens": 3955,
+                  "llm_output_tokens": 2150,
+                  "embedding_input_tokens": 0
+                }
+              }
+            ],
+            "known_subtotal": {
+              "llm_input_tokens": 3955,
+              "llm_output_tokens": 2150,
+              "embedding_input_tokens": 0
+            },
+            "complete": true,
+            "attempts": 5,
+            "historical_cache_cost_complete": true,
+            "journal_corrupt_tail": false,
+            "corrupt_tail_bytes": 0
+          },
+          "unknown_reserved_upper_bound": 0
+        },
+        {
+          "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/hipporag2/musique-gpt-oss-policy-probe1",
+          "run_id": "81df270e-82ba-45c8-b98f-55996124164d",
+          "manifest_sha256": "876e35282b3801b1a6ab207196e7b7a40664d903c995be8d519dd0826eb51f70",
+          "summary": {
+            "schema_version": 1,
+            "phases": [
+              {
+                "phase": "index",
+                "provider": "target_api",
+                "attempts": 5,
+                "errors": 0,
+                "unfinished": 0,
+                "cache_hits": 0,
+                "cache_provenance_unknown": 0,
+                "known_subtotal": {
+                  "llm_input_tokens": 4870,
+                  "llm_output_tokens": 2320,
+                  "embedding_input_tokens": 0
+                },
+                "unknown_fields": {
+                  "llm_input_tokens": 0,
+                  "llm_output_tokens": 0,
+                  "embedding_input_tokens": 0
+                },
+                "complete": true,
+                "total": {
+                  "llm_input_tokens": 4870,
+                  "llm_output_tokens": 2320,
+                  "embedding_input_tokens": 0
+                }
+              }
+            ],
+            "known_subtotal": {
+              "llm_input_tokens": 4870,
+              "llm_output_tokens": 2320,
+              "embedding_input_tokens": 0
+            },
+            "complete": true,
+            "attempts": 5,
+            "historical_cache_cost_complete": true,
+            "journal_corrupt_tail": false,
+            "corrupt_tail_bytes": 0
+          },
+          "unknown_reserved_upper_bound": 0
         }
       ],
       "resume_sources": [
@@ -767,22 +930,40 @@
         {
           "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/hipporag2/musique-cycle1",
           "manifest_sha256": "0682447040e167d3ac027e20b31846c3aed093adc8290bfd9f38003ffe59872c"
+        },
+        {
+          "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/hipporag2/musique-schema-preflight1",
+          "manifest_sha256": "e3bb665491d2c1d7aa912d5bb89218ef5022cfad3190dc5c3ff068dc5ef3571a"
         }
       ],
-      "resume_kind": "native_schema",
+      "resume_kind": "mixed_native",
       "diagnostics_in_history": true,
       "max_new_posts": 40000,
       "schema_adoption": {
         "path": "results/summary/e1-hippo-schema-adoption.json",
         "sha256": "d04856cad7220496e14b68dabc46c571638a2795f0b0cf050eb8026fcf3eeced"
       },
+      "max_llm_posts": 4814,
+      "extractor_configuration": {
+        "version": "hipporag2_qwen_primary_gptoss_length_fallback_source_v1",
+        "fallback_model": "iairlab/gpt-oss-120b",
+        "fallback_limit": 20,
+        "source_policy": "source_faithfulness_v1",
+        "audit_seed": 42,
+        "audit_per_model": 8,
+        "max_new_posts": 40000,
+        "max_llm_posts": {
+          "musique": 4814,
+          "hotpotqa": 11020
+        }
+      },
       "status": "failed",
-      "seconds": 3270.835,
-      "plan_sha256": "94df49e80c419f725cbfadd5d1f9985d6b678801369dac48a8a475597db5c9d2",
+      "seconds": 5904.088,
+      "plan_sha256": "78edb8350be51bba4dc820e7beab9fe1dd0dbccc020d67918df2459d516e2c0b",
       "error_type": "ValueError",
       "token_accounting": {
         "journal_file": "usage.jsonl",
-        "journal_sha256": "088909c4c3179d54693877bd57cd15cdc1b12999affdddfb843cc4581bf6aa6a",
+        "journal_sha256": "2657a868c48fa85a84227b8895e74db14f693fb70e0c749e750fb2d6ef7b3d86",
         "summary": {
           "schema_version": 1,
           "phases": [
@@ -814,14 +995,14 @@
             {
               "phase": "index",
               "provider": "target_api",
-              "attempts": 1544,
+              "attempts": 2069,
               "errors": 0,
               "unfinished": 0,
-              "cache_hits": 1172,
-              "cache_provenance_unknown": 1172,
+              "cache_hits": 2752,
+              "cache_provenance_unknown": 2752,
               "known_subtotal": {
-                "llm_input_tokens": 758587,
-                "llm_output_tokens": 256534,
+                "llm_input_tokens": 1021323,
+                "llm_output_tokens": 353815,
                 "embedding_input_tokens": 0
               },
               "unknown_fields": {
@@ -831,19 +1012,19 @@
               },
               "complete": true,
               "total": {
-                "llm_input_tokens": 758587,
-                "llm_output_tokens": 256534,
+                "llm_input_tokens": 1021323,
+                "llm_output_tokens": 353815,
                 "embedding_input_tokens": 0
               }
             }
           ],
           "known_subtotal": {
-            "llm_input_tokens": 758587,
-            "llm_output_tokens": 256534,
+            "llm_input_tokens": 1021323,
+            "llm_output_tokens": 353815,
             "embedding_input_tokens": 0
           },
           "complete": true,
-          "attempts": 1544,
+          "attempts": 2069,
           "historical_cache_cost_complete": false,
           "journal_corrupt_tail": false,
           "corrupt_tail_bytes": 0
@@ -896,14 +1077,14 @@
             {
               "phase": "index",
               "provider": "target_api",
-              "attempts": 772,
+              "attempts": 1034,
               "errors": 0,
               "unfinished": 0,
-              "cache_hits": 586,
-              "cache_provenance_unknown": 586,
+              "cache_hits": 1376,
+              "cache_provenance_unknown": 1376,
               "known_subtotal": {
-                "llm_input_tokens": 229580,
-                "llm_output_tokens": 70422,
+                "llm_input_tokens": 309291,
+                "llm_output_tokens": 95896,
                 "embedding_input_tokens": 0
               },
               "unknown_fields": {
@@ -913,19 +1094,19 @@
               },
               "complete": true,
               "total": {
-                "llm_input_tokens": 229580,
-                "llm_output_tokens": 70422,
+                "llm_input_tokens": 309291,
+                "llm_output_tokens": 95896,
                 "embedding_input_tokens": 0
               }
             }
           ],
           "known_subtotal": {
-            "llm_input_tokens": 229580,
-            "llm_output_tokens": 70422,
+            "llm_input_tokens": 309291,
+            "llm_output_tokens": 95896,
             "embedding_input_tokens": 0
           },
           "complete": true,
-          "attempts": 772,
+          "attempts": 1034,
           "historical_cache_cost_complete": false,
           "journal_corrupt_tail": false,
           "corrupt_tail_bytes": 0
@@ -936,14 +1117,14 @@
             {
               "phase": "index",
               "provider": "target_api",
-              "attempts": 772,
+              "attempts": 1035,
               "errors": 0,
               "unfinished": 0,
-              "cache_hits": 586,
-              "cache_provenance_unknown": 586,
+              "cache_hits": 1376,
+              "cache_provenance_unknown": 1376,
               "known_subtotal": {
-                "llm_input_tokens": 529007,
-                "llm_output_tokens": 186112,
+                "llm_input_tokens": 712032,
+                "llm_output_tokens": 257919,
                 "embedding_input_tokens": 0
               },
               "unknown_fields": {
@@ -953,19 +1134,19 @@
               },
               "complete": true,
               "total": {
-                "llm_input_tokens": 529007,
-                "llm_output_tokens": 186112,
+                "llm_input_tokens": 712032,
+                "llm_output_tokens": 257919,
                 "embedding_input_tokens": 0
               }
             }
           ],
           "known_subtotal": {
-            "llm_input_tokens": 529007,
-            "llm_output_tokens": 186112,
+            "llm_input_tokens": 712032,
+            "llm_output_tokens": 257919,
             "embedding_input_tokens": 0
           },
           "complete": true,
-          "attempts": 772,
+          "attempts": 1035,
           "historical_cache_cost_complete": false,
           "journal_corrupt_tail": false,
           "corrupt_tail_bytes": 0
@@ -974,14 +1155,8 @@
       "current_unknown_reserved_upper_bound": 0,
       "failure_diagnostic": {
         "operation": "openie_triples",
-        "request_sha256": "9f12b07f0c6623c7c2718c999f3605121fe1e0c8a930af595db09bd1aba24072",
-        "usage_status": "complete",
-        "finish_reason": "length",
-        "repetition": {
-          "complete_tuples": 168,
-          "unique_tuples": 26,
-          "cycle": true
-        }
+        "request_sha256": "ff12740651cb902f263814a6eb7d74c3a2f74451a643ba7ab4111f2451ba8c90",
+        "usage_status": "unknown"
       },
       "cumulative_accounting": {
         "schema_version": 1,
@@ -992,8 +1167,8 @@
             "attempts": 172,
             "errors": 0,
             "unfinished": 0,
-            "cache_hits": 688,
-            "cache_provenance_unknown": 688,
+            "cache_hits": 860,
+            "cache_provenance_unknown": 860,
             "known_subtotal": {
               "llm_input_tokens": 0,
               "llm_output_tokens": 0,
@@ -1014,14 +1189,14 @@
           {
             "phase": "index",
             "provider": "target_api",
-            "attempts": 6223,
+            "attempts": 8292,
             "errors": 2,
             "unfinished": 0,
-            "cache_hits": 1871,
-            "cache_provenance_unknown": 1871,
+            "cache_hits": 4623,
+            "cache_provenance_unknown": 4623,
             "known_subtotal": {
-              "llm_input_tokens": 3065442,
-              "llm_output_tokens": 1207772,
+              "llm_input_tokens": 4086765,
+              "llm_output_tokens": 1561587,
               "embedding_input_tokens": 0
             },
             "unknown_fields": {
@@ -1034,133 +1209,108 @@
           }
         ],
         "known_subtotal": {
-          "llm_input_tokens": 3065442,
-          "llm_output_tokens": 1207772,
+          "llm_input_tokens": 4086765,
+          "llm_output_tokens": 1561587,
           "embedding_input_tokens": 684560
         },
         "complete": false,
-        "attempts": 6395,
+        "attempts": 8464,
         "historical_cache_cost_complete": false,
         "journal_corrupt_tail": false,
         "corrupt_tail_bytes": 0
       },
-      "cumulative_seconds": 13427.273000000001,
-      "gpt_oss_probe": {
-        "status": "awaiting_source_review",
-        "run_id": "789bffd0-bc70-4471-9a0d-1e63eee5508f",
-        "unknown_reserved_upper_bound": 0,
-        "full_index_authorized": false,
-        "cases": [
-          {
-            "source_id": "sha256:00358c281c194381c99b6dfea3aeba055c12c6f7a14601ddb26a176cbc31ed41",
-            "request_sha256": "f30b25efa34dfab44bdadb7f1eeabcb26cb330f0dbd38563f5b527022a1b7795",
-            "triples": 15,
-            "format_status": "passed",
-            "semantic_support": "not_reviewed"
+      "cumulative_seconds": 19331.361,
+      "artifact_manifest_sha256": "d1d3b489e44c7908e7279c6c7b0d370c9a8f5fcf4d8a3cdc41969c065cc61cca",
+      "llm_by_model": {
+        "iairlab/gpt-oss-120b": {
+          "schema_version": 1,
+          "phases": [
+            {
+              "phase": "index",
+              "provider": "target_api",
+              "attempts": 11,
+              "errors": 0,
+              "unfinished": 0,
+              "cache_hits": 0,
+              "cache_provenance_unknown": 0,
+              "known_subtotal": {
+                "llm_input_tokens": 9678,
+                "llm_output_tokens": 5945,
+                "embedding_input_tokens": 0
+              },
+              "unknown_fields": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 0
+              },
+              "complete": true,
+              "total": {
+                "llm_input_tokens": 9678,
+                "llm_output_tokens": 5945,
+                "embedding_input_tokens": 0
+              }
+            }
+          ],
+          "known_subtotal": {
+            "llm_input_tokens": 9678,
+            "llm_output_tokens": 5945,
+            "embedding_input_tokens": 0
           },
-          {
-            "source_id": "sha256:0153ea6260dee9cbfc76ff5d2042866508e727b5cb57656a4dd180931a6dd26f",
-            "request_sha256": "d95bddba7f098950a9741b69f52a00636e803e939ff590ad5a162d29d6a5afdf",
-            "triples": 29,
-            "format_status": "passed",
-            "semantic_support": "not_reviewed"
+          "complete": true,
+          "attempts": 11,
+          "historical_cache_cost_complete": true,
+          "journal_corrupt_tail": false,
+          "corrupt_tail_bytes": 0
+        },
+        "iairlab/qwen3.8-27b": {
+          "schema_version": 1,
+          "phases": [
+            {
+              "phase": "index",
+              "provider": "target_api",
+              "attempts": 8281,
+              "errors": 2,
+              "unfinished": 0,
+              "cache_hits": 4623,
+              "cache_provenance_unknown": 4623,
+              "known_subtotal": {
+                "llm_input_tokens": 4077087,
+                "llm_output_tokens": 1555642,
+                "embedding_input_tokens": 0
+              },
+              "unknown_fields": {
+                "llm_input_tokens": 2,
+                "llm_output_tokens": 2,
+                "embedding_input_tokens": 0
+              },
+              "complete": false,
+              "total": null
+            }
+          ],
+          "known_subtotal": {
+            "llm_input_tokens": 4077087,
+            "llm_output_tokens": 1555642,
+            "embedding_input_tokens": 0
           },
-          {
-            "source_id": "sha256:2389611f5617e29153530b946bf6035434f45d80ecce482aec80a41da27b588a",
-            "request_sha256": "10f5cddf7827d05d6e9f2c504f5f84cd4f90b5e0f3471b2da1305c7c8468f117",
-            "triples": 29,
-            "format_status": "passed",
-            "semantic_support": "not_reviewed"
-          },
-          {
-            "source_id": "sha256:38f7b69951335314e57c3ca0577d8c9e5e2d20717819ff5f88bf24cb3aa2c45e",
-            "request_sha256": "de992e0fddc5ddcc48d99499e20760d142cd1acd76f35b3c38ab68ed7a527c8c",
-            "triples": 18,
-            "format_status": "passed",
-            "semantic_support": "not_reviewed"
-          },
-          {
-            "source_id": "sha256:005451e99743714d3508b9ac158dd3f796f73cd9dddd93e4010e1cdde501fd98",
-            "request_sha256": "c992ee39fbc50c7de0a9aa93f24888998f083d453045d18d998db24d2215cfbd",
-            "triples": 15,
-            "format_status": "passed",
-            "semantic_support": "not_reviewed"
-          }
-        ],
-        "schema_variant": "gpt_oss_diagnostic_v1",
-        "model": "iairlab/gpt-oss-120b",
-        "code_commit": "a6625f7dfd46789b180e0407a3377b04e570edf0",
-        "timeout_seconds": [
-          30,
-          300
-        ]
+          "complete": false,
+          "attempts": 8281,
+          "historical_cache_cost_complete": false,
+          "journal_corrupt_tail": false,
+          "corrupt_tail_bytes": 0
+        }
       },
-      "gpt_oss_policy_probe": {
-        "status": "awaiting_source_review",
-        "run_id": "81df270e-82ba-45c8-b98f-55996124164d",
-        "unknown_reserved_upper_bound": 0,
-        "full_index_authorized": false,
-        "cases": [
-          {
-            "source_id": "sha256:00358c281c194381c99b6dfea3aeba055c12c6f7a14601ddb26a176cbc31ed41",
-            "request_sha256": "f71b739ccd0b4e2a453080de3c4ce68c44c59e56089785a9ed461bc81373f339",
-            "triples": 9,
-            "format_status": "passed",
-            "semantic_support": "not_reviewed"
-          },
-          {
-            "source_id": "sha256:0153ea6260dee9cbfc76ff5d2042866508e727b5cb57656a4dd180931a6dd26f",
-            "request_sha256": "b3c1e0ad18adee747d61b3911ceb16d3d4f14692995c77ccdeea9262c6b85096",
-            "triples": 29,
-            "format_status": "passed",
-            "semantic_support": "not_reviewed"
-          },
-          {
-            "source_id": "sha256:2389611f5617e29153530b946bf6035434f45d80ecce482aec80a41da27b588a",
-            "request_sha256": "138d47b63fc895fa7f84b046d3090d11b0e08db6d74dd322edd1e4580248d965",
-            "triples": 45,
-            "format_status": "passed",
-            "semantic_support": "not_reviewed"
-          },
-          {
-            "source_id": "sha256:38f7b69951335314e57c3ca0577d8c9e5e2d20717819ff5f88bf24cb3aa2c45e",
-            "request_sha256": "716515aaf09ed39bedab5654534f2263899d665c9eed48639f0376bda94ea6a3",
-            "triples": 17,
-            "format_status": "passed",
-            "semantic_support": "not_reviewed"
-          },
-          {
-            "source_id": "sha256:005451e99743714d3508b9ac158dd3f796f73cd9dddd93e4010e1cdde501fd98",
-            "request_sha256": "4c0c1978a9730e8c46f23c2a53e76a5828e9ca072d4972931a8b19819514e889",
-            "triples": 11,
-            "format_status": "passed",
-            "semantic_support": "not_reviewed"
-          }
-        ],
-        "schema_variant": "gpt_oss_source_faithfulness_v1",
-        "model": "iairlab/gpt-oss-120b",
-        "code_commit": "73ab42868de126519df730367eb87ee373c68b68",
-        "timeout_seconds": [
-          30,
-          300
-        ],
-        "parent_probe_manifest_sha256": "5417b157c2159a2865f16929502682f5f0e49ea4a2aca3ccd5a5a4b8322c6439",
-        "source_review_sha256": "392ff920c98d90351b3096c8651ce134faca0b168ddb84fa0e81d32fbdcf3377",
-        "policy_version": "source_faithfulness_v1"
-      },
-      "artifact_manifest_sha256": "e3bb665491d2c1d7aa912d5bb89218ef5022cfad3190dc5c3ff068dc5ef3571a",
       "cost_semantics": "Physical new cost; replay is not charged twice.",
       "standalone_cost_complete": false,
       "standalone_known_subtotal": {
-        "llm_input_tokens": 3065442,
-        "llm_output_tokens": 1207772,
+        "llm_input_tokens": 4086765,
+        "llm_output_tokens": 1561587,
         "embedding_input_tokens": 684560
       },
-      "measured_run_seconds": 3270.835,
-      "attributed_construction_seconds": 13427.273000000001
+      "measured_run_seconds": 5904.088,
+      "attributed_construction_seconds": 19331.361
     },
     {
-      "run_id": "cea6cbe8-b715-4445-9121-95f3ae33d2b8",
+      "run_id": "bd9b0215-a6de-4ebf-8554-6cb482285311",
       "method": "hipporag2",
       "dataset": "hotpotqa",
       "passages": 5500,
@@ -1175,10 +1325,10 @@
         }
       },
       "corpus_fingerprint": "1d6a33346c42cd2feae5cf71eb2c145121a74712eb51a86d95205983a4477634",
-      "code_commit": "0d784ed3857ee3c132175cb96fd4a10b72262986",
+      "code_commit": "f545ba117d06be35e1224036ca6046343dcc62cb",
       "token_limit": 20000000,
-      "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/hipporag2/hotpotqa-schema-preflight1",
-      "resume_kind": "native_schema",
+      "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/hipporag2/hotpotqa-mixed1",
+      "resume_kind": "mixed_native",
       "history_runs": [],
       "resume_sources": [],
       "diagnostics_in_history": true,
@@ -1188,8 +1338,23 @@
         "path": "results/summary/e1-hippo-schema-adoption.json",
         "sha256": "d04856cad7220496e14b68dabc46c571638a2795f0b0cf050eb8026fcf3eeced"
       },
+      "max_llm_posts": 11020,
+      "extractor_configuration": {
+        "version": "hipporag2_qwen_primary_gptoss_length_fallback_source_v1",
+        "fallback_model": "iairlab/gpt-oss-120b",
+        "fallback_limit": 20,
+        "source_policy": "source_faithfulness_v1",
+        "audit_seed": 42,
+        "audit_per_model": 8,
+        "max_new_posts": 40000,
+        "max_llm_posts": {
+          "musique": 4814,
+          "hotpotqa": 11020
+        }
+      },
       "status": "pending",
       "current_unknown_reserved_upper_bound": 0,
+      "llm_by_model": {},
       "cost_semantics": "Physical new cost; replay is not charged twice.",
       "standalone_cost_complete": false,
       "standalone_known_subtotal": {},
@@ -2302,13 +2467,27 @@
       "reused_leaf_cost_complete": false
     }
   ],
-  "combined_token_limit": 56876577,
+  "combined_token_limit": 55848161,
   "complete": false,
   "limitations": "E1 measures indexing cost/coverage, not retrieval or answer quality. Historical smoke unknowns are preserved outside these new runs.",
-  "physical_known_tokens": 16720688,
+  "mixed_extractor": {
+    "version": "hipporag2_qwen_primary_gptoss_length_fallback_source_v1",
+    "fallback_model": "iairlab/gpt-oss-120b",
+    "fallback_limit": 20,
+    "source_policy": "source_faithfulness_v1",
+    "audit_seed": 42,
+    "audit_per_model": 8,
+    "max_new_posts": 40000,
+    "max_llm_posts": {
+      "musique": 4814,
+      "hotpotqa": 11020
+    }
+  },
+  "protocol_approval_source": "reported_by_user; individual bot status not independently checked",
+  "physical_known_tokens": 18095826,
   "physical_usage_complete": false,
   "cost_complete": false,
-  "budget_charge_upper_bound": 16775742,
+  "budget_charge_upper_bound": 18150880,
   "budget_reservation_complete": true,
   "original_combined_token_limit": 68000000
 }
