@@ -1,5 +1,71 @@
 # E1: индексы полного корпуса (#13)
 
+## Предложение продолжения после двух semantic failures — на согласование
+
+Выбран один предлагаемый путь: **Qwen primary + GPT-OSS только при length/cycle**,
+одинаковый обоим датасетам; full cache остаётся смешанным и явно так называется.
+Это предложение [ADR-0023](../.adr/0023-hippo-extractor-diagnostic.md#конкретное-предложение-для-согласования-qwen-primary--gpt-oss-fallback),
+не принятие новой приёмки и не разрешение продолжать HTTP. SPEC пока прежний.
+
+Уточнение по issue#13: оно требует coverage/extraction/load, errors и E1 accounting,
+а отдельного zero-semantic-error порога не задаёт. Этот порог был частью заранее
+зафиксированного GPT gate; он failed и таким остаётся. Offline на тех же4полных
+Qwen responses проверены journal/artifact SHA и содержание: Cubs тоже утратил film
+qualifier, Valencia — some/supposedly, Northwest изменил attachment, Kobe потерял
+years/counts после native set-dedup. Старый schema adoption сам помечал semantic
+support неустановленным. Нельзя считать3102Qwen pairs безошибочным baseline.
+Эта маленькая известная selection не является оценкой corpus precision.
+Private evidence SHA `b011725e6a702319c36635dcf2697a9a7385265f261f2a350c0dd6259b685e39`.
+
+Предлагаемые условия:
+
+- Технически полный parseable stop/known-usage output, проверяемый graph
+  coverage/load обязательны; provenance/HTTP/unknown/partial/недопустимый length — stop.
+  SDK valid_empty у Qwen требует отдельного source/coverage разбора, а не выдуманных
+  фактов. У GPT fallback сохраняется nonempty guard.
+- До одного GPT source_faithfulness_v1 fallback на Qwen length+подтверждённый cycle;
+  максимум20original failed requests/dataset, cap3072/low/безretry/новогоNER.
+- Semantic ошибки полного extraction фиксируются как observed errors единым
+  source-only аудитом обеих моделей, без ручного исправления/отбора triples и retry.
+  Статус — structurally_verified_with_observed_extraction_errors, не semantic_verified.
+- Все warning cases разбираются; дополнительно до8source IDs/model/dataset по
+  заранее заданному SHA256 ranking/seed42, calibration5 отдельно. Никаких QA gold,
+  holdout answers или model judge.8—объём ручного чтения, не accuracy threshold.
+-3102Qwen пары сохраняются; exact full GPT fallback можно отдельно принять с
+  original failure/NER/model/prompt/response provenance. Старые failed/reviews не
+  меняются. Только source-policy версия, не переименование GPT в Qwen.
+- Новый graph/fact/entity embeddings зависят от accepted configuration; Dense/RAPTOR
+  не пересчитываются. В сравнении явно раскрыть смешение LLM: pure method effect
+  не изолирован, общий reader не устраняет эту разницу.
+- Предлагаемые max новые LLMPOST: Mu≤4814(4794primary+20fallback), Hotpot≤11020;
+  это явное предложение20дополнительных POST, не старый cap11000. Новый all-POST
+  guard≤40000/dataset, token allocations не растут: Mu≤15025625/Hotpot≤20M.
+  Точный executable plan/reservation будет подготовлен только после принятия.
+
+Сейчас расход прежний16720688/upper16775742/cost_complete=false/4из6; model POST0.
+Следующие необходимые действия: согласовать изменение протокола/карточки, затем
+offline реализация маршрутизации/replay/audit в existing runner и отдельный допуск
+точного continuation plan. Очередной диагностический prompt не предлагается.
+
+### Текст вопроса куратору
+
+В E1 Qwen зацикливается на отдельных пассажах. GPT-OSS вернул полные JSON, но
+в извлечениях остались смысловые ошибки; новая инструкция исправила только часть.
+В старом Qwen-кэше тоже есть потери оговорок и дат. Предлагаю оставить Qwen основным,
+а GPT-OSS использовать один раз только после length с циклом, максимум20fallback
+на датасет. Смысловые ошибки будем фиксировать отдельным аудитом обеих моделей,
+без ручной правки графа; неполный JSON, неизвестный расход и ошибки загрузки
+по-прежнему останавливают запуск. Это будет отдельная смешанная конфигурация Hippo,
+без утверждения чистого сравнения архитектур. Согласуете такой протокол вместо
+требования безошибочности всех triples? Готовые Dense/RAPTOR и старые результаты
+сохраняются, дальнейший запуск требует отдельного бюджета и разрешения.
+
+Научное согласование требуется из-за изменения общей LLM конфигурации SPEC,
+по BOT_REVIEW_WORKFLOW; разрешение пользователя на расходы его не заменяет.
+Для новой карточки PR33: /research_submit https://github.com/SPStan/rag-graphrag-research/pull/33 13,
+затем /research_status https://github.com/SPStan/rag-graphrag-research/pull/33.
+Команды и вопрос подготовлены для передачи; сообщения куратору/боту не отправлены.
+
 ## Результат source-fidelity follow-up — 22 октября: semantic gate не пройден
 
 Пользователь разрешил передачу и5POST по plan

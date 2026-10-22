@@ -3,6 +3,147 @@
 Дата:22 октября2026. Статус: **предложение**; ни смена benchmark, ни расходы
 не приняты этим ADR. Связь: ADR-0022, issue#13, Draft PR#33/Refs #13.
 
+## Конкретное предложение для согласования: Qwen primary / GPT-OSS fallback
+
+Статус этого раздела: **предложение, не принято**. Нынешние strict semantic gates
+остаются failed. Смена критерия, смешанный cache и новые расходы этим текстом
+не разрешены. SPEC пока не изменён. Предлагается один путь C из вариантов ниже.
+
+### Основание: одинаковая приёмка обеих моделей
+
+В issue#13 требуются проверяемые шесть индексов, coverage/load, учёт ошибок и затрат.
+Отдельное требование безошибочности всех triples там не записано. В текущем SPEC
+закреплена одна плановая Qwen LLM для всех методов: GPT fallback меняет это условие.
+Строгий source-fidelity gate был зафиксирован до GPT-проб и обе пробы его не прошли;
+это не отменяется задним числом и не означает ошибку проверки.
+
+Сейчас offline перепроверены четыре полных Qwen ответа на тех же известных sources,
+не новая выборка и не оценка precision. Journal/producer/response SHA сверены:
+
+| Source | Qwen response SHA (префикс) | Наблюдение по исходному тексту |
+|---|---|---|
+| Cubs | acd9d738f1ca612d | standalone wins2015 World Series без film qualifier |
+| Northwest | 2b56e5f89eaef749 | Passage поставлен субъектом prevented shipping |
+| Valencia | 1abdf7846e3d434f | утрачены some/supposedly |
+| Kobe | a5702cb7fb2e3a31 | 62triples→14unique; counts/years не сохранены в graph-set |
+
+Private evidence b011725e6a702319c36635dcf2697a9a7385265f261f2a350c0dd6259b685e39
+хранит source/request/producer/response pins. Старый adoption record прямо говорил
+semantic_support=not_established. Его принятие касалось native graph-set, не истины
+всех фактов. Следовательно нельзя переносить уверенность в3102старых Qwen pairs
+на source fidelity, а GPT оценивать как будто baseline уже безошибочен. Это основание
+обсудить единый протокол, не доказательство равной точности или превосходства GPT.
+
+### Предлагаемая конфигурация и границы fallback
+
+- Обоим датасетам одна именованная конфигурация
+  `hipporag2_qwen_primary_gptoss_length_fallback_source_v1`.
+- Qwen NER1024 и triples3072: прежние messages/options/schema, temp0/seed42,
+  enable_thinking=false. Reader остаётся общим Qwen; BGE-M3 и данные прежние.
+- GPT-OSS120b только triples после Qwen `finish_reason=length` и существующего
+  diagnostic triple_cycle=true:≥12tuple fragments и unique×4≤fragments.
+  Он использует полный исходный passage/cached NER, source_faithfulness_v1,
+  shape schema без uniqueItems, low reasoning, cap3072, без Qwen-specific options.
+- Не применять fallback для произвольной semantic ошибки, HTTP/timeout, unknown,
+  invalid NER или обычного length без подтверждённого цикла. Эти случаи stop.
+- Один GPT fallback на original Qwen request identity, максимум20разных original
+  failures/dataset, без corrective retry/нового NER. Точное replay полного совпавшего
+  policy response занимает один fallback slot, но не новый физический POST.
+- Полный stop JSON с literal duplicates не равен незавершённому циклу: штатный
+  SDK ordered_unique сохраняется, raw/counts/dedup публикуются. Повторяющийся хвост
+  отмечается для source audit; legitimate multiplicity (Kobe) не считается циклом
+  только из-за числа одинаковых полных triples. Partial/length не дописывать.
+
+### Технические блокеры и обязательный аудит — разные статусы
+
+Останавливают запуск: неверная provenance/SHA/модель/корпус, исчерпание reservation,
+незавершённый/повреждённый журнал, неизвестный новый usage, HTTP/transport error,
+невалидные NER/triples, неподходящий length, неудачный или пустой GPT fallback,
+исчерпание20fallback slots, несовместимые embeddings/coverage или reload failure.
+Старые historical unknown сохраняются в aggregate и уже зарезервированном бюджете;
+их наличие не переименовывается в новый неизвестный ответ.
+
+Статус Qwen valid_empty, поддержанный pinned SDK, не объявлять автоматически
+ошибкой JSON: отдельно проверить source/coverage, записать отсутствие entities/facts
+и результат разбора. Нерешённый empty/warning блокирует приёмку; законный empty
+не заменяется придуманными triples. Для GPT fallback непустой ответ по-прежнему обязателен.
+
+В предлагаемом протоколе отдельные semantic ошибки полного структурно пригодного
+extraction записываются как **observed errors**, без ручной правки graph edges и
+без semantic retry. Это явное изменение критерия. Такой индекс может быть только
+`structurally_verified_with_observed_extraction_errors`, не semantic_verified.
+Достаточность этого для допуска к будущему E2 — предмет согласования; сам E2
+по-прежнему требует отдельного плана и всех шести проверенных индексов.
+
+Source audit обязателен перед приёмкой E1, без gold/QA labels/модельного judge:
+
+1. Разобрать все structural warnings/repetition flags и раскрыть выводы. При
+   нерешённой возможности испорченного/незавершённого extraction run не готов.
+2. На каждом датасете отдельно выбрать до8Qwen и до8GPT passages. Eligible pool:
+   уникальные source IDs, реально представленные этим producer/model в индексе;
+   исключить5калибровочных MuSiQue IDs из проб, их результаты публиковать отдельно.
+   Ранжирование SHA256 UTF-8 строки `e1-source-audit-v1|42|dataset|producer_model|source_id`,
+   взять первые8. Если pool меньше8 — все; если0 — stratum absent, не выдумывать данные.
+3. Проверить все triples выбранных passages по полному source: unsupported relation,
+   attachment, attribution/negation/uncertainty, dates/counts, существенные omissions.
+   Допускается needs_review вместо неподтверждённого verdict. Сохранить source/
+   request/response SHA и evidence; counts по категориям, review и stratum sizes.
+4.8/stratum — лимит ручного объёма≤16passages/dataset, не требование≥X%accuracy.
+   Процент принятия не подбирается по2/5диагностике. Выборка маленькая и стратифицирована:
+   не выдавать её за corpus precision/качественный рейтинг моделей или эффективность RAG.
+5. Не исправлять и не удалять неудобные triples/пасcажи вручную. Нерешённые semantic
+   flags раскрыть; не выдавать наличие аудита за отсутствие ошибок. Отчёт завершён,
+   если все выбранные случаи прочитаны/классифицированы, а не если ошибок0.
+
+### Cache, стоимость и сопоставимость
+
+-3102полных compatible Qwen NER+triples сохраняются под исходной моделью/request SHA.
+  Они structurally compatible; semantic качество всей совокупности не установлено.
+- GPT responses не переименовывать в Qwen и не использовать при наличии полного
+  совместимого Qwen primary. Для известного Popper length возможен replay полного
+  source-policy response без нового POST, только после отдельного adoption record:
+  original Qwen failure→source/NER→GPT payload/response SHA/model/policy.
+- Старые strict failed manifests/reviews948ac856/392ff920 immutable. Новый adoption
+  означал бы принятие по другому протоколу с observed errors, не пересмотр старого verdict.
+  Никакого adoption сейчас нет. Неполный Qwen JSON не становится graph input.
+- Cache/graph identity включает policy version и реальные модели. В E1 отдельно
+  показать primary/fallback requests/passages, physical/replay, costs по моделям,
+  diagnostics/failed/unknown и audit. Запросы не оплачиваются/не начисляются повторно.
+- Новый graph и embeddings изменившихся entities/facts строятся отдельно; совместимые
+  unchanged chunk vectors reuse только при полном совпадении входа/model/SHA.
+  Dense/RAPTOR×4 не пересчитывать. Сравнение смешанной конфигурации не изолирует
+  чистый эффект архитектуры HippoRAG; одинаковый reader этого ограничения не снимает.
+
+### Следующий разрешаемый объём — ещё не план запуска
+
+Сохраняются верхние денежные/token allocations: новые combined Mu≤15025625,
+Hotpot≤20000000, без восстановления потраченных13295GPT tokens и unknown55054.
+После cache при прежнем baseline максимум primary Mu4794POST; до20fallback даёт
+консервативный Mu≤4814внешних LLMPOST. Cold Hotpot≤11000primary+20fallback=11020.
+Это **предлагаемый** предел с явными20дополнительными POST, а не прежнее разрешение
+11000; cache/replay уменьшают actual. Общий новый POST guard≤40000/dataset с embeddings.
+Финальный reservation/лимиты стадий и actual remaining пересчитать по всем журналам
+до исполнения; если не помещаются — остановиться, не расширять токены автоматически.
+Все request connect30/read300, retry0; любая новая ошибка/unknown останавливает очередь.
+
+Сейчас model/embeddingPOST0. После принятия предложения сначала offline реализация
+и проверки routing/replay/claim/accounting/audit selection, новый clean executable
+continuation plan с SHA/обоими datasets и только затем отдельный допуск расходов.
+Нельзя запускать нынешний диагностический runner на full corpus.
+
+### Решение, которое требуется зафиксировать
+
+Нужно явное согласование назначенного куратора новой конфигурации/приёмки и
+обновлённых O1/N1/R1/H1 по BOT_REVIEW_WORKFLOW: текущий SPEC задаёт общую Qwen,
+а здесь предлагается другая Hippo конфигурация. Пользователь может отдельно
+разрешить будущие расходы; это не подтверждение научных формулировок от куратора.
+Без принятия предложения сохраняется действующий strict gate и4/6, issue открыта.
+Помощь оператора API для этого выбора не обязательна.
+
+Оценка3часа в issue не превращается в подтверждённое активное время: надёжного
+таймера труда нет. Новая работа и предел ручного аудита должны быть приняты как
+пересмотр продолжения, не молчаливое увеличение исходной оценки/сроков.
+
 ## Контекст
 
 Hippo Qwen повторил cycle/length после uniqueness prompt и shape schema.

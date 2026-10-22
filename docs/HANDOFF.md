@@ -2,28 +2,29 @@
 
 **E1 status:** 4/6 indexes completed; physical known tokens=16720688; cost_complete=False. Last stage=hipporag2 native schema continuation. Raw/indexes remain local. PR Draft; E2 requires all six verified indexes.
 
-## Текущая очередь — 22 октября: второй source review failed, prompt-fix путь остановлен
+## Текущая очередь — 22 октября: изменение протокола подготовлено для согласования
 
-- E1 остаётся4/6; physical known16720688/upper16775742,cost_complete=false.
-  Прежний unknown55054 сохранён, новыйunknown0. Mu остаток15025625, Hotpot20M.
-- Разрешённый plan614b9318/runtime73ab428 исполнен: run81df270e, ровно5POST,
-  input4870/output2320=7190tokens, все stop/full JSON, NER/embedding/retry0.
-- Source-only review: Cubs/Kobe прежние замечания исправлены; Popper Berlin
-  attachment остался, Valencia имеет qualified+unqualified версии одной связи;
-  Northwest seasonal qualifier не явен. Общая приёмка не пройдена.
-- Machine manifest876e3528 immutable awaiting_source_review; отдельный review948ac856
-  not_accepted_for_continuation. Оба GPT run:10POST/13295known; cache не принят.
-- Два содержательных отказа завершают prompt-fix путь. Не готовить очередной prompt
-  retry/cap/model sweep и не повторять Qwen вслепую. Claims/raw/failed/unknown сохранять.
-- Следующее решение — протокол: сохранить строгий gate/4из6 либо предложить явно
-  шумный extractor с заранее заданными source audit/допустимыми ошибками. Второе
-  требует изменения условий SPEC, решения homogeneous/mixed cache и актуального
-  научного согласования по BOT_REVIEW_WORKFLOW, затем нового budget/допуска.
-  Ни ослабление gate задним числом, ни full continuation сейчас не разрешены.
--3102Qwen пары и4готовых Dense/RAPTOR не меняются. Offline общий reader/evaluator
-  готов на synthetic/cache; полный QA/E2/merge не запускать. PR33Draft/Refs #13,
-  issue открыта/19files. Оператор не обязательный блокер; архив не пересоздавать.
-- Фактические source замечания, SHA и варианты решения — E1_INDEXING/ADR-0023.
+- E1 прежний4/6; known16720688/upper16775742,cost_complete=false, oldunknown55054.
+  Mu остаток15025625, Hotpot20M. В этом offline-блоке новых model/embeddingPOST0.
+- Оба strict GPT gate failed:10POST/13295known сохранены. Следующего prompt retry нет.
+- Проверены4полных Qwen ответа на тех же известных sources по journal/artifact SHA:
+  source qualifiers/attachment/years тоже теряются; semantic_support старого adoption
+  не был установлен. Evidenceb011725e, это не corpus precision/рейтинг моделей.
+- Выбран один proposal ADR-0023: Qwen primary + GPT-OSS source_faithfulness_v1
+  только при length+cycle,≤1fallback/original request и≤20/dataset. Общий reader/BGE
+  и данные прежние. Mixed cache и отдельная Hippo configuration раскрываются явно.
+- Предложено разделить structural blockers и observed semantic errors с source-only
+  аудитом обеих моделей: все warnings+до8/model/dataset по fixed hash/seed42,
+  calibration5 отдельно. Не править/отбирать triples и не подбирать accuracy threshold.
+- Это не изменение принятого SPEC/старых failed: требуется согласие куратора на
+  протокол и актуальную O/N/R/H карточку, потом offline implementation/проверки
+  routing/replay/audit, exact continuation plan и отдельное разрешение расходов.
+- Предлагаемый max новых LLMPOST Mu4814/Hotpot11020 явно включает≤20fallback
+  сверхprimary, allPOST≤40000/dataset, прежние token allocations не увеличены.
+  Сейчас это не исполняемый план.3102Qwen пары и4готовых индекса не изменены.
+- Точный вопрос куратору и research_submit/status — E1_INDEXING. Внешних сообщений
+  не отправлять без явного разрешения. Архив оператора не пересоздавать.
+- PR33Draft/Refs #13,19files; issue открыта. E2/QA/merge/full не запускать.
 
 ## История — не текущие инструкции запуска
 
