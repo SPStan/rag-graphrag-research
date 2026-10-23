@@ -1,31 +1,34 @@
 # Передача контекста Sol / Luna
 
-**E1 status:** 4/6 indexes completed; physical known tokens=20379030; cost_complete=False. Last stage=hipporag2 native schema continuation. Raw/indexes remain local. PR Draft; E2 requires all six verified indexes.
+**E1 status:** 5/6 indexes completed; physical known tokens=21927928; cost_complete=False. Last stage=hipporag2 native schema continuation. Raw/indexes remain local. PR Draft; E2 requires all six verified indexes.
 
-## Текущая очередь — 23 октября: восстановление локальных embeddings подготовлено offline
+## Текущая очередь — 23 октября: Mu завершён, HotpotQA запущен;5/6
 
-- Mixed child75391ad20f6e/06ee684 разрешён пользователем для обоих Hippo;
-  Mu extraction5500/5500 завершён. Runacdf13d5 failed на local /api/embed HTTP400:
-  внутренний /tokenize bind: insufficient buffer space/queue full. Retry не было.
-- Сохранены54721вектор, known2283204childtokens, один local unknown3967reserved.
-  E1 known20379030/upper20438051,cost_complete=false, исторический+новый reserve59021.
-  Четыре готовых Dense/RAPTOR не менялись; E1 ещё4/6. Hotpot не запускался.
-- Сейчас сокеты освобождены; причина transient resource error точно не установлена.
-  Native proof:45857entity vectors точно совпали с verified responses.8864partial
-  fact vectors без input mapping после смены set order не считаются reusable.
-- Existing runner: один .cache/e1-mixed-embedding-plan.json на clean HEAD,
-  shared fallback claims2 сохранены. Mu LLM POST cap0, cache-only extraction,
- 11history; остаток11363316tokens/33494всехPOST. Hotpot20M/11020LLM/40000всехPOST.
-- Полные32-text legacy embedding stages reuse без оплаты; новые facts canonical
-  sorted batches≤8, caller order restored, pause≥2s после ответа/0.25s на текст,
-  private input JSON сохраняется. Это mitigation, не доказанное лечение сервера.
-  На первой ошибке/unknown stop, retry0. Новый socket child только один.
-- Offline158passed/3skipped; export сохраняет20379030/20438051 без double cost.
-  Нужны clean commit/общий gate, final plan SHA и отдельный допуск ADR-0022.
-  Новых model/embeddingPOST после остановки0.19source review cases подготовлены
-  в .cache/e1-mixed-counter-source-review-draft.json, до final SHA/coverage binding
-  не принимаются как завершённый audit. Mu build/audit предшествуют Hotpot.
-- PR33Draft/Refs #13,20files; научная карточка прежняя. QA/E2/merge не запускать.
+- Runtime code caebfd5/exact plan091a76f5bbef разрешены пользователем для обоих
+  этапов. Mu run1c12c3c8 завершён:5500passages/45857entities/66082facts,
+ 51357nodes/158475edges, save/reload0calls.19source audit cases/11warnings
+  сверены с прежним review и final response SHA;13observed_error/3needs_review,
+  semantic_verified=false. Source-only assistant review, не corpus precision.
+- Source audit SHA b4e451e710c0504b1012ef978a668bbc41af988bd6c42135474f71fe66a63dea,
+  reviewSHA c92ee411bcc61b756373363089d4ec12e221c66d2200aa8a5678cbbeaa083110.
+  Immutable build snapshot сохранён; старые failed/unknown неизменны.
+- Mu socket child8261local embeddingPOST/1548898tokens, новыхLLM0/ошибок0.
+  Снимок E1 после Mu:known21927928/upper21986949,cost_complete=false,
+  reserved unknown59021. Live расход Hotpot идёт отдельно в его usage.jsonl
+  до terminal export. Сводка пока5/6, #13/PR33Draft/Refs #13.
+- Hotpot run31005856-9e4a-47ca-bef1-42ad4e7ab6dd запущен после Mu audit;
+  output indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/hipporag2/hotpotqa-mixed-embed1.
+  Текущий PID/logs/approval/plan path: .cache/e1-mixed-active-status.json.
+  Логи .cache/e1-hippo-hotpot.stdout.log и .stderr.log.
+- Hotpot предел20Mcombined tokens/11020LLMPOST/40000всехPOST; Qwen primary,
+  GPT fallback≤20 только length+cycle; local BGE batches≤8/пауза≥2s, retry0.
+  На первой ошибке/unknown stop. Не запускать второй процесс/новый recovery.
+- Следующий шаг: проверить текущий Hotpot; после indexed_pending_audit выполнить
+  existing prepare-mixed-audit, source-only review всех cases и finalize.
+  QA/E2/holdout/merge не разрешены. Четыре Dense/RAPTOR не пересчитывать.
+- Следующий docs/results commit не меняет runtime scripts: execution version
+  остаётся caebfd5. Не переписывать plan/row.code_commit ради нового HEAD.
+  Перед новым run учитывай strict HEAD guard; запущенный процесс не перезапускать.
 
 ## История — не текущие инструкции запуска
 

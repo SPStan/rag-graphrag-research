@@ -1,5 +1,45 @@
 # E1: индексы полного корпуса (#13)
 
+## MuSiQue completed; HotpotQA running — 23 октября
+
+Runtime caebfd5, approved plan091a76f5bbef5d86304283a9e58a27ebe5e6b02aafba55eaa77bc730f5992600.
+Mu run1c12c3c8-3870-453b-813d-ba84498940a2 завершил полный graph/save/reload:
+5500passages,45857entities,66082facts,51357nodes,158475edges, reload_model_calls0.
+Socket child:8261local embeddingPOST/1548898known embedding tokens, новыхLLM0.
+Ошибок/новогоunknown0. Прежние entity/chunk cache переиспользованы; старые
+8864partial fact vectors сохранены в failed lineage/cost, не объявлены reusable.
+
+Финальный audit содержит те же19cases/response SHA, которые assistant просмотрел
+по полным sources раньше; source-map coverage5500, save/reload и build snapshot
+сверены.11warnings включены,3supported/13observed_error/3needs_review.
+Наблюдения: пустые extraction при содержательном source, потеря дат/чисел,
+оговорок/attachment и неподдержанный source Pearl Harbor→Hawaii. Никаких правок
+triples или QA/gold/model judge. Status structurally_verified_with_observed_extraction_errors,
+semantic_verified=false. Это согласованный noisy extractor protocol, не оценка
+corpus precision и не устранение ошибок генерации. Calibration5review отдельно.
+
+Audit SHA b4e451e710c0504b1012ef978a668bbc41af988bd6c42135474f71fe66a63dea.
+Review SHA c92ee411bcc61b756373363089d4ec12e221c66d2200aa8a5678cbbeaa083110.
+Build snapshot сохраняет исходный indexed_pending_audit; только новый current
+manifest переведён existing finalize в completed. Все исторические failed immutable.
+
+E1 snapshot после Mu:5/6, known21927928/upper21986949,cost_complete=false,
+unknown reserve59021. Hotpot расходы после запуска записываются live отдельно;
+terminal export обновит общую сводку. Готовые Dense/RAPTOR×4 неизменны.
+
+После проверки Mu audit/artifact gate и прежнего scoped согласия запущен Hotpot
+run31005856-9e4a-47ca-bef1-42ad4e7ab6dd, output hotpotqa-mixed-embed1.
+Предельные20Mcombined tokens/11020LLMPOST/40000allPOST, Qwen primary и≤20GPT
+fallback length+cycle, cap1024/3072, retry0, local BGE batches8/cooldown2s прежние.
+Первая ошибка/unknown останавливает stage. До собственного Hotpot source audit
+не считать индекс completed. Не создавать второй worker.
+
+Этот docs/results update сохраняет runtime code caebfd5; plan и row.code_commit
+не переписываются под последующий documentation HEAD. Публичные summary —
+снимок после Mu, не обещание нулевого текущего расхода Hotpot.
+PR33Draft/Refs #13,20files; ни QA/E2, ни merge не запускались.
+
+
 ## Текущий socket recovery — 23 октября: без новых запросов
 
 Mu extraction5500/5500 завершён. Runacdf13d5-7a3b-4748-8e34-348a02b28788
