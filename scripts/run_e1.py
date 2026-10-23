@@ -2739,14 +2739,19 @@ def export(plan, plan_path):
         probe_kinds = (
             [probe_kind, "schema_shape", "gpt_oss", "gpt_oss_policy"]
             if (row["method"], row["dataset"]) == ("hipporag2", "musique")
+            else ["gpt_json_mode"]
+            if (row["method"], row["dataset"]) == ("hipporag2", "hotpotqa")
             else [probe_kind]
         )
         for probe_kind in probe_kinds:
             if (
                 probe_kind
-                and (row["dataset"] == "musique" or probe_kind == "summary")
                 and (
-                    probe_kind in ("gpt_oss", "gpt_oss_policy")
+                    row["dataset"] == "musique"
+                    or probe_kind in ("summary", "gpt_json_mode")
+                )
+                and (
+                    probe_kind in ("gpt_oss", "gpt_oss_policy", "gpt_json_mode")
                     or not row.get("diagnostics_in_history")
                 )
             ):
@@ -2855,7 +2860,7 @@ def export(plan, plan_path):
         if row.get("resume_kind") == "mixed_native":
             from scripts.token_accounting import summarize
 
-            model_records = []
+            model_records = list(diagnostic_records)
             for h in history:
                 model_records.extend(read_records(ROOT / h["output"] / "usage.jsonl"))
             if (manifest.parent / "usage.jsonl").exists():
@@ -2935,6 +2940,7 @@ def export(plan, plan_path):
                 "schema_shape",
                 "gpt_oss",
                 "gpt_oss_policy",
+                "gpt_json_mode",
                 "embedding",
                 "summary",
             )
@@ -3915,6 +3921,166 @@ def prepare_extractor_policy_probe(probe_plan, directory, prior_path):
     }
 
 
+def execute_json_mode_probe(candidate_path, prior_path, config, approved_sha256):
+    """One response-format diagnostic; no cache promotion or index continuation."""
+    if dense.sha256_file(candidate_path) != approved_sha256 or code_dirty():
+        raise ValueError("json_mode_requires_approved_candidate_and_clean_code")
+    candidate = dense.read_json(candidate_path)
+    plan = dense.read_json(prior_path)
+    if dense.sha256_file(prior_path) != candidate["parent_plan_sha256"]:
+        raise ValueError("json_mode_parent_plan_changed")
+    row = next(
+        r
+        for r in plan["rows"]
+        if (r["method"], r["dataset"]) == ("hipporag2", "hotpotqa")
+    )
+    parent = ROOT / row["output"]
+    manifest_path = parent / "manifest.json"
+    manifest = dense.read_json(manifest_path)
+    for item in plan["rows"]:
+        folder = ROOT / item["output"]
+        mp = folder / "manifest.json"
+        if (folder / "running.lock").exists() or (
+            mp.exists() and dense.read_json(mp)["status"] == "running"
+        ):
+            raise ValueError("json_mode_wait_for_workers")
+    if (
+        Path(plan["workspace"]).resolve() != ROOT.resolve()
+        or manifest["status"] != "failed"
+        or row.get("history_runs")
+        or dense.sha256_file(manifest_path) != candidate["failed_manifest_sha256"]
+        or verified_reference(manifest, manifest_path)["status"] != "verified"
+        or current_unknown_reservation(parent) != 0
+    ):
+        raise ValueError("json_mode_failed_parent_changed_or_unknown")
+    payload_path = ROOT / candidate["payload_file"]
+    payload = dense.read_json(payload_path)
+    key = target.digest(
+        {"payload": payload, "kind": "llm", "operation": "openie_triples"}
+    )
+    old_payload, _ = schema_probe_payload(payload, compatible=True)
+    old_key = target.digest(
+        {"payload": old_payload, "kind": "llm", "operation": "openie_triples"}
+    )
+    reserve = len(json.dumps(payload, ensure_ascii=False).encode()) + 2048 + 3072
+    remaining = row["token_limit"] - sum(
+        manifest["token_accounting"]["summary"]["known_subtotal"].values()
+    )
+    if (
+        candidate["kind"] != "offline_json_mode_candidate_not_executable"
+        or candidate["max_new_posts"] != 1
+        or dense.sha256_file(payload_path) != candidate["payload_file_sha256"]
+        or key != candidate["request_sha256"]
+        or old_key != candidate["previous_request_sha256"]
+        or payload["model"] != "iairlab/gpt-oss-120b"
+        or payload.get("reasoning_effort") != "low"
+        or payload.get("temperature") != 0
+        or payload.get("seed") != 42
+        or payload.get("stream") is not False
+        or "chat_template_kwargs" in payload
+        or reserve != candidate["reserved_tokens_upper_bound"]
+        or remaining != candidate["remaining_hotpot_budget_before_probe"]
+        or reserve > remaining
+        or dense.sha256_file(parent / "requests" / f"{old_key}.response.json")
+        != candidate["previous_response_sha256"]
+        or dense.sha256_file(
+            parent / "requests" / f"{candidate['ner_request_sha256']}.response.json"
+        )
+        != candidate["ner_response_sha256"]
+        or config.get("TARGET_API_BASE_URL", "").rstrip("/") != plan["endpoint"]
+        or candidate["endpoint"] != plan["endpoint"]
+        or not config.get("LITELLM_API_KEY")
+    ):
+        raise ValueError("json_mode_payload_budget_or_config_changed")
+    directory = parent.parent / "hotpotqa-gpt-json-mode-probe1"
+    if directory.exists():
+        raise ValueError("json_mode_output_exists")
+    run_id = str(uuid.uuid4())
+    with (parent / "json-mode-probe-once.claim.json").open(
+        "x", encoding="utf-8"
+    ) as stream:
+        json.dump(
+            {
+                "approved_plan_sha256": approved_sha256,
+                "run_id": run_id,
+                "code_commit": git("rev-parse", "HEAD"),
+            },
+            stream,
+        )
+        stream.flush()
+        os.fsync(stream.fileno())
+    (directory / "requests").mkdir(parents=True)
+    dense.write_json_atomic(
+        directory / "requests" / f"{key}.json",
+        {"reserved_tokens": reserve, "request_sha256": key},
+    )
+    journal = Journal(
+        directory / "usage.jsonl", run_id=run_id, method="hipporag2", dataset="hotpotqa"
+    )
+    result = {
+        "status": "running",
+        "run_id": run_id,
+        "model": payload["model"],
+        "parent_manifest_sha256": candidate["failed_manifest_sha256"],
+        "approved_plan_sha256": approved_sha256,
+        "max_new_posts": 1,
+        "reserved_tokens_upper_bound": reserve,
+        "cases": [],
+        "code_commit": git("rev-parse", "HEAD"),
+        "full_index_authorized": False,
+    }
+    dense.write_json_atomic(directory / "manifest.json", result)
+    session = requests.Session()
+    started = time.perf_counter()
+    try:
+        if any(a.max_retries.total for a in session.adapters.values()):
+            raise ValueError("transport_retry_must_be_zero")
+        body = target.checked_post(
+            session,
+            plan["endpoint"] + "/chat/completions",
+            payload,
+            journal,
+            phase="index",
+            operation="openie_triples",
+            provider="target_api",
+            model=payload["model"],
+            kind="llm",
+            object_id=key,
+            headers={
+                "Authorization": f"Bearer {config['LITELLM_API_KEY']}",
+                "Connection": "close",
+            },
+            response_path=directory / "requests" / f"{key}.response.json",
+            token_limit=reserve,
+            timeout=(30, 300),
+        )
+        triples = validate_extractor_diagnostic(body)
+        result["cases"] = [
+            {
+                "source_id": candidate["source_id"],
+                "request_sha256": key,
+                "triples": len(triples),
+                "semantic_support": "not_reviewed",
+            }
+        ]
+        result["status"] = "awaiting_source_review"
+    except BaseException as exc:
+        result.update(status="failed", error_type=type(exc).__name__)
+        raise
+    finally:
+        session.close()
+        result["seconds"] = round(time.perf_counter() - started, 3)
+        result["token_accounting"] = journal.reference()
+        result["unknown_reserved_upper_bound"] = current_unknown_reservation(directory)
+        result["artifacts"] = {
+            p.relative_to(directory).as_posix(): dense.sha256_file(p)
+            for p in directory.rglob("*")
+            if p.is_file() and p.name != "manifest.json"
+        }
+        dense.write_json_atomic(directory / "manifest.json", result)
+    return directory
+
+
 def execute_schema_probe(
     probe_path, prior_path, source, config, approved_sha256, *, compatible=False
 ):
@@ -4844,6 +5010,7 @@ def main():
             "prepare-native-schema-continuation",
             "run-schema-probe",
             "run-compatible-schema-probe",
+            "run-json-mode-probe",
             "seal",
             "run",
             "report",
@@ -5165,6 +5332,15 @@ def main():
         with args.plan.open("x", encoding="utf-8") as stream:
             json.dump(probe, stream, ensure_ascii=False, indent=2)
         print(json.dumps({k: v for k, v in probe.items() if k != "cases"}))
+        return
+    elif args.command == "run-json-mode-probe":
+        try:
+            directory = execute_json_mode_probe(
+                args.plan, args.prior_plan, config, args.approved_probe_sha256
+            )
+        finally:
+            export(dense.read_json(args.prior_plan), args.prior_plan)
+        print(json.dumps({"output": str(directory), "full_index_authorized": False}))
         return
     elif args.command in ("run-schema-probe", "run-compatible-schema-probe"):
         try:

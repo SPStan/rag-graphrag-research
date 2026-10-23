@@ -56,11 +56,21 @@ Offline candidate `.cache/e1-hotpot-json-mode-candidate.json` SHA
 3d1b2633b4d5f5aa536ede8b289237b4d6c103e4b6aea8245e22f05752715ca3;
 private payload SHA728b2a864cd3c58cfd28aa00977f1bb953b0c1c3ccff3d92134f42a0580ab0fb,
 request SHA c51907e11fb54fe1e1c74d5b74e74c2c59de463b32f2504cbce3b7a276e19b63.
-Кандидат намеренно не executable текущей CLI: нельзя передать его обычному run.
-Перед HTTP дополнить existing runner: verify parent/payload/remaining budget,
-canonical json-mode-probe-once.claim.json рядом с failed manifest, атомарный
-claim до HTTP, отдельные immutable output/journal и включение расхода в export.
-Это локальная интеграция существующего пути, не новый диагностический runner.
+Кандидат остаётся immutable offline-файлом. Пользователь разрешил его передачу
+и1POST по SHA3d1b2633b4d5 на2792da9 вместе с интеграцией до HTTP.
+Existing runner дополнен отдельной командой run-json-mode-probe: проверка
+parent/payload/remaining budget, canonical json-mode-probe-once.claim.json рядом
+с failed manifest, atomic exclusive claim до HTTP и отдельные output/journal.
+Старый failed/fallback claim не меняется. Экспорт включает probe known/unknown
+один раз, включая неуспешную попытку; model attribution также включает probe.
+11новых offline-тестов: approval/payload/parent/budget/running/claim guards,
+success/length/unknown/cycle/timeout; один POST, сохранение parent, export дважды.
+Первый тестовый запуск не прошёл setup pytest TEMP permissions; в отдельном
+TEMP повтор прошёл. Это не ошибка модельного запроса, новых HTTP ещё нет.
+
+```powershell
+./.venv-check/Scripts/python.exe -m scripts.run_e1 run-json-mode-probe --plan '.cache/e1-hotpot-json-mode-candidate.json' --prior-plan '.cache/e1-mixed-embedding-plan.json' --env-file '<data-root>/<env-file>' --approved-probe-sha256 '3d1b2633b4d5f5aa536ede8b289237b4d6c103e4b6aea8245e22f05752715ca3'
+```
 
 План: api.duckduck.cloud/v1, iairlab/gpt-oss-120b, максимум1POST,
 резерв9622токена (UTF-8 payload bytes+2048framing+3072output) из18663022;

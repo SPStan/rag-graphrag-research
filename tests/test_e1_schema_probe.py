@@ -1879,3 +1879,207 @@ def test_mixed_adoption_has_separate_negative_review_and_exact_policy(
     with pytest.raises(ValueError, match="negative_review_producer_changed"):
         e1.verify_mixed_adoption(mixed)
     assert manifest.read_bytes() == old
+
+
+@pytest.fixture
+def json_mode_case(tmp_path, monkeypatch):
+    monkeypatch.setattr(e1, "ROOT", tmp_path)
+    monkeypatch.setattr(e1, "code_dirty", lambda: False)
+    monkeypatch.setattr(e1, "git", lambda *a: "head")
+    old = tmp_path / "hotpotqa-stopped"
+    (old / "requests").mkdir(parents=True)
+    journal = Journal(
+        old / "usage.jsonl", run_id="old", method="hipporag2", dataset="hotpotqa"
+    )
+    a = journal.start(
+        phase="index",
+        operation="openie_triples",
+        provider="target_api",
+        model="qwen",
+        kind="llm",
+        object_id="known",
+    )
+    journal.finish(
+        a, status="success", usage={"llm_input_tokens": 7, "llm_output_tokens": 0}
+    )
+    dense.write_json_atomic(
+        old / "manifest.json",
+        {
+            "run_id": "old",
+            "status": "failed",
+            "seconds": 1,
+            "token_accounting": journal.reference(),
+            "artifacts": {"usage.jsonl": dense.sha256_file(journal.path)},
+        },
+    )
+    plan = {
+        "workspace": str(tmp_path),
+        "endpoint": "https://example.invalid/v1",
+        "model": "qwen",
+        "embedding_model": "bge",
+        "embedding_digest": "digest",
+        "parameters": {},
+        "combined_token_limit": 20000,
+        "batch_id": "b",
+        "rows": [
+            {
+                "method": "hipporag2",
+                "dataset": "hotpotqa",
+                "run_id": "old",
+                "output": "hotpotqa-stopped",
+                "token_limit": 20000,
+            }
+        ],
+    }
+    prior = tmp_path / "prior.json"
+    dense.write_json_atomic(prior, plan)
+    payload = {
+        "model": "iairlab/gpt-oss-120b",
+        "temperature": 0,
+        "seed": 42,
+        "stream": False,
+        "max_tokens": 3072,
+        "reasoning_effort": "low",
+        "response_format": {"type": "json_object"},
+        "messages": [{"role": "user", "content": "A is in B"}],
+    }
+    key = e1.target.digest(
+        {"payload": payload, "kind": "llm", "operation": "openie_triples"}
+    )
+    old_payload, _ = e1.schema_probe_payload(payload, compatible=True)
+    old_key = e1.target.digest(
+        {"payload": old_payload, "kind": "llm", "operation": "openie_triples"}
+    )
+    for name in [old_key, "ner"]:
+        dense.write_json_atomic(
+            old / "requests" / f"{name}.response.json", {"saved": name}
+        )
+    pp = tmp_path / "payload.json"
+    dense.write_json_atomic(pp, payload)
+    candidate = {
+        "kind": "offline_json_mode_candidate_not_executable",
+        "max_new_posts": 1,
+        "parent_plan_sha256": dense.sha256_file(prior),
+        "failed_manifest_sha256": dense.sha256_file(old / "manifest.json"),
+        "payload_file": "payload.json",
+        "payload_file_sha256": dense.sha256_file(pp),
+        "request_sha256": key,
+        "previous_request_sha256": old_key,
+        "previous_response_sha256": dense.sha256_file(
+            old / "requests" / f"{old_key}.response.json"
+        ),
+        "ner_request_sha256": "ner",
+        "ner_response_sha256": dense.sha256_file(old / "requests/ner.response.json"),
+        "remaining_hotpot_budget_before_probe": 19993,
+        "reserved_tokens_upper_bound": len(
+            json.dumps(payload, ensure_ascii=False).encode()
+        )
+        + 2048
+        + 3072,
+        "source_id": "source",
+        "endpoint": plan["endpoint"],
+    }
+    cp = tmp_path / "candidate.json"
+    dense.write_json_atomic(cp, candidate)
+    config = {"TARGET_API_BASE_URL": plan["endpoint"], "LITELLM_API_KEY": "fake"}
+    return old, plan, prior, cp, config
+
+
+@pytest.mark.parametrize(
+    "change", ["approval", "payload", "parent", "claim", "budget", "running"]
+)
+def test_json_mode_guards_before_http(json_mode_case, monkeypatch, change):
+    old, _, prior, cp, config = json_mode_case
+    approved = dense.sha256_file(cp)
+    if change == "payload":
+        (old.parent / "payload.json").write_text("{}", encoding="utf-8")
+    elif change == "parent":
+        (old / "manifest.json").write_text("{}", encoding="utf-8")
+    elif change == "claim":
+        (old / "json-mode-probe-once.claim.json").write_text("{}", encoding="utf-8")
+    elif change == "budget":
+        c = dense.read_json(cp)
+        c["remaining_hotpot_budget_before_probe"] = 20000
+        dense.write_json_atomic(cp, c)
+        approved = dense.sha256_file(cp)
+    elif change == "running":
+        (old / "running.lock").touch()
+    elif change == "approval":
+        approved = "wrong"
+    with patch.object(
+        e1.requests.Session, "post", side_effect=AssertionError("HTTP forbidden")
+    ) as post:
+        with pytest.raises((ValueError, KeyError, FileExistsError)):
+            e1.execute_json_mode_probe(cp, prior, config, approved)
+        post.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "outcome", ["success", "length", "unknown", "cycle", "timeout"]
+)
+def test_json_mode_once_and_export_preserves_failed_cost(
+    json_mode_case, monkeypatch, outcome
+):
+    from unittest.mock import Mock
+
+    old, plan, prior, cp, config = json_mode_case
+    original = (old / "manifest.json").read_bytes()
+    body = {
+        "choices": [
+            {
+                "finish_reason": "length" if outcome == "length" else "stop",
+                "message": {
+                    "content": json.dumps(
+                        {
+                            "triples": [["A", "in", "B"]]
+                            * (12 if outcome == "cycle" else 1)
+                        }
+                    )
+                },
+            }
+        ],
+        "usage": {"prompt_tokens": 10, "completion_tokens": 8},
+    }
+    if outcome == "unknown":
+        body["usage"].pop("completion_tokens")
+    response = Mock(status_code=200)
+    response.json.return_value = body
+    session = requests.Session()
+
+    def post(*a, **kw):
+        assert (old / "json-mode-probe-once.claim.json").exists()
+        assert kw["allow_redirects"] is False and kw["timeout"] == (30, 300)
+        if outcome == "timeout":
+            raise requests.ReadTimeout("fake")
+        return response
+
+    session.post = Mock(side_effect=post)
+    monkeypatch.setattr(e1.requests, "Session", lambda: session)
+    approved = dense.sha256_file(cp)
+    if outcome == "success":
+        e1.execute_json_mode_probe(cp, prior, config, approved)
+    else:
+        with pytest.raises((ValueError, requests.ReadTimeout)):
+            e1.execute_json_mode_probe(cp, prior, config, approved)
+    assert session.post.call_count == 1
+    probe = old.parent / "hotpotqa-gpt-json-mode-probe1/manifest.json"
+    result = dense.read_json(probe)
+    assert result["status"] == (
+        "awaiting_source_review" if outcome == "success" else "failed"
+    )
+    assert not result["full_index_authorized"]
+    assert (old / "manifest.json").read_bytes() == original
+    with pytest.raises(ValueError, match="output_exists"):
+        e1.execute_json_mode_probe(cp, prior, config, approved)
+    assert session.post.call_count == 1
+    (old.parent / "results/summary").mkdir(parents=True)
+    a = e1.export(plan, prior)
+    b = e1.export(plan, prior)
+    expected = 7 + (0 if outcome == "timeout" else 10 if outcome == "unknown" else 18)
+    assert a["physical_known_tokens"] == b["physical_known_tokens"] == expected
+    assert a["cost_complete"] is (outcome not in ("unknown", "timeout"))
+    if outcome in ("unknown", "timeout"):
+        assert (
+            a["budget_charge_upper_bound"]
+            == expected + dense.read_json(cp)["reserved_tokens_upper_bound"]
+        )

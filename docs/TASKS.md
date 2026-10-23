@@ -23,11 +23,14 @@
   на том же source/cached NER, cap3072/low/temp0/seed42, reserve9622,
   retry0/redirect0/timeout30,300. Только response_format меняется; без NER,
   embedding, prompt rewrite или cap increase. Нового HTTP по этому блоку нет.
-- До отдельного exact-plan допуска не выполнять кандидат и continuation.
-  Сначала связать existing runner с canonical once claim и расходом probe;
-  успех не принимает новый fallback policy автоматически. Старые failed/claims
-  immutable. Следующий индекс — отдельный child/new output/учёт всех costs,
-  только после решения протокола; source audit перед completed обязателен.
+- Пользователь разрешил передачу и1JSON-mode POST по candidate3d1b2633b4d5
+  на2792da9 с интеграцией до HTTP. Existing run-json-mode-probe добавлен:
+  проверка SHA/parent/budget, canonical once claim, immutable probe output,
+  учёт расхода/unknown в export.11новых offline-регрессий passed.
+  Старый fallback claim immutable; успех не разрешает full continuation.
+- Следующий шаг: общий gate на границе блока, commit кода, ровно1разрешённый
+  POST через runner; потом source review полного ответа либо final stop.
+  Не запускать индекс автоматически. Остальные ограничения сохраняются.
 - Runtime прежнего run caebfd5/plan091a76f5bbef immutable. Готовые5индексов
   не пересчитывать. PR33Draft/Refs #13; QA/E2/holdout/7B/merge не разрешены.
 
