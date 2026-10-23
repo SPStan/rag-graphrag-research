@@ -1,38 +1,33 @@
 # Передача контекста Sol / Luna
 
-**E1 status:** 5/6 indexes completed; physical known tokens=23264906; cost_complete=False. Last stage=hipporag2/hotpotqa failed GPT fallback. Raw/indexes remain local. PR Draft; E2 requires all six verified indexes.
+**E1 status:** 5/6 indexes completed; physical known tokens=23266291; cost_complete=False. Last stage=hipporag2/hotpotqa failed GPT fallback. Raw/indexes remain local. PR Draft; E2 requires all six verified indexes.
 
-## Текущая очередь — 23 октября: HotpotQA failed на GPT fallback;5/6
+## Текущая очередь — 23 октября: JSON-mode проба завершена;5/6
 
-- Mu run1c12c3c8 completed:5500passages/45857entities/66082facts,
-  51357nodes/158475edges, save/reload0calls. Source audit19cases/11warnings:
-  3supported/13observed_error/3needs_review, semantic_verified=false.
-  Audit SHA b4e451e710c0504b1012ef978a668bbc41af988bd6c42135474f71fe66a63dea.
-- Hotpot run31005856-9e4a-47ca-bef1-42ad4e7ab6dd FAILED, process ended.
-  394/5500 complete NER+triples,395NER,5500chunk vectors; graph/reload ещё нет.
-  1482physicalPOST=688embedding+395NER+399triples.3GPT fallback complete,
-  четвёртый length/empty final content; claim started сохраняется, не повторять.
-- Hotpot known1336978=404290input+165884output+766804embedding, новыйunknown0.
-  E1 known23264906/upper23323927,cost_complete=false, old reserve59021.
-  Остаток Hotpot18663022 из20M, не новый допуск расходов.
-- Offline SDK reconstruction совпал с Qwen/GPT request SHA; клиентская ошибка
-  формирования не найдена.3072output при пустом content и170chars reasoning:
-  нельзя утверждать, что всё потрачено на reasoning.3успешных fallback не
-  доказывают причину отказа. Подробности/границы: [E1_INDEXING](E1_INDEXING.md).
-- Подготовлен только offline-кандидат3d1b2633b4d5: один GPT JSON-mode POST
-  на том же source/cached NER, cap3072/low/temp0/seed42, reserve9622,
-  retry0/redirect0/timeout30,300. Только response_format меняется; без NER,
-  embedding, prompt rewrite или cap increase. Нового HTTP по этому блоку нет.
-- Пользователь разрешил передачу и1JSON-mode POST по candidate3d1b2633b4d5
-  на2792da9 с интеграцией до HTTP. Existing run-json-mode-probe добавлен:
-  проверка SHA/parent/budget, canonical once claim, immutable probe output,
-  учёт расхода/unknown в export.11новых offline-регрессий passed.
-  Старый fallback claim immutable; успех не разрешает full continuation.
-- Следующий шаг: общий gate на границе блока, commit кода, ровно1разрешённый
-  POST через runner; потом source review полного ответа либо final stop.
-  Не запускать индекс автоматически. Остальные ограничения сохраняются.
-- Runtime прежнего run caebfd5/plan091a76f5bbef immutable. Готовые5индексов
-  не пересчитывать. PR33Draft/Refs #13; QA/E2/holdout/7B/merge не разрешены.
+- MuSiQue completed, Dense/RAPTOR×4 готовы. Hippo Hotpot run31005856 failed
+  на394/5500пар; старые raw/manifests/claims/costs не изменялись.
+- Единственная разрешённая проба candidate3d1b2633b4d5 выполнена на6594610
+  existing runner: runc17f5afd, stop, input960/output425/total1385, HTTP1,
+  новыйunknown0.24triples/23unique, JSON полный. Повторов не было.
+  Первая CLI-команда имела опечатку approved SHA, rejected до claim/HTTP.
+- Source-only review всех24:12supported/6observed_error/6needs_review,
+  semantic_verified=false. В частности unsupported City hosted British
+  corporations; generic/disconnected scope и duplicate. Это не corpus precision.
+  Review SHA343ccef5b10ca2ec6901482b827c6842604e8508aba50209fe6a1d975e54dc46.
+- E1 known23266291/upper23325312,cost_complete=false, reserve59021;
+  Hotpot total known1338363, остаток18661637 из20M. Повторный export сверён:
+  probe включён один раз.5/6, Hotpot graph/reload отсутствует.
+- Технически JSON mode завершился на этом source; причина прежнего length
+  не доказана. Проба не принята в benchmark/cache, не разрешает continuation.
+  Предложение ADR-0023 остаётся предложением: требуется решить формат будущих
+  GPT fallback и исключение для уже израсходованного fallback этого passage.
+- Следующий offline-блок: точный child план/общая политика для обоих datasets,
+  provenance schema/json-mode cache, вычет всех POST/token/failed fallback slots;
+  затем отдельный допуск. Не сбрасывать started claim и не повторять probe.
+  Known reuse:394пар/395NER/5500chunk vectors и3complete schema GPT только
+  после SHA checks; JSON-mode output — лишь после отдельного adoption решения.
+- Проверки:100schema/export tests passed, общий offline/secret hooks на6594610
+  passed. PR33Draft/Refs #13/20files; QA/E2/holdout/7B/merge запрещены.
 
 ## История — не текущие инструкции запуска
 

@@ -1,5 +1,49 @@
 # E1: индексы полного корпуса (#13)
 
+## Итог одной разрешённой JSON-mode пробы —23октября
+
+На6594610 после100schema/export offline tests и общего commit gate выполнен
+ровно1POST по candidate3d1b2633b4d5. Run c17f5afd-4a63-4716-8c16-afad4236af09,
+output hotpotqa-gpt-json-mode-probe1; duration12.814s, finish_reason=stop,
+input960/output425/total1385, новыйunknown0.24triples/23unique, полный JSON.
+Первая CLI-команда имела ошибочный approved SHA: rejected до claim/HTTP;
+проверены отсутствие claim и правильный immutable candidate SHA до запуска.
+Это не две модельные попытки. Нового NER/embedding/full index нет.
+
+Source-only assistant review всех24triples:12supported/6observed_error/
+6needs_review, semantic_verified=false. Есть неподтверждённый City of London
+hosted British corporations, бессодержательная relation and, повтор alliance,
+отдельные generic Allied/Enemy/Rivalry/Relations без связи с парой стран и датами.
+Часть фактов поддержана исходником, но scope/attachment и coverage неполны.
+Overseas territories и явные shifts/although опущены. Проба технически пригодна
+к разбору, не доказательство faithful extraction и не corpus precision.
+Не исправлять triples вручную. Наличие полного JSON не отменяет observed errors.
+
+Source SHA05a5214a94751f22b74ba94a331e04e8801b6321ff3674b256c5eaa3ef103737.
+Response SHA07484031a470391f9a1b579909ac3452e75610e81d75bec09d3916165ee056ec.
+Immutable producer manifest SHAc3e07be261364d3d1fe773d0826b0bc3fa28d2ddf4daf624c59bc081b2ecff5d.
+Отдельный source-review.json SHA343ccef5b10ca2ec6901482b827c6842604e8508aba50209fe6a1d975e54dc46.
+Producer manifest остаётся awaiting_source_review как исходный terminal snapshot;
+sidecar review завершён, cache_adoption_authorized=false/full_index_authorized=false.
+Ни старый failed, ни raw/probe manifest не переписаны ради приёмки.
+
+Повторный export подтвердил ровно1385новых tokens, не двойное начисление.
+Hotpot known1338363, остаток18661637 из20M. E1 known23266291/upper23325312,
+cost_complete=false, old reserve59021;5/6, Hotpot graph/reload отсутствуют.
+Один изменённый формат дал полный ответ на одном source: причина прежнего
+length и надёжность JSON mode на корпусе этим не установлены.
+
+Следующий разрешаемый блок сначала offline: child plan общей JSON-mode fallback
+политики и решения об adoption этого ответа. Нельзя считать JSON mode прежним
+schema cache hit, сбрасывать старый started claim или обнулять его цену/слот.
+Нужны точные оставшиеся лимиты с учётом794LLM+688embedding прежнего Hotpot и
+1нового диагностического POST, failed fallback и всех completed/cache claims;
+отдельный допуск расходов до continuation. Проба сама его не даёт.
+При принятии новой политики прежние schema-producers остаются с фактическим
+response_format/model/request/response SHA. Mu completed не пересчитывать
+автоматически: историческое различие форматов обоих datasets раскрыть в ADR.
+Нужен source audit нового полного Hotpot перед completed. Без QA/E2/merge.
+
 ## HotpotQA: остановка GPT fallback и offline-разбор —23октября
 
 MuSiQue completed; готовность5/6. Run1c12c3c8:5500passages/45857entities/

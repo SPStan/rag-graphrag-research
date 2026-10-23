@@ -279,3 +279,13 @@ stop на первом failure/unknown, строгая local shape+source review
 fallback в индексе, ни изменение кэша, ни full continuation. Перед переносом
 в benchmark нужны отдельное решение об этом исключении для обоих датасетов,
 новый child/new output/lineage, все costs/unknown и отдельный допуск расходов.
+
+### Итог разрешённой пробы23октября
+
+User дал отдельное согласие на передачу/1POST candidate3d1b2633b4d5 и
+интеграцию до HTTP. На6594610 JSON mode дал stop/24triples/1385tokens, unknown0.
+Source review12supported/6observed_error/6needs_review, semantic_verified=false.
+Причина прежнего schema length не доказана; нет автоматического решения
+об adoption/continuation. Старый protocol и failed claim сохранены. Следующий
+child plan должен явно описать response-format provenance, оставшиеся
+fallback slots с failed/probe и бюджет; новый HTTP требует отдельного допуска.
