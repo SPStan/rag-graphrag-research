@@ -1,5 +1,6 @@
 """Offline spending guards and actual pinned SDK index/save/reload checks."""
 
+import copy
 import os
 import json
 from pathlib import Path
@@ -2032,3 +2033,192 @@ def test_socket_musique_zero_fresh_llm_cap(mixed_transport_factory):
     with pytest.raises(ValueError, match="mixed_llm_request_limit"):
         runner.generate(mixed_messages(), 1024, "openie_ner", {"type": "json_object"})
     assert runner.journal.summary()["attempts"] == 0 and session.post.call_count == 0
+
+
+@pytest.mark.parametrize("change", ["none", "missing", "sha", "length"])
+def test_hotpot_adoption_paid_replay_keeps_failed_claim(
+    mixed_transport_factory, tmp_path, change
+):
+    runner, session = mixed_transport_factory()
+    original = {
+        **e1.target.OPTIONS,
+        "model": "qwen",
+        "messages": mixed_messages(),
+        "max_tokens": 3072,
+        "response_format": {"type": "json_object"},
+    }
+    primary, _ = e1.schema_probe_payload(original, compatible=True)
+    pk = e1.target.digest(
+        {"payload": primary, "kind": "llm", "operation": "openie_triples"}
+    )
+    fallback = e1.mixed_payload(primary)
+    fallback["response_format"] = {"type": "json_object"}
+    fk = e1.target.digest(
+        {"payload": fallback, "kind": "llm", "operation": "openie_triples"}
+    )
+    bad, good = tmp_path / "old-length.json", tmp_path / "paid-json-mode.json"
+    dense.write_json_atomic(bad, mixed_body("length"))
+    dense.write_json_atomic(
+        good, mixed_body("length" if change == "length" else "stop")
+    )
+    runner.mixed_failures[pk] = {
+        "response_path": str(bad),
+        "response_sha256": dense.sha256_file(bad),
+    }
+    runner.json_adoption = (pk, fallback, fk)
+    runner.plan["hotpot_json_adoption"] = {"review_sha256": "review"}
+    runner.parent_cache[fk] = {
+        "path": good,
+        "sha256": "wrong" if change == "sha" else dense.sha256_file(good),
+        "run_id": "paid-probe",
+        "producer_complete": True,
+        "kind": "llm",
+        "operation": "openie_triples",
+        "provider": "target_api",
+        "model": "iairlab/gpt-oss-120b",
+    }
+    if change == "missing":
+        runner.parent_cache.pop(fk)
+    claims = Path(runner.plan["mixed_claim_root"]) / "musique"
+    claims.mkdir(parents=True)
+    cp = claims / f"{pk}.claim.json"
+    dense.write_json_atomic(
+        cp,
+        {"status": "started", "primary_sha256": pk, "fallback_sha256": "failed-schema"},
+    )
+    before = cp.read_bytes()
+    session.post = Mock(side_effect=AssertionError("HTTP forbidden"))
+    if change == "none":
+        _, meta = runner.generate_mixed(original)
+        assert meta["cache_hit"] and meta["triples_request_sha256"] == fk
+        assert runner.mixed_routes[pk]["response_format"] == "json_object"
+        assert runner.mixed_routes[pk]["cached_only_exception"]
+        assert runner.journal.summary()["known_subtotal"]["llm_input_tokens"] == 0
+    else:
+        with pytest.raises(ValueError):
+            runner.generate_mixed(original)
+    assert cp.read_bytes() == before
+    assert session.post.call_count == 0 and runner.journal.summary()["attempts"] == 0
+
+
+def test_hotpot_adoption_extra_probe_uses_fallback_slot(
+    mixed_transport_factory, tmp_path
+):
+    runner, session = mixed_transport_factory()
+    original = {
+        **e1.target.OPTIONS,
+        "model": "qwen",
+        "messages": mixed_messages(),
+        "max_tokens": 3072,
+        "response_format": {"type": "json_object"},
+    }
+    primary, _ = e1.schema_probe_payload(original, compatible=True)
+    pk = e1.target.digest(
+        {"payload": primary, "kind": "llm", "operation": "openie_triples"}
+    )
+    bad = tmp_path / "old-length.json"
+    dense.write_json_atomic(bad, mixed_body("length"))
+    runner.mixed_failures[pk] = {
+        "response_path": str(bad),
+        "response_sha256": dense.sha256_file(bad),
+    }
+    runner.row["fallback_extra_consumed"] = 1
+    claims = Path(runner.plan["mixed_claim_root"]) / "musique"
+    claims.mkdir(parents=True)
+    for i in range(19):
+        (claims / f"{i}.claim.json").write_text("{}", encoding="utf-8")
+    session.post = Mock(side_effect=AssertionError("HTTP forbidden"))
+    with pytest.raises(ValueError, match="fallback_limit"):
+        runner.generate_mixed(original)
+    assert session.post.call_count == 0
+
+
+def test_hotpot_adoption_pins_checked_before_reading_producers(tmp_path):
+    evidence = tmp_path / "old.json"
+    dense.write_json_atomic(evidence, {"original": True})
+    pin = {"prior_plan": str(evidence), "prior_plan_sha256": "changed"}
+    with patch(
+        "requests.Session.request", side_effect=AssertionError("HTTP forbidden")
+    ):
+        with pytest.raises(ValueError, match="evidence_changed"):
+            e1.hotpot_adoption_state(pin)
+
+
+@pytest.mark.parametrize(
+    "change", ["none", "budget", "receipt", "mu", "model", "claim"]
+)
+def test_hotpot_child_verifies_scoped_receipt_and_unchanged_rows(
+    tmp_path, monkeypatch, change
+):
+    monkeypatch.setattr(e1, "ROOT", tmp_path)
+    original = {
+        "method": "hipporag2",
+        "dataset": "hotpotqa",
+        "run_id": "old",
+        "output": "old",
+        "history_runs": [],
+        "resume_sources": [],
+        "token_limit": 20000,
+        "prior_budget_charge": 0,
+        "max_new_posts": 100,
+        "max_llm_posts": 80,
+    }
+    mu = {"method": "hipporag2", "dataset": "musique", "output": "mu", "run_id": "mu"}
+    root = tmp_path / "claims"
+    root.mkdir()
+    prior = {
+        "rows": [mu, original],
+        "model": "qwen",
+        "mixed_claim_root": str(root),
+        "mixed_extractor": e1.MIXED_EXTRACTOR,
+        "embedding_recovery_policy": e1.MIXED_EMBEDDING_RECOVERY,
+        "parent_plan": {"sha256": "parent"},
+        "lineage": [],
+        "combined_token_limit": 20000,
+    }
+    expected = {
+        "history_runs": [{"run_id": "old"}, {"run_id": "probe"}],
+        "resume_sources": [{"output": "old"}],
+        "prior_budget_charge": 18,
+        "token_limit": 19982,
+        "max_new_posts": 98,
+        "max_llm_posts": 78,
+        "fallback_extra_consumed": 1,
+    }
+    plan = copy.deepcopy(prior)
+    plan["hotpot_json_adoption"] = {"prior_plan_sha256": "pin"}
+    plan["hotpot_adoption_approval_file"] = str(
+        (tmp_path / ".cache/e1-hotpot-adoption-execution-approval.json").resolve()
+    )
+    row = plan["rows"][1]
+    row.update(expected, run_id="new", output="new", code_commit="head")
+    monkeypatch.setattr(
+        e1, "hotpot_adoption_state", lambda pin: (prior, expected, None, None, None)
+    )
+    dense.write_json_atomic(
+        root / "hotpot-adoption-plan.claim.json", e1.mixed_plan_claim(plan)
+    )
+    receipt = {
+        "approved_plan_digest": e1.target.digest(plan),
+        "accept_observed_errors_and_single_cached_json_exception": True,
+        "authorize_hotpot_continuation_only": True,
+    }
+    if change == "receipt":
+        receipt["accept_observed_errors_and_single_cached_json_exception"] = False
+    dense.write_json_atomic(Path(plan["hotpot_adoption_approval_file"]), receipt)
+    if change == "budget":
+        row["token_limit"] += 1
+    if change == "mu":
+        plan["rows"][0]["output"] = "different"
+    if change == "model":
+        plan["model"] = "different"
+    if change == "claim":
+        dense.write_json_atomic(root / "hotpot-adoption-plan.claim.json", {})
+    with patch(
+        "requests.Session.request", side_effect=AssertionError("HTTP forbidden")
+    ):
+        if change == "none":
+            e1.verify_hotpot_adoption(plan, row)
+        else:
+            with pytest.raises(ValueError):
+                e1.verify_hotpot_adoption(plan, row)

@@ -21,11 +21,15 @@
   не доказана. Проба не принята в benchmark/cache, не разрешает continuation.
   Предложение ADR-0023 остаётся предложением: требуется решить формат будущих
   GPT fallback и исключение для уже израсходованного fallback этого passage.
-- Следующий offline-блок: точный child план/общая политика для обоих datasets,
-  provenance schema/json-mode cache, вычет всех POST/token/failed fallback slots;
-  затем отдельный допуск. Не сбрасывать started claim и не повторять probe.
-  Known reuse:394пар/395NER/5500chunk vectors и3complete schema GPT только
-  после SHA checks; JSON-mode output — лишь после отдельного adoption решения.
+- Подготовлен existing runner child для одной cached-only JSON adoption;
+  будущие GPT fallback остаются Schema, общая политика прежняя. Нужно отдельно
+  принять observed errors/исключение и разрешить Hotpot расходы до HTTP.
+  Новые пределы18661637tokens/10225LLMPOST/38517allPOST, ≤15fresh fallback;
+  failed+probe занимают слоты.5completed rows неизменны, старые claims pinned.
+- Реальный offline replay при запрещённом HTTP:0POST/0tokens, старые claims
+  неизменны. До receipt/exact plan SHA запуск блокируется. Следующий шаг:
+  завершить gate/commit, prepare-hotpot-adoption, проверить plan/export и
+  показать один scoped вопрос. Полный корпус по этому блоку не запускается.
 - Проверки:100schema/export tests passed, общий offline/secret hooks на6594610
   passed. PR33Draft/Refs #13/20files; QA/E2/holdout/7B/merge запрещены.
 

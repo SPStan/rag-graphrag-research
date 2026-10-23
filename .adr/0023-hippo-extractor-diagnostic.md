@@ -289,3 +289,20 @@ Source review12supported/6observed_error/6needs_review, semantic_verified=false.
 об adoption/continuation. Старый protocol и failed claim сохранены. Следующий
 child plan должен явно описать response-format provenance, оставшиеся
 fallback slots с failed/probe и бюджет; новый HTTP требует отдельного допуска.
+
+## Предложение23октября: одна cached-only JSON adoption, общий Schema fallback прежний
+
+Не переносим JSON mode на все будущие fallback по одному успешному ответу.
+Предлагается принять только уже оплаченный c51907e11fb54fe1 для source9d88b1f4,
+с раскрытыми observed errors/needs_review и semantic_verified=false. Failed
+Schema claim не сбрасывается; оба GPT расхода учтены и занимают два слота.
+Будущая политика прежняя для обоих datasets; историческое исключение Hotpot
+явно нарушает полную идентичность response_format producers, не скрывается.
+Mu готовый индекс не пересчитываем. Никаких новых семантических prompt retries.
+
+Existing runner поддерживает exact-pinned child/new output, cached-only route
+и отдельную scoped receipt до HTTP. Оба producer runs в history, без двойного
+export charge. Новые Hotpot пределы18661637tokens/10225LLMPOST/38517allPOST,
+≤15новыхGPTfallback (3complete+1failed+1probe заняли5из20). Details/stop/gates
+в E1_INDEXING.md. Политика остаётся предложением до явного принятия этого
+исключения и допуска затрат. Diagnostic-only согласие автоматически не переносим.

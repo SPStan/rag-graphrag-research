@@ -1,5 +1,75 @@
 # E1: индексы полного корпуса (#13)
 
+## Подготовленный Hotpot child: одна cached-only adoption —23октября
+
+Это предложение, не разрешение запуска. Сохраняется прежняя общая политика:
+Qwen primaryNER1024/triples3072, GPT low/Schema3072 только после Qwen length+cycle,
+один fallback; другие ошибки/unknown/обычный length/сбой GPT останавливают очередь.
+Ни будущего JSON-mode retry, ни автоматического второго восстановления нет.
+Изменение минимально: отдельно принять уже оплаченный responsec51907e11fb54fe1
+для одного source9d88b1f4 по source-review343ccef5b10c.6observed_error/6needs_review
+не скрываются, semantic_verified=false. Это не новый запрос и не вывод о качестве.
+
+Основная политика одинакова обоим datasets. У Hotpot появляется именованное
+историческое исключение: один JSON-mode producer вместо failed Schema GPT.
+Mu completed остаётся с фактическими прежними producers; идентичность форматов
+всех источников обоих датасетов не заявляется. Новую основную модель/общий prompt,
+reader, corpus, BGE или cap не меняем. Это предложение об одном cached exception
+и отдельном расходном допуске по ADR-0022; автоматического требования нового
+решения куратора из него не выводим. Актуальное O/N/R/H отдельно перед Ready.
+
+### Готовый путь в существующем runner
+
+Команда prepare-hotpot-adoption создаёт единственный private plan
+`.cache/e1-hotpot-adoption-plan.json` и canonical hotpot-adoption-plan.claim.json
+в прежнем shared root. Новая строка только Hippo Hotpot: новый UUID/output
+hotpotqa-mixed-adopt1. Пять completed rows не меняются. Код pin ставится после
+commit; родительский plan/оба producer manifests/candidate/review/Mu manifest,
+четыре исходных fallback claims закрепляются SHA. Старый started claim неизменен.
+
+State проверяет готовый Mu graph/audit/journal и их SHA. Исторические failed Mu
+не используются как Hotpot cache producers; повторная загрузка их schema-проб
+не нужна. Hotpot1477успешных physical responses проверены:688embedding batches
+(5500passage vectors),395NER,394triples, включая3полных GPT Schema. JSON-mode
+ответ проверяется отдельно: полный response+known usage, source review всех
+24triples и exact request/response SHA. Его cached-only replay не может вызвать
+POST даже при отсутствии/подмене ответа — вместо этого stop. Старые failed
+Qwen/GPT никогда не принимаются как extraction.
+
+Оба старых Hotpot runs включены в history ровно один раз: failed31005856 и
+probe c17f5afd. Probe не включается повторно отдельным export diagnostic;
+исторический failed GPT остаётся известным расходом. Остаток18661637tokens,
+10225новыхLLMPOST,38517всехPOST. Charge1338363 из20M уже вычтен.
+Fallback20 сохраняет общий предел:3complete+1failed Schema+1JSON probe уже
+израсходованы; будущих Schema GPT не более15. Replay не оплачивается повторно.
+Ранее reserve59021/E1 cost_complete=false не снимаются.
+
+Новые passage/NER отправляются только api.duckduck.cloud/v1: Qwen primary,
+GPT120b Schema fallback low. Entities/facts/passages для embedding — только
+локальному BGE-M3 с закреплённым digest; batches≤8, pause≥2s/.25s per text,
+truncate=false. Все5105остающихся NER и5105primary triples+до15fallback дают
+10225внешнихPOST worst case. Embeddings entities/facts ещё не посчитаны заранее;
+лимиты38517всехPOST/18661637combinedtokens обязательны, остановка до превышения.
+Retry0/redirect0/connect30/read300, одна попытка нового payload.
+
+После graph: coverage5500, save/reload без model calls, prepare-mixed-audit/
+source review всех обязательных cases/finalize. До audit индекс не completed.
+Никакого QA/E2/holdout/7B/merge. Пять готовых индексов не пересчитываются.
+
+До HTTP нужны exact plan SHA и отдельная approval receipt, где явно разрешены
+и принятие observed errors/одного cached JSON исключения, и Hotpot continuation.
+Прежнее согласие только на diagnostic этого не покрывает. verify_plan проверяет
+receipt до local service preflight/нового расхода; прямой запуск без receipt
+блокируется. Изменение budgets/model/готовой Mu row/claim также блокируется.
+
+Новые offline-регрессии покрывают cached replay/missing/SHA/length, сохранение
+failed claim, дополнительный занятый fallback slot, evidence/receipt/budget/
+model/готовую строку/canonical claim. Реальный сохранённый response replay
+при запрещённом HTTP дал physicalPOST0/tokens0, original claims unchanged.
+Первый ручной offline-replay в check env остановился на ненужном Mu schema
+SDK dependency; этот неиспользуемый Hotpot producer path исключён, повторный
+replay прошёл. Это не модельная попытка и не изменение прошлых результатов.
+
 ## Итог одной разрешённой JSON-mode пробы —23октября
 
 На6594610 после100schema/export offline tests и общего commit gate выполнен
