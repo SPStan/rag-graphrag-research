@@ -306,3 +306,20 @@ export charge. Новые Hotpot пределы18661637tokens/10225LLMPOST/38517
 ≤15новыхGPTfallback (3complete+1failed+1probe заняли5из20). Details/stop/gates
 в E1_INDEXING.md. Политика остаётся предложением до явного принятия этого
 исключения и допуска затрат. Diagnostic-only согласие автоматически не переносим.
+
+## 23 октября: предложение ресурса55 попыток после mixed_fallback_limit
+
+Прежний child2fc9df был явно разрешён вместе с одним cached JSON исключением.
+Он failed на attempt guard, не transport/unknown:18Schema complete+1Schema
+failed+1JSON probe заняли20. Другая Qwen length+cycle остановила очередь
+перед GPT. Payload/cap не исправляем ради счётчика, partial не принимаем.
+
+Предлагаем55total GPT attempts=ceil(5500/100), operational1%passage-count
+allocation. Это прозрачная ресурсная граница, не статистическая оценка, quality
+threshold или обещание завершения. Не более35новыхSchema GPT. Общая предлагае-
+мая политика одинаковая datasets, готовый Mu20 не пересчитывается; различие
+истории/моделей раскрывается. Новый global LLM cap11055 (+35к11020), общие
+20Mtokens/40kallPOST прежние. Existing runner/один child/новая scoped receipt,
+старые claims/costs/unknown immutable. Отдельное разрешение exact plan нужно
+до HTTP. Source audit/no semantic_verified сохраняются. Дальнейшее автомати-
+ческое расширение/recovery, QA/E2/merge не допускаются этим предложением.

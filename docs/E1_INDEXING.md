@@ -1,5 +1,85 @@
 # E1: индексы полного корпуса (#13)
 
+## Hotpot остановлен на лимите попыток; подготовлен один completion —23октября
+
+Run579035c8-3089-421a-b71c-8b65bdeba16e на469f860/plan2fc9dfbfd5f8 failed
+в17:15MSK:2590passages текущего обхода,4793новыхLLMPOST,3407432tokens
+(2458823input+948609output), новыхembedding0/unknown0/unfinished0. Последний
+Qwen response5841280eacc2685d5d8a91af6c3deee24d517a60180defc5f9d58cb8c9f559d9:
+length,122полных tuple-фрагмента/1unique, полного JSON нет. GPT для него
+не отправлен: mixed_fallback_limit. Это срабатывание расходного guard;
+причина исходной генеративной деградации не установлена и не исправлена.
+Immutable failed manifest SHAe8512042a0ba5fbc4ffce95e0f38ec6dc1b831fd24679bb45dc8fff4c6b1489a.
+
+После explicit согласия пользователя на2fc9df cached-only исключение принято;
+один прежний JSON-mode response остаётся с исходным model/format/review и
+раскрытыми6observed_error/6needs_review. Новых таких исключений не предлагается.
+Пять completed индексов неизменны. E1 known26673723/upper26732744,
+cost_complete=false, historical reserve59021. Hotpot known4745795 из20M.
+Токены — вычислительный расход, денежный биллинг не проверялся.
+
+### Проверенный replay и остатки
+
+Union успешно проверенных response SHA:688BGE batches=5500passage vectors,
+2784NER/2782полных triples. Отдельно есть ранее разрешённый полный JSON-mode
+ответ; при отсутствии его source в union он даёт ещё одну пару (2783available).
+Следующий run использует оба failed parents и probe с полноценным producer
+journal/provenance. Старые partial/length extraction не принимаются. Последний
+Qwen length+cycle уже известен: для него допустим ровно один ещё не отправленный
+Schema GPT, без повторного NER/Qwen. Старый failed GPT claim не сбрасывается.
+
+### Один ресурсный вариант — ещё не разрешён
+
+Предлагается явный предел GPT fallback attempts = ceil(5500/100)=55, включая
+все failed/probe requests.1% — выбранная операционная граница доли попыток,
+не оценка точности/вероятности успеха и не статистическая гарантия завершения.
+Из20нынешних попыток18Schema complete,1Schema failed и1JSON probe; остаётся
+не более35новых. Основной trigger/модели/prompt/source-fidelity/temp0/seed42/
+output caps1024/3072/GPT low/Schema не меняются. Больше fallback не лечит Qwen
+и не меняет качество уже извлечённых triples. При новой ошибке GPT — stop,
+не JSON-mode retry, не повышение cap, не следующая автоматическая continuation.
+
+Одна предлагаемая ресурсная политика55 для обоих datasets; Mu уже completed
+при старом cap20 и не пересчитывается. Фактическая история различается и
+раскрывается. Новизну/чистый эффект архитектуры/эффективность не заявляем.
+Research O/N/R/H не содержат число20, не переписываются ради этого лимита;
+актуальное согласование всё равно проверяется отдельно перед Ready.
+
+Новый общий предел LLMPOST Hotpot11055 вместо11020, ровно+35. Уже5588LLMPOST
+(794+1+4793) сохранены. Новые bounds:5467LLMPOST/33724всехPOST,
+15254205combinedtokens; прежние20Mtokens/40000allPOST не расширяются.
+Остаток primary/NER:2716+2716; текущий известный cycle и будущие cycles могут
+потребовать до35Schema GPT из этого LLM лимита.55 не гарантирует завершение;
+если исчерпан — остановка без автоматического увеличения. Embeddings новых
+entities/facts локальные BGE batch≤8,pause≥2s/.25s per text,truncate=false,
+фиксированный digest. Retry0/redirect0/connect30/read300; первая другая
+ошибка/unknown/non-cycle length/сбой fallback — окончательный stop этого run.
+
+### Existing runner и критерии завершения
+
+prepare-hotpot-completion создаёт canonical `.cache/e1-hotpot-completion-plan.json`
+и shared hotpot-completion-plan.claim.json. Только одна fresh Hotpot row/new UUID/
+output hotpotqa-mixed-completion1. Pin: parent plan/failed manifest/stderr/19claims;
+нижние parents/probe/JSON review остаются с прежними SHA. Все3producer runs
+в history ровно один раз. Paid/cost здесь не термин оплаты: replay не создаёт
+новых модельных запросов. Export не дублирует диагностическую попытку.
+Receipt должна отдельно принять55fallback/11055LLMPOST и разрешить exact Hotpot
+план. Без receipt/exact SHA до HTTP отказ; предыдущий допуск на20 не переносится.
+
+Команда подготовки не выполняет HTTP:
+
+```powershell
+./.venv-check/Scripts/python.exe -m scripts.run_e1 prepare-hotpot-completion --plan '.cache/e1-hotpot-completion-plan.json' --prior-plan '.cache/e1-hotpot-adoption-plan.json' --counter-stderr '.cache/e1-hotpot-adoption.stderr.log'
+```
+
+Будущий run — прежняя команда run только --method hipporag2 --dataset hotpotqa
+с новым plan/exact SHA и закреплённым SDK; без запуска остальных пяти rows.
+После full graph обязательны coverage5500/save-reload0calls и source audit;
+до этого5/6, PRDraft/Refs #13. QA/E2/holdout/7B/merge не разрешены.
+Offline tests:195passed/3integration skipped; лимит55 с probe extra slot,
+один новый Schema POST на известном cycle без NER/primary, старые claims,
+evidence tamper/receipt/budget/готовая Mu row. Общий gate — на границе блока.
+
 ## Подготовленный Hotpot child: одна cached-only adoption —23октября
 
 Это предложение, не разрешение запуска. Сохраняется прежняя общая политика:

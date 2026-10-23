@@ -1,6 +1,6 @@
 {
   "batch_id": "edff74df-c567-49de-a834-f9f1fc6f7f74",
-  "plan_sha256": "091a76f5bbef5d86304283a9e58a27ebe5e6b02aafba55eaa77bc730f5992600",
+  "plan_sha256": "2fc9dfbfd5f8452d5a55f3855e5c2a869b8f5aac404ee678eb5043489f3d4788",
   "models": {
     "model": "iairlab/qwen3.8-27b",
     "embedding_model": "bge-m3:latest",
@@ -1482,7 +1482,7 @@
       "attributed_construction_seconds": 59418.62700000001
     },
     {
-      "run_id": "31005856-9e4a-47ca-bef1-42ad4e7ab6dd",
+      "run_id": "579035c8-3089-421a-b71c-8b65bdeba16e",
       "method": "hipporag2",
       "dataset": "hotpotqa",
       "passages": 5500,
@@ -1497,20 +1497,143 @@
         }
       },
       "corpus_fingerprint": "1d6a33346c42cd2feae5cf71eb2c145121a74712eb51a86d95205983a4477634",
-      "code_commit": "caebfd5cc499b9b9dd3b370a0675e154bf535b50",
-      "token_limit": 20000000,
-      "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/hipporag2/hotpotqa-mixed-embed1",
+      "code_commit": "469f8609d45c877a7311af8883939db0810fce1c",
+      "token_limit": 18661637,
+      "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/hipporag2/hotpotqa-mixed-adopt1",
       "resume_kind": "mixed_native",
-      "history_runs": [],
-      "resume_sources": [],
+      "history_runs": [
+        {
+          "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/hipporag2/hotpotqa-mixed-embed1",
+          "run_id": "31005856-9e4a-47ca-bef1-42ad4e7ab6dd",
+          "manifest_sha256": "543a355e089a907f9fe4e31c51e15ec1f91d1b67e844320dff4fd7bc0e8cecc8",
+          "summary": {
+            "schema_version": 1,
+            "phases": [
+              {
+                "phase": "index",
+                "provider": "local_ollama",
+                "attempts": 688,
+                "errors": 0,
+                "unfinished": 0,
+                "cache_hits": 0,
+                "cache_provenance_unknown": 0,
+                "known_subtotal": {
+                  "llm_input_tokens": 0,
+                  "llm_output_tokens": 0,
+                  "embedding_input_tokens": 766804
+                },
+                "unknown_fields": {
+                  "llm_input_tokens": 0,
+                  "llm_output_tokens": 0,
+                  "embedding_input_tokens": 0
+                },
+                "complete": true,
+                "total": {
+                  "llm_input_tokens": 0,
+                  "llm_output_tokens": 0,
+                  "embedding_input_tokens": 766804
+                }
+              },
+              {
+                "phase": "index",
+                "provider": "target_api",
+                "attempts": 794,
+                "errors": 0,
+                "unfinished": 0,
+                "cache_hits": 0,
+                "cache_provenance_unknown": 0,
+                "known_subtotal": {
+                  "llm_input_tokens": 404290,
+                  "llm_output_tokens": 165884,
+                  "embedding_input_tokens": 0
+                },
+                "unknown_fields": {
+                  "llm_input_tokens": 0,
+                  "llm_output_tokens": 0,
+                  "embedding_input_tokens": 0
+                },
+                "complete": true,
+                "total": {
+                  "llm_input_tokens": 404290,
+                  "llm_output_tokens": 165884,
+                  "embedding_input_tokens": 0
+                }
+              }
+            ],
+            "known_subtotal": {
+              "llm_input_tokens": 404290,
+              "llm_output_tokens": 165884,
+              "embedding_input_tokens": 766804
+            },
+            "complete": true,
+            "attempts": 1482,
+            "historical_cache_cost_complete": true,
+            "journal_corrupt_tail": false,
+            "corrupt_tail_bytes": 0
+          },
+          "unknown_reserved_upper_bound": 0
+        },
+        {
+          "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/hipporag2/hotpotqa-gpt-json-mode-probe1",
+          "run_id": "c17f5afd-4a63-4716-8c16-afad4236af09",
+          "manifest_sha256": "c3e07be261364d3d1fe773d0826b0bc3fa28d2ddf4daf624c59bc081b2ecff5d",
+          "summary": {
+            "schema_version": 1,
+            "phases": [
+              {
+                "phase": "index",
+                "provider": "target_api",
+                "attempts": 1,
+                "errors": 0,
+                "unfinished": 0,
+                "cache_hits": 0,
+                "cache_provenance_unknown": 0,
+                "known_subtotal": {
+                  "llm_input_tokens": 960,
+                  "llm_output_tokens": 425,
+                  "embedding_input_tokens": 0
+                },
+                "unknown_fields": {
+                  "llm_input_tokens": 0,
+                  "llm_output_tokens": 0,
+                  "embedding_input_tokens": 0
+                },
+                "complete": true,
+                "total": {
+                  "llm_input_tokens": 960,
+                  "llm_output_tokens": 425,
+                  "embedding_input_tokens": 0
+                }
+              }
+            ],
+            "known_subtotal": {
+              "llm_input_tokens": 960,
+              "llm_output_tokens": 425,
+              "embedding_input_tokens": 0
+            },
+            "complete": true,
+            "attempts": 1,
+            "historical_cache_cost_complete": true,
+            "journal_corrupt_tail": false,
+            "corrupt_tail_bytes": 0
+          },
+          "unknown_reserved_upper_bound": 0
+        }
+      ],
+      "resume_sources": [
+        {
+          "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/hipporag2/hotpotqa-mixed-embed1",
+          "manifest_sha256": "543a355e089a907f9fe4e31c51e15ec1f91d1b67e844320dff4fd7bc0e8cecc8"
+        }
+      ],
       "diagnostics_in_history": true,
-      "prior_budget_charge": 0,
-      "max_new_posts": 40000,
+      "prior_budget_charge": 1338363,
+      "max_new_posts": 38517,
       "schema_adoption": {
         "path": "results/summary/e1-hippo-schema-adoption.json",
         "sha256": "d04856cad7220496e14b68dabc46c571638a2795f0b0cf050eb8026fcf3eeced"
       },
-      "max_llm_posts": 11020,
+      "max_llm_posts": 10225,
       "extractor_configuration": {
         "version": "hipporag2_qwen_primary_gptoss_length_fallback_source_v1",
         "fallback_model": "iairlab/gpt-oss-120b",
@@ -1524,28 +1647,29 @@
           "hotpotqa": 11020
         }
       },
+      "fallback_extra_consumed": 1,
       "status": "failed",
-      "seconds": 3638.21,
-      "plan_sha256": "138ace734107f163289714efa52d07ee4bc3a09739a733beef4bb6b43f35f6f4",
+      "seconds": 11520.148,
+      "plan_sha256": "8db79eb820706d6850a32316fbfe0977b055ea62f20f68f8324128726c19b76d",
       "error_type": "ValueError",
       "token_accounting": {
         "journal_file": "usage.jsonl",
-        "journal_sha256": "0a153465f023483dd96b882b5e3f3cd3b1b722f333fb99119f936a17dd51ba9c",
+        "journal_sha256": "ab697548308ef0294eeffd3aa73e75d77c4056b49d5460476049a1f86ebdf21a",
         "summary": {
           "schema_version": 1,
           "phases": [
             {
               "phase": "index",
               "provider": "local_ollama",
-              "attempts": 688,
+              "attempts": 0,
               "errors": 0,
               "unfinished": 0,
-              "cache_hits": 0,
+              "cache_hits": 688,
               "cache_provenance_unknown": 0,
               "known_subtotal": {
                 "llm_input_tokens": 0,
                 "llm_output_tokens": 0,
-                "embedding_input_tokens": 766804
+                "embedding_input_tokens": 0
               },
               "unknown_fields": {
                 "llm_input_tokens": 0,
@@ -1556,20 +1680,20 @@
               "total": {
                 "llm_input_tokens": 0,
                 "llm_output_tokens": 0,
-                "embedding_input_tokens": 766804
+                "embedding_input_tokens": 0
               }
             },
             {
               "phase": "index",
               "provider": "target_api",
-              "attempts": 794,
+              "attempts": 4793,
               "errors": 0,
               "unfinished": 0,
-              "cache_hits": 0,
+              "cache_hits": 404,
               "cache_provenance_unknown": 0,
               "known_subtotal": {
-                "llm_input_tokens": 404290,
-                "llm_output_tokens": 165884,
+                "llm_input_tokens": 2458823,
+                "llm_output_tokens": 948609,
                 "embedding_input_tokens": 0
               },
               "unknown_fields": {
@@ -1579,19 +1703,19 @@
               },
               "complete": true,
               "total": {
-                "llm_input_tokens": 404290,
-                "llm_output_tokens": 165884,
+                "llm_input_tokens": 2458823,
+                "llm_output_tokens": 948609,
                 "embedding_input_tokens": 0
               }
             }
           ],
           "known_subtotal": {
-            "llm_input_tokens": 404290,
-            "llm_output_tokens": 165884,
-            "embedding_input_tokens": 766804
+            "llm_input_tokens": 2458823,
+            "llm_output_tokens": 948609,
+            "embedding_input_tokens": 0
           },
           "complete": true,
-          "attempts": 1482,
+          "attempts": 4793,
           "historical_cache_cost_complete": true,
           "journal_corrupt_tail": false,
           "corrupt_tail_bytes": 0
@@ -1604,15 +1728,15 @@
             {
               "phase": "index",
               "provider": "local_ollama",
-              "attempts": 688,
+              "attempts": 0,
               "errors": 0,
               "unfinished": 0,
-              "cache_hits": 0,
+              "cache_hits": 688,
               "cache_provenance_unknown": 0,
               "known_subtotal": {
                 "llm_input_tokens": 0,
                 "llm_output_tokens": 0,
-                "embedding_input_tokens": 766804
+                "embedding_input_tokens": 0
               },
               "unknown_fields": {
                 "llm_input_tokens": 0,
@@ -1623,17 +1747,17 @@
               "total": {
                 "llm_input_tokens": 0,
                 "llm_output_tokens": 0,
-                "embedding_input_tokens": 766804
+                "embedding_input_tokens": 0
               }
             }
           ],
           "known_subtotal": {
             "llm_input_tokens": 0,
             "llm_output_tokens": 0,
-            "embedding_input_tokens": 766804
+            "embedding_input_tokens": 0
           },
           "complete": true,
-          "attempts": 688,
+          "attempts": 0,
           "historical_cache_cost_complete": true,
           "journal_corrupt_tail": false,
           "corrupt_tail_bytes": 0
@@ -1644,14 +1768,14 @@
             {
               "phase": "index",
               "provider": "target_api",
-              "attempts": 395,
+              "attempts": 2389,
               "errors": 0,
               "unfinished": 0,
-              "cache_hits": 0,
+              "cache_hits": 202,
               "cache_provenance_unknown": 0,
               "known_subtotal": {
-                "llm_input_tokens": 122411,
-                "llm_output_tokens": 40208,
+                "llm_input_tokens": 747275,
+                "llm_output_tokens": 250166,
                 "embedding_input_tokens": 0
               },
               "unknown_fields": {
@@ -1661,19 +1785,19 @@
               },
               "complete": true,
               "total": {
-                "llm_input_tokens": 122411,
-                "llm_output_tokens": 40208,
+                "llm_input_tokens": 747275,
+                "llm_output_tokens": 250166,
                 "embedding_input_tokens": 0
               }
             }
           ],
           "known_subtotal": {
-            "llm_input_tokens": 122411,
-            "llm_output_tokens": 40208,
+            "llm_input_tokens": 747275,
+            "llm_output_tokens": 250166,
             "embedding_input_tokens": 0
           },
           "complete": true,
-          "attempts": 395,
+          "attempts": 2389,
           "historical_cache_cost_complete": true,
           "journal_corrupt_tail": false,
           "corrupt_tail_bytes": 0
@@ -1684,14 +1808,14 @@
             {
               "phase": "index",
               "provider": "target_api",
-              "attempts": 399,
+              "attempts": 2404,
               "errors": 0,
               "unfinished": 0,
-              "cache_hits": 0,
+              "cache_hits": 202,
               "cache_provenance_unknown": 0,
               "known_subtotal": {
-                "llm_input_tokens": 281879,
-                "llm_output_tokens": 125676,
+                "llm_input_tokens": 1711548,
+                "llm_output_tokens": 698443,
                 "embedding_input_tokens": 0
               },
               "unknown_fields": {
@@ -1701,19 +1825,19 @@
               },
               "complete": true,
               "total": {
-                "llm_input_tokens": 281879,
-                "llm_output_tokens": 125676,
+                "llm_input_tokens": 1711548,
+                "llm_output_tokens": 698443,
                 "embedding_input_tokens": 0
               }
             }
           ],
           "known_subtotal": {
-            "llm_input_tokens": 281879,
-            "llm_output_tokens": 125676,
+            "llm_input_tokens": 1711548,
+            "llm_output_tokens": 698443,
             "embedding_input_tokens": 0
           },
           "complete": true,
-          "attempts": 399,
+          "attempts": 2404,
           "historical_cache_cost_complete": true,
           "journal_corrupt_tail": false,
           "corrupt_tail_bytes": 0
@@ -1722,13 +1846,13 @@
       "current_unknown_reserved_upper_bound": 0,
       "failure_diagnostic": {
         "operation": "openie_triples",
-        "request_sha256": "217fb007d827f5e03e8d9195f23bf62eaaa7b1c4a9f9de1690105ff5cf6ba39c",
+        "request_sha256": "5841280eacc2685d5d8a91af6c3deee24d517a60180defc5f9d58cb8c9f559d9",
         "usage_status": "complete",
         "finish_reason": "length",
         "repetition": {
-          "complete_tuples": 0,
-          "unique_tuples": 0,
-          "cycle": false
+          "complete_tuples": 122,
+          "unique_tuples": 1,
+          "cycle": true
         }
       },
       "cumulative_accounting": {
@@ -1740,7 +1864,7 @@
             "attempts": 688,
             "errors": 0,
             "unfinished": 0,
-            "cache_hits": 0,
+            "cache_hits": 688,
             "cache_provenance_unknown": 0,
             "known_subtotal": {
               "llm_input_tokens": 0,
@@ -1762,14 +1886,14 @@
           {
             "phase": "index",
             "provider": "target_api",
-            "attempts": 795,
+            "attempts": 5588,
             "errors": 0,
             "unfinished": 0,
-            "cache_hits": 0,
+            "cache_hits": 404,
             "cache_provenance_unknown": 0,
             "known_subtotal": {
-              "llm_input_tokens": 405250,
-              "llm_output_tokens": 166309,
+              "llm_input_tokens": 2864073,
+              "llm_output_tokens": 1114918,
               "embedding_input_tokens": 0
             },
             "unknown_fields": {
@@ -1779,41 +1903,25 @@
             },
             "complete": true,
             "total": {
-              "llm_input_tokens": 405250,
-              "llm_output_tokens": 166309,
+              "llm_input_tokens": 2864073,
+              "llm_output_tokens": 1114918,
               "embedding_input_tokens": 0
             }
           }
         ],
         "known_subtotal": {
-          "llm_input_tokens": 405250,
-          "llm_output_tokens": 166309,
+          "llm_input_tokens": 2864073,
+          "llm_output_tokens": 1114918,
           "embedding_input_tokens": 766804
         },
         "complete": true,
-        "attempts": 1483,
+        "attempts": 6276,
         "historical_cache_cost_complete": true,
         "journal_corrupt_tail": false,
         "corrupt_tail_bytes": 0
       },
-      "cumulative_seconds": 3651.024,
-      "gpt_json_mode_probe": {
-        "status": "awaiting_source_review",
-        "run_id": "c17f5afd-4a63-4716-8c16-afad4236af09",
-        "unknown_reserved_upper_bound": 0,
-        "full_index_authorized": false,
-        "cases": [
-          {
-            "source_id": "sha256:9d88b1f478340a181c10b65649232145eb0b065a42787407118d226febedb761",
-            "request_sha256": "c51907e11fb54fe1e1c74d5b74e74c2c59de463b32f2504cbce3b7a276e19b63",
-            "triples": 24,
-            "semantic_support": "not_reviewed"
-          }
-        ],
-        "model": "iairlab/gpt-oss-120b",
-        "code_commit": "65946109d22cefb79d3520e7d91574743f54e919"
-      },
-      "artifact_manifest_sha256": "543a355e089a907f9fe4e31c51e15ec1f91d1b67e844320dff4fd7bc0e8cecc8",
+      "cumulative_seconds": 15171.171999999999,
+      "artifact_manifest_sha256": "e8512042a0ba5fbc4ffce95e0f38ec6dc1b831fd24679bb45dc8fff4c6b1489a",
       "llm_by_model": {
         "iairlab/gpt-oss-120b": {
           "schema_version": 1,
@@ -1821,14 +1929,14 @@
             {
               "phase": "index",
               "provider": "target_api",
-              "attempts": 5,
+              "attempts": 20,
               "errors": 0,
               "unfinished": 0,
-              "cache_hits": 0,
+              "cache_hits": 3,
               "cache_provenance_unknown": 0,
               "known_subtotal": {
-                "llm_input_tokens": 4524,
-                "llm_output_tokens": 7242,
+                "llm_input_tokens": 18176,
+                "llm_output_tokens": 12229,
                 "embedding_input_tokens": 0
               },
               "unknown_fields": {
@@ -1838,19 +1946,19 @@
               },
               "complete": true,
               "total": {
-                "llm_input_tokens": 4524,
-                "llm_output_tokens": 7242,
+                "llm_input_tokens": 18176,
+                "llm_output_tokens": 12229,
                 "embedding_input_tokens": 0
               }
             }
           ],
           "known_subtotal": {
-            "llm_input_tokens": 4524,
-            "llm_output_tokens": 7242,
+            "llm_input_tokens": 18176,
+            "llm_output_tokens": 12229,
             "embedding_input_tokens": 0
           },
           "complete": true,
-          "attempts": 5,
+          "attempts": 20,
           "historical_cache_cost_complete": true,
           "journal_corrupt_tail": false,
           "corrupt_tail_bytes": 0
@@ -1861,14 +1969,14 @@
             {
               "phase": "index",
               "provider": "target_api",
-              "attempts": 790,
+              "attempts": 5568,
               "errors": 0,
               "unfinished": 0,
-              "cache_hits": 0,
+              "cache_hits": 401,
               "cache_provenance_unknown": 0,
               "known_subtotal": {
-                "llm_input_tokens": 400726,
-                "llm_output_tokens": 159067,
+                "llm_input_tokens": 2845897,
+                "llm_output_tokens": 1102689,
                 "embedding_input_tokens": 0
               },
               "unknown_fields": {
@@ -1878,19 +1986,19 @@
               },
               "complete": true,
               "total": {
-                "llm_input_tokens": 400726,
-                "llm_output_tokens": 159067,
+                "llm_input_tokens": 2845897,
+                "llm_output_tokens": 1102689,
                 "embedding_input_tokens": 0
               }
             }
           ],
           "known_subtotal": {
-            "llm_input_tokens": 400726,
-            "llm_output_tokens": 159067,
+            "llm_input_tokens": 2845897,
+            "llm_output_tokens": 1102689,
             "embedding_input_tokens": 0
           },
           "complete": true,
-          "attempts": 790,
+          "attempts": 5568,
           "historical_cache_cost_complete": true,
           "journal_corrupt_tail": false,
           "corrupt_tail_bytes": 0
@@ -1899,12 +2007,12 @@
       "cost_semantics": "Physical new cost; replay is not charged twice.",
       "standalone_cost_complete": true,
       "standalone_known_subtotal": {
-        "llm_input_tokens": 405250,
-        "llm_output_tokens": 166309,
+        "llm_input_tokens": 2864073,
+        "llm_output_tokens": 1114918,
         "embedding_input_tokens": 766804
       },
-      "measured_run_seconds": 3638.21,
-      "attributed_construction_seconds": 3651.024
+      "measured_run_seconds": 11520.148,
+      "attributed_construction_seconds": 15171.171999999999
     },
     {
       "run_id": "957006e6-5d60-43f6-990d-027851323111",
@@ -3012,9 +3120,23 @@
       "reused_leaf_cost_complete": false
     }
   ],
-  "combined_token_limit": 52185852,
+  "combined_token_limit": 50847489,
   "complete": false,
   "limitations": "E1 measures indexing cost/coverage, not retrieval or answer quality. Historical smoke unknowns are preserved outside these new runs.",
+  "hotpot_json_adoption": {
+    "prior_plan_sha256": "091a76f5bbef5d86304283a9e58a27ebe5e6b02aafba55eaa77bc730f5992600",
+    "candidate_sha256": "3d1b2633b4d5f5aa536ede8b289237b4d6c103e4b6aea8245e22f05752715ca3",
+    "review_sha256": "343ccef5b10ca2ec6901482b827c6842604e8508aba50209fe6a1d975e54dc46",
+    "manifest_sha256": "543a355e089a907f9fe4e31c51e15ec1f91d1b67e844320dff4fd7bc0e8cecc8",
+    "probe_manifest_sha256": "c3e07be261364d3d1fe773d0826b0bc3fa28d2ddf4daf624c59bc081b2ecff5d",
+    "musique_manifest_sha256": "2a9c739b0e74901ec7a7cbb019f26e534e24d966114544e3d4fbd0f9be8ac888",
+    "original_claims": {
+      "5921106da1e1f902251c1849f2becca0d07ab0b0d0de79847ea6b97dc39f9e3f.claim.json": "d78a5c5b6611adb2ff6fbf44246597ae2257453e13f118dd8f7c4cc2e478f2ab",
+      "6df1ebca6b1865e6f37e7828dd415bcba2e9d240df487a8f364178c4535a6563.claim.json": "b9feef34bf07461f688b174d7e7f3d3551a32285f4baf3dfbd79852711de17ad",
+      "991583bbf2b69d9fd400d45a05ef7261730c7d0e5eaaf370c2efa2fc5a3e4c63.claim.json": "2fa20902a0322644a6a0e7358f5f484e4301a82e31b496ef54035e6a41726264",
+      "d59bbcac8178b9194790329430a5f632fcc7ebb17497d0eec788859e8534dd7f.claim.json": "5f33486679c148209c30b5a1bc5ef32892c40bbac8e82ff0a044ee519b66266a"
+    }
+  },
   "embedding_recovery": {
     "policy": {
       "version": "hippo_local_socket_resume_v1",
@@ -3044,10 +3166,10 @@
     }
   },
   "protocol_approval_source": "reported_by_user; individual bot status not independently checked",
-  "physical_known_tokens": 23266291,
+  "physical_known_tokens": 26673723,
   "physical_usage_complete": false,
   "cost_complete": false,
-  "budget_charge_upper_bound": 23325312,
+  "budget_charge_upper_bound": 26732744,
   "budget_reservation_complete": true,
   "original_combined_token_limit": 68000000
 }

@@ -2222,3 +2222,131 @@ def test_hotpot_child_verifies_scoped_receipt_and_unchanged_rows(
         else:
             with pytest.raises(ValueError):
                 e1.verify_hotpot_adoption(plan, row)
+
+
+@pytest.mark.parametrize("slots,allowed", [(19, True), (54, False)])
+def test_completion_keeps_old_claims_and_one_fallback_attempt(
+    mixed_transport_factory, tmp_path, slots, allowed
+):
+    runner, session = mixed_transport_factory()
+    runner.row.update(fallback_attempt_limit=55, fallback_extra_consumed=1)
+    original = {
+        **e1.target.OPTIONS,
+        "model": "qwen",
+        "messages": mixed_messages(),
+        "max_tokens": 3072,
+        "response_format": {"type": "json_object"},
+    }
+    primary, _ = e1.schema_probe_payload(original, compatible=True)
+    pk = e1.target.digest(
+        {"payload": primary, "kind": "llm", "operation": "openie_triples"}
+    )
+    bad = tmp_path / "known-cycle.json"
+    dense.write_json_atomic(bad, mixed_body("length"))
+    runner.mixed_failures[pk] = {
+        "response_path": str(bad),
+        "response_sha256": dense.sha256_file(bad),
+    }
+    claims = Path(runner.plan["mixed_claim_root"]) / "musique"
+    claims.mkdir(parents=True)
+    for i in range(slots):
+        dense.write_json_atomic(claims / f"{i}.claim.json", {"status": "complete"})
+    before = {p.name: p.read_bytes() for p in claims.glob("*.claim.json")}
+    response = Mock(status_code=200)
+    response.json.return_value = mixed_body()
+    session.post = Mock(return_value=response)
+    if allowed:
+        runner.generate_mixed(original)
+        assert session.post.call_count == 1
+        assert (
+            session.post.call_args.kwargs["json"]["response_format"]["type"]
+            == "json_schema"
+        )
+        assert session.post.call_args.kwargs["json"]["max_tokens"] == 3072
+        assert runner.journal.summary()["attempts"] == 1
+    else:
+        with pytest.raises(ValueError, match="fallback_limit"):
+            runner.generate_mixed(original)
+        assert session.post.call_count == 0
+    assert all(
+        (claims / name).read_bytes() == content for name, content in before.items()
+    )
+
+
+@pytest.mark.parametrize("field", ["plan", "manifest", "stderr"])
+def test_completion_evidence_tamper_no_http(tmp_path, field):
+    pin = {}
+    for name in ("plan", "manifest", "stderr"):
+        path = tmp_path / name
+        path.write_text("immutable", encoding="utf-8")
+        pin[name] = str(path)
+        pin[f"{name}_sha256"] = dense.sha256_file(path)
+    Path(pin[field]).write_text("changed", encoding="utf-8")
+    with patch(
+        "requests.Session.request", side_effect=AssertionError("HTTP forbidden")
+    ):
+        with pytest.raises(ValueError, match="pin_changed"):
+            e1.hotpot_completion_state(pin)
+
+
+@pytest.mark.parametrize("change", ["none", "budget", "fallback", "receipt", "mu"])
+def test_completion_scoped_approval_and_fixed_bounds(tmp_path, monkeypatch, change):
+    monkeypatch.setattr(e1, "ROOT", tmp_path)
+    original = {
+        "method": "hipporag2",
+        "dataset": "hotpotqa",
+        "run_id": "old",
+        "output": "old",
+        "history_runs": [],
+        "token_limit": 20000,
+        "max_llm_posts": 80,
+    }
+    mu = {"method": "hipporag2", "dataset": "musique", "output": "mu"}
+    root = tmp_path / "claims"
+    root.mkdir()
+    prior = {
+        "rows": [mu, original],
+        "mixed_claim_root": str(root),
+        "parent_plan": {"sha256": "p"},
+        "lineage": [],
+        "model": "qwen",
+    }
+    expected = {
+        "history_runs": [{"run_id": "parent"}],
+        "token_limit": 19000,
+        "max_llm_posts": 70,
+        "fallback_attempt_limit": 55,
+    }
+    plan = copy.deepcopy(prior)
+    plan["hotpot_fallback_completion"] = {"plan_sha256": "parent"}
+    plan["hotpot_completion_approval_file"] = str(
+        (tmp_path / ".cache/e1-hotpot-completion-execution-approval.json").resolve()
+    )
+    row = plan["rows"][1]
+    row.update(expected, run_id="new", output="new", code_commit="head")
+    monkeypatch.setattr(e1, "hotpot_completion_state", lambda pin: (prior, expected))
+    dense.write_json_atomic(
+        root / "hotpot-completion-plan.claim.json", e1.mixed_plan_claim(plan)
+    )
+    receipt = {
+        "approved_plan_digest": e1.target.digest(plan),
+        "accept_55_total_fallback_attempts_and_11055_total_llm_posts": True,
+        "authorize_hotpot_continuation_only": True,
+    }
+    if change == "budget":
+        row["token_limit"] += 1
+    if change == "fallback":
+        row["fallback_attempt_limit"] += 1
+    if change == "receipt":
+        receipt["accept_55_total_fallback_attempts_and_11055_total_llm_posts"] = False
+    if change == "mu":
+        plan["rows"][0]["output"] = "different"
+    dense.write_json_atomic(Path(plan["hotpot_completion_approval_file"]), receipt)
+    with patch(
+        "requests.Session.request", side_effect=AssertionError("HTTP forbidden")
+    ):
+        if change == "none":
+            e1.verify_hotpot_completion(plan, row)
+        else:
+            with pytest.raises(ValueError):
+                e1.verify_hotpot_completion(plan, row)

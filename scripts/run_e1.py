@@ -761,7 +761,9 @@ def verify_plan(plan, row, config):
         or row["output"]
         != f"indexes/e1/{plan['batch_id']}/{row['method']}/{row['dataset']}"
         + (
-            "-mixed-adopt1"
+            "-mixed-completion1"
+            if plan.get("hotpot_fallback_completion") and row["dataset"] == "hotpotqa"
+            else "-mixed-adopt1"
             if plan.get("hotpot_json_adoption") and row["dataset"] == "hotpotqa"
             else "-mixed-embed1"
             if plan.get("mixed_embedding_recovery")
@@ -1061,15 +1063,19 @@ def mixed_history(prior, dataset):
 def mixed_plan_claim(plan):
     return {
         "parent_plan_sha256": (
-            plan.get("hotpot_json_adoption")
+            plan.get("hotpot_fallback_completion")
+            or plan.get("hotpot_json_adoption")
             or plan.get("mixed_embedding_recovery")
             or plan.get("mixed_counter_recovery", {})
         ).get(
             "prior_plan_sha256",
-            (
-                plan.get("mixed_embedding_recovery")
-                or plan.get("mixed_counter_recovery", {})
-            ).get("plan_sha256", plan["parent_plan"]["sha256"]),
+            plan.get("hotpot_fallback_completion", {}).get(
+                "plan_sha256",
+                (
+                    plan.get("mixed_embedding_recovery")
+                    or plan.get("mixed_counter_recovery", {})
+                ).get("plan_sha256", plan["parent_plan"]["sha256"]),
+            ),
         ),
         "children": {
             r["dataset"]: r["run_id"]
@@ -1757,7 +1763,205 @@ def prepare_hotpot_adoption(prior_path, candidate_path, review_path):
     return plan
 
 
+def hotpot_completion_state(pin):
+    """One continuation after the attempt-count stop, not a generation retry."""
+    for name in ("plan", "manifest", "stderr"):
+        if dense.sha256_file(Path(pin[name])) != pin[f"{name}_sha256"]:
+            raise ValueError("hotpot_completion_pin_changed")
+    prior = dense.read_json(Path(pin["plan"]))
+    old = next(
+        r
+        for r in prior["rows"]
+        if (r["method"], r["dataset"]) == ("hipporag2", "hotpotqa")
+    )
+    verify_hotpot_adoption(prior, old)
+    mp = Path(pin["manifest"])
+    m = dense.read_json(mp)
+    if (
+        prior.get("hotpot_fallback_completion")
+        or mp.resolve() != (ROOT / old["output"] / "manifest.json").resolve()
+        or m["status"] != "failed"
+        or m["error_type"] != "ValueError"
+        or m["plan_sha256"] != target.digest(prior)
+        or "mixed_fallback_limit" not in Path(pin["stderr"]).read_text(encoding="utf-8")
+        or pin["fallback_attempt_limit"] != (5500 + 99) // 100
+    ):
+        raise ValueError("hotpot_completion_requires_attempt_limit_stop")
+    _, _, adopted_payload, _, adopted_item = hotpot_adoption_state(
+        prior["hotpot_json_adoption"]
+    )
+    adopted_key = target.digest(
+        {"payload": adopted_payload, "kind": "llm", "operation": "openie_triples"}
+    )
+    cache = {adopted_key: adopted_item}
+    for source in old["resume_sources"]:
+        sp = ROOT / source["output"] / "manifest.json"
+        if dense.sha256_file(sp) != source["manifest_sha256"]:
+            raise ValueError("hotpot_completion_cache_parent_changed")
+        cache, _, _ = verified_checkpoints(sp, inherited=cache, allow_length=True)
+    cache, failures, ref = verified_checkpoints(mp, inherited=cache, allow_length=True)
+    diagnostic = failure_diagnostic(mp.parent)
+    if (
+        current_unknown_reservation(mp.parent) != 0
+        or not ref["summary"]["complete"]
+        or diagnostic.get("finish_reason") != "length"
+        or not diagnostic.get("repetition", {}).get("cycle")
+    ):
+        raise ValueError("hotpot_completion_unknown_or_wrong_failure")
+    records = read_records(mp.parent / "usage.jsonl")
+    physical = [
+        r for r in records if r["event"] == "finished" and not r.get("cache_hit")
+    ]
+    if any(
+        r["status"] != "success" or r["usage_status"] != "complete" for r in physical
+    ):
+        raise ValueError("hotpot_completion_physical_error")
+    root = Path(prior["mixed_claim_root"]) / "hotpotqa"
+    for name, sha in pin["original_claims"].items():
+        if dense.sha256_file(root / name) != sha:
+            raise ValueError("hotpot_completion_old_claim_changed")
+    spent = len(pin["original_claims"]) + old["fallback_extra_consumed"]
+    if (
+        spent != 20
+        or len(list(root.glob("*.claim.json")))
+        > pin["fallback_attempt_limit"] - old["fallback_extra_consumed"]
+    ):
+        raise ValueError("hotpot_completion_claim_count_changed")
+    if diagnostic["request_sha256"] not in {r[0]["object_id"] for r in failures}:
+        raise ValueError("hotpot_completion_failure_not_preserved")
+    history = copy.deepcopy(old["history_runs"])
+    history.append(
+        {
+            "output": old["output"],
+            "run_id": m["run_id"],
+            "manifest_sha256": pin["manifest_sha256"],
+            "summary": ref["summary"],
+            "unknown_reserved_upper_bound": 0,
+        }
+    )
+    if len({h["run_id"] for h in history}) != len(history):
+        raise ValueError("hotpot_completion_duplicate_history")
+    charge = sum(
+        sum(h["summary"]["known_subtotal"].values()) + h["unknown_reserved_upper_bound"]
+        for h in history
+    )
+    additional_slots = pin["fallback_attempt_limit"] - spent
+    states = {
+        "history_runs": history,
+        "resume_sources": old["resume_sources"]
+        + [{"output": old["output"], "manifest_sha256": pin["manifest_sha256"]}],
+        "prior_budget_charge": charge,
+        "token_limit": LIMITS["hipporag2"] - charge,
+        "max_new_posts": old["max_new_posts"] - len(physical),
+        "max_llm_posts": old["max_llm_posts"]
+        - sum(r["kind"] == "llm" for r in physical)
+        + additional_slots,
+        "fallback_attempt_limit": pin["fallback_attempt_limit"],
+    }
+    return prior, states
+
+
+def prepare_hotpot_completion(prior_path, stderr_path):
+    prior = dense.read_json(prior_path)
+    old = next(
+        r
+        for r in prior["rows"]
+        if (r["method"], r["dataset"]) == ("hipporag2", "hotpotqa")
+    )
+    mp = ROOT / old["output"] / "manifest.json"
+    root = Path(prior["mixed_claim_root"])
+    pin = {
+        "plan": str(prior_path.resolve()),
+        "plan_sha256": dense.sha256_file(prior_path),
+        "manifest": str(mp),
+        "manifest_sha256": dense.sha256_file(mp),
+        "stderr": str(stderr_path.resolve()),
+        "stderr_sha256": dense.sha256_file(stderr_path),
+        "fallback_attempt_limit": (old["passages"] + 99) // 100,
+        "original_claims": {
+            p.name: dense.sha256_file(p)
+            for p in (root / "hotpotqa").glob("*.claim.json")
+        },
+    }
+    prior, states = hotpot_completion_state(pin)
+    plan = copy.deepcopy(prior)
+    plan["hotpot_fallback_completion"] = pin
+    plan["hotpot_completion_approval_file"] = str(
+        (ROOT / ".cache/e1-hotpot-completion-execution-approval.json").resolve()
+    )
+    plan["lineage"].append(
+        {
+            "path": str(prior_path.resolve()),
+            "sha256": dense.sha256_file(prior_path),
+            "digest": target.digest(prior),
+        }
+    )
+    row = next(
+        r
+        for r in plan["rows"]
+        if (r["method"], r["dataset"]) == ("hipporag2", "hotpotqa")
+    )
+    row.update(
+        states,
+        run_id=str(uuid.uuid4()),
+        code_commit=git("rev-parse", "HEAD"),
+        output=f"indexes/e1/{plan['batch_id']}/hipporag2/hotpotqa-mixed-completion1",
+    )
+    plan["combined_token_limit"] = sum(r["token_limit"] for r in plan["rows"])
+    if min(row[k] for k in ("token_limit", "max_new_posts", "max_llm_posts")) <= 0:
+        raise ValueError("hotpot_completion_budget_unavailable")
+    if (ROOT / row["output"]).exists() or (
+        root / "hotpot-completion-plan.claim.json"
+    ).exists():
+        raise ValueError("hotpot_completion_already_prepared")
+    return plan
+
+
+def verify_hotpot_completion(plan, row):
+    prior, expected = hotpot_completion_state(plan["hotpot_fallback_completion"])
+    original = next(
+        r
+        for r in prior["rows"]
+        if (r["method"], r["dataset"]) == ("hipporag2", "hotpotqa")
+    )
+    allowed = {*expected, "run_id", "code_commit", "output"}
+    top = {
+        "rows",
+        "lineage",
+        "combined_token_limit",
+        "hotpot_fallback_completion",
+        "hotpot_completion_approval_file",
+    }
+    if (
+        any(row.get(k) != v for k, v in expected.items())
+        or {k: v for k, v in row.items() if k not in allowed}
+        != {k: v for k, v in original.items() if k not in allowed}
+        or [r for r in plan["rows"] if r is not row]
+        != [r for r in prior["rows"] if r != original]
+        or {k: v for k, v in plan.items() if k not in top}
+        != {k: v for k, v in prior.items() if k not in top}
+        or plan["hotpot_completion_approval_file"]
+        != str((ROOT / ".cache/e1-hotpot-completion-execution-approval.json").resolve())
+        or dense.read_json(
+            Path(plan["mixed_claim_root"]) / "hotpot-completion-plan.claim.json"
+        )
+        != mixed_plan_claim(plan)
+    ):
+        raise ValueError("hotpot_completion_bounds_or_claim_changed")
+    receipt = dense.read_json(Path(plan["hotpot_completion_approval_file"]))
+    if (
+        receipt.get("approved_plan_digest") != target.digest(plan)
+        or receipt.get("accept_55_total_fallback_attempts_and_11055_total_llm_posts")
+        is not True
+        or receipt.get("authorize_hotpot_continuation_only") is not True
+    ):
+        raise ValueError("hotpot_completion_requires_scoped_approval")
+
+
 def verify_hotpot_adoption(plan, row):
+    if plan.get("hotpot_fallback_completion"):
+        verify_hotpot_completion(plan, row)
+        return
     pin = plan["hotpot_json_adoption"]
     prior, expected, _, _, _ = hotpot_adoption_state(pin)
     original = next(
@@ -2110,7 +2314,10 @@ class Transport:
             )
             self.parent_cache[key] = item
             self.json_adoption = (primary, payload, key)
-            routes = dense.read_json(Path(pin["manifest"]).parent / "mixed-routes.json")
+            route_pin = plan.get("hotpot_fallback_completion") or pin
+            routes = dense.read_json(
+                Path(route_pin["manifest"]).parent / "mixed-routes.json"
+            )
             self.mixed_routes = {**routes, **self.mixed_routes}
         self.replayed_count = 0
         self.require_cache = False
@@ -2676,11 +2883,9 @@ class Transport:
                         ):
                             raise ValueError("mixed_unresolved_fallback_claim")
                     else:
-                        if (
-                            len(list(claims.glob("*.claim.json")))
-                            + self.row.get("fallback_extra_consumed", 0)
-                            >= 20
-                        ):
+                        if len(list(claims.glob("*.claim.json"))) + self.row.get(
+                            "fallback_extra_consumed", 0
+                        ) >= self.row.get("fallback_attempt_limit", 20):
                             raise ValueError("mixed_fallback_limit")
                         with claim.open("x", encoding="utf-8") as stream:
                             json.dump(
@@ -3211,7 +3416,10 @@ def export(plan, plan_path):
                 )
                 for m in models
             }
-            public["extractor_configuration"] = MIXED_EXTRACTOR
+            public["extractor_configuration"] = {
+                **MIXED_EXTRACTOR,
+                "fallback_limit": row.get("fallback_attempt_limit", 20),
+            }
         exported_row = {**row, **public}
         if "cycle_repair_request_key" in exported_row:
             exported_row["cycle_repair_request_sha256"] = exported_row.pop(
@@ -3237,6 +3445,13 @@ def export(plan, plan_path):
         "complete": all(r["status"] == "completed" for r in rows),
         "limitations": "E1 measures indexing cost/coverage, not retrieval or answer quality. Historical smoke unknowns are preserved outside these new runs.",
     }
+    if plan.get("hotpot_fallback_completion"):
+        report["fallback_attempt_budget_policy"] = {
+            "version": "one_percent_passage_count_attempt_budget_v1",
+            "hotpot_total_attempt_limit": 55,
+            "original_total_attempt_limit": 20,
+            "failed_and_probe_included": True,
+        }
     if plan.get("hotpot_json_adoption"):
         report["hotpot_json_adoption"] = {
             k: v
@@ -5335,6 +5550,7 @@ def main():
             "prepare-mixed-counter-recovery",
             "prepare-mixed-embedding-recovery",
             "prepare-hotpot-adoption",
+            "prepare-hotpot-completion",
             "prepare-mixed-audit",
             "finalize-mixed-audit",
             "continue",
@@ -5386,6 +5602,35 @@ def main():
     parser.add_argument("--counter-stderr", type=Path)
     args = parser.parse_args()
     config = dotenv_values(args.env_file) if args.env_file else {}
+    if args.command == "prepare-hotpot-completion":
+        canonical = ROOT / ".cache/e1-hotpot-completion-plan.json"
+        if (
+            args.plan.resolve() != canonical.resolve()
+            or args.plan.exists()
+            or code_dirty()
+        ):
+            raise ValueError(
+                "hotpot_completion_requires_unused_canonical_plan_and_clean_code"
+            )
+        plan = prepare_hotpot_completion(args.prior_plan, args.counter_stderr)
+        root = Path(plan["mixed_claim_root"])
+        with (root / "hotpot-completion-plan.claim.json").open(
+            "x", encoding="utf-8"
+        ) as stream:
+            json.dump(mixed_plan_claim(plan), stream)
+            stream.flush()
+            os.fsync(stream.fileno())
+        with args.plan.open("x", encoding="utf-8") as stream:
+            json.dump(plan, stream, ensure_ascii=False, indent=2)
+        print(
+            json.dumps(
+                {
+                    "status": "prepared_requires_protocol_and_spend_approval",
+                    "http_calls": 0,
+                }
+            )
+        )
+        return
     if args.command == "prepare-hotpot-adoption":
         canonical = ROOT / ".cache/e1-hotpot-adoption-plan.json"
         if (

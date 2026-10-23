@@ -1,44 +1,31 @@
 # Текущая работа и критерии завершения
 
-**E1 status:** 5/6 indexes completed; physical known tokens=23266291; cost_complete=False. Last stage=hipporag2/hotpotqa failed GPT fallback. Raw/indexes remain local. PR Draft; E2 requires all six verified indexes.
+**E1 status:** 5/6 indexes completed; physical known tokens=26673723; cost_complete=False. Hotpot failed at fallback attempt cap; no worker active.
 
-## Текущая очередь — 23 октября: JSON-mode проба завершена;5/6
+## Текущая очередь —23октября: Hotpot attempt cap,5/6
 
-- MuSiQue completed, Dense/RAPTOR×4 готовы. Hippo Hotpot run31005856 failed
-  на394/5500пар; старые raw/manifests/claims/costs не изменялись.
-- Единственная разрешённая проба candidate3d1b2633b4d5 выполнена на6594610
-  existing runner: runc17f5afd, stop, input960/output425/total1385, HTTP1,
-  новыйunknown0.24triples/23unique, JSON полный. Повторов не было.
-  Первая CLI-команда имела опечатку approved SHA, rejected до claim/HTTP.
-- Source-only review всех24:12supported/6observed_error/6needs_review,
-  semantic_verified=false. В частности unsupported City hosted British
-  corporations; generic/disconnected scope и duplicate. Это не corpus precision.
-  Review SHA343ccef5b10ca2ec6901482b827c6842604e8508aba50209fe6a1d975e54dc46.
-- E1 known23266291/upper23325312,cost_complete=false, reserve59021;
-  Hotpot total known1338363, остаток18661637 из20M. Повторный export сверён:
-  probe включён один раз.5/6, Hotpot graph/reload отсутствует.
-- Технически JSON mode завершился на этом source; причина прежнего length
-  не доказана. Проба не принята в benchmark/cache, не разрешает continuation.
-  Предложение ADR-0023 остаётся предложением: требуется решить формат будущих
-  GPT fallback и исключение для уже израсходованного fallback этого passage.
-- Подготовлен existing runner child для одной cached-only JSON adoption;
-  будущие GPT fallback остаются Schema, общая политика прежняя. Нужно отдельно
-  принять observed errors/исключение и разрешить Hotpot расходы до HTTP.
-  Новые пределы18661637tokens/10225LLMPOST/38517allPOST, ≤15fresh fallback;
-  failed+probe занимают слоты.5completed rows неизменны, старые claims pinned.
-- Реальный offline replay при запрещённом HTTP:0POST/0tokens, старые claims
-  неизменны.179целевых passed/3integration skipped до последних6verify tests,
-  новые6verify tests отдельно прошли; общий commit gate70da71c passed. Новых HTTP в этом блоке0.
-- Код/документы закончены. Единственный canonical child plan:
-  .cache/e1-hotpot-adoption-plan.json; его текущие SHA/HEAD/границы — в самом
-  файле и текущем описании PR33. Подготовка CLI только offline, не тратить
-  разрешение заново. До receipt/exact plan SHA execution запрещён.
-- Следующий шаг после подготовки плана: один вопрос о принятии cached-only
-  исключения с observed errors и допуске ограниченного Hotpot continuation.
-  Согласия только на diagnostic недостаточно. Без ответа не запускать HTTP,
-  не сбрасывать claims/переделывать план/повторять общий gate без изменения кода.
-- PR33Draft/Refs #13/20files, E1 known23266291/upper23325312, reserve59021;
-  QA/E2/holdout/7B/merge запрещены. Source audit до completed обязателен.
+- Run579035c8 failed на2590/5500текущего обхода: mixed_fallback_limit,
+  Qwen length+cycle122/1unique. Нового GPT для него нет.4793LLMPOST,
+  known3407432, unknown0/unfinished0, worker завершён. Все old artifacts сохранены.
+- Union SHA cache:2784NER/2782triples/5500passage vectors, отдельно принятый
+  прежним scoped согласием JSON-mode response (ещё одна available пара).
+- E1 known26673723/upper26732744,cost_complete=false, reserve59021.
+  Hotpot known4745795/20M, monetary billing не проверен.
+- Код existing runner поддерживает один completion: новые15254205tokens,
+  5467LLMPOST/33724allPOST, ещё≤35Schema fallback. Предложенный cap55=1%от5500,
+  включает18complete+1failed+1probe; общийLLMcap11020→11055,+35, tokens20M/
+  allPOST40000 прежние. Это операционный предел, не гарантия успеха/quality.
+- Core payload/caps1024/3072/models/trigger unchanged; один fallback на Qwen
+  length+cycle, никаких новых JSON-mode retries. Первая иная ошибка/unknown/
+  fallback failure — stop; нового автоматического recovery нет.
+- Canonical plan .cache/e1-hotpot-completion-plan.json, exact HEAD/SHA в нём
+  и текущей секции PR33. Подготовка CLI offline. До новой scoped receipt
+  с принятием55fallback/11055LLMPOST и разрешением exact plan HTTP запрещён.
+  Старое согласие на20 не переносится; claims не сбрасывать/план не пересоздавать.
+- 195targeted passed/3integration skipped; общий commit gate на границе блока.
+  Следующий шаг — показать exact prepared plan пользователю для одного допуска.
+- Пять готовых индексов неизменны, source audit после будущего graph обязателен.
+  PR33Draft/Refs #13/20files; QA/E2/holdout/7B/merge не запускать.
 
 ## История — не текущие инструкции запуска
 
