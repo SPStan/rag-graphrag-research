@@ -62,6 +62,19 @@ source review всех обязательных cases/finalize. До audit ин�
 receipt до local service preflight/нового расхода; прямой запуск без receipt
 блокируется. Изменение budgets/model/готовой Mu row/claim также блокируется.
 
+Команды подготовки/будущего запуска (вторая запрещена без отдельного допуска):
+
+```powershell
+./.venv-check/Scripts/python.exe -m scripts.run_e1 prepare-hotpot-adoption --plan '.cache/e1-hotpot-adoption-plan.json' --prior-plan '.cache/e1-mixed-embedding-plan.json' --probe-plan '.cache/e1-hotpot-json-mode-candidate.json' --audit-review 'indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/hipporag2/hotpotqa-gpt-json-mode-probe1/source-review.json'
+# После receipt и exact SHA, из закреплённого SDK окружения:
+python -m scripts.run_e1 run --plan '.cache/e1-hotpot-adoption-plan.json' --method hipporag2 --dataset hotpotqa --source '<pinned-hipporag-source>' --env-file '<data-root>/<env-file>' --approved-plan-sha256 '<exact-sha>'
+```
+
+Последний код закреплён70da71c; row.code_commit самого плана берётся с clean HEAD
+после документационного commit. До запуска HEAD должен точно совпадать с этим
+полем. Подготовленный plan/claim не пересоздавать ради нового SHA. Для review
+достаточны PR head+plan SHA и безопасная сводка; raw/payload остаются локально.
+
 Новые offline-регрессии покрывают cached replay/missing/SHA/length, сохранение
 failed claim, дополнительный занятый fallback slot, evidence/receipt/budget/
 model/готовую строку/canonical claim. Реальный сохранённый response replay

@@ -27,11 +27,18 @@
   Новые пределы18661637tokens/10225LLMPOST/38517allPOST, ≤15fresh fallback;
   failed+probe занимают слоты.5completed rows неизменны, старые claims pinned.
 - Реальный offline replay при запрещённом HTTP:0POST/0tokens, старые claims
-  неизменны. До receipt/exact plan SHA запуск блокируется. Следующий шаг:
-  завершить gate/commit, prepare-hotpot-adoption, проверить plan/export и
-  показать один scoped вопрос. Полный корпус по этому блоку не запускается.
-- Проверки:100schema/export tests passed, общий offline/secret hooks на6594610
-  passed. PR33Draft/Refs #13/20files; QA/E2/holdout/7B/merge запрещены.
+  неизменны.179целевых passed/3integration skipped до последних6verify tests,
+  новые6verify tests отдельно прошли; общий commit gate70da71c passed. Новых HTTP в этом блоке0.
+- Код/документы закончены. Единственный canonical child plan:
+  .cache/e1-hotpot-adoption-plan.json; его текущие SHA/HEAD/границы — в самом
+  файле и текущем описании PR33. Подготовка CLI только offline, не тратить
+  разрешение заново. До receipt/exact plan SHA execution запрещён.
+- Следующий шаг после подготовки плана: один вопрос о принятии cached-only
+  исключения с observed errors и допуске ограниченного Hotpot continuation.
+  Согласия только на diagnostic недостаточно. Без ответа не запускать HTTP,
+  не сбрасывать claims/переделывать план/повторять общий gate без изменения кода.
+- PR33Draft/Refs #13/20files, E1 known23266291/upper23325312, reserve59021;
+  QA/E2/holdout/7B/merge запрещены. Source audit до completed обязателен.
 
 ## История — не текущие инструкции запуска
 
