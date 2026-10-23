@@ -1,44 +1,84 @@
 # E1: индексы полного корпуса (#13)
 
-## MuSiQue completed; HotpotQA running — 23 октября
+## HotpotQA: остановка GPT fallback и offline-разбор —23октября
 
-Runtime caebfd5, approved plan091a76f5bbef5d86304283a9e58a27ebe5e6b02aafba55eaa77bc730f5992600.
-Mu run1c12c3c8-3870-453b-813d-ba84498940a2 завершил полный graph/save/reload:
-5500passages,45857entities,66082facts,51357nodes,158475edges, reload_model_calls0.
-Socket child:8261local embeddingPOST/1548898known embedding tokens, новыхLLM0.
-Ошибок/новогоunknown0. Прежние entity/chunk cache переиспользованы; старые
-8864partial fact vectors сохранены в failed lineage/cost, не объявлены reusable.
+MuSiQue completed; готовность5/6. Run1c12c3c8:5500passages/45857entities/
+66082facts/51357nodes/158475edges, save/reload0calls. Audit19cases/11warnings:
+3supported/13observed_error/3needs_review, semantic_verified=false, status
+structurally_verified_with_observed_extraction_errors. Не corpus precision.
+Audit SHA b4e451e710c0504b1012ef978a668bbc41af988bd6c42135474f71fe66a63dea;
+reviewSHA c92ee411bcc61b756373363089d4ec12e221c66d2200aa8a5678cbbeaa083110.
+Mu child8261embeddingPOST/1548898tokens/0LLM, прежние failed/unknown сохранены.
 
-Финальный audit содержит те же19cases/response SHA, которые assistant просмотрел
-по полным sources раньше; source-map coverage5500, save/reload и build snapshot
-сверены.11warnings включены,3supported/13observed_error/3needs_review.
-Наблюдения: пустые extraction при содержательном source, потеря дат/чисел,
-оговорок/attachment и неподдержанный source Pearl Harbor→Hawaii. Никаких правок
-triples или QA/gold/model judge. Status structurally_verified_with_observed_extraction_errors,
-semantic_verified=false. Это согласованный noisy extractor protocol, не оценка
-corpus precision и не устранение ошибок генерации. Calibration5review отдельно.
+Hotpot run31005856-9e4a-47ca-bef1-42ad4e7ab6dd завершился failed на runtime
+caebfd5/approved plan091a76f5bbef.394/5500полных пар,395NER,5500chunk vectors.
+1482POST:688embedding+395NER+399triples;3GPT fallback завершены, четвёртый failed.
+Его usage960input/3072output/4032total известен, finish_reason=length,
+content=null, reasoning_content170chars, provider_specific_fields.refusal=null;
+completion_tokens_details отсутствует. Полного JSON нет, reasoning не extraction.
+Нельзя выводить3072reasoning tokens из170видимых символов. Повтора не было.
 
-Audit SHA b4e451e710c0504b1012ef978a668bbc41af988bd6c42135474f71fe66a63dea.
-Review SHA c92ee411bcc61b756373363089d4ec12e221c66d2200aa8a5678cbbeaa083110.
-Build snapshot сохраняет исходный indexed_pending_audit; только новый current
-manifest переведён existing finalize в completed. Все исторические failed immutable.
+Hotpot known1336978=404290LLM input+165884LLM output+766804embedding,
+новыйunknown0. E1 known23264906/upper23323927,cost_complete=false,
+исторический reserve59021. Hotpot остаток18663022/20M, не новый расходный допуск.
+Manifest SHA543a355e089a907f9fe4e31c51e15ec1f91d1b67e844320dff4fd7bc0e8cecc8.
 
-E1 snapshot после Mu:5/6, known21927928/upper21986949,cost_complete=false,
-unknown reserve59021. Hotpot расходы после запуска записываются live отдельно;
-terminal export обновит общую сводку. Готовые Dense/RAPTOR×4 неизменны.
+### Проверенный фактический запрос
 
-После проверки Mu audit/artifact gate и прежнего scoped согласия запущен Hotpot
-run31005856-9e4a-47ca-bef1-42ad4e7ab6dd, output hotpotqa-mixed-embed1.
-Предельные20Mcombined tokens/11020LLMPOST/40000allPOST, Qwen primary и≤20GPT
-fallback length+cycle, cap1024/3072, retry0, local BGE batches8/cooldown2s прежние.
-Первая ошибка/unknown останавливает stage. До собственного Hotpot source audit
-не считать индекс completed. Не создавать второй worker.
+По закреплённому SDK1438aba3 и corpus SHA восстановлены cached NER и оба payload:
+Qwen6df1ebca6b1865e6f37e7828dd415bcba2e9d240df487a8f364178c4535a6563,
+GPT217fb007d827f5e03e8d9195f23bf62eaaa7b1c4a9f9de1690105ff5cf6ba39c.
+SHA совпали с journal/checkpoint. GPT response SHA
+65da28df2f760ca8463bd8f725f682ba37edb013d1c6c5baeeb1b6b34f60c9a4.
+Source ID sha256:9d88b1f478340a181c10b65649232145eb0b065a42787407118d226febedb761,
+source840chars; вопросы/answers/supporting labels не читались.
 
-Этот docs/results update сохраняет runtime code caebfd5; plan и row.code_commit
-не переписываются под последующий documentation HEAD. Публичные summary —
-снимок после Mu, не обещание нулевого текущего расхода Hotpot.
-PR33Draft/Refs #13,20files; ни QA/E2, ни merge не запускались.
+GPT120b, low, temperature0, seed42, stream=false, cap3072; schema shape_v2
+без uniqueItems. Roles system/user/assistant/user: штатный SDK few-shot,
+не двойной chat template. Source policy добавлена ровно один раз, Qwen
+chat_template_kwargs удалён. Транспорт checked_post, retry0, redirects запрещены;
+canonical claim начат до HTTP. Клиентская ошибка формирования не найдена.
+Фактический deployment template/причину остановки по ответу установить нельзя.
 
+Три успешных Hotpot GPT fallback с тем же кодом: input/output777/180,
+958/1151,869/2414; stop и непустой content468/4439/8973chars соответственно.
+Это разные sources/NER, а не контролируемая проверка причины. Наблюдение не
+доказывает ни предел размера input, ни дефект schema, ни нехватку cap.
+
+### Один следующий вариант — предложение, без HTTP
+
+Проверить взаимодействие structured schema и GPT deployment одним запросом,
+изменив ТОЛЬКО response_format на {"type":"json_object"}. Prompt, полный source,
+cached NER/SDK examples/source-policy, модель/seed/temp/low/cap3072 прежние.
+Это изоляция одного фактора, не подтверждённое лечение и не prompt retry.
+
+Offline candidate `.cache/e1-hotpot-json-mode-candidate.json` SHA
+3d1b2633b4d5f5aa536ede8b289237b4d6c103e4b6aea8245e22f05752715ca3;
+private payload SHA728b2a864cd3c58cfd28aa00977f1bb953b0c1c3ccff3d92134f42a0580ab0fb,
+request SHA c51907e11fb54fe1e1c74d5b74e74c2c59de463b32f2504cbce3b7a276e19b63.
+Кандидат намеренно не executable текущей CLI: нельзя передать его обычному run.
+Перед HTTP дополнить existing runner: verify parent/payload/remaining budget,
+canonical json-mode-probe-once.claim.json рядом с failed manifest, атомарный
+claim до HTTP, отдельные immutable output/journal и включение расхода в export.
+Это локальная интеграция существующего пути, не новый диагностический runner.
+
+План: api.duckduck.cloud/v1, iairlab/gpt-oss-120b, максимум1POST,
+резерв9622токена (UTF-8 payload bytes+2048framing+3072output) из18663022;
+NER0/embedding0/retry0/redirect0/connect30/read300. При любом HTTP/transport error,
+unknown usage, length/empty/неполном JSON/неверной форме/цикле окончательный stop,
+без второго варианта в этом плане. Нужны stop+непустые triples, известный usage,
+existing strict local shape/repetition check и source-only review всех triples,
+оговорок/дат/существенных omissions; gold и точное совпадение прежних triples не нужны.
+
+Успех не доказывает причину и не разрешает continuation/подмену failed cache.
+JSON mode вместо schema и вторая GPT попытка на исходный запрос меняют протокол:
+сначала отдельное решение ADR-0023/точный child plan и допуск, затем HTTP.
+Старый started fallback claim занят; не сбрасывать и не выдавать кандидата за cache hit.
+При будущем принятии replay394пар/395NER/5500chunk vectors и3complete GPT только
+после SHA/provenance checks; старые расходы не дублируются и не исчезают.
+Facts/entities нового graph потребуют embeddings, их объём пока не измерен.
+Готовые5индексов не пересчитывать. Source audit до completed по-прежнему обязателен.
+PR33Draft/Refs #13; QA/E2/holdout/7B/merge не запускались.
 
 ## Текущий socket recovery — 23 октября: без новых запросов
 

@@ -1,34 +1,35 @@
 # Текущая работа и критерии завершения
 
-**E1 status:** 5/6 indexes completed; physical known tokens=21927928; cost_complete=False. Last stage=hipporag2 native schema continuation. Raw/indexes remain local. PR Draft; E2 requires all six verified indexes.
+**E1 status:** 5/6 indexes completed; physical known tokens=23264906; cost_complete=False. Last stage=hipporag2/hotpotqa failed GPT fallback. Raw/indexes remain local. PR Draft; E2 requires all six verified indexes.
 
-## Текущая очередь — 23 октября: Mu завершён, HotpotQA запущен;5/6
+## Текущая очередь — 23 октября: HotpotQA failed на GPT fallback;5/6
 
-- Runtime code caebfd5/exact plan091a76f5bbef разрешены пользователем для обоих
-  этапов. Mu run1c12c3c8 завершён:5500passages/45857entities/66082facts,
- 51357nodes/158475edges, save/reload0calls.19source audit cases/11warnings
-  сверены с прежним review и final response SHA;13observed_error/3needs_review,
-  semantic_verified=false. Source-only assistant review, не corpus precision.
-- Source audit SHA b4e451e710c0504b1012ef978a668bbc41af988bd6c42135474f71fe66a63dea,
-  reviewSHA c92ee411bcc61b756373363089d4ec12e221c66d2200aa8a5678cbbeaa083110.
-  Immutable build snapshot сохранён; старые failed/unknown неизменны.
-- Mu socket child8261local embeddingPOST/1548898tokens, новыхLLM0/ошибок0.
-  Снимок E1 после Mu:known21927928/upper21986949,cost_complete=false,
-  reserved unknown59021. Live расход Hotpot идёт отдельно в его usage.jsonl
-  до terminal export. Сводка пока5/6, #13/PR33Draft/Refs #13.
-- Hotpot run31005856-9e4a-47ca-bef1-42ad4e7ab6dd запущен после Mu audit;
-  output indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/hipporag2/hotpotqa-mixed-embed1.
-  Текущий PID/logs/approval/plan path: .cache/e1-mixed-active-status.json.
-  Логи .cache/e1-hippo-hotpot.stdout.log и .stderr.log.
-- Hotpot предел20Mcombined tokens/11020LLMPOST/40000всехPOST; Qwen primary,
-  GPT fallback≤20 только length+cycle; local BGE batches≤8/пауза≥2s, retry0.
-  На первой ошибке/unknown stop. Не запускать второй процесс/новый recovery.
-- Следующий шаг: проверить текущий Hotpot; после indexed_pending_audit выполнить
-  existing prepare-mixed-audit, source-only review всех cases и finalize.
-  QA/E2/holdout/merge не разрешены. Четыре Dense/RAPTOR не пересчитывать.
-- Следующий docs/results commit не меняет runtime scripts: execution version
-  остаётся caebfd5. Не переписывать plan/row.code_commit ради нового HEAD.
-  Перед новым run учитывай strict HEAD guard; запущенный процесс не перезапускать.
+- Mu run1c12c3c8 completed:5500passages/45857entities/66082facts,
+  51357nodes/158475edges, save/reload0calls. Source audit19cases/11warnings:
+  3supported/13observed_error/3needs_review, semantic_verified=false.
+  Audit SHA b4e451e710c0504b1012ef978a668bbc41af988bd6c42135474f71fe66a63dea.
+- Hotpot run31005856-9e4a-47ca-bef1-42ad4e7ab6dd FAILED, process ended.
+  394/5500 complete NER+triples,395NER,5500chunk vectors; graph/reload ещё нет.
+  1482physicalPOST=688embedding+395NER+399triples.3GPT fallback complete,
+  четвёртый length/empty final content; claim started сохраняется, не повторять.
+- Hotpot known1336978=404290input+165884output+766804embedding, новыйunknown0.
+  E1 known23264906/upper23323927,cost_complete=false, old reserve59021.
+  Остаток Hotpot18663022 из20M, не новый допуск расходов.
+- Offline SDK reconstruction совпал с Qwen/GPT request SHA; клиентская ошибка
+  формирования не найдена.3072output при пустом content и170chars reasoning:
+  нельзя утверждать, что всё потрачено на reasoning.3успешных fallback не
+  доказывают причину отказа. Подробности/границы: [E1_INDEXING](E1_INDEXING.md).
+- Подготовлен только offline-кандидат3d1b2633b4d5: один GPT JSON-mode POST
+  на том же source/cached NER, cap3072/low/temp0/seed42, reserve9622,
+  retry0/redirect0/timeout30,300. Только response_format меняется; без NER,
+  embedding, prompt rewrite или cap increase. Нового HTTP по этому блоку нет.
+- До отдельного exact-plan допуска не выполнять кандидат и continuation.
+  Сначала связать existing runner с canonical once claim и расходом probe;
+  успех не принимает новый fallback policy автоматически. Старые failed/claims
+  immutable. Следующий индекс — отдельный child/new output/учёт всех costs,
+  только после решения протокола; source audit перед completed обязателен.
+- Runtime прежнего run caebfd5/plan091a76f5bbef immutable. Готовые5индексов
+  не пересчитывать. PR33Draft/Refs #13; QA/E2/holdout/7B/merge не разрешены.
 
 ## История — не текущие инструкции запуска
 

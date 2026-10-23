@@ -262,3 +262,20 @@ O/N/R/H по BOT_REVIEW_WORKFLOW, затем bounded continuation plan/разр�
 Полный E2 требует6готовых проверенных индексов и отдельного допуска.
 Пересмотр: фактическая несовместимость GPT payload, неполный/неподдержанный source
 extraction или принятый другой исследовательский протокол; автоматического перебора нет.
+
+## 23 октября: GPT length после Qwen fallback — новое предложение
+
+Hotpot31005856 остановлен: GPT low/cap3072, input960/output3072, content=null;
+причина неизвестна, payload SHA восстановлен без клиентского расхождения.
+3предыдущих fallback complete не делают четвёртый пригодным. Не принимать
+partial/empty, не читать reasoning как extraction и не повышать cap вслепую.
+
+Предлагается одна диагностическая замена response_format schema→json_object,
+без изменения prompt/low/cap/model.1POST/reserve9622, canonical отдельный claim,
+stop на первом failure/unknown, строгая local shape+source review. Точные SHA
+и интеграция existing runner описаны в docs/E1_INDEXING.md. Сейчас HTTP0.
+Это предложение, не принятая поправка benchmark: текущий протокол разрешал
+один GPT fallback, он уже израсходован. Успех пробы не разрешает ни второй
+fallback в индексе, ни изменение кэша, ни full continuation. Перед переносом
+в benchmark нужны отдельное решение об этом исключении для обоих датасетов,
+новый child/new output/lineage, все costs/unknown и отдельный допуск расходов.
