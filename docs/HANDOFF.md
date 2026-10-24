@@ -1,29 +1,30 @@
 # Передача контекста Sol / Luna
 
-**E1 status:** 5/6 indexes completed; physical known tokens=31507115; cost_complete=False. Hotpot local socket failure; scoped technical recovery being prepared.
+**E1 status:** 5/6 indexes completed; physical known tokens=31507115; cost_complete=False. Hotpot local recovery failed on monitoring file-sharing; automation paused.
 
-## Текущая очередь —24октября: Hotpot local-socket recovery1
+## Текущая очередь — 24 октября: остановка local recovery
 
-- Run6fffff38 failed07:16MSK на local Ollama/tokenize socket HTTP400,
-  extraction5500/5500 сохранён.15363physicalPOST, known4833392,
-  local unknown reserve2567; remote unknown0. Manifest SHA6cfd0491c08c…e35fb9.
-- E1 known31507115/upper31568703,cost_complete=false,totalreserve61588,5/6.
-- Ночное user heartbeat разрешает≤2technical recoveries за период, повтор
-  той же причины — stop. Новый derive plan не выдавать за старый approved SHA.
-- Existing runner local child: zero fresh LLM, verified canonical8 embedding
-  replay, ≥4s pause;10418246newtokens/18361allPOST, fresh fallback0. Полный
-  extraction и9919successful embedding batches повторно не вычислять.
-- Author file .cache/e1-hotpotqa-night-recovery-authorization.json; parent
-  b51c2336c6f0, canonical child .cache/e1-hotpot-local-recovery-plan.json.
-  После запуска актуальный launch .cache/e1-hotpot-local-recovery-launch.json,
-  старый completion-launch исторический. Active pointer/counter в
-  .cache/e1-hotpotqa-monitor.json, attempts в .cache/e1-hotpotqa-recoveries.json.
-- Целевые socket/local tests прошли; реальный input/response mapping проверен
-  без HTTP. Общий hook gate на границе фикса. До launch live worker отсутствует;
-  следующий шаг — создать derived plan/запустить одно scoped local восстановление.
-- Не менять code под живым worker. Без повторов того же failed child/claims,
-  без E2/QA/holdout/model changes/budget increase/merge. После graph source audit.
-
+- Готовы5/6 индексов. Hotpot extraction5500/5500 сохранён в исходном
+  completion run6fffff38. Граф/save-reload/source audit Hotpot ещё не выполнены.
+- Child6c01f4f7 failed04:58UTC: Permission denied при записи usage.jsonl,
+  затем SDK обернул ошибку в unresolved_ner_stop. Новых physicalPOST0,
+  known0; журнал цел и SHA совпадает с failed manifest959007abc44b…db625e.
+- Причина — мониторинг агентом через .NET File.ReadLines с FileShare.Read,
+  который на Windows блокирует append. На временном файле это воспроизведено;
+  FileStream с FileShare.ReadWrite допускает запись. Данные API не виноваты.
+- E1 known31507115/upper31568703, cost_complete=false, reserve61588 неизменны.
+  Все9919successful embedding batches и старые failed/unknown сохранены.
+- Выполнено1/2 automatic recovery. Автоматизация e1-hotpotqa PAUSED:
+  существующий guard запрещает повтор terminal child и ещё один local child.
+  Без проверенной новой lineage не запускать run и не сбрасывать claim.
+- Следующий блок: минимальный проверяемый child после zero-POST IO failure,
+  immutable parents/точный embedding replay/zero fresh LLM/прежние бюджеты;
+  offline-тесты, затем scoped второе восстановление, если guard это подтверждает.
+- Не читать живой usage.jsonl через File.ReadLines/Get-Content: короткий snapshot
+  с явным FileShare.ReadWrite. Мониторинг не должен мешать journal writer.
+- Текущее состояние/stop_future_checks: .cache/e1-hotpotqa-monitor.json;
+  registry .cache/e1-hotpotqa-recoveries.json. После PAUSED не повторять уведомления.
+  Draft/Refs #13; без E2/QA/holdout/merge.
 ## История — не текущие инструкции запуска
 
 

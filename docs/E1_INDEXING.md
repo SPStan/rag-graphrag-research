@@ -1,5 +1,30 @@
 # E1: индексы полного корпуса (#13)
 
+## Текущая очередь — 24 октября: остановка local recovery
+
+- Готовы5/6 индексов. Hotpot extraction5500/5500 сохранён в исходном
+  completion run6fffff38. Граф/save-reload/source audit Hotpot ещё не выполнены.
+- Child6c01f4f7 failed04:58UTC: Permission denied при записи usage.jsonl,
+  затем SDK обернул ошибку в unresolved_ner_stop. Новых physicalPOST0,
+  known0; журнал цел и SHA совпадает с failed manifest959007abc44b…db625e.
+- Причина — мониторинг агентом через .NET File.ReadLines с FileShare.Read,
+  который на Windows блокирует append. На временном файле это воспроизведено;
+  FileStream с FileShare.ReadWrite допускает запись. Данные API не виноваты.
+- E1 known31507115/upper31568703, cost_complete=false, reserve61588 неизменны.
+  Все9919successful embedding batches и старые failed/unknown сохранены.
+- Выполнено1/2 automatic recovery. Автоматизация e1-hotpotqa PAUSED:
+  существующий guard запрещает повтор terminal child и ещё один local child.
+  Без проверенной новой lineage не запускать run и не сбрасывать claim.
+- Следующий блок: минимальный проверяемый child после zero-POST IO failure,
+  immutable parents/точный embedding replay/zero fresh LLM/прежние бюджеты;
+  offline-тесты, затем scoped второе восстановление, если guard это подтверждает.
+- Не читать живой usage.jsonl через File.ReadLines/Get-Content: короткий snapshot
+  с явным FileShare.ReadWrite. Мониторинг не должен мешать journal writer.
+- Текущее состояние/stop_future_checks: .cache/e1-hotpotqa-monitor.json;
+  registry .cache/e1-hotpotqa-recoveries.json. После PAUSED не повторять уведомления.
+  Draft/Refs #13; без E2/QA/holdout/merge.
+## История первого local-socket recovery
+
 ## 24октября: первое ночное local-socket recovery — без нового extraction
 
 Current run6fffff38 завершился failed07:16MSK на локальном Ollama HTTP400.
