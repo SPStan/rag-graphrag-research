@@ -365,6 +365,7 @@ def recorded_call(
             if type(exc).__name__ in ("Timeout", "ReadTimeout", "ConnectTimeout")
             else "error",
             error_code=type(exc).__name__,
+            usage=extract_usage(getattr(exc, "usage_payload", None), kind, provider),
             wall_seconds=time.perf_counter() - begun,
         )
         raise

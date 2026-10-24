@@ -482,8 +482,7 @@ def test_approved_probe_bounds_posts_claims_and_preserves_spending(
             report = e1.export(plan, prior)
             expected = (
                 7 + posts * 18
-                if outcome
-                not in ("unknown", "http_error", "second_unknown", "connection_error")
+                if outcome not in ("unknown", "second_unknown", "connection_error")
                 else 35
                 if outcome == "second_unknown"
                 else 17
@@ -525,12 +524,13 @@ def test_approved_probe_bounds_posts_claims_and_preserves_spending(
                     assert "uniqueItems" not in json.dumps(
                         call.kwargs["json"]["response_format"]
                     )
-            if outcome in (
-                "unknown",
-                "http_error",
-                "second_unknown",
-                "connection_error",
-            ):
+            # This HTTP-error fixture reports full usage: measured 18 tokens,
+            # no new unknown reservation. Parent unknown remains in lineage.
+            if outcome == "http_error":
+                assert manifest["unknown_reserved_upper_bound"] == 0
+                assert report["budget_charge_upper_bound"] is None
+                assert report["budget_reservation_complete"] is False
+            if outcome in ("unknown", "second_unknown", "connection_error"):
                 assert manifest["unknown_reserved_upper_bound"] > 0
                 # The synthetic parent has unknown usage without a saved bound.
                 # A probe reserve cannot make the whole history's bound complete.
