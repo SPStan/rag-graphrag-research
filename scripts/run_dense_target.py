@@ -132,7 +132,12 @@ def checked_post(
             save_private_json(response_path, body, headers)
         if 300 <= response.status_code < 400:
             raise ValueError("redirect_refused")
-        response.raise_for_status()
+        try:
+            response.raise_for_status()
+        except requests.HTTPError as exc:
+            # Preserve reported usage even when the HTTP status itself fails.
+            exc.usage_payload = body
+            raise
         return body
 
     result = recorded_call(
@@ -557,6 +562,15 @@ def execute(
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--shared-plan", type=Path)
+    parser.add_argument("--prepare-shared", action="store_true")
+    parser.add_argument("--e1-plan", type=Path)
+    parser.add_argument("--e1-workspace", type=Path)
+    parser.add_argument("--shared-method", choices=("dense", "hipporag2", "raptor"))
+    parser.add_argument("--output-dir", type=Path)
+    parser.add_argument("--approved-plan-sha256")
+    parser.add_argument("--hippo-source", type=Path)
+    parser.add_argument("--raptor-source", type=Path)
     parser.add_argument("--data-root", type=Path, default=ROOT)
     parser.add_argument("--env-file", type=Path)
     parser.add_argument("--dataset", choices=DATASETS, help="restrict to one dataset")
@@ -574,6 +588,45 @@ def main():
         help="spend tokens: at most 5 sequential reader calls per dataset",
     )
     args = parser.parse_args()
+    if args.shared_plan:
+        from scripts import e2_evaluation as shared
+
+        if args.prepare_shared:
+            plan = shared.prepare(args.e1_plan, args.e1_workspace)
+            if args.shared_plan.exists():
+                if dense.read_json(args.shared_plan) != plan:
+                    raise ValueError("E2_existing_plan_changed")
+            else:
+                dense.write_json_atomic(args.shared_plan, plan)
+            print(
+                json.dumps(
+                    {
+                        "plan_sha256": dense.sha256_file(args.shared_plan),
+                        "max_posts": plan["max_posts"],
+                        "max_combined_tokens": plan["max_combined_tokens"],
+                        "http_calls": 0,
+                    }
+                )
+            )
+        elif args.execute:
+            if not args.output_dir or not args.shared_method:
+                raise ValueError("E2_output_and_method_required")
+            if args.env_file:
+                load_dotenv(args.env_file, override=False)
+            result = shared.execute(
+                args.shared_plan,
+                args.output_dir,
+                args.shared_method,
+                approved_sha=args.approved_plan_sha256,
+                config=api.settings(os.environ),
+                hippo_source=args.hippo_source,
+                raptor_source=args.raptor_source,
+            )
+            print(json.dumps({"status": result["status"], "run_id": result["run_id"]}))
+        else:
+            shared.verify(dense.read_json(args.shared_plan))
+            print("Shared E2 plan verified offline; no HTTP.")
+        return
     prepared = [prepare(dataset, args.data_root) for dataset in DATASETS]
     plan_path = ROOT / "results" / "summary" / "dense-target-smoke-plan.json"
     plans = {"datasets": [item[0] for item in prepared]}

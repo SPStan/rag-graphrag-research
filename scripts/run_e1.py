@@ -6070,6 +6070,7 @@ def main():
             "seal",
             "run",
             "report",
+            "export",
             "verify",
             "offline-ready",
         ),
@@ -6577,6 +6578,9 @@ def main():
                 for name, sha in manifest["artifacts"].items():
                     if dense.sha256_file(path.parent / name) != sha:
                         raise ValueError("index_artifact_changed")
+        if args.command == "verify":
+            print(json.dumps({"verified": len(plan["rows"]), "http_calls": 0}))
+            return
         if args.command == "run":
             if plan.get(
                 "mixed_extractor"

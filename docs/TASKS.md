@@ -2,6 +2,21 @@
 
 **E1 status:** 6/6 indexes completed under the structural protocol; physical known tokens=32601955; cost_complete=False; unknown reserve61588 preserved. Final audit/verify completed; monitoring paused.
 
+## Текущая очередь — 25 октября: offline E2 / smoke10 pending approval
+
+- Новый отдельный блок `codex/e2-shared-evaluation`, зависит от Draft PR33/f8b9bb8.
+  E1 worktree/indexes неизменны,6/6; старый мониторинг PAUSED/recovery2/2.
+- Подготовлен общий path Dense/Hippo/RAPTOR с native read-only Hippo retrieval,
+  единым reader/parser/evaluator, durable once claims/cache/journal и tracking payload.
+- [План smoke10](E2_EVALUATION.md):20tuning IDs ×3метода; максимум140POST,
+  80Qwen/60localBGE, резерв3276800combinedtokens; retry0, первая ошибка/unknown stop.
+- Новых LLM/embedding requests0; реальные smoke/E2 ответы и сравнительная таблица
+  ещё не получены. Отдельное согласие на exact plan SHA до HTTP; pilot200 отдельно.
+- Refs #14, без Ready/merge/закрытия issue. O/N/R/H текущего PR отдельно от
+  технических тестов и допуска расходов. Полные критерии issue14 не выполнены.
+
+## Предыдущий законченный блок E1 (справка)
+
 ## Текущая очередь — 25 октября: E1 завершён, 6/6
 
 - Dense×2, RAPTOR×2 и HippoRAG2×2 имеют completed; строгая штатная

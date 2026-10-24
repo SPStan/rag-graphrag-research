@@ -305,7 +305,11 @@ def export_mlflow(payload, mlflow):
             params["context_source_run_id"] = context_source_run_id
         mlflow.log_params(params)
         mlflow.log_metrics(
-            {key: float(metrics[key]) for key in ("em", "token_f1", "recall_at_k")}
+            {
+                key: float(metrics[key])
+                for key in ("em", "token_f1", "recall_at_k")
+                if metrics[key] is not None
+            }
         )
 
         # MLflow's trace is a retrospective run record; timings are the measured values
@@ -327,7 +331,7 @@ def export_mlflow(payload, mlflow):
                     }
                 }
             )
-            if system == "hipporag2":
+            if system == "hipporag2" and manifest.get("mode") != "e2-smoke10":
                 index = manifest.get("index", {})
                 root_span.set_attribute(
                     "rag.index_fingerprint",
@@ -410,7 +414,12 @@ def export_mlflow(payload, mlflow):
                         span.set_inputs(
                             {"question": row["question"], "top_k": row["top_k"]}
                         )
-                        span.set_outputs({"documents": item["retrieved_passages"]})
+                        span.set_outputs(
+                            {
+                                "documents": item["retrieved_passages"],
+                                "operations": row.get("operations", []),
+                            }
+                        )
                     with mlflow.start_span(name="generation", span_type="LLM") as span:
                         span.set_inputs(
                             {
@@ -540,7 +549,10 @@ def export_langfuse(payload, base_dir=ROOT):
                     }
                 }
             )
-            if system == "hipporag2":
+            if (
+                system == "hipporag2"
+                and payload["manifest"].get("mode") != "e2-smoke10"
+            ):
                 index = payload["manifest"].get("index", {})
                 with client.start_as_current_observation(
                     as_type="chain",
