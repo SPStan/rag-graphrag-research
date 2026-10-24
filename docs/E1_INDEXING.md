@@ -1,5 +1,63 @@
 # E1: индексы полного корпуса (#13)
 
+## 24октября: первое ночное local-socket recovery — без нового extraction
+
+Current run6fffff38 завершился failed07:16MSK на локальном Ollama HTTP400.
+Сохранённый error: внутренний /tokenize к127.0.0.1:50156, connectex Only one
+usage of each socket address. Failed batch8/max80chars; это наблюдаемый отказ
+локального socket allocation, не превышение context. Точная системная причина
+конфликта не установлена;4s pause — mitigation, не доказанное постоянное лечение.
+Ни service restart, ни изменение Windows network settings не выполнялись.
+
+Extraction5500/5500 сохранён, все target LLM usage известны. Новый run расход:
+LLM2787261input+1051549output, embedding994582known;15363physicalPOST,
+из них9920embedding(9919success/1unknown local). Unknown reserve2567 сохранён.
+Failed request0d52543a8460df6630e04d3c44caed6359428142ac0d182719bb240157c4c1c4;
+manifest SHA6cfd0491c08c81c6cdba8605ab14dd88f9e70c31d41217b0eee23e9095e35fb9.
+E1 known31507115/upper31568703,cost_complete=false, totalreserve61588.
+
+Пользовательским heartbeat e1-hotpotqa разрешены scoped technical repairs и
+проверяемое продолжение без расширения token/POST/fallback и без новых моделей/
+prompts/критериев; максимум2recovery за весь период, повтор той же причины — stop.
+Это новое разрешение переопределяет прежний запрет автоматического recovery
+только в указанной technical scope. Его локальная запись — не выдуманное
+согласие пользователя с ещё не существовавшим exact SHA. Новый SHA derived plan
+вычисляется после code commit и связывается с parent b51c2336c6f0/источником допуска.
+
+Existing runner: prepare-hotpot-local-recovery, canonical private plan
+.cache/e1-hotpot-local-recovery-plan.json, новый UUID/output hotpotqa-mixed-local1,
+shared hotpot-local-recovery-plan.claim.json. При повторной socket причине
+ещё один такой child запрещён. Старые manifests/claims/raw неизменны.
+Остаток10418246combinedtokens/18361allPOST, fresh LLM limit0; весь известный
+расход и2567reserve уже вычтены из прежнего Hotpot20M/40kallPOST. Нового
+fallback нет. Остальные пять rows не меняются. Запрет нового target POST жёсткий:
+при missing/changed extraction cache вместо запроса stop до HTTP.
+
+Для9919successful embedding responses сверены saved input JSON→request SHA,
+response SHA и число векторов. Canonical8 batching неизменен, exact payload
+позволяет replay готовых50711entity и partial fact vectors. Из75021facts
+около28640векторов уже получены; оставшихся новых batches около5798.
+Никакого копирования partial parquet по предполагаемому Python set order.
+Новый child повторно вычисляет только ещё не готовые embedding payloads; для
+единственного failed local payload допускается одна fresh попытка, без retry.
+Пауза после нового embedding ответа≥4s, batch8/digest/truncate/context прежние.
+Это замедляет оставшийся этап ориентировочно до6.5часов плюс replay/graph/audit.
+
+Проверки:16targeted socket/local tests passed, дополнительные4проверки bounds
+входят в10local tests passed. Покрыты exact failed key/kind, one attempt,
+zero new LLM, pause4s, failure stop, evidence pins и запрет расширения bounds.
+Реальный cache/input mapping проверен offline при forbidden HTTP.
+Общий hook gate выполняется только на границе этого исправления.
+
+Current launch после запуска: .cache/e1-hotpot-local-recovery-launch.json;
+исторический .cache/e1-hotpot-completion-launch.json не переписывать. Monitor
+.cache/e1-hotpotqa-monitor.json хранит active_launch_file/recoveries_total;
+все recovery attempts — .cache/e1-hotpotqa-recoveries.json. Не обнулять счётчик.
+До создания нового plan остаётся previous failed, не запускать второй worker.
+После нового graph/save-reload обязательны source audit/coverage и экспорт costs.
+PRDraft/Refs #13; без E2/QA/holdout/7B/merge. При повторной socket причине,
+unknown remote POST, повреждении кэша или approval rejection — stop и уведомление.
+
 ## Hotpot остановлен на лимите попыток; подготовлен один completion —23октября
 
 Run579035c8-3089-421a-b71c-8b65bdeba16e на469f860/plan2fc9dfbfd5f8 failed

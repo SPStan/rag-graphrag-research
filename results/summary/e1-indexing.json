@@ -1,6 +1,6 @@
 {
   "batch_id": "edff74df-c567-49de-a834-f9f1fc6f7f74",
-  "plan_sha256": "2fc9dfbfd5f8452d5a55f3855e5c2a869b8f5aac404ee678eb5043489f3d4788",
+  "plan_sha256": "b51c2336c6f092c07c0fc1cae6bee9ce0afb97f745b60935613c886167aa7f7d",
   "models": {
     "model": "iairlab/qwen3.8-27b",
     "embedding_model": "bge-m3:latest",
@@ -1482,7 +1482,7 @@
       "attributed_construction_seconds": 59418.62700000001
     },
     {
-      "run_id": "579035c8-3089-421a-b71c-8b65bdeba16e",
+      "run_id": "6fffff38-c130-4353-86f0-ee2df3a12614",
       "method": "hipporag2",
       "dataset": "hotpotqa",
       "passages": 5500,
@@ -1497,9 +1497,9 @@
         }
       },
       "corpus_fingerprint": "1d6a33346c42cd2feae5cf71eb2c145121a74712eb51a86d95205983a4477634",
-      "code_commit": "469f8609d45c877a7311af8883939db0810fce1c",
-      "token_limit": 18661637,
-      "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/hipporag2/hotpotqa-mixed-adopt1",
+      "code_commit": "6441a13c3a002251d769216df2d624db45fc3758",
+      "token_limit": 15254205,
+      "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/hipporag2/hotpotqa-mixed-completion1",
       "resume_kind": "mixed_native",
       "history_runs": [
         {
@@ -1618,26 +1618,101 @@
             "corrupt_tail_bytes": 0
           },
           "unknown_reserved_upper_bound": 0
+        },
+        {
+          "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/hipporag2/hotpotqa-mixed-adopt1",
+          "run_id": "579035c8-3089-421a-b71c-8b65bdeba16e",
+          "manifest_sha256": "e8512042a0ba5fbc4ffce95e0f38ec6dc1b831fd24679bb45dc8fff4c6b1489a",
+          "summary": {
+            "schema_version": 1,
+            "phases": [
+              {
+                "phase": "index",
+                "provider": "local_ollama",
+                "attempts": 0,
+                "errors": 0,
+                "unfinished": 0,
+                "cache_hits": 688,
+                "cache_provenance_unknown": 0,
+                "known_subtotal": {
+                  "llm_input_tokens": 0,
+                  "llm_output_tokens": 0,
+                  "embedding_input_tokens": 0
+                },
+                "unknown_fields": {
+                  "llm_input_tokens": 0,
+                  "llm_output_tokens": 0,
+                  "embedding_input_tokens": 0
+                },
+                "complete": true,
+                "total": {
+                  "llm_input_tokens": 0,
+                  "llm_output_tokens": 0,
+                  "embedding_input_tokens": 0
+                }
+              },
+              {
+                "phase": "index",
+                "provider": "target_api",
+                "attempts": 4793,
+                "errors": 0,
+                "unfinished": 0,
+                "cache_hits": 404,
+                "cache_provenance_unknown": 0,
+                "known_subtotal": {
+                  "llm_input_tokens": 2458823,
+                  "llm_output_tokens": 948609,
+                  "embedding_input_tokens": 0
+                },
+                "unknown_fields": {
+                  "llm_input_tokens": 0,
+                  "llm_output_tokens": 0,
+                  "embedding_input_tokens": 0
+                },
+                "complete": true,
+                "total": {
+                  "llm_input_tokens": 2458823,
+                  "llm_output_tokens": 948609,
+                  "embedding_input_tokens": 0
+                }
+              }
+            ],
+            "known_subtotal": {
+              "llm_input_tokens": 2458823,
+              "llm_output_tokens": 948609,
+              "embedding_input_tokens": 0
+            },
+            "complete": true,
+            "attempts": 4793,
+            "historical_cache_cost_complete": true,
+            "journal_corrupt_tail": false,
+            "corrupt_tail_bytes": 0
+          },
+          "unknown_reserved_upper_bound": 0
         }
       ],
       "resume_sources": [
         {
           "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/hipporag2/hotpotqa-mixed-embed1",
           "manifest_sha256": "543a355e089a907f9fe4e31c51e15ec1f91d1b67e844320dff4fd7bc0e8cecc8"
+        },
+        {
+          "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/hipporag2/hotpotqa-mixed-adopt1",
+          "manifest_sha256": "e8512042a0ba5fbc4ffce95e0f38ec6dc1b831fd24679bb45dc8fff4c6b1489a"
         }
       ],
       "diagnostics_in_history": true,
-      "prior_budget_charge": 1338363,
-      "max_new_posts": 38517,
+      "prior_budget_charge": 4745795,
+      "max_new_posts": 33724,
       "schema_adoption": {
         "path": "results/summary/e1-hippo-schema-adoption.json",
         "sha256": "d04856cad7220496e14b68dabc46c571638a2795f0b0cf050eb8026fcf3eeced"
       },
-      "max_llm_posts": 10225,
+      "max_llm_posts": 5467,
       "extractor_configuration": {
         "version": "hipporag2_qwen_primary_gptoss_length_fallback_source_v1",
         "fallback_model": "iairlab/gpt-oss-120b",
-        "fallback_limit": 20,
+        "fallback_limit": 55,
         "source_policy": "source_faithfulness_v1",
         "audit_seed": 42,
         "audit_per_model": 8,
@@ -1648,52 +1723,49 @@
         }
       },
       "fallback_extra_consumed": 1,
+      "fallback_attempt_limit": 55,
       "status": "failed",
-      "seconds": 11520.148,
-      "plan_sha256": "8db79eb820706d6850a32316fbfe0977b055ea62f20f68f8324128726c19b76d",
-      "error_type": "ValueError",
+      "seconds": 46618.725,
+      "plan_sha256": "1c4bbd47a176ce3ccec7c2bcd1339c7bba3d6ac5dc827dc230a3fccdbe9fd989",
+      "error_type": "HTTPError",
       "token_accounting": {
         "journal_file": "usage.jsonl",
-        "journal_sha256": "ab697548308ef0294eeffd3aa73e75d77c4056b49d5460476049a1f86ebdf21a",
+        "journal_sha256": "3588cc8a71eb167717b0e71c9782ebea068a818036f4c2e416b6d539e46ff044",
         "summary": {
           "schema_version": 1,
           "phases": [
             {
               "phase": "index",
               "provider": "local_ollama",
-              "attempts": 0,
-              "errors": 0,
+              "attempts": 9920,
+              "errors": 1,
               "unfinished": 0,
               "cache_hits": 688,
               "cache_provenance_unknown": 0,
               "known_subtotal": {
                 "llm_input_tokens": 0,
                 "llm_output_tokens": 0,
-                "embedding_input_tokens": 0
+                "embedding_input_tokens": 994582
               },
               "unknown_fields": {
                 "llm_input_tokens": 0,
                 "llm_output_tokens": 0,
-                "embedding_input_tokens": 0
+                "embedding_input_tokens": 1
               },
-              "complete": true,
-              "total": {
-                "llm_input_tokens": 0,
-                "llm_output_tokens": 0,
-                "embedding_input_tokens": 0
-              }
+              "complete": false,
+              "total": null
             },
             {
               "phase": "index",
               "provider": "target_api",
-              "attempts": 4793,
+              "attempts": 5443,
               "errors": 0,
               "unfinished": 0,
-              "cache_hits": 404,
+              "cache_hits": 5567,
               "cache_provenance_unknown": 0,
               "known_subtotal": {
-                "llm_input_tokens": 2458823,
-                "llm_output_tokens": 948609,
+                "llm_input_tokens": 2787261,
+                "llm_output_tokens": 1051549,
                 "embedding_input_tokens": 0
               },
               "unknown_fields": {
@@ -1703,19 +1775,19 @@
               },
               "complete": true,
               "total": {
-                "llm_input_tokens": 2458823,
-                "llm_output_tokens": 948609,
+                "llm_input_tokens": 2787261,
+                "llm_output_tokens": 1051549,
                 "embedding_input_tokens": 0
               }
             }
           ],
           "known_subtotal": {
-            "llm_input_tokens": 2458823,
-            "llm_output_tokens": 948609,
-            "embedding_input_tokens": 0
+            "llm_input_tokens": 2787261,
+            "llm_output_tokens": 1051549,
+            "embedding_input_tokens": 994582
           },
-          "complete": true,
-          "attempts": 4793,
+          "complete": false,
+          "attempts": 15363,
           "historical_cache_cost_complete": true,
           "journal_corrupt_tail": false,
           "corrupt_tail_bytes": 0
@@ -1728,36 +1800,32 @@
             {
               "phase": "index",
               "provider": "local_ollama",
-              "attempts": 0,
-              "errors": 0,
+              "attempts": 9920,
+              "errors": 1,
               "unfinished": 0,
               "cache_hits": 688,
               "cache_provenance_unknown": 0,
               "known_subtotal": {
                 "llm_input_tokens": 0,
                 "llm_output_tokens": 0,
-                "embedding_input_tokens": 0
+                "embedding_input_tokens": 994582
               },
               "unknown_fields": {
                 "llm_input_tokens": 0,
                 "llm_output_tokens": 0,
-                "embedding_input_tokens": 0
+                "embedding_input_tokens": 1
               },
-              "complete": true,
-              "total": {
-                "llm_input_tokens": 0,
-                "llm_output_tokens": 0,
-                "embedding_input_tokens": 0
-              }
+              "complete": false,
+              "total": null
             }
           ],
           "known_subtotal": {
             "llm_input_tokens": 0,
             "llm_output_tokens": 0,
-            "embedding_input_tokens": 0
+            "embedding_input_tokens": 994582
           },
-          "complete": true,
-          "attempts": 0,
+          "complete": false,
+          "attempts": 9920,
           "historical_cache_cost_complete": true,
           "journal_corrupt_tail": false,
           "corrupt_tail_bytes": 0
@@ -1768,14 +1836,14 @@
             {
               "phase": "index",
               "provider": "target_api",
-              "attempts": 2389,
+              "attempts": 2716,
               "errors": 0,
               "unfinished": 0,
-              "cache_hits": 202,
+              "cache_hits": 2784,
               "cache_provenance_unknown": 0,
               "known_subtotal": {
-                "llm_input_tokens": 747275,
-                "llm_output_tokens": 250166,
+                "llm_input_tokens": 850134,
+                "llm_output_tokens": 281734,
                 "embedding_input_tokens": 0
               },
               "unknown_fields": {
@@ -1785,19 +1853,19 @@
               },
               "complete": true,
               "total": {
-                "llm_input_tokens": 747275,
-                "llm_output_tokens": 250166,
+                "llm_input_tokens": 850134,
+                "llm_output_tokens": 281734,
                 "embedding_input_tokens": 0
               }
             }
           ],
           "known_subtotal": {
-            "llm_input_tokens": 747275,
-            "llm_output_tokens": 250166,
+            "llm_input_tokens": 850134,
+            "llm_output_tokens": 281734,
             "embedding_input_tokens": 0
           },
           "complete": true,
-          "attempts": 2389,
+          "attempts": 2716,
           "historical_cache_cost_complete": true,
           "journal_corrupt_tail": false,
           "corrupt_tail_bytes": 0
@@ -1808,14 +1876,14 @@
             {
               "phase": "index",
               "provider": "target_api",
-              "attempts": 2404,
+              "attempts": 2727,
               "errors": 0,
               "unfinished": 0,
-              "cache_hits": 202,
+              "cache_hits": 2783,
               "cache_provenance_unknown": 0,
               "known_subtotal": {
-                "llm_input_tokens": 1711548,
-                "llm_output_tokens": 698443,
+                "llm_input_tokens": 1937127,
+                "llm_output_tokens": 769815,
                 "embedding_input_tokens": 0
               },
               "unknown_fields": {
@@ -1825,35 +1893,29 @@
               },
               "complete": true,
               "total": {
-                "llm_input_tokens": 1711548,
-                "llm_output_tokens": 698443,
+                "llm_input_tokens": 1937127,
+                "llm_output_tokens": 769815,
                 "embedding_input_tokens": 0
               }
             }
           ],
           "known_subtotal": {
-            "llm_input_tokens": 1711548,
-            "llm_output_tokens": 698443,
+            "llm_input_tokens": 1937127,
+            "llm_output_tokens": 769815,
             "embedding_input_tokens": 0
           },
           "complete": true,
-          "attempts": 2404,
+          "attempts": 2727,
           "historical_cache_cost_complete": true,
           "journal_corrupt_tail": false,
           "corrupt_tail_bytes": 0
         }
       },
-      "current_unknown_reserved_upper_bound": 0,
+      "current_unknown_reserved_upper_bound": 2567,
       "failure_diagnostic": {
-        "operation": "openie_triples",
-        "request_sha256": "5841280eacc2685d5d8a91af6c3deee24d517a60180defc5f9d58cb8c9f559d9",
-        "usage_status": "complete",
-        "finish_reason": "length",
-        "repetition": {
-          "complete_tuples": 122,
-          "unique_tuples": 1,
-          "cycle": true
-        }
+        "operation": "index_embedding",
+        "request_sha256": "0d52543a8460df6630e04d3c44caed6359428142ac0d182719bb240157c4c1c4",
+        "usage_status": "unknown"
       },
       "cumulative_accounting": {
         "schema_version": 1,
@@ -1861,39 +1923,35 @@
           {
             "phase": "index",
             "provider": "local_ollama",
-            "attempts": 688,
-            "errors": 0,
+            "attempts": 10608,
+            "errors": 1,
             "unfinished": 0,
-            "cache_hits": 688,
+            "cache_hits": 1376,
             "cache_provenance_unknown": 0,
             "known_subtotal": {
               "llm_input_tokens": 0,
               "llm_output_tokens": 0,
-              "embedding_input_tokens": 766804
+              "embedding_input_tokens": 1761386
             },
             "unknown_fields": {
               "llm_input_tokens": 0,
               "llm_output_tokens": 0,
-              "embedding_input_tokens": 0
+              "embedding_input_tokens": 1
             },
-            "complete": true,
-            "total": {
-              "llm_input_tokens": 0,
-              "llm_output_tokens": 0,
-              "embedding_input_tokens": 766804
-            }
+            "complete": false,
+            "total": null
           },
           {
             "phase": "index",
             "provider": "target_api",
-            "attempts": 5588,
+            "attempts": 11031,
             "errors": 0,
             "unfinished": 0,
-            "cache_hits": 404,
+            "cache_hits": 5971,
             "cache_provenance_unknown": 0,
             "known_subtotal": {
-              "llm_input_tokens": 2864073,
-              "llm_output_tokens": 1114918,
+              "llm_input_tokens": 5651334,
+              "llm_output_tokens": 2166467,
               "embedding_input_tokens": 0
             },
             "unknown_fields": {
@@ -1903,25 +1961,25 @@
             },
             "complete": true,
             "total": {
-              "llm_input_tokens": 2864073,
-              "llm_output_tokens": 1114918,
+              "llm_input_tokens": 5651334,
+              "llm_output_tokens": 2166467,
               "embedding_input_tokens": 0
             }
           }
         ],
         "known_subtotal": {
-          "llm_input_tokens": 2864073,
-          "llm_output_tokens": 1114918,
-          "embedding_input_tokens": 766804
+          "llm_input_tokens": 5651334,
+          "llm_output_tokens": 2166467,
+          "embedding_input_tokens": 1761386
         },
-        "complete": true,
-        "attempts": 6276,
+        "complete": false,
+        "attempts": 21639,
         "historical_cache_cost_complete": true,
         "journal_corrupt_tail": false,
         "corrupt_tail_bytes": 0
       },
-      "cumulative_seconds": 15171.171999999999,
-      "artifact_manifest_sha256": "e8512042a0ba5fbc4ffce95e0f38ec6dc1b831fd24679bb45dc8fff4c6b1489a",
+      "cumulative_seconds": 61789.897,
+      "artifact_manifest_sha256": "6cfd0491c08c81c6cdba8605ab14dd88f9e70c31d41217b0eee23e9095e35fb9",
       "llm_by_model": {
         "iairlab/gpt-oss-120b": {
           "schema_version": 1,
@@ -1929,14 +1987,14 @@
             {
               "phase": "index",
               "provider": "target_api",
-              "attempts": 20,
+              "attempts": 31,
               "errors": 0,
               "unfinished": 0,
-              "cache_hits": 3,
+              "cache_hits": 22,
               "cache_provenance_unknown": 0,
               "known_subtotal": {
-                "llm_input_tokens": 18176,
-                "llm_output_tokens": 12229,
+                "llm_input_tokens": 27791,
+                "llm_output_tokens": 16971,
                 "embedding_input_tokens": 0
               },
               "unknown_fields": {
@@ -1946,19 +2004,19 @@
               },
               "complete": true,
               "total": {
-                "llm_input_tokens": 18176,
-                "llm_output_tokens": 12229,
+                "llm_input_tokens": 27791,
+                "llm_output_tokens": 16971,
                 "embedding_input_tokens": 0
               }
             }
           ],
           "known_subtotal": {
-            "llm_input_tokens": 18176,
-            "llm_output_tokens": 12229,
+            "llm_input_tokens": 27791,
+            "llm_output_tokens": 16971,
             "embedding_input_tokens": 0
           },
           "complete": true,
-          "attempts": 20,
+          "attempts": 31,
           "historical_cache_cost_complete": true,
           "journal_corrupt_tail": false,
           "corrupt_tail_bytes": 0
@@ -1969,14 +2027,14 @@
             {
               "phase": "index",
               "provider": "target_api",
-              "attempts": 5568,
+              "attempts": 11000,
               "errors": 0,
               "unfinished": 0,
-              "cache_hits": 401,
+              "cache_hits": 5949,
               "cache_provenance_unknown": 0,
               "known_subtotal": {
-                "llm_input_tokens": 2845897,
-                "llm_output_tokens": 1102689,
+                "llm_input_tokens": 5623543,
+                "llm_output_tokens": 2149496,
                 "embedding_input_tokens": 0
               },
               "unknown_fields": {
@@ -1986,33 +2044,33 @@
               },
               "complete": true,
               "total": {
-                "llm_input_tokens": 2845897,
-                "llm_output_tokens": 1102689,
+                "llm_input_tokens": 5623543,
+                "llm_output_tokens": 2149496,
                 "embedding_input_tokens": 0
               }
             }
           ],
           "known_subtotal": {
-            "llm_input_tokens": 2845897,
-            "llm_output_tokens": 1102689,
+            "llm_input_tokens": 5623543,
+            "llm_output_tokens": 2149496,
             "embedding_input_tokens": 0
           },
           "complete": true,
-          "attempts": 5568,
+          "attempts": 11000,
           "historical_cache_cost_complete": true,
           "journal_corrupt_tail": false,
           "corrupt_tail_bytes": 0
         }
       },
       "cost_semantics": "Physical new cost; replay is not charged twice.",
-      "standalone_cost_complete": true,
+      "standalone_cost_complete": false,
       "standalone_known_subtotal": {
-        "llm_input_tokens": 2864073,
-        "llm_output_tokens": 1114918,
-        "embedding_input_tokens": 766804
+        "llm_input_tokens": 5651334,
+        "llm_output_tokens": 2166467,
+        "embedding_input_tokens": 1761386
       },
-      "measured_run_seconds": 11520.148,
-      "attributed_construction_seconds": 15171.171999999999
+      "measured_run_seconds": 46618.725,
+      "attributed_construction_seconds": 61789.897
     },
     {
       "run_id": "957006e6-5d60-43f6-990d-027851323111",
@@ -3120,9 +3178,15 @@
       "reused_leaf_cost_complete": false
     }
   ],
-  "combined_token_limit": 50847489,
+  "combined_token_limit": 47440057,
   "complete": false,
   "limitations": "E1 measures indexing cost/coverage, not retrieval or answer quality. Historical smoke unknowns are preserved outside these new runs.",
+  "fallback_attempt_budget_policy": {
+    "version": "one_percent_passage_count_attempt_budget_v1",
+    "hotpot_total_attempt_limit": 55,
+    "original_total_attempt_limit": 20,
+    "failed_and_probe_included": true
+  },
   "hotpot_json_adoption": {
     "prior_plan_sha256": "091a76f5bbef5d86304283a9e58a27ebe5e6b02aafba55eaa77bc730f5992600",
     "candidate_sha256": "3d1b2633b4d5f5aa536ede8b289237b4d6c103e4b6aea8245e22f05752715ca3",
@@ -3166,10 +3230,10 @@
     }
   },
   "protocol_approval_source": "reported_by_user; individual bot status not independently checked",
-  "physical_known_tokens": 26673723,
+  "physical_known_tokens": 31507115,
   "physical_usage_complete": false,
   "cost_complete": false,
-  "budget_charge_upper_bound": 26732744,
+  "budget_charge_upper_bound": 31568703,
   "budget_reservation_complete": true,
   "original_combined_token_limit": 68000000
 }

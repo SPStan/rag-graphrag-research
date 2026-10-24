@@ -2350,3 +2350,120 @@ def test_completion_scoped_approval_and_fixed_bounds(tmp_path, monkeypatch, chan
         else:
             with pytest.raises(ValueError):
                 e1.verify_hotpot_completion(plan, row)
+
+
+@pytest.mark.parametrize("outcome", ["success", "error", "wrong_key"])
+def test_local_recovery_only_exact_failed_embedding_once(
+    mixed_transport_factory, monkeypatch, outcome
+):
+    runner, session = mixed_transport_factory()
+    runner.plan["hotpot_local_socket_recovery"] = {"manifest_sha256": "immutable"}
+    runner.plan["embedding_recovery_policy"] = e1.MIXED_EMBEDDING_RECOVERY
+    runner.row.update(max_llm_posts=0, embedding_post_pause_seconds=4.0)
+    payload = {"model": "bge", "input": ["A"] * 8, "truncate": False}
+    key = e1.target.digest(
+        {"payload": payload, "kind": "embedding", "operation": "index_embedding"}
+    )
+    runner.blocked_failures.add(key)
+    runner.row["local_socket_request_sha256"] = (
+        "other" if outcome == "wrong_key" else key
+    )
+    runner.last_embedding_finished = 99.0
+    monkeypatch.setattr(e1.time, "monotonic", lambda: 100.0)
+    sleeps = []
+    monkeypatch.setattr(e1.time, "sleep", sleeps.append)
+    response = Mock(status_code=400 if outcome == "error" else 200)
+    response.json.return_value = (
+        {"error": "socket"}
+        if outcome == "error"
+        else {
+            "embeddings": [[1.0] + [0.0] * 1023 for _ in range(8)],
+            "prompt_eval_count": 32,
+        }
+    )
+    if outcome == "error":
+        response.raise_for_status.side_effect = requests.HTTPError("400")
+    session.post = Mock(return_value=response)
+    if outcome == "success":
+        runner.call(payload, kind="embedding", operation="index_embedding")
+        runner.call(payload, kind="embedding", operation="index_embedding")
+        assert session.post.call_count == 1
+        assert sleeps == [3.0]
+    else:
+        with pytest.raises((ValueError, requests.HTTPError)):
+            runner.call(payload, kind="embedding", operation="index_embedding")
+        if outcome == "error":
+            with pytest.raises(ValueError, match="incomplete_or_failed"):
+                runner.call(payload, kind="embedding", operation="index_embedding")
+            assert session.post.call_count == 1
+        else:
+            assert session.post.call_count == 0
+    with pytest.raises(ValueError):
+        runner.generate(mixed_messages(), 1024, "openie_ner", {"type": "json_object"})
+    assert session.post.call_count == (0 if outcome == "wrong_key" else 1)
+
+
+@pytest.mark.parametrize("field", ["plan", "manifest", "authorization"])
+def test_local_recovery_evidence_pin_before_http(tmp_path, field):
+    pin = {}
+    for name in ("plan", "manifest", "authorization"):
+        path = tmp_path / name
+        path.write_text("original", encoding="utf-8")
+        pin[name] = str(path)
+        pin[f"{name}_sha256"] = dense.sha256_file(path)
+    Path(pin[field]).write_text("changed", encoding="utf-8")
+    with patch(
+        "requests.Session.request", side_effect=AssertionError("HTTP forbidden")
+    ):
+        with pytest.raises(ValueError, match="pin_changed"):
+            e1.hotpot_local_recovery_state(pin)
+
+
+@pytest.mark.parametrize("change", ["none", "llm", "pause", "budget"])
+def test_local_recovery_bounds_cannot_expand(tmp_path, monkeypatch, change):
+    monkeypatch.setattr(e1, "ROOT", tmp_path)
+    old = {
+        "method": "hipporag2",
+        "dataset": "hotpotqa",
+        "run_id": "old",
+        "output": "old",
+        "token_limit": 20000,
+        "max_llm_posts": 8,
+    }
+    mu = {"method": "hipporag2", "dataset": "musique", "output": "mu"}
+    root = tmp_path / "claims"
+    root.mkdir()
+    prior = {
+        "rows": [mu, old],
+        "mixed_claim_root": str(root),
+        "parent_plan": {"sha256": "p"},
+    }
+    expected = {
+        "token_limit": 19000,
+        "max_llm_posts": 0,
+        "embedding_post_pause_seconds": 4.0,
+    }
+    plan = copy.deepcopy(prior)
+    plan["hotpot_local_socket_recovery"] = {"plan_sha256": "parent"}
+    row = plan["rows"][1]
+    row.update(expected, run_id="new", output="new", code_commit="head")
+    monkeypatch.setattr(
+        e1, "hotpot_local_recovery_state", lambda pin: (prior, expected)
+    )
+    dense.write_json_atomic(
+        root / "hotpot-local-recovery-plan.claim.json", e1.mixed_plan_claim(plan)
+    )
+    if change == "llm":
+        row["max_llm_posts"] = 1
+    if change == "pause":
+        row["embedding_post_pause_seconds"] = 2.0
+    if change == "budget":
+        row["token_limit"] += 1
+    with patch(
+        "requests.Session.request", side_effect=AssertionError("HTTP forbidden")
+    ):
+        if change == "none":
+            e1.verify_hotpot_local_recovery(plan, row)
+        else:
+            with pytest.raises(ValueError, match="bounds_changed"):
+                e1.verify_hotpot_local_recovery(plan, row)

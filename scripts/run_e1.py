@@ -761,7 +761,9 @@ def verify_plan(plan, row, config):
         or row["output"]
         != f"indexes/e1/{plan['batch_id']}/{row['method']}/{row['dataset']}"
         + (
-            "-mixed-completion1"
+            "-mixed-local1"
+            if plan.get("hotpot_local_socket_recovery") and row["dataset"] == "hotpotqa"
+            else "-mixed-completion1"
             if plan.get("hotpot_fallback_completion") and row["dataset"] == "hotpotqa"
             else "-mixed-adopt1"
             if plan.get("hotpot_json_adoption") and row["dataset"] == "hotpotqa"
@@ -1061,21 +1063,16 @@ def mixed_history(prior, dataset):
 
 
 def mixed_plan_claim(plan):
+    pin = (
+        plan.get("hotpot_local_socket_recovery")
+        or plan.get("hotpot_fallback_completion")
+        or plan.get("hotpot_json_adoption")
+        or plan.get("mixed_embedding_recovery")
+        or plan.get("mixed_counter_recovery", {})
+    )
     return {
-        "parent_plan_sha256": (
-            plan.get("hotpot_fallback_completion")
-            or plan.get("hotpot_json_adoption")
-            or plan.get("mixed_embedding_recovery")
-            or plan.get("mixed_counter_recovery", {})
-        ).get(
-            "prior_plan_sha256",
-            plan.get("hotpot_fallback_completion", {}).get(
-                "plan_sha256",
-                (
-                    plan.get("mixed_embedding_recovery")
-                    or plan.get("mixed_counter_recovery", {})
-                ).get("plan_sha256", plan["parent_plan"]["sha256"]),
-            ),
+        "parent_plan_sha256": pin.get(
+            "prior_plan_sha256", pin.get("plan_sha256", plan["parent_plan"]["sha256"])
         ),
         "children": {
             r["dataset"]: r["run_id"]
@@ -1917,7 +1914,218 @@ def prepare_hotpot_completion(prior_path, stderr_path):
     return plan
 
 
+def hotpot_local_recovery_state(pin):
+    for name in ("plan", "manifest", "authorization"):
+        if dense.sha256_file(Path(pin[name])) != pin[f"{name}_sha256"]:
+            raise ValueError("hotpot_local_recovery_pin_changed")
+    prior = dense.read_json(Path(pin["plan"]))
+    if prior.get("hotpot_local_socket_recovery"):
+        raise ValueError("hotpot_local_socket_cause_cannot_repeat")
+    old = next(
+        r
+        for r in prior["rows"]
+        if (r["method"], r["dataset"]) == ("hipporag2", "hotpotqa")
+    )
+    verify_hotpot_completion(prior, old)
+    mp = Path(pin["manifest"])
+    m = dense.read_json(mp)
+    authorization = dense.read_json(Path(pin["authorization"]))
+    if (
+        mp.resolve() != (ROOT / old["output"] / "manifest.json").resolve()
+        or m["status"] != "failed"
+        or m["error_type"] != "HTTPError"
+        or m["plan_sha256"] != target.digest(prior)
+        or authorization["parent_plan_sha256"] != pin["plan_sha256"]
+        or authorization["maximum_automatic_recoveries"] != 2
+        or authorization["stop_on_repeated_cause"] is not True
+        or authorization.get("allow_hotpot_local_embedding_recovery") is not True
+        or authorization.get("new_remote_llm_posts") != 0
+        or authorization.get("recovery_number") != 1
+        or authorization.get("original_token_post_fallback_caps_unchanged") is not True
+    ):
+        raise ValueError("hotpot_local_recovery_scope_changed")
+    _, _, payload, _, item = hotpot_adoption_state(prior["hotpot_json_adoption"])
+    key = target.digest(
+        {"payload": payload, "kind": "llm", "operation": "openie_triples"}
+    )
+    cache = {key: item}
+    for source in old["resume_sources"]:
+        sp = ROOT / source["output"] / "manifest.json"
+        if dense.sha256_file(sp) != source["manifest_sha256"]:
+            raise ValueError("hotpot_local_recovery_cache_changed")
+        cache, _, _ = verified_checkpoints(sp, inherited=cache, allow_length=True)
+    cache, failures, ref = verified_checkpoints(mp, inherited=cache, allow_length=True)
+    records = read_records(mp.parent / "usage.jsonl")
+    physical = [
+        r for r in records if r["event"] == "finished" and not r.get("cache_hit")
+    ]
+    bad = [
+        r
+        for r in physical
+        if r["status"] != "success" or r["usage_status"] != "complete"
+    ]
+    if (
+        len(bad) != 1
+        or bad[0]["provider"] != "local_ollama"
+        or bad[0]["kind"] != "embedding"
+        or bad[0]["error_code"] != "HTTPError"
+        or any(p["unfinished"] for p in ref["summary"]["phases"])
+    ):
+        raise ValueError("hotpot_local_recovery_requires_one_local_failure")
+    failed = bad[0]["object_id"]
+    response = dense.read_json(mp.parent / "requests" / f"{failed}.response.json")
+    error = response.get("error", "")
+    if "/tokenize" not in error or "Only one usage of each socket address" not in error:
+        raise ValueError("hotpot_local_recovery_wrong_socket_error")
+    reserve = current_unknown_reservation(mp.parent)
+    if reserve != pin["unknown_reserved_upper_bound"] or not reserve:
+        raise ValueError("hotpot_local_recovery_unknown_reserve_changed")
+    checkpoints = mp.parent / "requests"
+    # Exact saved inputs bind partial vectors to strings; never guess parquet/set order.
+    for key, entry in cache.items():
+        if entry["run_id"] != m["run_id"] or entry["kind"] != "embedding":
+            continue
+        payload = dense.read_json(checkpoints / f"{key}.input.json")
+        if target.digest(
+            {"payload": payload, "kind": "embedding", "operation": "index_embedding"}
+        ) != key or len(dense.read_json(entry["path"])["embeddings"]) != len(
+            payload["input"]
+        ):
+            raise ValueError("hotpot_local_recovery_embedding_mapping_changed")
+    failed_payload = dense.read_json(checkpoints / f"{failed}.input.json")
+    if (
+        target.digest(
+            {
+                "payload": failed_payload,
+                "kind": "embedding",
+                "operation": "index_embedding",
+            }
+        )
+        != failed
+    ):
+        raise ValueError("hotpot_local_recovery_failed_input_changed")
+    validation = dense.read_json(mp.parent / "openie-validation.json")
+    if len(validation) != 5500 or any(
+        v.get("triples") not in ("valid_empty", "valid_nonempty")
+        for v in validation.values()
+    ):
+        raise ValueError("hotpot_local_recovery_extraction_incomplete")
+    claims = Path(prior["mixed_claim_root"]) / "hotpotqa"
+    if pin["original_claims"] != {
+        p.name: dense.sha256_file(p) for p in claims.glob("*.claim.json")
+    }:
+        raise ValueError("hotpot_local_recovery_claims_changed")
+    history = copy.deepcopy(old["history_runs"])
+    history.append(
+        {
+            "output": old["output"],
+            "run_id": m["run_id"],
+            "manifest_sha256": pin["manifest_sha256"],
+            "summary": ref["summary"],
+            "unknown_reserved_upper_bound": reserve,
+        }
+    )
+    if len({h["run_id"] for h in history}) != len(history):
+        raise ValueError("hotpot_local_recovery_duplicate_history")
+    charge = sum(
+        sum(h["summary"]["known_subtotal"].values()) + h["unknown_reserved_upper_bound"]
+        for h in history
+    )
+    return prior, {
+        "history_runs": history,
+        "resume_sources": old["resume_sources"]
+        + [{"output": old["output"], "manifest_sha256": pin["manifest_sha256"]}],
+        "prior_budget_charge": charge,
+        "token_limit": LIMITS["hipporag2"] - charge,
+        "max_new_posts": old["max_new_posts"] - len(physical),
+        "max_llm_posts": 0,
+        "embedding_post_pause_seconds": 4.0,
+        "local_socket_request_sha256": failed,
+    }
+
+
+def prepare_hotpot_local_recovery(prior_path, authorization_path):
+    prior = dense.read_json(prior_path)
+    old = next(
+        r
+        for r in prior["rows"]
+        if (r["method"], r["dataset"]) == ("hipporag2", "hotpotqa")
+    )
+    mp = ROOT / old["output"] / "manifest.json"
+    root = Path(prior["mixed_claim_root"])
+    pin = {
+        "plan": str(prior_path.resolve()),
+        "plan_sha256": dense.sha256_file(prior_path),
+        "manifest": str(mp),
+        "manifest_sha256": dense.sha256_file(mp),
+        "authorization": str(authorization_path.resolve()),
+        "authorization_sha256": dense.sha256_file(authorization_path),
+        "unknown_reserved_upper_bound": current_unknown_reservation(mp.parent),
+        "original_claims": {
+            p.name: dense.sha256_file(p)
+            for p in (root / "hotpotqa").glob("*.claim.json")
+        },
+    }
+    prior, states = hotpot_local_recovery_state(pin)
+    plan = copy.deepcopy(prior)
+    plan["hotpot_local_socket_recovery"] = pin
+    plan["lineage"].append(
+        {
+            "path": str(prior_path.resolve()),
+            "sha256": dense.sha256_file(prior_path),
+            "digest": target.digest(prior),
+        }
+    )
+    row = next(
+        r
+        for r in plan["rows"]
+        if (r["method"], r["dataset"]) == ("hipporag2", "hotpotqa")
+    )
+    row.update(
+        states,
+        run_id=str(uuid.uuid4()),
+        code_commit=git("rev-parse", "HEAD"),
+        output=f"indexes/e1/{plan['batch_id']}/hipporag2/hotpotqa-mixed-local1",
+    )
+    plan["combined_token_limit"] = sum(r["token_limit"] for r in plan["rows"])
+    if (
+        (ROOT / row["output"]).exists()
+        or (root / "hotpot-local-recovery-plan.claim.json").exists()
+        or min(row[k] for k in ("token_limit", "max_new_posts")) <= 0
+    ):
+        raise ValueError("hotpot_local_recovery_already_used_or_no_budget")
+    return plan
+
+
+def verify_hotpot_local_recovery(plan, row):
+    prior, expected = hotpot_local_recovery_state(plan["hotpot_local_socket_recovery"])
+    original = next(
+        r
+        for r in prior["rows"]
+        if (r["method"], r["dataset"]) == ("hipporag2", "hotpotqa")
+    )
+    fields = {*expected, "run_id", "code_commit", "output"}
+    top = {"rows", "lineage", "combined_token_limit", "hotpot_local_socket_recovery"}
+    if (
+        any(row.get(k) != v for k, v in expected.items())
+        or {k: v for k, v in row.items() if k not in fields}
+        != {k: v for k, v in original.items() if k not in fields}
+        or [r for r in plan["rows"] if r is not row]
+        != [r for r in prior["rows"] if r != original]
+        or {k: v for k, v in plan.items() if k not in top}
+        != {k: v for k, v in prior.items() if k not in top}
+        or dense.read_json(
+            Path(plan["mixed_claim_root"]) / "hotpot-local-recovery-plan.claim.json"
+        )
+        != mixed_plan_claim(plan)
+    ):
+        raise ValueError("hotpot_local_recovery_bounds_changed")
+
+
 def verify_hotpot_completion(plan, row):
+    if plan.get("hotpot_local_socket_recovery"):
+        verify_hotpot_local_recovery(plan, row)
+        return
     prior, expected = hotpot_completion_state(plan["hotpot_fallback_completion"])
     original = next(
         r
@@ -2314,7 +2522,11 @@ class Transport:
             )
             self.parent_cache[key] = item
             self.json_adoption = (primary, payload, key)
-            route_pin = plan.get("hotpot_fallback_completion") or pin
+            route_pin = (
+                plan.get("hotpot_local_socket_recovery")
+                or plan.get("hotpot_fallback_completion")
+                or pin
+            )
             routes = dense.read_json(
                 Path(route_pin["manifest"]).parent / "mixed-routes.json"
             )
@@ -2547,7 +2759,11 @@ class Transport:
         ):
             raise ValueError("summary_network_first_uncached_request_changed")
         if self.row.get("resume_kind") == "mixed_native":
-            if key in self.blocked_failures:
+            if key in self.blocked_failures and not (
+                kind == "embedding"
+                and self.plan.get("hotpot_local_socket_recovery")
+                and key == self.row.get("local_socket_request_sha256")
+            ):
                 raise ValueError("mixed_prior_failed_request_cannot_repeat")
             if kind == "llm":
                 records = read_records(self.journal.path)
@@ -2583,7 +2799,11 @@ class Transport:
             raise ValueError("mixed_embedding_policy_changed")
         if not remote and socket_policy:
             dense.write_json_atomic(self.calls / f"{key}.input.json", payload)
-            pause = max(2.0, len(payload["input"]) * 0.25)
+            pause = max(
+                2.0,
+                self.row.get("embedding_post_pause_seconds", 2.0),
+                len(payload["input"]) * 0.25,
+            )
             delay = pause - (time.monotonic() - self.last_embedding_finished)
             if delay > 0:
                 time.sleep(delay)
@@ -3445,6 +3665,19 @@ def export(plan, plan_path):
         "complete": all(r["status"] == "completed" for r in rows),
         "limitations": "E1 measures indexing cost/coverage, not retrieval or answer quality. Historical smoke unknowns are preserved outside these new runs.",
     }
+    if plan.get("hotpot_local_socket_recovery"):
+        report["hotpot_local_socket_recovery"] = {
+            "parent_plan_sha256": plan["hotpot_local_socket_recovery"]["plan_sha256"],
+            "failed_manifest_sha256": plan["hotpot_local_socket_recovery"][
+                "manifest_sha256"
+            ],
+            "unknown_reserved_upper_bound": plan["hotpot_local_socket_recovery"][
+                "unknown_reserved_upper_bound"
+            ],
+            "fresh_llm_posts_limit": 0,
+            "embedding_post_pause_seconds": 4.0,
+            "authorization": "user_scoped_night_recovery_1_of_at_most_2; repeated_socket_cause_stops",
+        }
     if plan.get("hotpot_fallback_completion"):
         report["fallback_attempt_budget_policy"] = {
             "version": "one_percent_passage_count_attempt_budget_v1",
@@ -5551,6 +5784,7 @@ def main():
             "prepare-mixed-embedding-recovery",
             "prepare-hotpot-adoption",
             "prepare-hotpot-completion",
+            "prepare-hotpot-local-recovery",
             "prepare-mixed-audit",
             "finalize-mixed-audit",
             "continue",
@@ -5602,6 +5836,34 @@ def main():
     parser.add_argument("--counter-stderr", type=Path)
     args = parser.parse_args()
     config = dotenv_values(args.env_file) if args.env_file else {}
+    if args.command == "prepare-hotpot-local-recovery":
+        canonical = ROOT / ".cache/e1-hotpot-local-recovery-plan.json"
+        if (
+            args.plan.resolve() != canonical.resolve()
+            or args.plan.exists()
+            or code_dirty()
+        ):
+            raise ValueError(
+                "hotpot_local_recovery_requires_unused_plan_and_clean_code"
+            )
+        plan = prepare_hotpot_local_recovery(args.prior_plan, args.protocol_approval)
+        with (
+            Path(plan["mixed_claim_root"]) / "hotpot-local-recovery-plan.claim.json"
+        ).open("x", encoding="utf-8") as stream:
+            json.dump(mixed_plan_claim(plan), stream)
+            stream.flush()
+            os.fsync(stream.fileno())
+        with args.plan.open("x", encoding="utf-8") as stream:
+            json.dump(plan, stream, ensure_ascii=False, indent=2)
+        print(
+            json.dumps(
+                {
+                    "status": "derived_from_scoped_automatic_recovery_authorization",
+                    "http_calls": 0,
+                }
+            )
+        )
+        return
     if args.command == "prepare-hotpot-completion":
         canonical = ROOT / ".cache/e1-hotpot-completion-plan.json"
         if (

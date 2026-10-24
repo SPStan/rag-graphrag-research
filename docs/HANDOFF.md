@@ -1,31 +1,28 @@
 # Передача контекста Sol / Luna
 
-**E1 status:** 5/6 indexes completed; physical known tokens=26673723; cost_complete=False. Hotpot failed at fallback attempt cap; no worker active.
+**E1 status:** 5/6 indexes completed; physical known tokens=31507115; cost_complete=False. Hotpot local socket failure; scoped technical recovery being prepared.
 
-## Текущая очередь —23октября: Hotpot attempt cap,5/6
+## Текущая очередь —24октября: Hotpot local-socket recovery1
 
-- Run579035c8 failed на2590/5500текущего обхода: mixed_fallback_limit,
-  Qwen length+cycle122/1unique. Нового GPT для него нет.4793LLMPOST,
-  known3407432, unknown0/unfinished0, worker завершён. Все old artifacts сохранены.
-- Union SHA cache:2784NER/2782triples/5500passage vectors, отдельно принятый
-  прежним scoped согласием JSON-mode response (ещё одна available пара).
-- E1 known26673723/upper26732744,cost_complete=false, reserve59021.
-  Hotpot known4745795/20M, monetary billing не проверен.
-- Код existing runner поддерживает один completion: новые15254205tokens,
-  5467LLMPOST/33724allPOST, ещё≤35Schema fallback. Предложенный cap55=1%от5500,
-  включает18complete+1failed+1probe; общийLLMcap11020→11055,+35, tokens20M/
-  allPOST40000 прежние. Это операционный предел, не гарантия успеха/quality.
-- Core payload/caps1024/3072/models/trigger unchanged; один fallback на Qwen
-  length+cycle, никаких новых JSON-mode retries. Первая иная ошибка/unknown/
-  fallback failure — stop; нового автоматического recovery нет.
-- Canonical plan .cache/e1-hotpot-completion-plan.json, exact HEAD/SHA в нём
-  и текущей секции PR33. Подготовка CLI offline. До новой scoped receipt
-  с принятием55fallback/11055LLMPOST и разрешением exact plan HTTP запрещён.
-  Старое согласие на20 не переносится; claims не сбрасывать/план не пересоздавать.
-- 195targeted passed/3integration skipped; общий commit gate на границе блока.
-  Следующий шаг — показать exact prepared plan пользователю для одного допуска.
-- Пять готовых индексов неизменны, source audit после будущего graph обязателен.
-  PR33Draft/Refs #13/20files; QA/E2/holdout/7B/merge не запускать.
+- Run6fffff38 failed07:16MSK на local Ollama/tokenize socket HTTP400,
+  extraction5500/5500 сохранён.15363physicalPOST, known4833392,
+  local unknown reserve2567; remote unknown0. Manifest SHA6cfd0491c08c…e35fb9.
+- E1 known31507115/upper31568703,cost_complete=false,totalreserve61588,5/6.
+- Ночное user heartbeat разрешает≤2technical recoveries за период, повтор
+  той же причины — stop. Новый derive plan не выдавать за старый approved SHA.
+- Existing runner local child: zero fresh LLM, verified canonical8 embedding
+  replay, ≥4s pause;10418246newtokens/18361allPOST, fresh fallback0. Полный
+  extraction и9919successful embedding batches повторно не вычислять.
+- Author file .cache/e1-hotpotqa-night-recovery-authorization.json; parent
+  b51c2336c6f0, canonical child .cache/e1-hotpot-local-recovery-plan.json.
+  После запуска актуальный launch .cache/e1-hotpot-local-recovery-launch.json,
+  старый completion-launch исторический. Active pointer/counter в
+  .cache/e1-hotpotqa-monitor.json, attempts в .cache/e1-hotpotqa-recoveries.json.
+- Целевые socket/local tests прошли; реальный input/response mapping проверен
+  без HTTP. Общий hook gate на границе фикса. До launch live worker отсутствует;
+  следующий шаг — создать derived plan/запустить одно scoped local восстановление.
+- Не менять code под живым worker. Без повторов того же failed child/claims,
+  без E2/QA/holdout/model changes/budget increase/merge. После graph source audit.
 
 ## История — не текущие инструкции запуска
 

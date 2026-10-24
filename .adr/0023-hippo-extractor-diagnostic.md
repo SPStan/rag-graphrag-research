@@ -323,3 +323,15 @@ threshold или обещание завершения. Не более35нов�
 старые claims/costs/unknown immutable. Отдельное разрешение exact plan нужно
 до HTTP. Source audit/no semantic_verified сохраняются. Дальнейшее автомати-
 ческое расширение/recovery, QA/E2/merge не допускаются этим предложением.
+
+## 24октября: scoped automatic local recovery1
+
+Heartbeat e1-hotpotqa прямо разрешает≤2technical recovery за период, без
+расширения budget/models/prompts/criteria; повтор причины останавливает работу.
+После local socket HTTP400 на6fffff38 выводим новый child изb51c2336c6f0,
+не переписывая approved SHA/failed manifest. Unknown local2567 сохранён,
+zero fresh LLM, canonical8 exact input mapping/replay, pause4s. Причина
+наблюдается как internal tokenize socket conflict; pacing — mitigation.
+Остаток10418246tokens/18361allPOST. Новое согласование curator не выдумывается;
+источник технического допуска — фактическая user automation instruction.
+Модели/quality/смысловые ошибки прежние. Details в E1_INDEXING.md.
