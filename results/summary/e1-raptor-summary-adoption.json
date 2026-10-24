@@ -1,0 +1,150 @@
+{
+  "policy": {
+    "version": "length_fallback_native_capacity_v1",
+    "trigger": "baseline_finish_reason_length",
+    "desired_words": 300,
+    "fallback_max_tokens": 1536,
+    "max_corrective_attempts_per_dataset": 1,
+    "max_new_corrective_attempts_this_continuation": 0,
+    "max_new_posts": 4000,
+    "mandatory": [
+      "stop",
+      "nonempty",
+      "complete_usage",
+      "native_embedding_fit"
+    ]
+  },
+  "status": "accepted_offline",
+  "http_execution_authorized": false,
+  "original_request_sha256": "b243e8505a98c45dbe7f8a85fd505444554f611bc7bc0eb7cb1d358fc185ebdf",
+  "response_text_sha256": "d929f96dddcf3359a2b9fee187b61078fd91f6417f939c241544527f246790d4",
+  "embedding_model": "bge-m3:latest",
+  "embedding_digest": "7907646426070047a77226ac3e684fbbe8410524f7b4a74d02837e43f2146bab",
+  "embedding_options": {
+    "num_ctx": 4096,
+    "num_batch": 4096
+  },
+  "native_tokens_with_special": 550,
+  "gguf_sha256": "daec91ffb5dd0c27411bd71f29932917c49cf529a641d0168496c3a501e3062c",
+  "native_library_sha256": "00ea020d8a1fe830eafd030ff0fc80eee339c7bce9916a53a3078de97c4aee8d",
+  "whitespace_words": 315,
+  "word_limit_is_advisory": true,
+  "parent_output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/raptor/hotpotqa",
+  "probe_output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/raptor/hotpotqa-summary-probe1",
+  "parent_manifest_sha256": "9d6e9c32da818dae32722d35e46b960d55fc9d2e071effd16dbdddef3cbf2d87",
+  "probe_manifest_sha256": "72cc8e5951bb179ecd32eed0dd17ac2863261c872d6a6f502bc2d2458481f37b",
+  "response_sha256": "c4005c1105b5dbce5b88d31497cf8fdab798ab2e8087f5017736e3e7c3ff8b13",
+  "fallback_request_sha256": "25c48a37306d8b37ae455babef17bc0f211689fbfe18eba910bdb1475831f3cc",
+  "original_payload_path": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/raptor/hotpotqa-summary-adoption1/original-payload.json",
+  "original_payload_file_sha256": "2be68e791be7f63960551e923c6b3ee772c21ad28c5297fdefce5d08603d7c32",
+  "context_sha256": "6ca7cb3a37d20e88e9a935c2837a116c77792b379e5668606f9308a7004e2d45",
+  "native_proof_path": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/raptor/hotpotqa-summary-adoption1/native-tokenizer.json",
+  "native_proof_sha256": "3d2b68b135398bf6f8f0a53c27a7b3171e5183dec4deea9727d6a5da3e8242b7",
+  "semantic_review": {
+    "status": "supported_by_input_context",
+    "reviewer": "Codex",
+    "scope": "Main assertions against supplied intermediate context only; no QA/gold/supporting labels and no external factual verification",
+    "claims": [
+      {
+        "group": "Yuen family",
+        "checked_claim": "Woo-ping roles/birth1945; Siu-tien father; Cheung-yan brother",
+        "input_anchor": "context2,5",
+        "status": "supported"
+      },
+      {
+        "group": "Dance / Shaolin",
+        "checked_claim": "Woo-ping directed1979/1983 films featuring father/brother",
+        "input_anchor": "context5",
+        "status": "supported"
+      },
+      {
+        "group": "Last Hero",
+        "checked_claim": "1993; Jet Li; parody; Yuen choreography",
+        "input_anchor": "context3",
+        "status": "supported"
+      },
+      {
+        "group": "True Legend",
+        "checked_claim": "2010; Yuen director; Zhao/Zhou/Chou",
+        "input_anchor": "context4",
+        "status": "supported"
+      },
+      {
+        "group": "Drunken Master II",
+        "checked_claim": "1994; Lau/Chan directors; Chan plays Wong",
+        "input_anchor": "context5",
+        "status": "supported"
+      },
+      {
+        "group": "Warriors Two",
+        "checked_claim": "1978; Sammo writer/director",
+        "input_anchor": "context5",
+        "status": "supported"
+      },
+      {
+        "group": "To Kill with Intrigue",
+        "checked_claim": "1977; Lo Wei director; Jackie Chan actor",
+        "input_anchor": "context3",
+        "status": "supported"
+      },
+      {
+        "group": "Wong / Simply Ordinary",
+        "checked_claim": "1996 folk hero;1998 disciple Lam Sai-wing",
+        "input_anchor": "context4",
+        "status": "supported"
+      },
+      {
+        "group": "Heroes of Sui and Tang",
+        "checked_claim": "2014 historical sequel; Wang Xiangwei",
+        "input_anchor": "context1",
+        "status": "supported"
+      },
+      {
+        "group": "Condor Heroes",
+        "checked_claim": "2017 remake; Jeffrey Chiang; Li Yitong/Huang Rong",
+        "input_anchor": "context1,2",
+        "status": "supported"
+      },
+      {
+        "group": "Nothing Gold",
+        "checked_claim": "2017; Ding Hei; Sun Li/Chen Xiao",
+        "input_anchor": "context1",
+        "status": "supported"
+      },
+      {
+        "group": "Byron Mann",
+        "checked_claim": "Chinese American; Big Short/Arrow",
+        "input_anchor": "context2",
+        "status": "supported"
+      },
+      {
+        "group": "Jennifer Phang",
+        "checked_claim": "Advantageous/Half-Life premiered Sundance",
+        "input_anchor": "context2",
+        "status": "supported"
+      },
+      {
+        "group": "Ruby Yang",
+        "checked_claim": "Oscar-winning; My Voice My Life director",
+        "input_anchor": "context2",
+        "status": "supported"
+      },
+      {
+        "group": "Bruceploitation",
+        "checked_claim": "1976; Jun Chong",
+        "input_anchor": "context3",
+        "status": "supported"
+      },
+      {
+        "group": "Spectacular Men",
+        "checked_claim": "Lea Thompson; daughters Madelyn/Zoey",
+        "input_anchor": "context1",
+        "status": "supported"
+      }
+    ]
+  },
+  "original_probe_status": "failed",
+  "original_probe_word_limit": 300,
+  "method": "raptor",
+  "dataset": "hotpotqa"
+}

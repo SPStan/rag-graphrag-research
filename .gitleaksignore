@@ -7,3 +7,11 @@ d2ae33e5ec1a5a5a39b788824d64424ee494d978:results/summary/openie-target-context-c
 # Exact false positive: public SHA256 of the journal, verified against token_accounting.
 # The redundant tokens.jsonl-to-hash artifact entry is removed; journal_sha256 remains.
 496e87a5552ff1fdd4b0d0f8cdce54751212fb53:results/summary/raptor-continuation.json:generic-api-key:578
+
+# SHA256 of an OpenIE request payload (matches journal object_id), not an API key.
+# Export now calls this field cycle_repair_request_sha256; historical finding only.
+a994322b2bd386d3735415bc9517a18699a4aefd:results/summary/e1-indexing.json:generic-api-key:597
+
+# Exact false positive: SHA256 of failed RAPTOR summary request, verified against journal object_id.
+# Public export now names this network_first_request_sha256; historical finding only.
+7ca58e487fc717df841adc80e003cab259b1118b:results/summary/e1-indexing.json:generic-api-key:1793

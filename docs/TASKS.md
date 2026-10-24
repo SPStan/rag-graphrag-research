@@ -1,5 +1,72 @@
 # Текущая работа и критерии завершения
 
+**E1 status:** 6/6 indexes completed under the structural protocol; physical known tokens=32601955; cost_complete=False; unknown reserve61588 preserved. Final audit/verify completed; monitoring paused.
+
+## Текущая очередь — 25 октября: E1 завершён, 6/6
+
+- Dense×2, RAPTOR×2 и HippoRAG2×2 имеют completed; строгая штатная
+  offline verify проверила все6 manifest/journal/artifact SHA без HTTP.
+- Hotpot run822bed2d:5500passages,50711entities,75021facts,
+  graph56211nodes/183473edges. Save/reload0modelcalls; граф независимо
+  перечитан,5500source IDs присутствуют, parquet5500/50711/75021rows.
+- Последний child:5798local embeddingPOST,1094840known tokens, freshLLM0,
+  ошибок/unfinished/новых unknown0;21607cache hits. Ни один готовый индекс
+  или завершённый extraction повторно не вычислялся.
+- Source audit:54источника, все38warnings +8на каждый extractor stratum;
+  проверены769raw triples с точными multiplicities.8supported/40observed_error/
+  6needs_review. Это warning-enriched выборка, не оценка error rate/эффективности.
+  Review выполнен Codex offline, не независимым человеком/куратором.
+- Оба Hippo имеют structurally_verified_with_observed_extraction_errors,
+  semantic_verified=false. Ошибки (включая unsupported facts, reversed relation,
+  meta-output и пропуски/потерю оговорок) раскрыты; graph/triples не исправлялись.
+- E1 physical known32601955; reserve61588; budget upper32663543;
+  cost_complete=false. Hotpot known10674027 +unknown2567 =charge10676594,
+  POST27437. Исторические failed/claims/расходы сохранены, двойного учёта нет.
+- Recovery counter2/2; worker завершён, e1-hotpotqa PAUSED; новых restart нет.
+  Terminal proof: .cache/e1-six-index-final-verification.json; current plan
+  .cache/e1-hotpot-local-recovery2-plan.json SHA dafe33064f78…fb61f37.
+- Таблица и безопасная JSON: results/summary/e1-indexing.md и .json.
+  Следующее — техническое ревью Draft PR33 и актуальное O/N/R/H отдельно.
+  Refs #13; без автоматического Ready/merge/закрытия issue, QA/E2/holdout.
+  Для E2 потребуется отдельный план и Hippo read-only adapter; его здесь нет.
+
+## История — не текущие инструкции запуска
+
+
+**E1 status:** 2/6 indexes completed; physical known tokens=6403763; cost_complete=False. Last stage=raptor/musique. Raw/indexes remain local. PR Draft; E2 requires all six verified indexes.
+
+**21октября — #13:** исправить Gitleaks false positive SHA, проверить offline;
+затем независимый RAPTOR musique/hotpotqa по `issue13-raptor-plan.json`.
+Hippo Mu failed2329/5500: второй cycle сохранился после коррекции, третьего POST нет.
+Для продолжения Hippo нужен новый проверяемый протокол, не повтор прежней инструкции.
+Сохранить все known/unknown, Draft/Refs #13; E2 запрещён до6/6. [Детали](E1_INDEXING.md).
+
+**E1 status:** 2/6 indexes completed; physical known tokens=5386821; cost_complete=False. Last stage=hipporag2/musique. Raw/indexes remain local. PR Draft; E2 requires all six verified indexes.
+
+**20октября: #13 продолжение после цикла.** Cap3072 прежний, сначала строгая
+проба без дубликатов на оборванном payload. Затем bounded fallback≤20/dataset,
+все расходы/unknown сохраняются. Кэш обоих run, новый cycle plan; [E1_INDEXING](E1_INDEXING.md).
+До реальных шести проверенных индексов E2 заблокирован, #13 открыта/PR Draft.
+
+**E1 status:** 2/6 indexes completed; physical known tokens=4429311; cost_complete=False. Last stage=hipporag2/musique. Raw/indexes remain local. PR Draft; E2 requires all six verified indexes.
+
+**20октября: продолжение #13 после remote disconnect.** Сохранены1560 passages,
+3293 verified responses; расход оборванного POST неизвестен, резерв7922.
+Один дочерний Hippo Mu run с replay/новой папкой; прежний20M за вычетом known и
+резерва, остаток17150781. Остальные pending строки — из network plan, готовый
+Dense не повторяется. [Протокол](E1_INDEXING.md). Никаких E2/merge автоматически.
+
+**E1 status:** 2/6 indexes completed; physical known tokens=4301994; cost_complete=False. Last stage=hipporag2/musique. Raw/indexes remain local. PR Draft; E2 requires all six verified indexes.
+
+## Исторический блок20октября — #13: шесть индексов и E1
+
+#10/#11/#12 закрыты. Ветка codex/e1-indexing от eab5606; scope до10файлов.
+Построить Dense/HippoRAG2/RAPTOR × MuSiQue/HotpotQA по5500 passages,
+проверить coverage/load, опубликовать измерения/статусы по [E1_INDEXING](E1_INDEXING.md).
+Предел68M новых combined tokens; старые failed/unknown не удаляются.
+До реального завершения критериев — Draft/Refs #13, E2 не запускать.
+Ниже — история предыдущих блоков.
+
 **Текущее состояние после интеграции master:** #12 smoke завершён, ниже результат.
 PR #30/#11 слиты/закрыты; обзор #32 также в master. Старые статусы ниже — история.
 Полные выборки/новые расходы/merge #31 автоматически не запускать.
@@ -66,7 +133,7 @@ output до остатка окна, native Qwen HF tokenizer/template, vLLM 0.2
 Не путать локальный подсчёт с измерением расхода; failed run остаётся в учёте.
 Новых запросов нет, issue открыта, PR Draft.
 
-## Активный блок 13 октября — #12: малый RAPTOR
+## Исторический блок 13 октября — #12: малый RAPTOR
 
 #29 слит (`5e617fa`), #10 закрыта по команде пользователя. #11 отдельно в
 Draft PR #30: target context contract неизвестен, OpenIE generation не запускалась.
@@ -145,7 +212,7 @@ Draft/Refs #11 и ready_for_indexing=false сохраняются. Нельзя 
 
 Одна диагностика установила ложный второй Answer-маркер внутри reasoning; target parser version исправляет его без изменения legacy результатов. Финальные run `2ef2397b-2ec2-4696-a5bd-d55542998b6a` / `291f34e6-6c03-4a66-a0a7-e9e6519ee875` на `4a60f2d` завершили по пять ID и существующую оценку. SHA и полный пофазный расход проверены, исходная ошибка не скрыта: [сводка](../results/summary/dense-target-smoke.json), [команды](TARGET_API.md). Остаются зависимость открытого PR #28, актуальное согласование и ревью PR #29; сохранять Draft/Refs #10 до подтверждения. Следующие #11/#12 и merge отдельно. Исторический блок остановки ниже не является текущим состоянием.
 
-## Активный блок 8 октября — issue #10: Dense в целевой конфигурации
+## Исторический блок 8 октября — issue #10: Dense в целевой конфигурации
 
 По поручению пользователя начать следующий PR: проверить цепочку на пяти development ID MuSiQue и HotpotQA, зафиксировать малые корпуса, параметры, usage и ошибки, оценить завершённые результаты существующим оценщиком. План — [dense-target-smoke-plan.json](../results/summary/dense-target-smoke-plan.json), команды и пределы — [TARGET_API](TARGET_API.md). Открытая #9/PR #28 остаётся зависимостью; научное согласование куратора не подтверждено, merge отдельно. Результаты малого запуска не являются научным сравнением. Последующие #11/#12 автоматически не начинать.
 
@@ -153,11 +220,11 @@ Draft/Refs #11 и ready_for_indexing=false сохраняются. Нельзя 
 
 **8 октября: проверка SDK для PR #28 выполнена.** Восстановлено отдельное окружение HippoRAG `1438aba3`; OpenAI `3.26.1` и HTTPX `0.28.1` проверены на подставном HTTP через реальные CacheOpenAI и batch_openie: **9 passed**, 77 пакетов совместимы. Общий offline gate: 207 passed, 13 skipped (девять SDK-тестов выполнены отдельно). Retry=0 даёт одну попытку при ошибке; положительный контроль retry=1 — две. Фазы и passage ID сохраняются в рабочих потоках; кэш не повторяет физический запрос, missing usage отмечает неполноту. Команды — [TARGET_API](TARGET_API.md). O1/N1/R1/H1 согласованы куратором по карточке `54ed244c46d451135bcf444b:1`. PR #28 и issue #9 остаются открытыми; merge только отдельно. Следующий существующий блок — PR #29/issue #10, зависящий от #28; новых модельных запусков в этой проверке нет. Статусы ниже — история.
 
-## Активный блок 7 октября — issue #9: пофазный учёт токенов
+## Исторический блок 7 октября — issue #9: пофазный учёт токенов
 
 #7/#8 закрыты, PR #26/#27 слиты; куратор принял отклонение #8 без восстановления неизвестного usage. Для #9 подключить устойчивый журнал к существующим Dense/HippoRAG/API smoke, проверить агрегаты, ошибки, retry и кэш без реальных вызовов. Результат — небольшой PR в master с offline-проверками и `Closes #9`; merge только по отдельной команде. Следующие расходующие задачи не запускать автоматически. История ниже не является текущей очередью.
 
-## Активный блок 6 октября — issue #8: проверка целевого API
+## Исторический блок 6 октября — issue #8: проверка целевого API
 
 После слитого PR #24 проверены локальный BGE-M3 и короткая генерация `iairlab/qwen3.8-27b` по [issue #8](https://github.com/SPStan/rag-graphrag-research/issues/8). Исходный smoke не вернул текст, но отдельная ограниченная диагностика нашла рабочий `chat_template_kwargs` и per-response usage. Результаты и команды — [TARGET_API](TARGET_API.md). PR #26 находится в Ready for review: технических блокеров в ревью нет, научные формулировки согласованы; [куратор принял отклонение от лимита запросов](https://github.com/SPStan/rag-graphrag-research/pull/26). Два случая неизвестного usage не восстанавливаются. После слияния отдельно спланировать проверку JSON/OpenIE перед E1/E2. Не начинать E1/E2 из одного короткого ответа.
 
@@ -165,7 +232,7 @@ Draft/Refs #11 и ready_for_indexing=false сохраняются. Нельзя 
 
 Зафиксировать для MuSiQue/HotpotQA исходные S500 и pilot200, таблицу общих условий трёх методов, историю planned/observed ID и отдельные части для сигнала задачи #21. Не выполнять LLM-вызовы и эксперименты. Проверка — `python scripts/freeze_comparison_protocol.py --verify-only --splits-only` в чистом checkout и `--verify-only` там, где есть локальные raw; затем offline check и CI. Критерии и границы — [issue #7](https://github.com/SPStan/rag-graphrag-research/issues/7), [ADR-0015](../.adr/0015-pinned-comparison-and-signal-split.md), [DATA](DATA.md). Прежние задачи ниже — история; после этого блока переход к issue #8 о целевом API.
 
-## Активный блок 1 октября — лабораторный шаблон в существующем репозитории
+## Исторический блок 1 октября — лабораторный шаблон в существующем репозитории
 
 Руководитель слил PR #1. Следующий запрос: оставить этот же GitHub-репозиторий,
 адаптировать применимые части `nir-project-template` и показать проходящие
