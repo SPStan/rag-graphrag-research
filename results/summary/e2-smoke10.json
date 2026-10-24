@@ -1,0 +1,167 @@
+{
+  "schema_version": 1,
+  "kind": "e2_smoke10",
+  "status": "failed",
+  "run_id": "e4bd76e8-e779-48b0-9e02-b7746ed866d2",
+  "plan_sha256": "8d9ce08b71255ef619a84299da5001096de8da2186de40988e4507da36d7cb97",
+  "execution_code_pins": {
+    "scripts/e2_evaluation.py": "abae186dfe42a265e84f7b3f30cad02272b3bb0d8f858aa3abf1e576cdd3b996",
+    "scripts/e1_indexers.py": "26ca8a006701b799d488df688a9210e152383f868e173b093558a8a1534dac81",
+    "scripts/run_dense.py": "b6cf8da3f987a1d7ad37ac16639ddf6a1f5523e8ccc0117ad015a423efaacaac",
+    "scripts/run_dense_target.py": "8524cd2525b21c9af80153dc488c25651c069b44835621f77291d758936daf27",
+    "scripts/run_e1.py": "ea921a6c4b747ea9e081c0421c5dd384ac21d7e78fd0568d501328a37a660e8b",
+    "scripts/evaluate_dense.py": "1e39159a7eb02bff83b7bd0fd04a6c062762e43554b7bf6e66caf7e95c47ccd7",
+    "scripts/answer_parser.py": "bed7477e2ca0ace452821e2adb13cf8b045aa6443617b141c13fadf18e56bf18",
+    "scripts/token_accounting.py": "3259f9db8afbf5abd2e0c083cdaf45b1e4d511ec30c49e284722e640e11ebf75",
+    "scripts/run_raptor_smoke.py": "9660b1a16461a79ba08245e16c58aedce32a3e0a0eb81425ce4ea164d610541c",
+    "scripts/vendor/hipporag2_musique_template.py": "fada8f3cffcd2b657f2eec268f46e5deafc09471d609ba6292a58e3baea79c51",
+    "scripts/preflight_hipporag_repair_prompts.py": "ef1b50e6339ebb1fd116ae740f541f2bf4af1e578e8877a820c6e163a09743f2",
+    "scripts/track_dense.py": "f92eec5e9d26121b6d4121a657a80954726b3b269910d5440fb65986a2c36147",
+    "scripts/evaluation_view.py": "b0504290b247f3dbf70be159e3bb54c2b9091f04fbb7f5f0014527399bd601a6"
+  },
+  "manifest_sha256": "10518f35d13773196dfc1a695224d2cf310237cb2d68323306ae655d526b5797",
+  "journal_sha256": "7ade115d11b92361d5f7e934987c4558a408e4f76f8ba660bf2e4384ce0fb361",
+  "raw_directory": "results\\raw\\e2-smoke10-8d9ce08b",
+  "rows": [
+    {
+      "dataset": "musique",
+      "method": "dense",
+      "planned": 10,
+      "completed": 2,
+      "failed": 1,
+      "not_attempted_after_stop": 7
+    },
+    {
+      "dataset": "musique",
+      "method": "hipporag2",
+      "planned": 10,
+      "completed": 0,
+      "failed": 0,
+      "not_attempted_after_stop": 10
+    },
+    {
+      "dataset": "musique",
+      "method": "raptor",
+      "planned": 10,
+      "completed": 0,
+      "failed": 0,
+      "not_attempted_after_stop": 10
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "dense",
+      "planned": 10,
+      "completed": 0,
+      "failed": 0,
+      "not_attempted_after_stop": 10
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "hipporag2",
+      "planned": 10,
+      "completed": 0,
+      "failed": 0,
+      "not_attempted_after_stop": 10
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "raptor",
+      "planned": 10,
+      "completed": 0,
+      "failed": 0,
+      "not_attempted_after_stop": 10
+    }
+  ],
+  "outcome_counts": {
+    "completed": 2,
+    "failed": 1,
+    "not_attempted_after_stop": 57
+  },
+  "model_posts": 6,
+  "llm_posts": 3,
+  "embedding_posts": 3,
+  "known_query_tokens": {
+    "llm_input_tokens": 4516,
+    "llm_output_tokens": 1102,
+    "embedding_input_tokens": 69
+  },
+  "known_combined_query_tokens": 5687,
+  "query_cost_complete": true,
+  "new_unknown_attempts": 0,
+  "unfinished_attempts": 0,
+  "remaining_original_tokens": 3271113,
+  "remaining_original_posts": 134,
+  "failures": [
+    {
+      "dataset": "musique",
+      "method": "dense",
+      "question_id": "2hop__126306_396277",
+      "error": {
+        "type": "ValueError",
+        "reason": "E2_incomplete_or_unknown_response"
+      },
+      "partial_response_accepted": false,
+      "operation": "reader",
+      "response_sha256": "5bddea9322b60fb8b1b8939f96fe90303ddc8da0c285187f41f78160156bc188",
+      "finish_reason": "length",
+      "reported_usage": {
+        "completion_tokens": 512,
+        "prompt_tokens": 1476,
+        "total_tokens": 1988,
+        "completion_tokens_details": {
+          "reasoning_tokens": 0
+        }
+      }
+    }
+  ],
+  "comparative_metrics": null,
+  "tracking": {
+    "mlflow": {
+      "experiment_id": "2",
+      "mlflow_run_id": "264300a75ed74af08af3d686bf1dc141",
+      "trace": {
+        "trace_id": "tr-fe5ca2e758afcafa7052bffb124492c0",
+        "span_names": [
+          "e2-shared-query-run",
+          "query-embedding",
+          "question",
+          "retrieval",
+          "generation",
+          "query-embedding",
+          "question",
+          "retrieval",
+          "question",
+          "query-embedding",
+          "generation",
+          "retrieval",
+          "generation"
+        ]
+      },
+      "verified_artifact_sha256": {
+        "dense-musique.jsonl": "38d39e5723732aff60162188ab60852379fd4beded563bbafc11eb8aaf861544",
+        "dense-musique.metrics.json": "b68f62553e13b17d94ba17a11f36ed874470f784edc1d6cfeaf261e7e2822d96",
+        "dense-musique.manifest.json": "24c1d6173d0d3753879ea0528347b58657421af15f71c87b88260b17480dced3",
+        "usage.jsonl": "7ade115d11b92361d5f7e934987c4558a408e4f76f8ba660bf2e4384ce0fb361"
+      }
+    },
+    "langfuse": {
+      "trace_id": "efe3632f0793e409922ac0054cc93adf",
+      "observation_names": [
+        "e2-shared-query-run",
+        "generation",
+        "query-embedding",
+        "question",
+        "retrieval"
+      ],
+      "retrieved_passages": 15,
+      "generation_usage": {
+        "input": 4516,
+        "output": 1102
+      },
+      "trace_url": "http://localhost:3000/project/cmu4eytkr0006o707cn1hr42k/traces/efe3632f0793e409922ac0054cc93adf"
+    }
+  },
+  "continuation_authorized": false,
+  "e1_historical_cost_excluded": true,
+  "limitations": "development smoke only; failed run is not a completed comparison; E1 unknown61588 remains separate"
+}

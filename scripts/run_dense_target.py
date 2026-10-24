@@ -564,6 +564,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--shared-plan", type=Path)
     parser.add_argument("--prepare-shared", action="store_true")
+    parser.add_argument(
+        "--summarize-shared", type=Path, help="public report prefix; no execution"
+    )
     parser.add_argument("--e1-plan", type=Path)
     parser.add_argument("--e1-workspace", type=Path)
     parser.add_argument("--shared-method", choices=("dense", "hipporag2", "raptor"))
@@ -591,7 +594,22 @@ def main():
     if args.shared_plan:
         from scripts import e2_evaluation as shared
 
-        if args.prepare_shared:
+        if args.summarize_shared:
+            if not args.output_dir or args.execute:
+                raise ValueError("E2_summary_requires_output_and_no_execution")
+            report = shared.write_report(
+                args.shared_plan, args.output_dir, args.summarize_shared
+            )
+            print(
+                json.dumps(
+                    {
+                        "status": report["status"],
+                        "run_id": report["run_id"],
+                        "model_posts": report["model_posts"],
+                    }
+                )
+            )
+        elif args.prepare_shared:
             plan = shared.prepare(args.e1_plan, args.e1_workspace)
             if args.shared_plan.exists():
                 if dense.read_json(args.shared_plan) != plan:

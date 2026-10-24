@@ -2,18 +2,32 @@
 
 **E1 status:** 6/6 indexes completed under the structural protocol; physical known tokens=32601955; cost_complete=False; unknown reserve61588 preserved. Final audit/verify completed; monitoring paused.
 
-## Текущая очередь — 25 октября: offline E2 / smoke10 pending approval
+## Текущая очередь — 25 октября: smoke10 остановлен на reader length
 
-- Новый отдельный блок `codex/e2-shared-evaluation`, зависит от Draft PR33/f8b9bb8.
-  E1 worktree/indexes неизменны,6/6; старый мониторинг PAUSED/recovery2/2.
-- Подготовлен общий path Dense/Hippo/RAPTOR с native read-only Hippo retrieval,
-  единым reader/parser/evaluator, durable once claims/cache/journal и tracking payload.
-- [План smoke10](E2_EVALUATION.md):20tuning IDs ×3метода; максимум140POST,
-  80Qwen/60localBGE, резерв3276800combinedtokens; retry0, первая ошибка/unknown stop.
-- Новых LLM/embedding requests0; реальные smoke/E2 ответы и сравнительная таблица
-  ещё не получены. Отдельное согласие на exact plan SHA до HTTP; pilot200 отдельно.
-- Refs #14, без Ready/merge/закрытия issue. O/N/R/H текущего PR отдельно от
-  технических тестов и допуска расходов. Полные критерии issue14 не выполнены.
+- Пользователь разрешил exact plan8d9ce08b…7cb97; runtime5dea658.
+  Run `e4bd76e8-e779-48b0-9e02-b7746ed866d2`, private
+  `results/raw/e2-smoke10-8d9ce08b` в E2 worktree; terminal failed, worker завершён.
+- Dense MuSiQue:2completed/1failed/7not-attempted. На3-м вопросе reader
+  finish_reason=length, output512, reasoning_tokens0. Partial answer не принят.
+  Остальные5конфигураций не запускались. Это не завершённое сравнение/E2.
+- Новых6modelPOST(3Qwen/3localBGE), input4516/output1102/embed69=5687known.
+  Query usage complete, unknown/unfinished0. Original остаток3271113tokens/134POST.
+  Старый failed manifest/claims/ответы/план неизменны; повторов нет.
+- Оценщик выбранных tuning ID и local post-hoc tracking выполнены. MLflow
+  264300a75ed74af08af3d686bf1dc141, Langfuse efe3632f0793e409922ac0054cc93adf:
+  3attempts/15retrieved passages, usage4516/1102 подтверждён;4artifacts readback SHA.
+- После остановки исправлена JSON serialization отчёта (Path→str), добавлен
+  `--summarize-shared` в существующий runner. Он генерирует
+  [безопасную сводку](../results/summary/e2-smoke10.md), не запускает модели и
+  не переписывает source manifest. Original code pins относятся к5dea658,
+  текущий post-processing не является разрешением resume по старому SHA.
+- Следующий блок — offline предложение политики reader length и проверяемого
+  child/lineage: можно сохранить length как failed outcome и оценить остальные
+  57ID без повторной оплаты, не меняя reader. Это пока предложение, не допуск;
+  исходный план предписывал стоп. Не повышать cap/не менять prompt по F1 автоматически.
+- PR35 Draft/Refs #14 зависит от PR33/f8b9bb8; без pilot200/holdout/7B/merge.
+  Все6 E1 manifest SHA/2usedDense vector SHA неизменны, E1 unknown61588 сохранён.
+  E1 automation PAUSED/recovery2/2, не возобновлять.
 
 ## Предыдущий законченный блок E1 (справка)
 

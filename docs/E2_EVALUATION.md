@@ -1,6 +1,7 @@
 # E2: общий путь оценки готовых E1 индексов (#14)
 
-Статус: **offline-подготовка**, реальных smoke/E2 ответов нет. PR зависит от
+Статус: **smoke10 разрешён и остановлен**:2completed/1failed, остальные57 не запускались.
+[Фактическая сводка](../results/summary/e2-smoke10.md). Полного E2 нет. PR зависит от
 Draft PR33/f8b9bb8; собственный diff считается к `codex/e1-indexing`.
 После merge33 базу отдельного Draft PR нужно перевести на master. PR33 не меняется.
 
@@ -29,7 +30,7 @@ Draft PR33/f8b9bb8; собственный diff считается к `codex/e1-
   локально. Failed/not-attempted остаются в знаменателе. HTTP error с reported usage
   сохраняет эти токены и время, исходная причина исключения не подменяется.
 
-## Замороженный smoke10: требуется допуск расходов
+## Замороженный smoke10: допуск получен, выполнено до первого stop
 
 Исполняемый [план](../results/summary/e2-smoke10-plan.json):
 SHA `8d9ce08b71255ef619a84299da5001096de8da2186de40988e4507da36d7cb97`.
@@ -66,7 +67,11 @@ HotpotQA использует тот же MuSiQue prompt: это заранее 
 конфигурация, не Hotpot-оптимизация. Реальный smoke должен проверить parser/usage,
 не служить поводом менять prompt по F1. В reader Schema/JSON mode не добавляются.
 
-## Воспроизведение offline и будущий запуск
+## Воспроизведение исходного runtime5dea658
+
+Команды ниже относятся к исходному5dea658. После запуска original plan и его
+code pins неизменны; текущий post-processing исправлен отдельно. Для отчёта
+используйте `--summarize-shared` ниже; новый `--execute` требует нового плана.
 
 Подготовка в новом worktree, проверка **всех** source artifacts:
 
@@ -95,7 +100,7 @@ share READ|WRITE|DELETE, не File.ReadLines/Get-Content.
 Оценка saved smoke: `e2_evaluation.summary(plan,directory)`; labels доступны только
 этой post-generation функции. `tracking_payload(plan,directory,dataset,method)`
 готовит payload для существующих `track_dense.export_mlflow/export_langfuse`.
-Сначала проверить доступность локальных сервисов; сейчас экспорт не выполнялся.
+Сначала проверить доступность локальных сервисов; для остановленного Dense MuSiQue export выполнен и проверен (см.сводку).
 RAPTOR passage recall=null, provenance coverage отдельно. E1 не начисляется повторно.
 Операционные spans и общий physical journal сохраняются даже при остановке;
 таблица не прячет failed IDs. Post-hoc tracing не считается новым измерением latency.
@@ -130,3 +135,41 @@ Dense sunk cost и стоимость сигнала включены. Гипо�
 Целевые проверки:54 passed/2 SDK tests skipped в check env; оба SDK tests
 отдельно passed в соответствующих существующих окружениях (по2датасета).
 Общий offline gate выполняется commit hook; собственный diff≤20files.
+
+## Реальная остановка25октября
+
+Пользователь ответил «Разрешаю» на exact plan8d9ce08b…7cb97. Выполнено6POST:
+3query embeddings и3reader. Два `stop` ответа, третий `length` при cap512:
+1476input/512output, reported reasoning_tokens0. Ответ содержит обычное текстовое
+рассуждение/перечитывание контекста и оборван до завершения. Клиентская ошибка
+в saved payload не найдена. Это не основание повышать cap вслепую или менять
+prompt по правильному ответу. Partial response остаётся failed; других методов нет.
+
+Known query usage4516LLM input/1102output/69localBGE=5687; все6physical attempts
+завершены, неизвестного usage нет. Оригинальные failed manifest/claims неизменны.
+Два completed ответа и3query embeddings доступны для будущего проверенного reuse.
+Остаток original caps3271113tokens/134POST не разрешает обход stop-condition.
+
+После завершения worker исправлена сериализация post-generation отчёта:
+`verified_reference.path` теперь строка. Регрессия проверяет JSON serialization и
+неизменность failed manifest. В existing runner интегрирован воспроизводимый export:
+
+```powershell
+python -m scripts.run_dense_target --shared-plan results/summary/e2-smoke10-plan.json `
+  --output-dir results/raw/e2-smoke10-8d9ce08b `
+  --summarize-shared results/summary/e2-smoke10
+```
+
+Команда сохраняет private evaluation и public техническую таблицу. При failed
+comparative_metrics=null: не выдаём остановку за сравнение трёх методов. Gold читает
+только evaluator на20согласованных tuning IDs; сами gold в Git не попадают.
+Локальный tracking содержит3attempted question spans и явно planned denominator10.
+Langfuse подтвердил15passages/4516input/1102output, MLflow4artifacts скачаны и SHA
+совпали. Private receipts в raw/tracking; safe IDs/verification — в JSON сводке.
+Новых экспериментальных запросов post-processing не выполнял.
+
+Следующий возможный вариант: сохранить reader length как failed outcome без retry,
+с тем же reader/cap512 пройти остальные57плановых ответов. Это сохраняет исходные
+пределы и denominator; любой другой error/unknown остаётся fatal. Нужен отдельный
+точный child-план/проверяемый lineage и допуск изменения stop-policy. Он здесь не
+реализован и не запущен; pilot200 не разрешён.

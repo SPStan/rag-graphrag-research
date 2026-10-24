@@ -1,6 +1,7 @@
 # ADR-0024: общий reader на готовых E1 индексах
 
-Дата:25 октября2026. Статус: offline реализация; smoke и расходы **не разрешены**.
+Дата:25 октября2026. Статус: offline реализация; exact smoke10 разрешён пользователем
+и остановлен на первом reader length (2completed/1failed). Continuation не разрешён.
 Refs #14; зависит от PR33/f8b9bb8. Протокол smoke — [E2_EVALUATION](../docs/E2_EVALUATION.md).
 
 ## Контекст и выбор

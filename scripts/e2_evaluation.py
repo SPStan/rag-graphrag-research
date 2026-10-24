@@ -750,6 +750,8 @@ def summary(plan, directory):
     reference = verified_reference(manifest, directory / "manifest.json")
     if reference["status"] != "verified":
         raise ValueError("E2_summary_journal_changed")
+    # verified_reference keeps a Path for local consumers; reports are JSON artifacts.
+    reference = {**reference, "path": str(reference["path"])}
     source = dense.read_json(Path(plan["e1_plan"]))
     table, details = [], []
     for dataset, data in plan["datasets"].items():
@@ -943,3 +945,146 @@ def tracking_payload(plan, directory, dataset, method):
             "scope": "partition of common query journal; E1 excluded",
         },
     }
+
+
+def write_report(plan_path, directory, public_prefix):
+    """Generate private evaluation and a safe public table from immutable results.
+
+    A failed smoke publishes technical coverage, not a fabricated six-way score.
+    Does not check current execution code pins or enable resume: it reports the
+    original pinned runtime and preserves its failed manifest/claims verbatim.
+    """
+    from collections import Counter
+    from scripts.token_accounting import read_records
+
+    plan_path, directory, prefix = map(Path, (plan_path, directory, public_prefix))
+    plan = dense.read_json(plan_path)
+    manifest_path = directory / "manifest.json"
+    manifest_sha = dense.sha256_file(manifest_path)
+    manifest = dense.read_json(manifest_path)
+    report = summary(plan, directory)
+    dense.write_json_atomic(directory / "evaluation.json", report)
+    records = read_records(directory / "usage.jsonl")
+    started = [r for r in records if r["event"] == "started"]
+    finished = [r for r in records if r["event"] == "finished"]
+    rows = []
+    for dataset, data in plan["datasets"].items():
+        for method in METHODS:
+            selected = [
+                r
+                for r in report["question_results"]
+                if r["dataset"] == dataset and r["method"] == method
+            ]
+            counts = Counter(r["status"] for r in selected)
+            rows.append(
+                {
+                    "dataset": dataset,
+                    "method": method,
+                    "planned": len(data["question_ids"]),
+                    "completed": counts["completed"],
+                    "failed": counts["failed"],
+                    "not_attempted_after_stop": counts["not_attempted_after_stop"],
+                }
+            )
+    failures = []
+    for result in report["question_results"]:
+        if result["status"] != "failed":
+            continue
+        failure = {
+            "dataset": result["dataset"],
+            "method": result["method"],
+            "question_id": result["question_id"],
+            "error": result.get("error"),
+            "partial_response_accepted": False,
+        }
+        for op in result.get("operations", []):
+            response = directory / f"{op['journal_object_id']}.response.json"
+            if op["status"] != "failed" or not response.exists():
+                continue
+            body = dense.read_json(response)
+            failure.update(
+                operation=op["operation"],
+                response_sha256=dense.sha256_file(response),
+                finish_reason=body.get("choices", [{}])[0].get("finish_reason"),
+                reported_usage=body.get("usage"),
+            )
+        failures.append(failure)
+    known = report["physical_query_accounting"]["summary"]["known_subtotal"]
+    outcome_counts = Counter(r["status"] for r in report["question_results"])
+    safe = {
+        "schema_version": 1,
+        "kind": "e2_smoke10",
+        "status": manifest["status"],
+        "run_id": manifest["run_id"],
+        "plan_sha256": dense.sha256_file(plan_path),
+        "execution_code_pins": plan.get("code_sha256", {}),
+        "manifest_sha256": manifest_sha,
+        "journal_sha256": dense.sha256_file(directory / "usage.jsonl"),
+        "raw_directory": str(directory),
+        "rows": rows,
+        "outcome_counts": dict(outcome_counts),
+        "model_posts": len(started),
+        "llm_posts": sum(r["kind"] == "llm" for r in started),
+        "embedding_posts": sum(r["kind"] == "embedding" for r in started),
+        "known_query_tokens": known,
+        "known_combined_query_tokens": sum(known.values()),
+        "query_cost_complete": report["physical_query_accounting"]["summary"][
+            "complete"
+        ],
+        "new_unknown_attempts": sum(r["usage_status"] != "complete" for r in finished),
+        "unfinished_attempts": len(started) - len(finished),
+        "remaining_original_tokens": plan["max_combined_tokens"] - sum(known.values()),
+        "remaining_original_posts": plan["max_posts"] - len(started),
+        "failures": failures,
+        "comparative_metrics": report["rows"]
+        if manifest["status"] == "completed"
+        else None,
+        "tracking": dense.read_json(directory / "tracking/receipt.json")
+        if (directory / "tracking/receipt.json").exists()
+        else None,
+        "continuation_authorized": False,
+        "e1_historical_cost_excluded": True,
+        "limitations": "development smoke only; failed run is not a completed comparison; E1 unknown61588 remains separate",
+    }
+    dense.write_json_atomic(prefix.with_suffix(".json"), safe)
+    lines = [
+        "# E2 smoke10: " + manifest["status"],
+        "",
+        f"Run `{manifest['run_id']}`; plan `{safe['plan_sha256']}`.",
+        "",
+        "| Датасет | Метод | План | Completed | Failed | Не запускались |",
+        "|---|---|---:|---:|---:|---:|",
+    ]
+    for r in rows:
+        lines.append(
+            f"| {r['dataset']} | {r['method']} | {r['planned']} | {r['completed']} | {r['failed']} | {r['not_attempted_after_stop']} |"
+        )
+    lines.extend(
+        [
+            "",
+            f"Модельных POST: {safe['model_posts']} ({safe['llm_posts']}LLM/{safe['embedding_posts']}local BGE).",
+            f"Known LLM input={known['llm_input_tokens']}, output={known['llm_output_tokens']}, local embedding={known['embedding_input_tokens']}; всего {sum(known.values())}.",
+            f"Query cost_complete={safe['query_cost_complete']}; unknown={safe['new_unknown_attempts']}; unfinished={safe['unfinished_attempts']}.",
+            "",
+            f"Остаток исходных caps: {safe['remaining_original_tokens']}tokens/{safe['remaining_original_posts']}POST. Это не допуск к новому run после остановки.",
+        ]
+    )
+    for f in failures:
+        lines.extend(
+            [
+                "",
+                f"Первый stop: {f['method']}/{f['dataset']}/{f['question_id']}; {f.get('operation')} finish_reason={f.get('finish_reason')}. Partial response не принят.",
+            ]
+        )
+    lines.extend(
+        [
+            "",
+            "При failed сравнительные F1/EM не публикуются: это техническая остановка, не полный E2. Полная declared-denominator оценка выбранных tuning IDs сохранена только в private evaluation.json.",
+            "E1 known32601955/unknown reserve61588 и все6индексов сохранены отдельно. В Git нет gold/сырого ответа/корпуса. Refs #14; без pilot200/QA holdout/merge.",
+            "",
+            f"Данные: [{prefix.name}.json]({prefix.name}.json). Private raw: `{directory}`.",
+        ]
+    )
+    prefix.with_suffix(".md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    assert dense.sha256_file(manifest_path) == manifest_sha
+    return safe

@@ -417,7 +417,15 @@ def test_synthetic_end_to_end_reader_evaluator_tracking_and_resume(
             "token_accounting": calls.journal.reference(),
         },
     )
+    dplan = tmp_path / "shared-plan.json"
+    dense.write_json_atomic(dplan, p)
+    before = (output / "manifest.json").read_bytes()
+    public = e2.write_report(dplan, output, tmp_path / "public")
+    assert public["comparative_metrics"] is None
+    assert public["outcome_counts"]["not_attempted_after_stop"] == 2
+    assert (output / "manifest.json").read_bytes() == before
     report = e2.summary(p, output)
+    json.dumps(report)  # Saved evaluation/tracking must be JSON serializable.
     assert report["rows"][0]["em"] == 1 and report["rows"][1]["em"] == 0
     assert report["rows"][2]["passage_recall_at_5"] is None
     payload = e2.tracking_payload(p, output, "musique", "dense")
