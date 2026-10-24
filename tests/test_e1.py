@@ -2467,3 +2467,376 @@ def test_local_recovery_bounds_cannot_expand(tmp_path, monkeypatch, change):
         else:
             with pytest.raises(ValueError, match="bounds_changed"):
                 e1.verify_hotpot_local_recovery(plan, row)
+
+
+def test_journal_snapshot_defers_only_unterminated_tail(tmp_path):
+    path = tmp_path / "live.jsonl"
+    path.write_bytes(b'{"id":1}\n{"id":')
+    rows, deferred = e1.journal_snapshot(path)
+    assert rows == [{"id": 1}] and deferred == 6
+    path.write_bytes(b'{"id":1}\nbroken\n{"id":')
+    with pytest.raises(json.JSONDecodeError):
+        e1.journal_snapshot(path)
+
+
+@pytest.mark.skipif(os.name != "nt", reason="real Windows sharing regression")
+def test_windows_monitor_snapshot_concurrent_real_writer(tmp_path, monkeypatch):
+    import threading
+    import time
+
+    path = tmp_path / "usage.jsonl"
+    path.write_bytes(b"")
+    entered, appended = threading.Event(), threading.Event()
+    original = e1.os.fdopen
+    failures = []
+
+    # Hold the actual snapshot handle open while a real separate writer appends.
+    class HeldReader:
+        def __init__(self, stream):
+            self.stream = stream
+
+        def __enter__(self):
+            self.stream.__enter__()
+            entered.set()
+            assert appended.wait(5), "writer blocked by monitor handle"
+            return self.stream
+
+        def __exit__(self, *args):
+            return self.stream.__exit__(*args)
+
+    monkeypatch.setattr(
+        e1.os, "fdopen", lambda *a, **kw: HeldReader(original(*a, **kw))
+    )
+
+    def writer():
+        try:
+            assert entered.wait(5)
+            for i in range(120):
+                with path.open("ab") as stream:
+                    stream.write(json.dumps({"id": i}).encode() + b"\n")
+                    stream.flush()
+                    os.fsync(stream.fileno())
+                appended.set()
+                time.sleep(0.001)
+        except BaseException as exc:
+            failures.append(exc)
+            appended.set()
+
+    thread = threading.Thread(target=writer)
+    thread.start()
+    seen = set()
+    while thread.is_alive():
+        rows, tail = e1.journal_snapshot(path)
+        seen.update(row["id"] for row in rows)
+    thread.join(5)
+    rows, tail = e1.journal_snapshot(path)
+    assert not failures and tail == 0
+    assert [r["id"] for r in rows] == list(range(120))
+    assert seen <= set(range(120))
+    # CLI automation calls the same monitor_snapshot -> journal_snapshot path.
+    monkeypatch.setattr(e1, "ROOT", tmp_path)
+    j = Journal(
+        tmp_path / "real.jsonl", run_id="r", method="hipporag2", dataset="hotpotqa"
+    )
+    monkeypatch.setattr(e1, "journal_snapshot", Mock(return_value=([], 0)))
+    j.path.replace(path)
+    e1.monitor_snapshot(
+        {}, {"output": ".", "run_id": "r", "token_limit": 99, "max_new_posts": 9}
+    )
+    e1.journal_snapshot.assert_called_once_with(path)
+
+
+@pytest.fixture
+def zero_io_parent(tmp_path, monkeypatch):
+    monkeypatch.setattr(e1, "ROOT", tmp_path)
+    monkeypatch.setattr(e1, "verify_hotpot_local_recovery", lambda *args: None)
+    monkeypatch.setattr(e1, "require_stopped_processes", lambda pids: None)
+    old = {
+        "method": "hipporag2",
+        "dataset": "hotpotqa",
+        "run_id": "old",
+        "output": "parent",
+        "history_runs": [
+            {
+                "run_id": "producer",
+                "summary": {"known_subtotal": {"embedding_input_tokens": 10}},
+                "unknown_reserved_upper_bound": 2567,
+            }
+        ],
+        "resume_sources": [],
+        "prior_budget_charge": 2577,
+        "token_limit": 20000000 - 2577,
+        "max_new_posts": 18361,
+        "max_llm_posts": 0,
+        "local_socket_request_sha256": "exact-failed",
+    }
+    root = tmp_path / "claims"
+    root.mkdir()
+    prior = {
+        "batch_id": "b",
+        "rows": [old],
+        "combined_token_limit": old["token_limit"],
+        "lineage": [],
+        "mixed_claim_root": str(root),
+        "parent_plan": {"sha256": "base"},
+        "hotpot_local_socket_recovery": {"plan_sha256": "original"},
+    }
+    pp = tmp_path / "prior.json"
+    dense.write_json_atomic(pp, prior)
+    directory = tmp_path / old["output"]
+    journal = Journal(
+        directory / "usage.jsonl", run_id="old", method="hipporag2", dataset="hotpotqa"
+    )
+    journal.cache_hit(
+        phase="index",
+        operation="openie_ner",
+        provider="target_api",
+        model="qwen",
+        kind="llm",
+        object_id="cached",
+        producer_run_id="producer",
+        producer_usage_complete=True,
+    )
+    mp = directory / "manifest.json"
+    manifest = {
+        "status": "failed",
+        "run_id": "old",
+        "error_type": "ValueError",
+        "plan_sha256": e1.target.digest(prior),
+        "token_accounting": journal.reference(),
+        "artifacts": {"usage.jsonl": dense.sha256_file(journal.path)},
+    }
+    dense.write_json_atomic(mp, manifest)
+    stderr = tmp_path / "stderr.log"
+    stderr.write_text(
+        f"[Errno 13] Permission denied: '{journal.path}'\nValueError: unresolved_ner_stop",
+        encoding="utf-8",
+    )
+    launch = tmp_path / "launch.json"
+    dense.write_json_atomic(
+        launch, {"run_id": "old", "pid": 99999999, "plan_sha256": dense.sha256_file(pp)}
+    )
+    registry = tmp_path / "registry.json"
+    dense.write_json_atomic(
+        registry, {"recoveries_total": 1, "attempts": [{"run_id": "old"}]}
+    )
+    auth = tmp_path / "auth.json"
+    dense.write_json_atomic(
+        auth,
+        {
+            "parent_plan_sha256": dense.sha256_file(pp),
+            "recovery_number": 2,
+            "maximum_automatic_recoveries": 2,
+            "allow_hotpot_local_embedding_recovery": True,
+            "new_remote_llm_posts": 0,
+            "stop_on_repeated_cause": True,
+            "original_token_post_fallback_caps_unchanged": True,
+            "process_ids": [99999999],
+            "stderr": str(stderr),
+            "launch": str(launch),
+            "recovery_history": str(registry),
+        },
+    )
+    pin = {"recovery_number": 2, "unknown_reserved_upper_bound": 0}
+    for name, path in {
+        "plan": pp,
+        "manifest": mp,
+        "authorization": auth,
+        "stderr": stderr,
+        "launch": launch,
+        "recovery_history": registry,
+    }.items():
+        pin[name], pin[f"{name}_sha256"] = str(path), dense.sha256_file(path)
+    return pin, prior, journal, manifest
+
+
+def test_zero_post_io_child_preserves_budget_and_reserve(zero_io_parent):
+    pin, prior, journal, manifest = zero_io_parent
+    _, state = e1.hotpot_local_recovery_state(pin)
+    assert state["token_limit"] == prior["rows"][0]["token_limit"]
+    assert state["max_new_posts"] == 18361 and state["max_llm_posts"] == 0
+    assert state["prior_budget_charge"] == 2577
+    assert len(state["history_runs"]) == 2
+    assert state["history_runs"][-1]["unknown_reserved_upper_bound"] == 0
+    assert sum(h["unknown_reserved_upper_bound"] for h in state["history_runs"]) == 2567
+    assert state["local_socket_request_sha256"] == "exact-failed"
+
+
+@pytest.mark.parametrize("finished", [False, True])
+def test_zero_post_io_rejects_any_physical_or_uncertain_attempt(
+    zero_io_parent, finished
+):
+    pin, prior, journal, manifest = zero_io_parent
+    started = journal.start(
+        phase="index",
+        operation="index_embedding",
+        provider="local_ollama",
+        model="bge",
+        kind="embedding",
+    )
+    if finished:
+        journal.finish(started, status="success", usage={"embedding_input_tokens": 0})
+    manifest["token_accounting"] = journal.reference()
+    manifest["artifacts"]["usage.jsonl"] = dense.sha256_file(journal.path)
+    dense.write_json_atomic(Path(pin["manifest"]), manifest)
+    pin["manifest_sha256"] = dense.sha256_file(Path(pin["manifest"]))
+    with pytest.raises(ValueError, match="zero_physical"):
+        e1.hotpot_local_recovery_state(pin)
+
+
+@pytest.mark.parametrize(
+    "field",
+    ["plan", "manifest", "authorization", "stderr", "launch", "recovery_history"],
+)
+def test_zero_post_io_rejects_changed_sha(zero_io_parent, field):
+    pin, *_ = zero_io_parent
+    Path(pin[field]).write_text("changed", encoding="utf-8")
+    with pytest.raises(ValueError, match="changed"):
+        e1.hotpot_local_recovery_state(pin)
+
+
+def test_zero_post_io_rejects_active_worker(zero_io_parent, monkeypatch):
+    pin, *_ = zero_io_parent
+
+    def active(pids):
+        raise ValueError("recovery_worker_still_active")
+
+    monkeypatch.setattr(e1, "require_stopped_processes", active)
+    with pytest.raises(ValueError, match="worker_still_active"):
+        e1.hotpot_local_recovery_state(pin)
+
+
+def test_zero_post_io_repeated_claim(zero_io_parent, monkeypatch):
+    pin, prior, *_ = zero_io_parent
+    monkeypatch.setattr(e1, "git", lambda *args: "head")
+    plan = e1.prepare_hotpot_local_recovery(
+        Path(pin["plan"]), Path(pin["authorization"])
+    )
+    assert plan["rows"][0]["output"].endswith("-mixed-local2")
+    assert plan["rows"][0]["run_id"] != prior["rows"][0]["run_id"]
+    claim = Path(plan["mixed_claim_root"]) / e1.local_recovery_claim_name(plan)
+    claim.write_text("used", encoding="utf-8")
+    with pytest.raises(ValueError, match="already_used"):
+        e1.prepare_hotpot_local_recovery(Path(pin["plan"]), Path(pin["authorization"]))
+
+
+def test_real_current_process_is_not_stopped():
+    with pytest.raises(ValueError, match="worker_still_active"):
+        e1.require_stopped_processes([os.getpid()])
+
+
+@pytest.mark.skipif(not os.environ.get("E1_HIPPO_SOURCE"), reason="pinned SDK required")
+def test_real_sdk_keeps_original_permission_error(tmp_path):
+    error = PermissionError(13, "journal append denied", "usage.jsonl")
+
+    class Fake:
+        plan = {"endpoint": "https://example.invalid", "model": "qwen"}
+        row = {"dataset": "hotpotqa"}
+
+        def embed(self, texts):
+            return dense.normalize_rows(np.ones((len(texts), 1024)))
+
+        def generate(self, *args):
+            raise error
+
+    with patch(
+        "requests.Session.request", side_effect=AssertionError("HTTP forbidden")
+    ):
+        with pytest.raises(PermissionError) as caught:
+            e1_indexers.hipporag_index(
+                [{"id": "a", "title": "A", "text": "Alice visits Paris."}],
+                Fake(),
+                tmp_path,
+                Path(os.environ["E1_HIPPO_SOURCE"]),
+            )
+    assert caught.value is error
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        "second_already_used",
+        "third",
+        "wrong_cause",
+        "lock",
+        "artifact",
+        "uncertain_checkpoint",
+    ],
+)
+def test_zero_post_io_rejects_scope_change(zero_io_parent, change):
+    pin, prior, journal, manifest = zero_io_parent
+    if change == "second_already_used":
+        path = Path(pin["recovery_history"])
+        value = dense.read_json(path)
+        value["recoveries_total"] = 2
+        dense.write_json_atomic(path, value)
+        pin["recovery_history_sha256"] = dense.sha256_file(path)
+    if change == "third":
+        prior["hotpot_local_socket_recovery"]["recovery_number"] = 2
+        path = Path(pin["plan"])
+        dense.write_json_atomic(path, prior)
+        pin["plan_sha256"] = dense.sha256_file(path)
+    if change == "wrong_cause":
+        Path(pin["stderr"]).write_text("unrelated NER failure", encoding="utf-8")
+        pin["stderr_sha256"] = dense.sha256_file(Path(pin["stderr"]))
+    if change == "lock":
+        (journal.path.parent / "running.lock").write_text("999", encoding="utf-8")
+    if change == "artifact":
+        journal.path.write_bytes(journal.path.read_bytes() + b"\n")
+    if change == "uncertain_checkpoint":
+        (journal.path.parent / "requests").mkdir()
+        dense.write_json_atomic(
+            journal.path.parent / "requests/unknown.json", {"status": "started"}
+        )
+    with pytest.raises(ValueError):
+        e1.hotpot_local_recovery_state(pin)
+
+
+def test_snapshot_closes_handle_before_decoding(tmp_path, monkeypatch):
+    path = tmp_path / "usage.jsonl"
+    path.write_bytes(b'{"id": 1}\n')
+    original = e1.json.loads
+
+    def decode(line):
+        # An exclusive native open proves no monitor handle remains open.
+        if os.name == "nt":
+            import ctypes
+            from ctypes import wintypes
+
+            k = ctypes.WinDLL("kernel32", use_last_error=True)
+            k.CreateFileW.argtypes = [
+                wintypes.LPCWSTR,
+                wintypes.DWORD,
+                wintypes.DWORD,
+                wintypes.LPVOID,
+                wintypes.DWORD,
+                wintypes.DWORD,
+                wintypes.HANDLE,
+            ]
+            k.CreateFileW.restype = wintypes.HANDLE
+            k.CloseHandle.argtypes = [wintypes.HANDLE]
+            handle = k.CreateFileW(str(path), 0x80000000, 0, None, 3, 0x80, None)
+            assert handle != wintypes.HANDLE(-1).value
+            k.CloseHandle(handle)
+        return original(line)
+
+    monkeypatch.setattr(e1.json, "loads", decode)
+    assert e1.journal_snapshot(path) == ([{"id": 1}], 0)
+
+
+@pytest.mark.parametrize("tail", [b'{"unfinished":', b"broken\n"])
+def test_monitor_terminal_does_not_accept_damaged_tail(tmp_path, monkeypatch, tail):
+    monkeypatch.setattr(e1, "ROOT", tmp_path)
+    journal = Journal(
+        tmp_path / "usage.jsonl", run_id="r", method="hipporag2", dataset="hotpotqa"
+    )
+    reference = journal.reference()
+    journal.path.write_bytes(tail)
+    dense.write_json_atomic(
+        tmp_path / "manifest.json",
+        {"status": "failed", "token_accounting": reference},
+    )
+    with pytest.raises((ValueError, json.JSONDecodeError)):
+        e1.monitor_snapshot(
+            {}, {"output": ".", "run_id": "r", "token_limit": 99, "max_new_posts": 9}
+        )

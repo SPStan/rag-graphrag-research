@@ -335,3 +335,24 @@ zero fresh LLM, canonical8 exact input mapping/replay, pause4s. Причина
 Остаток10418246tokens/18361allPOST. Новое согласование curator не выдумывается;
 источник технического допуска — фактическая user automation instruction.
 Модели/quality/смысловые ошибки прежние. Details в E1_INDEXING.md.
+
+
+## 24 октября: zero-POST сбой журналирования и последний local child
+
+Технический отказ при cache replay не меняет extraction/benchmark. Пользователь
+прямо поручил реализовать и выполнить второе восстановление в прежнем допуске≤2.
+Первый child immutable failed; данные и резерв2567 от исходного socket failure
+сохраняются. Продолжение допускает только подтверждённую journal PermissionError
+с полным отсутствием физических/незавершённых попыток и uncertain checkpoints,
+проверенными SHA, завершёнными PID и прежними совокупными бюджетами. Canonical
+claim2/new UUID/output исключают повтор failed и третье восстановление. Fresh
+LLM transport cap0; extraction и embeddings replay по проверенным точным ключам.
+
+Мониторинг использует bounded CreateFileW snapshot с FILE_SHARE_READ|WRITE|DELETE
+и закрывает handle до JSON parsing. Незавершённый live-tail откладывается;
+завершённая повреждённая строка и любой terminal corrupt-tail не принимаются.
+Windows-тест проверяет конкурентный настоящий writer под фактическим reader.
+Исходная IO-ошибка проходит через SDK wrapper, а не выдаётся за NER failure.
+Пауза4s между локальными embeddings снижает нагрузку, но не устанавливает
+системную причину socket conflict. Повтор этого отказа — stop без третьего child.
+QA/E2/holdout/изменение моделей или исследовательских критериев не разрешены.

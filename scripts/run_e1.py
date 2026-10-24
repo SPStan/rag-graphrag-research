@@ -761,7 +761,7 @@ def verify_plan(plan, row, config):
         or row["output"]
         != f"indexes/e1/{plan['batch_id']}/{row['method']}/{row['dataset']}"
         + (
-            "-mixed-local1"
+            f"-mixed-local{plan['hotpot_local_socket_recovery'].get('recovery_number', 1)}"
             if plan.get("hotpot_local_socket_recovery") and row["dataset"] == "hotpotqa"
             else "-mixed-completion1"
             if plan.get("hotpot_fallback_completion") and row["dataset"] == "hotpotqa"
@@ -1914,11 +1914,256 @@ def prepare_hotpot_completion(prior_path, stderr_path):
     return plan
 
 
+def shared_snapshot_bytes(path):
+    """Take one bounded snapshot; release the shared handle before JSON parsing."""
+    if os.name != "nt":
+        with Path(path).open("rb") as stream:
+            return stream.read(os.fstat(stream.fileno()).st_size)
+    import ctypes
+    from ctypes import wintypes
+    import msvcrt
+
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    create = kernel.CreateFileW
+    create.argtypes = [
+        wintypes.LPCWSTR,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        wintypes.LPVOID,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        wintypes.HANDLE,
+    ]
+    create.restype = wintypes.HANDLE
+    handle = create(
+        str(Path(path).resolve()), 0x80000000, 1 | 2 | 4, None, 3, 0x80, None
+    )  # READ; share READ/WRITE/DELETE; OPEN_EXISTING
+    if handle == wintypes.HANDLE(-1).value:
+        raise ctypes.WinError(ctypes.get_last_error())
+    try:
+        fd = msvcrt.open_osfhandle(handle, os.O_RDONLY | os.O_BINARY)
+    except BaseException:
+        close = kernel.CloseHandle
+        close.argtypes = [wintypes.HANDLE]
+        close(handle)
+        raise
+    with os.fdopen(fd, "rb") as stream:
+        return stream.read(os.fstat(fd).st_size)
+
+
+def journal_snapshot(path):
+    data = shared_snapshot_bytes(path)
+    boundary = data.rfind(b"\n") + 1
+    # A live writer may have emitted only part of its final row. Complete rows
+    # must always decode; a terminal audit uses verified_reference, not this rule.
+    records = [
+        json.loads(line) for line in data[:boundary].splitlines() if line.strip()
+    ]
+    return records, len(data) - boundary
+
+
+def monitor_snapshot(plan, row):
+    from scripts.token_accounting import summarize
+
+    directory = ROOT / row["output"]
+    mp = directory / "manifest.json"
+    manifest = dense.read_json(mp) if mp.exists() else {"status": "preflight"}
+    journal = directory / "usage.jsonl"
+    records, deferred = journal_snapshot(journal) if journal.exists() else ([], 0)
+    terminal = manifest["status"] in ("failed", "completed", "indexed_pending_audit")
+    if terminal:
+        reference = verified_reference(manifest, mp)
+        if deferred or reference["status"] != "verified":
+            raise ValueError("terminal_monitor_journal_not_intact")
+    summary = summarize(records)
+    finished = [r for r in records if r["event"] == "finished"]
+    return {
+        "run_id": row["run_id"],
+        "status": manifest["status"],
+        "physical_attempts": summary["attempts"],
+        "physical_finished": sum(not r.get("cache_hit") for r in finished),
+        "cache_hits": sum(bool(r.get("cache_hit")) for r in finished),
+        "unfinished": sum(p["unfinished"] for p in summary["phases"]),
+        "errors": sum(p["errors"] for p in summary["phases"]),
+        "known_tokens": summary["known_subtotal"],
+        "usage_complete": summary["complete"],
+        "last_event_at": (
+            records[-1].get("finished_at") or records[-1].get("started_at")
+        )
+        if records
+        else None,
+        "deferred_tail_bytes": deferred,
+        "remaining_tokens": row["token_limit"]
+        - sum(summary["known_subtotal"].values()),
+        "remaining_posts": row["max_new_posts"] - summary["attempts"],
+        "error_type": manifest.get("error_type"),
+        "error_message": manifest.get("error_message"),
+        "validation": manifest.get("validation"),
+    }
+
+
+def require_stopped_processes(pids):
+    if not pids or any(type(pid) is not int or pid <= 0 for pid in pids):
+        raise ValueError("recovery_process_evidence_missing")
+    if os.name == "nt":
+        import ctypes
+        from ctypes import wintypes
+
+        kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+        kernel.OpenProcess.restype = wintypes.HANDLE
+        kernel.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+        kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+        for pid in pids:
+            handle = kernel.OpenProcess(0x00100000, False, pid)  # SYNCHRONIZE
+            if not handle:
+                if ctypes.get_last_error() != 87:  # no such PID, otherwise fail closed
+                    raise ctypes.WinError(ctypes.get_last_error())
+                continue
+            try:
+                if kernel.WaitForSingleObject(handle, 0) != 0:
+                    raise ValueError("recovery_worker_still_active")
+            finally:
+                kernel.CloseHandle(handle)
+    else:
+        for pid in pids:
+            try:
+                os.kill(pid, 0)
+            except ProcessLookupError:
+                continue
+            raise ValueError("recovery_worker_still_active")
+
+
+def zero_post_io_recovery_state(pin, prior):
+    """One final child after a journal-write failure, never a general retry."""
+    previous = prior.get("hotpot_local_socket_recovery", {})
+    authorization = dense.read_json(Path(pin["authorization"]))
+    if previous.get("recovery_number", 1) != 1 or not previous:
+        raise ValueError("recovery_limit_or_parent_changed")
+    for name in ("stderr", "launch", "recovery_history"):
+        if dense.sha256_file(Path(pin[name])) != pin[f"{name}_sha256"]:
+            raise ValueError("zero_post_io_evidence_changed")
+    launch = dense.read_json(Path(pin["launch"]))
+    registry = dense.read_json(Path(pin["recovery_history"]))
+    if (
+        authorization.get("recovery_number") != 2
+        or authorization.get("maximum_automatic_recoveries") != 2
+        or authorization.get("parent_plan_sha256") != pin["plan_sha256"]
+        or authorization.get("allow_hotpot_local_embedding_recovery") is not True
+        or authorization.get("new_remote_llm_posts") != 0
+        or authorization.get("stop_on_repeated_cause") is not True
+        or authorization.get("original_token_post_fallback_caps_unchanged") is not True
+        or registry["recoveries_total"] != 1
+        or len(registry["attempts"]) != 1
+        or registry["attempts"][0]["run_id"] != launch["run_id"]
+        or launch["pid"] not in authorization["process_ids"]
+        or launch["plan_sha256"] != pin["plan_sha256"]
+    ):
+        raise ValueError("zero_post_io_authorization_changed")
+    require_stopped_processes(authorization["process_ids"])
+    old = next(
+        r
+        for r in prior["rows"]
+        if (r["method"], r["dataset"]) == ("hipporag2", "hotpotqa")
+    )
+    verify_hotpot_local_recovery(prior, old)
+    mp = Path(pin["manifest"])
+    manifest = dense.read_json(mp)
+    if (
+        mp.resolve() != (ROOT / old["output"] / "manifest.json").resolve()
+        or manifest["status"] != "failed"
+        or manifest["run_id"] != launch["run_id"]
+        or manifest["plan_sha256"] != target.digest(prior)
+        or manifest["error_type"] != "ValueError"
+        or (mp.parent / "running.lock").exists()
+    ):
+        raise ValueError("zero_post_io_parent_not_terminal")
+    stderr = Path(pin["stderr"]).read_text(encoding="utf-8")
+    journal_path = str(mp.parent / "usage.jsonl")
+    if (
+        "Permission denied" not in stderr
+        or "unresolved_ner_stop" not in stderr
+        or journal_path not in stderr.replace(chr(92) * 2, chr(92))
+    ):
+        raise ValueError("zero_post_io_wrong_cause")
+    reference = verified_reference(manifest, mp)
+    if reference["status"] != "verified":
+        raise ValueError("zero_post_io_journal_not_intact")
+    for name, sha in manifest["artifacts"].items():
+        if dense.sha256_file(mp.parent / name) != sha:
+            raise ValueError("zero_post_io_artifact_changed")
+    records = read_records(mp.parent / "usage.jsonl")
+    finished = {r["attempt_id"]: r for r in records if r["event"] == "finished"}
+    if (
+        records.corrupt_tail
+        or not records
+        or any(
+            not r.get("cache_hit") or r["status"] != "cache_hit"
+            for r in finished.values()
+        )
+        or {r["attempt_id"] for r in records if r["event"] == "started"}
+        != set(finished)
+        or any(
+            r["attempt_id"] not in finished
+            or not finished[r["attempt_id"]].get("cache_hit")
+            or finished[r["attempt_id"]]["status"] != "cache_hit"
+            for r in records
+            if r["event"] == "started"
+        )
+        or reference["summary"]["attempts"] != 0
+        or any(reference["summary"]["known_subtotal"].values())
+        or current_unknown_reservation(mp.parent) != 0
+        or pin["unknown_reserved_upper_bound"] != 0
+        or any((mp.parent / "requests").glob("*.json"))
+    ):
+        raise ValueError("zero_post_io_requires_zero_physical_attempts")
+    history = copy.deepcopy(old["history_runs"])
+    history.append(
+        {
+            "output": old["output"],
+            "run_id": old["run_id"],
+            "manifest_sha256": pin["manifest_sha256"],
+            "summary": reference["summary"],
+            "unknown_reserved_upper_bound": 0,
+        }
+    )
+    if len({r["run_id"] for r in history}) != len(history):
+        raise ValueError("zero_post_io_duplicate_history")
+    charge = sum(
+        sum(r["summary"]["known_subtotal"].values()) + r["unknown_reserved_upper_bound"]
+        for r in history
+    )
+    if charge != old["prior_budget_charge"] or old["max_llm_posts"] != 0:
+        raise ValueError("zero_post_io_budget_changed")
+    return prior, {
+        "history_runs": history,
+        "resume_sources": old["resume_sources"]
+        + [{"output": old["output"], "manifest_sha256": pin["manifest_sha256"]}],
+        "prior_budget_charge": charge,
+        "token_limit": LIMITS["hipporag2"] - charge,
+        "max_new_posts": old["max_new_posts"],
+        "max_llm_posts": 0,
+        "embedding_post_pause_seconds": 4.0,
+        "local_socket_request_sha256": old["local_socket_request_sha256"],
+    }
+
+
+def local_recovery_claim_name(plan):
+    number = plan["hotpot_local_socket_recovery"].get("recovery_number", 1)
+    return (
+        "hotpot-local-recovery-plan.claim.json"
+        if number == 1
+        else "hotpot-local-recovery2-plan.claim.json"
+    )
+
+
 def hotpot_local_recovery_state(pin):
     for name in ("plan", "manifest", "authorization"):
         if dense.sha256_file(Path(pin[name])) != pin[f"{name}_sha256"]:
             raise ValueError("hotpot_local_recovery_pin_changed")
     prior = dense.read_json(Path(pin["plan"]))
+    if pin.get("recovery_number") == 2:
+        return zero_post_io_recovery_state(pin, prior)
     if prior.get("hotpot_local_socket_recovery"):
         raise ValueError("hotpot_local_socket_cause_cannot_repeat")
     old = next(
@@ -2066,6 +2311,14 @@ def prepare_hotpot_local_recovery(prior_path, authorization_path):
             for p in (root / "hotpotqa").glob("*.claim.json")
         },
     }
+    number = 2 if prior.get("hotpot_local_socket_recovery") else 1
+    if number == 2:
+        evidence = dense.read_json(authorization_path)
+        pin["recovery_number"] = 2
+        for name in ("stderr", "launch", "recovery_history"):
+            path = Path(evidence[name])
+            pin[name] = str(path.resolve())
+            pin[f"{name}_sha256"] = dense.sha256_file(path)
     prior, states = hotpot_local_recovery_state(pin)
     plan = copy.deepcopy(prior)
     plan["hotpot_local_socket_recovery"] = pin
@@ -2085,12 +2338,12 @@ def prepare_hotpot_local_recovery(prior_path, authorization_path):
         states,
         run_id=str(uuid.uuid4()),
         code_commit=git("rev-parse", "HEAD"),
-        output=f"indexes/e1/{plan['batch_id']}/hipporag2/hotpotqa-mixed-local1",
+        output=f"indexes/e1/{plan['batch_id']}/hipporag2/hotpotqa-mixed-local{number}",
     )
     plan["combined_token_limit"] = sum(r["token_limit"] for r in plan["rows"])
     if (
         (ROOT / row["output"]).exists()
-        or (root / "hotpot-local-recovery-plan.claim.json").exists()
+        or (root / local_recovery_claim_name(plan)).exists()
         or min(row[k] for k in ("token_limit", "max_new_posts")) <= 0
     ):
         raise ValueError("hotpot_local_recovery_already_used_or_no_budget")
@@ -2115,7 +2368,7 @@ def verify_hotpot_local_recovery(plan, row):
         or {k: v for k, v in plan.items() if k not in top}
         != {k: v for k, v in prior.items() if k not in top}
         or dense.read_json(
-            Path(plan["mixed_claim_root"]) / "hotpot-local-recovery-plan.claim.json"
+            Path(plan["mixed_claim_root"]) / local_recovery_claim_name(plan)
         )
         != mixed_plan_claim(plan)
     ):
@@ -2527,6 +2780,10 @@ class Transport:
                 or plan.get("hotpot_fallback_completion")
                 or pin
             )
+            if route_pin.get("recovery_number") == 2:
+                route_pin = dense.read_json(Path(route_pin["plan"]))[
+                    "hotpot_local_socket_recovery"
+                ]
             routes = dense.read_json(
                 Path(route_pin["manifest"]).parent / "mixed-routes.json"
             )
@@ -3676,7 +3933,7 @@ def export(plan, plan_path):
             ],
             "fresh_llm_posts_limit": 0,
             "embedding_post_pause_seconds": 4.0,
-            "authorization": "user_scoped_night_recovery_1_of_at_most_2; repeated_socket_cause_stops",
+            "authorization": f"user_scoped_night_recovery_{plan['hotpot_local_socket_recovery'].get('recovery_number', 1)}_of_at_most_2; repeated_socket_cause_stops",
         }
     if plan.get("hotpot_fallback_completion"):
         report["fallback_attempt_budget_policy"] = {
@@ -5747,7 +6004,9 @@ def execute(plan, row, config, source=None):
                 validation=validation,
             )
         except BaseException as exc:
-            manifest.update(status="failed", error_type=type(exc).__name__)
+            manifest.update(
+                status="failed", error_type=type(exc).__name__, error_message=str(exc)
+            )
             raise
         finally:
             manifest["seconds"] += round(time.perf_counter() - started, 3)
@@ -5785,6 +6044,7 @@ def main():
             "prepare-hotpot-adoption",
             "prepare-hotpot-completion",
             "prepare-hotpot-local-recovery",
+            "monitor",
             "prepare-mixed-audit",
             "finalize-mixed-audit",
             "continue",
@@ -5836,8 +6096,19 @@ def main():
     parser.add_argument("--counter-stderr", type=Path)
     args = parser.parse_args()
     config = dotenv_values(args.env_file) if args.env_file else {}
+    if args.command == "monitor":
+        plan = dense.read_json(args.plan)
+        row = next(
+            r
+            for r in plan["rows"]
+            if (r["method"], r["dataset"]) == (args.method, args.dataset)
+        )
+        print(json.dumps(monitor_snapshot(plan, row)))
+        return
     if args.command == "prepare-hotpot-local-recovery":
-        canonical = ROOT / ".cache/e1-hotpot-local-recovery-plan.json"
+        prior = dense.read_json(args.prior_plan)
+        suffix = "2" if prior.get("hotpot_local_socket_recovery") else ""
+        canonical = ROOT / f".cache/e1-hotpot-local-recovery{suffix}-plan.json"
         if (
             args.plan.resolve() != canonical.resolve()
             or args.plan.exists()
@@ -5847,9 +6118,9 @@ def main():
                 "hotpot_local_recovery_requires_unused_plan_and_clean_code"
             )
         plan = prepare_hotpot_local_recovery(args.prior_plan, args.protocol_approval)
-        with (
-            Path(plan["mixed_claim_root"]) / "hotpot-local-recovery-plan.claim.json"
-        ).open("x", encoding="utf-8") as stream:
+        with (Path(plan["mixed_claim_root"]) / local_recovery_claim_name(plan)).open(
+            "x", encoding="utf-8"
+        ) as stream:
             json.dump(mixed_plan_claim(plan), stream)
             stream.flush()
             os.fsync(stream.fileno())

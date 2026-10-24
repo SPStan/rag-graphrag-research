@@ -218,9 +218,15 @@ def hipporag_index(corpus, transport, directory, source):
 
         def infer(self, messages, max_new_tokens=1024, response_format=None, **kwargs):
             operation = "openie_ner" if max_new_tokens == 1024 else "openie_triples"
-            text, metadata = transport.generate(
-                messages, max_new_tokens, operation, response_format
-            )
+            try:
+                text, metadata = transport.generate(
+                    messages, max_new_tokens, operation, response_format
+                )
+            except Exception as exc:
+                # The pinned SDK returns metadata on inference errors. Preserve
+                # the original IO/transport exception across that wrapper.
+                transport.extraction_error = exc
+                raise
             # Strict original response; SDK partial-JSON recovery cannot make it valid.
             parse(operation, text, recover_partial=False)
             return text, metadata, metadata.get("cache_hit", False)
@@ -251,11 +257,15 @@ def hipporag_index(corpus, transport, directory, source):
         for chunk_id, row in chunks.items():
             n = original.ner(chunk_id, row["content"])
             if n.metadata.get("error") or n.metadata.get("finish_reason") != "stop":
-                raise ValueError("unresolved_ner_stop")
+                if getattr(transport, "extraction_error", None) is not None:
+                    raise transport.extraction_error
+                raise ValueError(f"unresolved_ner_stop: {n.metadata.get('error')}")
             n.unique_entities = parse("openie_ner", n.response, recover_partial=False)
             t = original.triple_extraction(chunk_id, row["content"], n.unique_entities)
             if t.metadata.get("error") or t.metadata.get("finish_reason") != "stop":
-                raise ValueError("unresolved_triples_stop")
+                if getattr(transport, "extraction_error", None) is not None:
+                    raise transport.extraction_error
+                raise ValueError(f"unresolved_triples_stop: {t.metadata.get('error')}")
             t.triples = parse("openie_triples", t.response, recover_partial=False)
             ner[chunk_id], triples[chunk_id] = n, t
             outcomes[chunk_id] = {

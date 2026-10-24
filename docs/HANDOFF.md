@@ -1,30 +1,35 @@
 # Передача контекста Sol / Luna
 
-**E1 status:** 5/6 indexes completed; physical known tokens=31507115; cost_complete=False. Hotpot local recovery failed on monitoring file-sharing; automation paused.
+**E1 status:** 5/6 indexes completed; physical known tokens=31507115; cost_complete=False. Hotpot zero-POST IO recovery implementation verified offline; second child preparation.
 
-## Текущая очередь — 24 октября: остановка local recovery
+## Текущая очередь — 24 октября: второе техническое восстановление
 
-- Готовы5/6 индексов. Hotpot extraction5500/5500 сохранён в исходном
-  completion run6fffff38. Граф/save-reload/source audit Hotpot ещё не выполнены.
-- Child6c01f4f7 failed04:58UTC: Permission denied при записи usage.jsonl,
-  затем SDK обернул ошибку в unresolved_ner_stop. Новых physicalPOST0,
-  known0; журнал цел и SHA совпадает с failed manifest959007abc44b…db625e.
-- Причина — мониторинг агентом через .NET File.ReadLines с FileShare.Read,
-  который на Windows блокирует append. На временном файле это воспроизведено;
-  FileStream с FileShare.ReadWrite допускает запись. Данные API не виноваты.
-- E1 known31507115/upper31568703, cost_complete=false, reserve61588 неизменны.
-  Все9919successful embedding batches и старые failed/unknown сохранены.
-- Выполнено1/2 automatic recovery. Автоматизация e1-hotpotqa PAUSED:
-  существующий guard запрещает повтор terminal child и ещё один local child.
-  Без проверенной новой lineage не запускать run и не сбрасывать claim.
-- Следующий блок: минимальный проверяемый child после zero-POST IO failure,
-  immutable parents/точный embedding replay/zero fresh LLM/прежние бюджеты;
-  offline-тесты, затем scoped второе восстановление, если guard это подтверждает.
-- Не читать живой usage.jsonl через File.ReadLines/Get-Content: короткий snapshot
-  с явным FileShare.ReadWrite. Мониторинг не должен мешать journal writer.
-- Текущее состояние/stop_future_checks: .cache/e1-hotpotqa-monitor.json;
-  registry .cache/e1-hotpotqa-recoveries.json. После PAUSED не повторять уведомления.
-  Draft/Refs #13; без E2/QA/holdout/merge.
+- HEAD подготовки: исправлены shared snapshot и существующий local recovery.
+  Новый canonical child hotpotqa-mixed-local2 создаётся только после terminal
+  zero-POST IO failure; исходный failed run не переиспользуется и не меняется.
+- Мониторинг: python -m scripts.run_e1 monitor --plan <актуальный-plan>
+  --method hipporag2 --dataset hotpotqa. Внутри CreateFileW с share READ/WRITE/
+  DELETE; bounded bytes snapshot, handle закрывается до JSON. Активный неполный
+  хвост откладывается; битая завершённая строка и terminal corruption — ошибка.
+  File.ReadLines/Get-Content над живым usage.jsonl запрещены.
+- Windows regression держит настоящий reader handle открытым, пока writer
+  дописывает120записей; append не блокируется и финальные записи не теряются.
+  На закреплённом SDK исходная PermissionError теперь сохраняется.
+- Допуск второго child: SHA всех предков/артефактов/журналов, terminal failed,
+  отсутствие launcher/worker PID и running.lock, ноль физических попыток,
+  нет uncertain checkpoint, stderr подтверждает journal Permission denied.
+  Новые UUID/output/claim2, неизменные старые claims; третьего recovery нет.
+- Предварительные bounds10418246tokens/18361POST будут повторно выведены
+  из проверенной lineage до запуска; local unknown2567 и totalreserve61588
+  сохраняются. Transport запрещает свежие LLM, exact cache replay не оплачивается.
+  Embedding batch≤8/pause≥4s прежние; пауза — mitigation, не доказанное лечение.
+- Реальный offline replay выполняется с запрещённым HTTP. До code commit,
+  нового canonical plan и проверки отсутствия worker запусков нет.
+- После старта active_launch_file/registry должны указывать фактический child,
+  recoveries_total=2, автоматических restart больше нет. Остальные5индексов
+  не пересчитывать. Graph/save-reload/source audit обязательны до6/6.
+  Draft/Refs #13; без QA/E2/holdout/merge.
+
 ## История — не текущие инструкции запуска
 
 
