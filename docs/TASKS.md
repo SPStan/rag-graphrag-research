@@ -1,34 +1,34 @@
 # Текущая работа и критерии завершения
 
-**E1 status:** 5/6 indexes completed; physical known tokens=31507115; cost_complete=False. Hotpot zero-POST IO recovery implementation verified offline; second child preparation.
+**E1 status:** 6/6 indexes completed under the structural protocol; physical known tokens=32601955; cost_complete=False; unknown reserve61588 preserved. Final audit/verify completed; monitoring paused.
 
-## Текущая очередь — 24 октября: второе техническое восстановление
+## Текущая очередь — 25 октября: E1 завершён, 6/6
 
-- HEAD подготовки: исправлены shared snapshot и существующий local recovery.
-  Новый canonical child hotpotqa-mixed-local2 создаётся только после terminal
-  zero-POST IO failure; исходный failed run не переиспользуется и не меняется.
-- Мониторинг: python -m scripts.run_e1 monitor --plan <актуальный-plan>
-  --method hipporag2 --dataset hotpotqa. Внутри CreateFileW с share READ/WRITE/
-  DELETE; bounded bytes snapshot, handle закрывается до JSON. Активный неполный
-  хвост откладывается; битая завершённая строка и terminal corruption — ошибка.
-  File.ReadLines/Get-Content над живым usage.jsonl запрещены.
-- Windows regression держит настоящий reader handle открытым, пока writer
-  дописывает120записей; append не блокируется и финальные записи не теряются.
-  На закреплённом SDK исходная PermissionError теперь сохраняется.
-- Допуск второго child: SHA всех предков/артефактов/журналов, terminal failed,
-  отсутствие launcher/worker PID и running.lock, ноль физических попыток,
-  нет uncertain checkpoint, stderr подтверждает journal Permission denied.
-  Новые UUID/output/claim2, неизменные старые claims; третьего recovery нет.
-- Предварительные bounds10418246tokens/18361POST будут повторно выведены
-  из проверенной lineage до запуска; local unknown2567 и totalreserve61588
-  сохраняются. Transport запрещает свежие LLM, exact cache replay не оплачивается.
-  Embedding batch≤8/pause≥4s прежние; пауза — mitigation, не доказанное лечение.
-- Реальный offline replay выполняется с запрещённым HTTP. До code commit,
-  нового canonical plan и проверки отсутствия worker запусков нет.
-- После старта active_launch_file/registry должны указывать фактический child,
-  recoveries_total=2, автоматических restart больше нет. Остальные5индексов
-  не пересчитывать. Graph/save-reload/source audit обязательны до6/6.
-  Draft/Refs #13; без QA/E2/holdout/merge.
+- Dense×2, RAPTOR×2 и HippoRAG2×2 имеют completed; строгая штатная
+  offline verify проверила все6 manifest/journal/artifact SHA без HTTP.
+- Hotpot run822bed2d:5500passages,50711entities,75021facts,
+  graph56211nodes/183473edges. Save/reload0modelcalls; граф независимо
+  перечитан,5500source IDs присутствуют, parquet5500/50711/75021rows.
+- Последний child:5798local embeddingPOST,1094840known tokens, freshLLM0,
+  ошибок/unfinished/новых unknown0;21607cache hits. Ни один готовый индекс
+  или завершённый extraction повторно не вычислялся.
+- Source audit:54источника, все38warnings +8на каждый extractor stratum;
+  проверены769raw triples с точными multiplicities.8supported/40observed_error/
+  6needs_review. Это warning-enriched выборка, не оценка error rate/эффективности.
+  Review выполнен Codex offline, не независимым человеком/куратором.
+- Оба Hippo имеют structurally_verified_with_observed_extraction_errors,
+  semantic_verified=false. Ошибки (включая unsupported facts, reversed relation,
+  meta-output и пропуски/потерю оговорок) раскрыты; graph/triples не исправлялись.
+- E1 physical known32601955; reserve61588; budget upper32663543;
+  cost_complete=false. Hotpot known10674027 +unknown2567 =charge10676594,
+  POST27437. Исторические failed/claims/расходы сохранены, двойного учёта нет.
+- Recovery counter2/2; worker завершён, e1-hotpotqa PAUSED; новых restart нет.
+  Terminal proof: .cache/e1-six-index-final-verification.json; current plan
+  .cache/e1-hotpot-local-recovery2-plan.json SHA dafe33064f78…fb61f37.
+- Таблица и безопасная JSON: results/summary/e1-indexing.md и .json.
+  Следующее — техническое ревью Draft PR33 и актуальное O/N/R/H отдельно.
+  Refs #13; без автоматического Ready/merge/закрытия issue, QA/E2/holdout.
+  Для E2 потребуется отдельный план и Hippo read-only adapter; его здесь нет.
 
 ## История — не текущие инструкции запуска
 
