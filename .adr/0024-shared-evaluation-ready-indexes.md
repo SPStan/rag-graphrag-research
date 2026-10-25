@@ -46,3 +46,45 @@ constructor/HTTP запрещены, SHA artifacts до/после совпал�
 Ни одна из этих проверок не является QA benchmark. Изменение reader/top-k/options/
 SDK/evaluator/index pins делает результаты несовместимыми; отдельный план до
 новых запросов. Критерии не меняются из-за неверных ответов smoke.
+
+
+## 25октября: continuation v2 — reader outcomes отдельно от fatal execution
+
+По прямому поручению после исходного stop принимается offline policy
+`reader_known_response_failure_continue_v2`. Исполнение требует отдельного допуска
+нового exact plan, прежнее разрешение этого изменения не покрывает.
+
+Known-usage завершённый HTTP reader response с length/empty/непригодной формой/
+неприменимым parser — attempted_failed, answer не принимается, повторного POST нет.
+Другие случаи продолжаются с теми же cap512/prompt/temp0/seed42/thinkingfalse.
+Отсутствующий usage, HTTP/transport/infra error, изменённые pins/config или бюджет —
+fatal stop. Эта политика не переносится на Hippo filter: length, malformed и error
+там fatal; valid empty facts сохраняет native DPR. Semantic correctness не определяет
+retry; gold читает только evaluator после generation.
+
+Original failed manifest/claims/журналы/ответы остаются у parent. Child pin-ит19файлов,
+сверяет scientific contract и AST неизменённых reader/embedding payload functions
+с5dea658; immutable retrieval/evaluator/SDK/data pins прежние. Старые три случая
+(2completed+1knownlength) пропускаются целиком, не выдаются за новый cache hit под
+изменённым prompt. Фактические source options/run/code/response SHA сохраняются.
+Допускается один child из этого parent, новый output/journal/run, без снятия общего
+запрета повторного запуска failed. При успешной технической паузе одного child
+повторный вызов пропускает terminal cases; unknown/failed не ретраится.
+
+Остаются57cases:57query embeddings+57reader+≤20filter=134POST. Conservative reserve
+77×(32000+1024+2048+512)+57×(4096+1024+2048)=3148544tokens≤3271113остатка.
+С учётом parent:≤140POST, known5687+новыйreserve≤3154231≤3276800.
+Bound не actual usage и не денежная цена; local embedding/LLM input/output отдельны.
+
+Completed, attempted_failed и not_attempted различаются. Только attempted failures
+имеют EM/F1=0; not_attempted получает null и делает сравнение неполным. На завершённом
+smoke denominator=10/cfg, failures входят; публикуются failure rate, mean attempted
+latency и usage by model. Parent+child journals суммируются один раз по physical
+identity,60case keys включают dataset/method/question. E1 historical cost_complete=false
+и reserve61588 остаются отдельной атрибуцией. RAPTOR provenance не passage recall@5.
+
+Проверки: actual parent/all6source manifests/artifacts offline, synthetic existing
+runner/CLI на60cases, success+reader outcomes+resume; parent SHA/config/model/unknown/
+budget/transport rejection, filter fatal, no duplicate expense. Новых real calls нет.
+После реального smoke — одно решение: freeze reader для pilot200 либо единый пересмотр
+для всех методов при технической проблеме; не выбирать конфигурацию по лучшему F1.

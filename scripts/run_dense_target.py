@@ -565,6 +565,12 @@ def main():
     parser.add_argument("--shared-plan", type=Path)
     parser.add_argument("--prepare-shared", action="store_true")
     parser.add_argument(
+        "--continue-shared-plan",
+        type=Path,
+        help="prepare child from this immutable parent plan; no HTTP",
+    )
+    parser.add_argument("--parent-output-dir", type=Path)
+    parser.add_argument(
         "--summarize-shared", type=Path, help="public report prefix; no execution"
     )
     parser.add_argument("--e1-plan", type=Path)
@@ -609,8 +615,14 @@ def main():
                     }
                 )
             )
-        elif args.prepare_shared:
-            plan = shared.prepare(args.e1_plan, args.e1_workspace)
+        elif args.prepare_shared or args.continue_shared_plan:
+            plan = (
+                shared.prepare_continuation(
+                    args.continue_shared_plan, args.parent_output_dir
+                )
+                if args.continue_shared_plan
+                else shared.prepare(args.e1_plan, args.e1_workspace)
+            )
             if args.shared_plan.exists():
                 if dense.read_json(args.shared_plan) != plan:
                     raise ValueError("E2_existing_plan_changed")

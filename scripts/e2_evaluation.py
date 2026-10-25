@@ -163,8 +163,336 @@ def prepare(e1_plan_path, workspace):
     }
 
 
+CONTINUATION_VERSION = "e2-shared-e1-v2"
+OUTCOME_POLICY = "reader_known_response_failure_continue_v2"
+PARENT_RUNTIME = "5dea658aec9e8f5c4a7dd1bc441bb690608a1294"
+
+
+def case_key(dataset, method, qid):
+    return target.digest([dataset, method, qid])
+
+
+def verify_parent_code(parent):
+    """Execution policy/report code may evolve; generation functions may not."""
+    import ast
+    import subprocess
+
+    changed = {
+        "scripts/e2_evaluation.py",
+        "scripts/run_dense_target.py",
+        "scripts/track_dense.py",
+    }
+    for name, sha in parent["code_sha256"].items():
+        if name not in changed and dense.sha256_file(ROOT / name) != sha:
+            raise ValueError("E2_incompatible_parent_component: " + name)
+    original = subprocess.check_output(
+        [
+            "git",
+            "-c",
+            f"safe.directory={ROOT.as_posix()}",
+            "-C",
+            str(ROOT),
+            "show",
+            PARENT_RUNTIME + ":scripts/e2_evaluation.py",
+        ]
+    )
+    old_tree = ast.parse(original.decode("utf-8"))
+    current_tree = ast.parse(
+        (ROOT / "scripts/e2_evaluation.py").read_text(encoding="utf-8")
+    )
+    for name in ("reader_payload", "embedding_payload"):
+
+        def function(tree):
+            return ast.dump(
+                next(
+                    n
+                    for n in tree.body
+                    if isinstance(n, ast.FunctionDef) and n.name == name
+                )
+            )
+
+        if function(old_tree) != function(current_tree):
+            raise ValueError("E2_incompatible_parent_generation_function")
+
+
+def verify_saved_case(plan, directory, result, records):
+    """Bind result to exact inputs, response/checkpoint SHA and physical usage."""
+    directory = Path(directory)
+    dataset, method, qid = (result[k] for k in ("dataset", "method", "question_id"))
+    if (
+        result["config_sha256"] != target.digest(plan)
+        or qid not in plan["datasets"][dataset]["question_ids"]
+    ):
+        raise ValueError("E2_incompatible_result_identity")
+    pin = next(r for r in plan["datasets"][dataset]["indexes"] if r["method"] == method)
+    if result["index_manifest_sha256"] != pin["manifest_sha256"]:
+        raise ValueError("E2_result_index_changed")
+    for op in result["operations"]:
+        key = op["journal_object_id"]
+        saved = dense.read_json(directory / f"{key}.json")
+        response = dense.read_json(directory / f"{key}.response.json")
+        if (
+            saved.get("key") != key
+            or saved.get("response_sha256") != target.digest(response)
+            or saved.get("response") != response
+        ):
+            raise ValueError("E2_result_checkpoint_changed")
+        terminal = [
+            r for r in records if r["event"] == "finished" and r.get("object_id") == key
+        ]
+        if (
+            len(terminal) != 1
+            or terminal[0]["status"] != "success"
+            or terminal[0]["usage_status"] != "complete"
+        ):
+            raise ValueError("E2_uncertain_result_no_resume")
+        kind = "embedding" if op["operation"] == "query_embedding" else "llm"
+        usage = extract_usage(
+            response, kind, "local_ollama" if kind == "embedding" else "target_api"
+        )
+        if usage != {k: terminal[0][k] for k in usage} or usage != op["logical_usage"]:
+            raise ValueError("E2_result_usage_changed")
+        payload = (
+            embedding_payload(plan, result["question"])
+            if kind == "embedding"
+            else reader_payload(result["question"], result["retrieval"])
+            if op["operation"] == "reader"
+            else None
+        )
+        if payload is not None:
+            expected = target.digest(
+                {
+                    "plan": target.digest(plan),
+                    "method": method,
+                    "dataset": dataset,
+                    "qid": qid,
+                    "operation": op["operation"],
+                    "payload": payload,
+                }
+            )
+            if (
+                key != expected
+                or target.digest(payload) != op["request_payload_sha256"]
+            ):
+                raise ValueError("E2_result_payload_changed")
+        if op["operation"] == "reader":
+            try:
+                raw = reader_text(response)
+                answer, status = dense.extract_target_reader_answer(raw)
+                if status != "ok":
+                    raise ReaderCaseFailure("reader_parser_failed")
+            except ReaderCaseFailure:
+                if result["status"] not in ("failed", "attempted_failed") or result.get(
+                    "answer"
+                ):
+                    raise ValueError("E2_failed_reader_promoted") from None
+            else:
+                if result["status"] != "completed" or result["answer"] != answer:
+                    raise ValueError("E2_reader_result_changed")
+
+
+def parent_snapshot(plan_path, directory):
+    from scripts.token_accounting import verified_reference, read_records
+
+    plan_path, directory = Path(plan_path).resolve(), Path(directory).resolve()
+    parent = dense.read_json(plan_path)
+    manifest_path = directory / "manifest.json"
+    manifest = dense.read_json(manifest_path)
+    reference = verified_reference(manifest, manifest_path)
+    if (
+        manifest["status"] != "failed"
+        or manifest["plan_sha256"] != target.digest(parent)
+        or reference["status"] != "verified"
+        or not reference["summary"]["complete"]
+        or (directory / "running.lock").exists()
+        or parent.get("parent_run")
+    ):
+        raise ValueError("E2_parent_not_terminal_known_single_run")
+    verify_parent_code(parent)
+    claim = (
+        Path(parent["e1_workspace"])
+        / ".cache"
+        / f"e2-{target.digest(parent)}.claim.json"
+    )
+    if dense.read_json(claim)["directory"] != str(directory):
+        raise ValueError("E2_parent_claim_changed")
+    records = read_records(directory / "usage.jsonl")
+    files = {
+        str(p): dense.sha256_file(p)
+        for p in (plan_path, manifest_path, directory / "usage.jsonl", claim)
+    }
+    cases = {}
+    seen_operations = set()
+    for key, sha in manifest["results"].items():
+        path = directory / f"question-{key}.json"
+        if dense.sha256_file(path) != sha:
+            raise ValueError("E2_parent_result_changed")
+        result = dense.read_json(path)
+        if key != case_key(result["dataset"], result["method"], result["question_id"]):
+            raise ValueError("E2_parent_case_key_changed")
+        verify_saved_case(parent, directory, result, records)
+        if result["status"] == "failed":
+            reader = next(
+                op for op in result["operations"] if op["operation"] == "reader"
+            )
+            response = dense.read_json(
+                directory / f"{reader['journal_object_id']}.response.json"
+            )
+            if response["choices"][0]["finish_reason"] != "length":
+                raise ValueError("E2_parent_stop_not_known_reader_length")
+        cases[key] = {
+            "path": str(path),
+            "sha256": sha,
+            "dataset": result["dataset"],
+            "method": result["method"],
+            "question_id": result["question_id"],
+            "status": "completed"
+            if result["status"] == "completed"
+            else "attempted_failed",
+        }
+        files[str(path)] = sha
+        for op in result["operations"]:
+            key_op = op["journal_object_id"]
+            if key_op in seen_operations:
+                raise ValueError("E2_parent_duplicate_operation")
+            seen_operations.add(key_op)
+            for suffix in (".json", ".response.json"):
+                fp = directory / f"{key_op}{suffix}"
+                files[str(fp)] = dense.sha256_file(fp)
+    if {
+        r.get("object_id") for r in records if r["event"] == "started"
+    } != seen_operations:
+        raise ValueError("E2_parent_unattributed_attempt")
+    return parent, {
+        "plan": str(plan_path),
+        "directory": str(directory),
+        "run_id": manifest["run_id"],
+        "files": files,
+        "cases": cases,
+        "summary": reference["summary"],
+        "runtime_commit": PARENT_RUNTIME,
+    }
+
+
+def prepare_continuation(parent_plan, parent_directory):
+    parent, snapshot = parent_snapshot(parent_plan, parent_directory)
+    fresh = prepare(parent["e1_plan"], parent["e1_workspace"])
+    # Policies, cost bounds and code pins change; all scientific inputs stay exact.
+    mutable = {
+        "code_sha256",
+        "mode",
+        "failures",
+        "cache",
+        "max_posts",
+        "max_llm_posts",
+        "max_embedding_posts",
+        "max_combined_tokens",
+        "reader_calls",
+        "filter_calls",
+    }
+    if {k: v for k, v in parent.items() if k not in mutable} != {
+        k: v for k, v in fresh.items() if k not in mutable
+    }:
+        raise ValueError("E2_parent_configuration_incompatible")
+    expected = {
+        case_key(d, m, q): {"dataset": d, "method": m, "question_id": q}
+        for d, data in fresh["datasets"].items()
+        for m in METHODS
+        for q in data["question_ids"]
+    }
+    remaining = [v for k, v in expected.items() if k not in snapshot["cases"]]
+    if not set(snapshot["cases"]) <= set(expected):
+        raise ValueError("E2_parent_cases_outside_plan")
+    readers = len(remaining)
+    filters = sum(r["method"] == "hipporag2" for r in remaining)
+    posts = readers * 2 + filters
+    reserve = (readers + filters) * (
+        MESSAGE_BYTES + 1024 + 2048 + target.OPTIONS["max_tokens"]
+    ) + readers * (QUERY_BYTES + 1024 + 2048)
+    prior_tokens = sum(snapshot["summary"]["known_subtotal"].values())
+    available_tokens = parent["max_combined_tokens"] - prior_tokens
+    available_posts = parent["max_posts"] - snapshot["summary"]["attempts"]
+    if reserve > available_tokens or posts > available_posts:
+        raise ValueError("E2_continuation_budget_insufficient")
+    fresh.update(
+        version=CONTINUATION_VERSION,
+        mode="smoke10_continuation_pending_approval",
+        outcome_policy=OUTCOME_POLICY,
+        failures="known reader length/empty/unusable -> attempted_failed, no retry, continue; filter/transport/unknown/budget/pin/infrastructure -> stop",
+        cache="3 immutable parent cases reused by exact identity; reader failure retained; no replay of any attempted case",
+        parent_run=snapshot,
+        remaining_cases=remaining,
+        reader_calls=readers,
+        filter_calls=filters,
+        max_posts=posts,
+        max_llm_posts=readers + filters,
+        max_embedding_posts=readers,
+        max_combined_tokens=reserve,
+        original_remaining_tokens=available_tokens,
+        original_remaining_posts=available_posts,
+    )
+    return fresh
+
+
+def check_parent_pins(plan):
+    for filename, sha in plan.get("parent_run", {}).get("files", {}).items():
+        if dense.sha256_file(Path(filename)) != sha:
+            raise ValueError("E2_parent_pin_changed")
+
+
+def result_references(plan, manifest, directory):
+    expected = {
+        case_key(d, m, q)
+        for d, data in plan["datasets"].items()
+        for m in METHODS
+        for q in data["question_ids"]
+    }
+    inherited = plan.get("parent_run", {}).get("cases", {})
+    if set(inherited) & set(manifest["results"]):
+        raise ValueError("E2_duplicate_case_in_lineage")
+    refs = {k: (Path(v["path"]), v["sha256"]) for k, v in inherited.items()}
+    refs.update(
+        {
+            k: (Path(directory) / f"question-{k}.json", sha)
+            for k, sha in manifest["results"].items()
+        }
+    )
+    if not set(refs) <= expected:
+        raise ValueError("E2_cases_outside_plan")
+    return refs
+
+
+def lineage_records(plan, directory, manifest):
+    from scripts.token_accounting import verified_reference, read_records
+
+    check_parent_pins(plan)
+    rows = []
+    references = []
+    seen = set()
+    paths = []
+    if plan.get("parent_run"):
+        paths.append(Path(plan["parent_run"]["directory"]) / "manifest.json")
+    paths.append(Path(directory) / "manifest.json")
+    for path in paths:
+        value = dense.read_json(path)
+        reference = verified_reference(value, path)
+        if reference["status"] != "verified":
+            raise ValueError("E2_lineage_journal_changed")
+        records = read_records(path.parent / "usage.jsonl")
+        if records.corrupt_tail:
+            raise ValueError("E2_lineage_journal_tail")
+        for row in records:
+            identity = (row["run_id"], row["attempt_id"], row["event"])
+            if identity in seen:
+                raise ValueError("E2_duplicate_physical_event")
+            seen.add(identity)
+        rows.extend(records)
+        references.append({**reference, "path": str(reference["path"])})
+    return rows, references
+
+
 def verify(plan):
-    if plan["version"] != VERSION:
+    if plan["version"] not in (VERSION, CONTINUATION_VERSION):
         raise ValueError("E2_plan_version_changed")
     for name, sha in plan["code_sha256"].items():
         if dense.sha256_file(ROOT / name) != sha:
@@ -172,7 +500,14 @@ def verify(plan):
     if dense.sha256_file(Path(plan["e1_plan"])) != plan["e1_plan_sha256"]:
         raise ValueError("E2_E1_plan_changed")
     # Rebuild immutable metadata offline, including journal/artifact/corpus checks.
-    if prepare(plan["e1_plan"], plan["e1_workspace"]) != plan:
+    candidate = (
+        prepare_continuation(
+            plan["parent_run"]["plan"], plan["parent_run"]["directory"]
+        )
+        if plan.get("parent_run")
+        else prepare(plan["e1_plan"], plan["e1_workspace"])
+    )
+    if candidate != plan:
         raise ValueError("E2_plan_or_index_changed")
     return True
 
@@ -281,7 +616,12 @@ class Calls:
             > (QUERY_BYTES if kind == "embedding" else MESSAGE_BYTES) + 1024
         ):
             raise ValueError("E2_payload_envelope_overflow")
-        operation_cap = {"reader": 60, "filter": 20, "query_embedding": 60}[operation]
+        check_parent_pins(self.plan)
+        operation_cap = {
+            "reader": self.plan.get("reader_calls", 60),
+            "filter": self.plan.get("filter_calls", 20),
+            "query_embedding": self.plan["max_embedding_posts"],
+        }[operation]
         if sum(r["operation"] == operation for r in physical) >= operation_cap:
             raise ValueError("E2_operation_cap_exceeded")
         if session is None:
@@ -312,7 +652,15 @@ class Calls:
         # replayed as a successful completed response.
         try:
             if kind == "llm":
-                completed_text(body)
+                if body.get("model", MODEL) != MODEL:
+                    raise ValueError("E2_response_model_changed")
+                if (
+                    operation == "reader"
+                    and self.plan.get("outcome_policy") == OUTCOME_POLICY
+                ):
+                    reader_text(body)
+                else:
+                    completed_text(body)
             elif len(body["embeddings"]) != 1 or len(body["embeddings"][0]) != 1024:
                 raise ValueError("E2_embedding_shape_invalid")
         except Exception:
@@ -346,6 +694,29 @@ def embedding_payload(plan, question):
         "truncate": False,
         "options": {"num_ctx": 4096, "num_batch": 4096},
     }
+
+
+class ReaderCaseFailure(ValueError):
+    """A known paid reader response that is not a usable completed answer."""
+
+
+def reader_text(body):
+    usage = extract_usage(body, "llm", "target_api")
+    if any(usage[k] is None for k in ("llm_input_tokens", "llm_output_tokens")):
+        raise ValueError("E2_reader_unknown_usage")
+    try:
+        choice = body["choices"][0]
+        finish = choice["finish_reason"]
+        text = choice["message"]["content"]
+    except (KeyError, IndexError, TypeError):
+        raise ReaderCaseFailure("reader_unusable_structure") from None
+    if finish == "length":
+        raise ReaderCaseFailure("reader_length")
+    if finish != "stop":
+        raise ReaderCaseFailure("reader_unusable_finish")
+    if not isinstance(text, str) or not text.strip():
+        raise ReaderCaseFailure("reader_empty")
+    return text
 
 
 def completed_text(body):
@@ -484,14 +855,31 @@ def question_result(
         t = time.perf_counter()
         response = call(payload, "reader")
         stages["reader"] = time.perf_counter() - t
-        raw = completed_text(response)
+        raw = (
+            reader_text(response)
+            if plan.get("outcome_policy") == OUTCOME_POLICY
+            else completed_text(response)
+        )
         result["raw_answer"] = raw
         answer, status = dense.extract_target_reader_answer(raw)
         if status != "ok":
+            if plan.get("outcome_policy") == OUTCOME_POLICY:
+                raise ReaderCaseFailure("reader_parser_failed")
             raise ValueError("E2_reader_parser_failed")
         result.update(status="completed", answer=answer)
     except Exception as exc:
         result["error"] = {"type": type(exc).__name__, "reason": str(exc)}
+        result["answer"] = ""
+        if plan.get("outcome_policy") == OUTCOME_POLICY:
+            result["status"] = (
+                "attempted_failed"
+                if any(o.get("physical_attempted") for o in operations)
+                else "not_attempted"
+            )
+            result["fatal"] = not isinstance(exc, ReaderCaseFailure)
+            result["failure_scope"] = (
+                "reader_response" if not result["fatal"] else "execution"
+            )
     finally:
         if stage_name not in stages:
             stages[stage_name] = time.perf_counter() - t
@@ -508,6 +896,13 @@ def question_result(
 def score_result(result, label):
     if result["question_id"] != label["id"]:
         raise ValueError("E2_evaluator_ID_mismatch")
+    if result["status"] in ("not_attempted", "not_attempted_after_stop"):
+        return {
+            "em": None,
+            "f1": None,
+            "passage_recall_at_5": None,
+            "supporting_provenance_coverage": None,
+        }
     scores = (
         evaluator.answer_scores(
             result["answer"], [label["answer"], *label.get("answer_aliases", [])]
@@ -578,6 +973,20 @@ def execute(
     else:
         with claim.open("x", encoding="utf-8") as stream:
             json.dump({"directory": str(directory)}, stream)
+    if plan.get("parent_run"):
+        parent_id = target.digest(plan["parent_run"]["files"])
+        child_claim = (
+            Path(plan["e1_workspace"])
+            / ".cache"
+            / f"e2-continuation-of-{parent_id}.claim.json"
+        )
+        identity = {"plan_sha256": target.digest(plan), "directory": str(directory)}
+        if child_claim.exists():
+            if dense.read_json(child_claim) != identity:
+                raise ValueError("E2_parent_continuation_already_claimed")
+        else:
+            with child_claim.open("x", encoding="utf-8") as stream:
+                json.dump(identity, stream)
     directory.mkdir(parents=True, exist_ok=True)
     lock = directory / "running.lock"
     with lock.open("x", encoding="utf-8") as stream:
@@ -603,7 +1012,36 @@ def execute(
                 "results": {},
             }
             calls = Calls(directory, plan, run_id=manifest["run_id"])
+            if plan.get("parent_run"):
+                parent = plan["parent_run"]
+                manifest["parent_run"] = {
+                    "run_id": parent["run_id"],
+                    "manifest_sha256": parent["files"][
+                        str(Path(parent["directory"]) / "manifest.json")
+                    ],
+                    "inherited_cases": len(parent["cases"]),
+                }
             dense.write_json_atomic(mp, manifest)
+        check_parent_pins(plan)
+        result_references(plan, manifest, directory)
+        if plan.get("parent_run"):
+            from scripts.token_accounting import read_records
+
+            existing_records = read_records(directory / "usage.jsonl")
+            if not calls.journal.summary()["complete"]:
+                raise ValueError("E2_unknown_child_no_resume")
+            for key, sha in manifest["results"].items():
+                path = directory / f"question-{key}.json"
+                if dense.sha256_file(path) != sha:
+                    raise ValueError("E2_saved_result_changed")
+                saved_case = dense.read_json(path)
+                if key != case_key(
+                    saved_case["dataset"],
+                    saved_case["method"],
+                    saved_case["question_id"],
+                ):
+                    raise ValueError("E2_saved_case_identity_changed")
+                verify_saved_case(plan, directory, saved_case, existing_records)
         started_work = True
         source = dense.read_json(Path(plan["e1_plan"]))
         # Fully load BOTH dataset indexes before first HTTP, including graph/store
@@ -671,9 +1109,13 @@ def execute(
                     dense.read_json(raw / "queries.json"), data["question_ids"], "query"
                 )
                 for query in queries:
-                    key = target.digest([dataset, method, query["id"]])
+                    key = case_key(dataset, method, query["id"])
+                    if key in plan.get("parent_run", {}).get("cases", {}):
+                        continue  # Both completed answers AND the known failed reader are terminal cases.
                     result_path = directory / f"question-{key}.json"
                     if key in manifest["results"]:
+                        if plan.get("outcome_policy") == OUTCOME_POLICY:
+                            continue  # Verified above, no retrieval/filter/embedding/reader replay.
                         if dense.sha256_file(result_path) != manifest["results"][key]:
                             raise ValueError("E2_saved_result_changed")
                         # Validate every underlying completed request on replay;
@@ -710,15 +1152,22 @@ def execute(
                     dense.write_json_atomic(result_path, result)
                     manifest["results"][key] = dense.sha256_file(result_path)
                     manifest["token_accounting"] = calls.journal.reference()
-                    if result["status"] != "completed":
+                    fatal = result["status"] != "completed" and (
+                        plan.get("outcome_policy") != OUTCOME_POLICY
+                        or result.get("fatal", True)
+                    )
+                    if fatal:
                         manifest["status"] = "failed"
                     dense.write_json_atomic(mp, manifest)
-                    if result["status"] != "completed":
+                    if fatal:
                         return manifest
                     time.sleep(4)
         manifest["status"] = (
             "completed"
-            if len(manifest["results"]) == 60
+            if len(result_references(plan, manifest, directory))
+            == sum(
+                len(d["question_ids"]) * len(METHODS) for d in plan["datasets"].values()
+            )
             else "partial_completed_methods"
         )
         manifest["token_accounting"] = calls.journal.reference()
@@ -741,17 +1190,20 @@ def summary(plan, directory):
     Returns six aggregate rows plus private per-question scores/tracking payloads;
     no labels are returned to generation. This does not export to services.
     """
-    from scripts.token_accounting import verified_reference
-
     directory = Path(directory)
     manifest = dense.read_json(directory / "manifest.json")
     if manifest["plan_sha256"] != target.digest(plan):
         raise ValueError("E2_summary_config_changed")
-    reference = verified_reference(manifest, directory / "manifest.json")
-    if reference["status"] != "verified":
-        raise ValueError("E2_summary_journal_changed")
-    # verified_reference keeps a Path for local consumers; reports are JSON artifacts.
-    reference = {**reference, "path": str(reference["path"])}
+    from scripts.token_accounting import summarize
+
+    records, references = lineage_records(plan, directory, manifest)
+    reference = {
+        "status": "verified",
+        "path": str(directory / "usage.jsonl"),
+        "summary": summarize(records),
+        "lineage": references,
+    }
+    refs = result_references(plan, manifest, directory)
     source = dense.read_json(Path(plan["e1_plan"]))
     table, details = [], []
     for dataset, data in plan["datasets"].items():
@@ -768,23 +1220,36 @@ def summary(plan, directory):
             scored = []
             for qid in data["question_ids"]:
                 key = target.digest([dataset, method, qid])
-                path = directory / f"question-{key}.json"
-                if key in manifest["results"]:
-                    if dense.sha256_file(path) != manifest["results"][key]:
+                if key in refs:
+                    path, sha = refs[key]
+                    if dense.sha256_file(path) != sha:
                         raise ValueError("E2_result_changed")
                     result = dense.read_json(path)
+                    if (
+                        case_key(
+                            result["dataset"], result["method"], result["question_id"]
+                        )
+                        != key
+                    ):
+                        raise ValueError("E2_result_case_changed")
+                    result = {**result}
+                    if result["status"] == "failed":
+                        result["status"] = "attempted_failed"
                 else:
                     result = {
                         "question_id": qid,
                         "method": method,
                         "dataset": dataset,
-                        "status": "not_attempted_after_stop",
+                        "status": "not_attempted",
                         "answer": "",
                     }
                 scores = score_result(result, labels[qid])
                 scored.append({**result, "metrics": scores})
             details.extend(scored)
             complete = [r for r in scored if r["status"] == "completed"]
+            attempted = [r for r in scored if r["status"] != "not_attempted"]
+            failed = [r for r in scored if r["status"] == "attempted_failed"]
+            full = len(attempted) == len(scored)
             operations = [op for r in scored for op in r.get("operations", [])]
             usage = {}
             for op in operations:
@@ -820,19 +1285,34 @@ def summary(plan, directory):
                     "method": method,
                     "planned": len(scored),
                     "completed": len(complete),
+                    "attempted_failed": len(failed),
+                    "not_attempted": len(scored) - len(attempted),
+                    "comparison_complete": full,
+                    "failure_rate": len(failed) / len(attempted) if attempted else None,
                     "completion_rate": len(complete) / len(scored),
-                    "em": sum(r["metrics"]["em"] for r in scored) / len(scored),
-                    "f1": sum(r["metrics"]["f1"] for r in scored) / len(scored),
+                    "em": sum(r["metrics"]["em"] for r in attempted) / len(scored)
+                    if full
+                    else None,
+                    "f1": sum(r["metrics"]["f1"] for r in attempted) / len(scored)
+                    if full
+                    else None,
                     "passage_recall_at_5": sum(
-                        r["metrics"]["passage_recall_at_5"] for r in scored
+                        r["metrics"]["passage_recall_at_5"] for r in attempted
                     )
                     / len(scored)
-                    if method != "raptor"
+                    if method != "raptor" and full
                     else None,
                     "provenance_coverage": sum(
-                        r["metrics"]["supporting_provenance_coverage"] for r in scored
+                        r["metrics"]["supporting_provenance_coverage"]
+                        for r in attempted
                     )
-                    / len(scored),
+                    / len(scored)
+                    if full
+                    else None,
+                    "mean_attempted_seconds": sum(r["wall_seconds"] for r in attempted)
+                    / len(attempted)
+                    if attempted
+                    else None,
                     "mean_completed_seconds": sum(r["wall_seconds"] for r in complete)
                     / len(complete)
                     if complete
@@ -846,6 +1326,8 @@ def summary(plan, directory):
         "rows": table,
         "question_results": details,
         "physical_query_accounting": reference,
+        "comparison_complete": manifest["status"] == "completed"
+        and all(r["comparison_complete"] for r in table),
         "historical_E1_excluded": True,
     }
 
@@ -856,7 +1338,7 @@ def tracking_payload(plan, directory, dataset, method):
     Common journal belongs to this whole smoke run, not six extra costs; partition
     its records by exact question request identities for each exported config.
     """
-    from scripts.token_accounting import read_records, summarize
+    from scripts.token_accounting import summarize
 
     report = summary(plan, directory)
     rows = [
@@ -898,13 +1380,10 @@ def tracking_payload(plan, directory, dataset, method):
                 "retrieved_passages": row.get("retrieval", {}).get("passages", []),
             }
         )
-    phases = summarize(
-        [
-            r
-            for r in read_records(Path(directory) / "usage.jsonl")
-            if r.get("object_id") in keys
-        ]
+    physical, _ = lineage_records(
+        plan, directory, dense.read_json(Path(directory) / "manifest.json")
     )
+    phases = summarize([r for r in physical if r.get("object_id") in keys])
     aggregate = next(
         r for r in report["rows"] if r["dataset"] == dataset and r["method"] == method
     )
@@ -955,7 +1434,6 @@ def write_report(plan_path, directory, public_prefix):
     original pinned runtime and preserves its failed manifest/claims verbatim.
     """
     from collections import Counter
-    from scripts.token_accounting import read_records
 
     plan_path, directory, prefix = map(Path, (plan_path, directory, public_prefix))
     plan = dense.read_json(plan_path)
@@ -964,7 +1442,7 @@ def write_report(plan_path, directory, public_prefix):
     manifest = dense.read_json(manifest_path)
     report = summary(plan, directory)
     dense.write_json_atomic(directory / "evaluation.json", report)
-    records = read_records(directory / "usage.jsonl")
+    records, _ = lineage_records(plan, directory, manifest)
     started = [r for r in records if r["event"] == "started"]
     finished = [r for r in records if r["event"] == "finished"]
     rows = []
@@ -982,13 +1460,13 @@ def write_report(plan_path, directory, public_prefix):
                     "method": method,
                     "planned": len(data["question_ids"]),
                     "completed": counts["completed"],
-                    "failed": counts["failed"],
-                    "not_attempted_after_stop": counts["not_attempted_after_stop"],
+                    "attempted_failed": counts["attempted_failed"],
+                    "not_attempted": counts["not_attempted"],
                 }
             )
     failures = []
     for result in report["question_results"]:
-        if result["status"] != "failed":
+        if result["status"] != "attempted_failed":
             continue
         failure = {
             "dataset": result["dataset"],
@@ -997,8 +1475,12 @@ def write_report(plan_path, directory, public_prefix):
             "error": result.get("error"),
             "partial_response_accepted": False,
         }
+        producer = directory
+        key = case_key(result["dataset"], result["method"], result["question_id"])
+        if key in plan.get("parent_run", {}).get("cases", {}):
+            producer = Path(plan["parent_run"]["directory"])
         for op in result.get("operations", []):
-            response = directory / f"{op['journal_object_id']}.response.json"
+            response = producer / f"{op['journal_object_id']}.response.json"
             if op["status"] != "failed" or not response.exists():
                 continue
             body = dense.read_json(response)
@@ -1011,6 +1493,7 @@ def write_report(plan_path, directory, public_prefix):
         failures.append(failure)
     known = report["physical_query_accounting"]["summary"]["known_subtotal"]
     outcome_counts = Counter(r["status"] for r in report["question_results"])
+    e1_cost = dense.read_json(ROOT / "results/summary/e1-indexing.json")
     safe = {
         "schema_version": 1,
         "kind": "e2_smoke10",
@@ -1033,17 +1516,37 @@ def write_report(plan_path, directory, public_prefix):
         ],
         "new_unknown_attempts": sum(r["usage_status"] != "complete" for r in finished),
         "unfinished_attempts": len(started) - len(finished),
-        "remaining_original_tokens": plan["max_combined_tokens"] - sum(known.values()),
-        "remaining_original_posts": plan["max_posts"] - len(started),
+        "remaining_original_tokens": plan.get(
+            "original_remaining_tokens", plan["max_combined_tokens"]
+        )
+        - sum(manifest["token_accounting"]["summary"]["known_subtotal"].values())
+        if manifest["token_accounting"]["summary"]["complete"]
+        else None,
+        "remaining_original_posts": plan.get(
+            "original_remaining_posts", plan["max_posts"]
+        )
+        - manifest["token_accounting"]["summary"]["attempts"],
+        "new_model_posts": manifest["token_accounting"]["summary"]["attempts"],
+        "physical_lineage": report["physical_query_accounting"]["lineage"],
         "failures": failures,
+        "comparison_complete": report["comparison_complete"],
         "comparative_metrics": report["rows"]
-        if manifest["status"] == "completed"
+        if report["comparison_complete"]
         else None,
         "tracking": dense.read_json(directory / "tracking/receipt.json")
         if (directory / "tracking/receipt.json").exists()
         else None,
         "continuation_authorized": False,
         "e1_historical_cost_excluded": True,
+        "e1_historical_cost": {
+            "physical_known_tokens": e1_cost["physical_known_tokens"],
+            "unknown_reserved_upper_bound": e1_cost["budget_charge_upper_bound"]
+            - e1_cost["physical_known_tokens"],
+            "cost_complete": e1_cost["cost_complete"],
+            "source_sha256": dense.sha256_file(
+                ROOT / "results/summary/e1-indexing.json"
+            ),
+        },
         "limitations": "development smoke only; failed run is not a completed comparison; E1 unknown61588 remains separate",
     }
     dense.write_json_atomic(prefix.with_suffix(".json"), safe)
@@ -1057,7 +1560,7 @@ def write_report(plan_path, directory, public_prefix):
     ]
     for r in rows:
         lines.append(
-            f"| {r['dataset']} | {r['method']} | {r['planned']} | {r['completed']} | {r['failed']} | {r['not_attempted_after_stop']} |"
+            f"| {r['dataset']} | {r['method']} | {r['planned']} | {r['completed']} | {r['attempted_failed']} | {r['not_attempted']} |"
         )
     lines.extend(
         [
@@ -1073,13 +1576,25 @@ def write_report(plan_path, directory, public_prefix):
         lines.extend(
             [
                 "",
-                f"Первый stop: {f['method']}/{f['dataset']}/{f['question_id']}; {f.get('operation')} finish_reason={f.get('finish_reason')}. Partial response не принят.",
+                f"Attempted failure: {f['method']}/{f['dataset']}/{f['question_id']}; {f.get('operation')} finish_reason={f.get('finish_reason')}. Partial response не принят.",
             ]
         )
+    if report["comparison_complete"]:
+        lines.extend(
+            [
+                "",
+                "| Dataset | Method | EM | F1 | Failure rate | Mean attempted seconds | Usage by model (LLM in/out; embedding) |",
+                "|---|---|---:|---:|---:|---:|---|",
+            ]
+        )
+        for r in report["rows"]:
+            lines.append(
+                f"| {r['dataset']} | {r['method']} | {r['em']:.4f} | {r['f1']:.4f} | {r['failure_rate']:.4f} | {r['mean_attempted_seconds']:.3f} | {json.dumps(r['logical_usage_by_model'], ensure_ascii=False)} |"
+            )
     lines.extend(
         [
             "",
-            "При failed сравнительные F1/EM не публикуются: это техническая остановка, не полный E2. Полная declared-denominator оценка выбранных tuning IDs сохранена только в private evaluation.json.",
+            "Completed и attempted_failed входят в завершённый denominator; attempted_failed даёт EM/F1=0. Not_attempted не считается неправильным ответом: сравнение с такими случаями неполное, EM/F1=null. Это development smoke, не pilot200.",
             "E1 known32601955/unknown reserve61588 и все6индексов сохранены отдельно. В Git нет gold/сырого ответа/корпуса. Refs #14; без pilot200/QA holdout/merge.",
             "",
             f"Данные: [{prefix.name}.json]({prefix.name}.json). Private raw: `{directory}`.",

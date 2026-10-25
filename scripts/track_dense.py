@@ -64,7 +64,10 @@ def verify_langfuse_trace(observations, payload):
         "retrieval",
         "generation",
     }
-    if payload.get("system") == "hipporag2":
+    if (
+        payload.get("system") == "hipporag2"
+        and payload.get("manifest", {}).get("mode") != "e2-smoke10"
+    ):
         expected_names.add("indexing")
         if any(
             name.startswith("openie_")

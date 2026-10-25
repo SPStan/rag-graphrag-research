@@ -4,6 +4,8 @@ import tempfile
 import unittest
 from types import SimpleNamespace
 
+import pytest
+
 from scripts.track_dense import (
     get_all_langfuse_observations,
     prepare_payload,
@@ -305,3 +307,35 @@ class DenseTrackingPayloadTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_query_only_hippo_tracking_does_not_require_indexing_span():
+    payload = {
+        "system": "hipporag2",
+        "run_id": "query-only",
+        "manifest": {"mode": "e2-smoke10"},
+        "rows": [{"prompt_tokens": 10, "completion_tokens": 3}],
+        "questions": [{"retrieved_passages": [{"text": "saved passage"}]}],
+    }
+    observations = [
+        SimpleNamespace(
+            name="dense-rag-run", metadata={"run_id": "query-only"}, input={}, output={}
+        ),
+        SimpleNamespace(name="question", input={}, output={}),
+        SimpleNamespace(name="query-embedding", input={}, output={}),
+        SimpleNamespace(
+            name="retrieval",
+            input={},
+            output={"documents": [{"text": "saved passage"}]},
+        ),
+        SimpleNamespace(
+            name="generation",
+            input={},
+            output={},
+            usage_details={"input": 10, "output": 3},
+        ),
+    ]
+    assert verify_langfuse_trace(observations, payload)["retrieved_passages"] == 1
+    payload["manifest"]["mode"] = "local-poc"
+    with pytest.raises(RuntimeError, match="missing expected"):
+        verify_langfuse_trace(observations, payload)

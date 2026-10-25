@@ -5,6 +5,81 @@
 Draft PR33/f8b9bb8; собственный diff считается к `codex/e1-indexing`.
 После merge33 базу отдельного Draft PR нужно перевести на master. PR33 не меняется.
 
+## Текущий блок: reader-outcome policy v2, только offline
+
+Новый [план продолжения](../results/summary/e2-smoke10-continuation-plan.json)
+закреплён на тех же20ordered tuning IDs/6индексах. Исполнение **не разрешено**.
+Изменение политики принято текущим поручением, новый API budget допуск отдельный.
+Исходные результаты/план8d9ce08b…7cb97 и расходы не переписываются.
+
+- Reader response с полным известным usage и length/empty/unusable/parser failure:
+  `attempted_failed`, без повторного запроса, остальные случаи продолжаются.
+- Unknown usage/transport/HTTP/infra/budget/data/config/pin mismatch: остановка.
+- Hippo fact filter прежний: ошибки/length/malformed — остановка; valid empty→DPR.
+- Reader/model/prompt/cap512/top5/evaluator/BGE и корпуса не меняются. AST функций
+  формирования reader/embedding payload сверяется с исходным5dea658; metadata/pins
+  проверяют все методы и оба датасета до первого HTTP.
+- Child сохраняет3terminal parent cases (2completed/1length), вызывает только
+  оставшиеся57уникальных method/dataset/question tuples. Same question у другого
+  метода — другой case. Нет повторного retrieval/filter/embedding/reader при resume.
+- Parent terminal known journal и19file SHA проверяются до запуска/нового запроса;
+  canonical parent-child claim запрещает расходовать остаток повторным child.
+- Новые bounds134POST=57reader+≤20filter+57localembeddings,≤77LLM/57embedding.
+  Reserve3148544tokens≤3271113остатка; совокупно с5687parent≤3154231tokens,
+  ≤140POST. Retry0/redirect0, connect30/read300, source unknown0 сохранён.
+- Report объединяет60case keys и два physical journals один раз. `completed`,
+  `attempted_failed`, `not_attempted` отдельны; последние не считаются неправильными
+  ответами. При not_attempted в группе EM/F1=null; общее сравнение неполное,
+  comparative table не публикуется.
+  На completed smoke attempted_failed=0 в denominator10, failure rate отдельно,
+  mean attempted latency включает failures. Hippo filter usage входит в стоимость;
+  LLM input/output и local embedding раздельно, E1 остаётся отдельно incomplete.
+
+Подготовка через existing runner, без HTTP:
+
+```powershell
+python -m scripts.run_dense_target `
+  --shared-plan results/summary/e2-smoke10-continuation-plan.json `
+  --continue-shared-plan results/summary/e2-smoke10-plan.json `
+  --parent-output-dir results/raw/e2-smoke10-8d9ce08b
+```
+
+Для запуска после **отдельного** допуска: `--execute --shared-method dense|hipporag2|raptor`,
+один общий output `results/raw/e2-smoke10-continuation-v2`, exact new plan SHA и
+соответствующий existing SDK interpreter. Frozen SHA:
+`723a9993cfd710c8e958cc5ae422ca26dfce27b448acb6538b89f28b3990ffe6`.
+Новых model/embedding calls при подготовке0. Точный запуск всех3методов после допуска:
+
+```powershell
+$plan = 'results/summary/e2-smoke10-continuation-plan.json'
+$out = 'results/raw/e2-smoke10-continuation-v2'
+$sha = '723a9993cfd710c8e958cc5ae422ca26dfce27b448acb6538b89f28b3990ffe6'
+$runtime = [ordered]@{
+  dense = './.venv-check/Scripts/python.exe'
+  hipporag2 = 'C:/Users/Elisei/.codex/worktrees/template-alignment/Rag, GraphRAG/.cache/hipporag-sdk-venv/Scripts/python.exe'
+  raptor = 'C:/Users/Elisei/.codex/worktrees/dense-target-smoke/Rag, GraphRAG/.cache/raptor-venv/Scripts/python.exe'
+}
+foreach ($method in $runtime.Keys) {
+  & $runtime[$method] -m scripts.run_dense_target --shared-plan $plan --execute `
+    --shared-method $method --output-dir $out --approved-plan-sha256 $sha `
+    --env-file 'C:/Users/Elisei/Documents/ChatGPT/Rag, GraphRAG/.env.target-api' `
+    --hippo-source 'C:/Users/Elisei/.codex/worktrees/template-alignment/Rag, GraphRAG/.cache/hipporag-sdk-1438aba3' `
+    --raptor-source 'C:/Users/Elisei/.codex/worktrees/dense-target-smoke/Rag, GraphRAG/.cache/raptor-source'
+  if ($LASTEXITCODE -ne 0) { throw 'Execution stopped; no retry' }
+  $state = (Get-Content -LiteralPath "$out/manifest.json" -Raw | ConvertFrom-Json).status
+  if ($state -eq 'failed') { throw 'Fatal stop; do not start another method' }
+}
+./.venv-check/Scripts/python.exe -m scripts.run_dense_target --shared-plan $plan `
+  --output-dir $out --summarize-shared results/summary/e2-smoke10-continuation
+```
+
+`Get-Content` выше читает только atomic manifest после завершения процесса,
+никогда живой usage.jsonl. Native/transport tests заменяют endpoints synthetic
+sessions; реальный parent отдельно проверен с запрещённым HTTP, включая19pins и
+все6index artifacts. Новые тесты32+tracking regression=33passed/2SDKskips.
+Общая проверка выполняется обязательным commit hook на границе этого блока.
+Старые команды/ограничения v1 ниже — исторический протокол source run.
+
 ## Законченный блок
 
 - `run_dense_target --shared-plan` использует существующие E1 loaders,

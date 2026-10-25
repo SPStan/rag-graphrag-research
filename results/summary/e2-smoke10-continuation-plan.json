@@ -1,0 +1,606 @@
+{
+  "version": "e2-shared-e1-v2",
+  "mode": "smoke10_continuation_pending_approval",
+  "e1_workspace": "C:\\Users\\Elisei\\.codex\\worktrees\\dense-target-smoke\\Rag, GraphRAG",
+  "e1_plan": "C:\\Users\\Elisei\\.codex\\worktrees\\dense-target-smoke\\Rag, GraphRAG\\.cache\\e1-hotpot-local-recovery2-plan.json",
+  "e1_plan_sha256": "dafe33064f78d51cd7974a9200f33418511120a5b8c5cff730924f397fb61f37",
+  "datasets": {
+    "musique": {
+      "question_ids": [
+        "3hop1__593288_720914_27537",
+        "2hop__21104_16334",
+        "2hop__126306_396277",
+        "3hop1__9285_5188_86687",
+        "2hop__53147_7298",
+        "2hop__488811_30078",
+        "2hop__460091_405771",
+        "2hop__263728_705527",
+        "3hop1__90327_78276_68042",
+        "2hop__20256_74481"
+      ],
+      "ordered_ids_sha256": "17f32cb67819ec6aa8f09fc6636bd677d38464e3cdcd1023958ce055829107ad",
+      "queries_sha256": "2d44dea35fccd3cb584ea5e3dcff1d8ecfdb4099c2a8f8ce827a66daa83cfb09",
+      "corpus_sha256": "054338e3803fbe69f67037c58d2a49438572ffe2e8c8a047148a2dcdc100e44b",
+      "labels_sha256_evaluator_only": "76a36d30f3934c24ad5f7f5eaa6a67e4d26e30f2e29f7302f58d211ccb05da4a",
+      "split_sha256": "4a89a6215282ce8c51a6704b6153f9df404c0ae645286d88eab5f531fb65d64b",
+      "indexes": [
+        {
+          "method": "dense",
+          "e1_row": {
+            "method": "dense",
+            "dataset": "musique",
+            "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/dense/musique",
+            "corpus_fingerprint": "f726a739ff0def6f7517fe3185780fdc21e5d51a2cfcd83ce3f18fba277c9f9a"
+          },
+          "manifest_sha256": "dacea888db4d8c7720f612aad81cdb8832c05151a65828badf2d4e355e7a86c5",
+          "artifacts_sha256": "226e7cb5921807c1833d126ed31533fe3cf6c60445d63e100c19b37b9fc9a7b9",
+          "run_id": "72cc4f85-7656-44a2-87c0-bbb3df5df81c"
+        },
+        {
+          "method": "hipporag2",
+          "e1_row": {
+            "method": "hipporag2",
+            "dataset": "musique",
+            "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/hipporag2/musique-mixed-embed1",
+            "corpus_fingerprint": "f726a739ff0def6f7517fe3185780fdc21e5d51a2cfcd83ce3f18fba277c9f9a"
+          },
+          "manifest_sha256": "2a9c739b0e74901ec7a7cbb019f26e534e24d966114544e3d4fbd0f9be8ac888",
+          "artifacts_sha256": "3babe74563fb240f8546e9788310845f8196623a64a62e029b485f0388d0dce1",
+          "run_id": "1c12c3c8-3870-453b-813d-ba84498940a2"
+        },
+        {
+          "method": "raptor",
+          "e1_row": {
+            "method": "raptor",
+            "dataset": "musique",
+            "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/raptor/musique-cluster1",
+            "corpus_fingerprint": "f726a739ff0def6f7517fe3185780fdc21e5d51a2cfcd83ce3f18fba277c9f9a"
+          },
+          "manifest_sha256": "c57bd6e2bcbbfb3cb72c22925b7cfc5d1073167b6d40f184fc0b145c7774896b",
+          "artifacts_sha256": "4ff8f8b231db7282b42557b198da8227065545b78037324b5f3a1a61fa6bfb0f",
+          "run_id": "957006e6-5d60-43f6-990d-027851323111"
+        }
+      ]
+    },
+    "hotpotqa": {
+      "question_ids": [
+        "5abd882f55429924427fd045",
+        "5a78ed6855429970f5fffdd9",
+        "5a729cc25542991f9a20c532",
+        "5adc7f4a5542994650320d28",
+        "5a84e0a45542991dd0999e11",
+        "5a82edae55429966c78a6a9f",
+        "5a80ad205542992bc0c4a79d",
+        "5a7a9b9a5542990198eaf160",
+        "5adc3a7055429947ff173913",
+        "5a77c74155429967ab105291"
+      ],
+      "ordered_ids_sha256": "9549a5314486195e10414df51bc9ec0729fd203ec64aa25d47acc589ea89e3e9",
+      "queries_sha256": "125fe946f5cd98b4c4f3b402fdd203512b3fd7b86fc68af527867a7058e7eef5",
+      "corpus_sha256": "9b161e9bbfee6ecfe304816dcb847f8763c3d55b06dbf04d002726405e3e3c61",
+      "labels_sha256_evaluator_only": "42df93c1491eb7e41d46e7b562c0bad4352488ca8587c09d35eedee362875535",
+      "split_sha256": "197d0b06a78a799869538b012c3e01da7fb46b9d8c04815d1f5dd68fc7ffcb56",
+      "indexes": [
+        {
+          "method": "dense",
+          "e1_row": {
+            "method": "dense",
+            "dataset": "hotpotqa",
+            "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/dense/hotpotqa-continuation1",
+            "corpus_fingerprint": "1d6a33346c42cd2feae5cf71eb2c145121a74712eb51a86d95205983a4477634"
+          },
+          "manifest_sha256": "1d79a1efaaab5f1cf069011a235b3ee9959cdbfc1241455960efca1632760092",
+          "artifacts_sha256": "3d16db28fe713500bfe43b1887177d0e8a06a9ca4901498cfc23d54630dd4d4c",
+          "run_id": "f93e2e87-e6e8-4a3a-a2c0-2b88e1bf3319"
+        },
+        {
+          "method": "hipporag2",
+          "e1_row": {
+            "method": "hipporag2",
+            "dataset": "hotpotqa",
+            "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/hipporag2/hotpotqa-mixed-local2",
+            "corpus_fingerprint": "1d6a33346c42cd2feae5cf71eb2c145121a74712eb51a86d95205983a4477634"
+          },
+          "manifest_sha256": "ff7d8b702f9ba3076ec64b56369e1555b8ffc1bf35bd9f387619968d0972697d",
+          "artifacts_sha256": "70b3ccc7f61d7f76cfad60ac812b85a8190f92b958ea7a936daf6e5a4e564684",
+          "run_id": "822bed2d-86f1-4583-85f9-c61620952f04"
+        },
+        {
+          "method": "raptor",
+          "e1_row": {
+            "method": "raptor",
+            "dataset": "hotpotqa",
+            "output": "indexes/e1/edff74df-c567-49de-a834-f9f1fc6f7f74/raptor/hotpotqa-summary-network1",
+            "corpus_fingerprint": "1d6a33346c42cd2feae5cf71eb2c145121a74712eb51a86d95205983a4477634"
+          },
+          "manifest_sha256": "ccaccda5fd3541196af3afdaf365fde5d44e1e08f957e7ae852fbb9009b74042",
+          "artifacts_sha256": "bdbd380a96015c02fa5e4a728d1429af57329b0482ac685a01d13dcfae9e07df",
+          "run_id": "bb177a66-f03d-4a43-979e-d53c11821903"
+        }
+      ]
+    }
+  },
+  "code_sha256": {
+    "scripts/e2_evaluation.py": "5b5badf9b83246c1a811639ebae0790dc949ae868a58a9630f65d7d776fed40b",
+    "scripts/e1_indexers.py": "26ca8a006701b799d488df688a9210e152383f868e173b093558a8a1534dac81",
+    "scripts/run_dense.py": "b6cf8da3f987a1d7ad37ac16639ddf6a1f5523e8ccc0117ad015a423efaacaac",
+    "scripts/run_dense_target.py": "c14b80095c965dfa4b6adcadd96fa7e3a00f22fe5f568eb4100a259b5cb5ef70",
+    "scripts/run_e1.py": "ea921a6c4b747ea9e081c0421c5dd384ac21d7e78fd0568d501328a37a660e8b",
+    "scripts/evaluate_dense.py": "1e39159a7eb02bff83b7bd0fd04a6c062762e43554b7bf6e66caf7e95c47ccd7",
+    "scripts/answer_parser.py": "bed7477e2ca0ace452821e2adb13cf8b045aa6443617b141c13fadf18e56bf18",
+    "scripts/token_accounting.py": "3259f9db8afbf5abd2e0c083cdaf45b1e4d511ec30c49e284722e640e11ebf75",
+    "scripts/run_raptor_smoke.py": "9660b1a16461a79ba08245e16c58aedce32a3e0a0eb81425ce4ea164d610541c",
+    "scripts/vendor/hipporag2_musique_template.py": "fada8f3cffcd2b657f2eec268f46e5deafc09471d609ba6292a58e3baea79c51",
+    "scripts/preflight_hipporag_repair_prompts.py": "ef1b50e6339ebb1fd116ae740f541f2bf4af1e578e8877a820c6e163a09743f2",
+    "scripts/track_dense.py": "d3e87ff1be88959f2fd6db42467dc71da68a7bd162bb11518f7f4ac0b8f5f4da",
+    "scripts/evaluation_view.py": "b0504290b247f3dbf70be159e3bb54c2b9091f04fbb7f5f0014527399bd601a6"
+  },
+  "hippo_commit": "1438aba3fc44ff10573e5a5e1e7cc3c7f9794aff",
+  "raptor_commit": "7da1d48a7e1d7dec61a63c9d9aae84e2dfaa5767",
+  "embedding_digest": "7907646426070047a77226ac3e684fbbe8410524f7b4a74d02837e43f2146bab",
+  "embedding_model": "bge-m3:latest",
+  "reader_model": "iairlab/qwen3.8-27b",
+  "endpoint": "https://api.duckduck.cloud/v1",
+  "embedding_endpoint": "local Ollama /api/embed",
+  "reader_options": {
+    "temperature": 0,
+    "seed": 42,
+    "max_tokens": 512,
+    "stream": false,
+    "chat_template_kwargs": {
+      "enable_thinking": false
+    }
+  },
+  "reader_templates": {
+    "musique": "beb15da1f15193ee88f93cc25c96199d679ade1d652cd9c750cc10e63cbc6047",
+    "hotpotqa": "beb15da1f15193ee88f93cc25c96199d679ade1d652cd9c750cc10e63cbc6047"
+  },
+  "reader_template_policy": "existing MuSiQue one-shot unchanged for both datasets; not Hotpot-optimized",
+  "parser": "standalone-answer-line-v1",
+  "evaluator": "hipporag2-squad-normalization-answer-marker-v3",
+  "top_k": 5,
+  "context_order": "native descending retrieval order; no reranking by gold",
+  "message_utf8_bytes_limit": 32000,
+  "overflow": "stop_without_truncation",
+  "query_utf8_bytes_limit": 4096,
+  "hippo": {
+    "linking_top_k": 5,
+    "passage_node_weight": 0.05,
+    "damping": 0.5,
+    "filter_cap": 512,
+    "filter": "pinned DSPyFilter; malformed/transport failure fatal; valid empty -> DPR",
+    "query_instruction_mode": "ignored; one normalized BGE vector for fact and passage"
+  },
+  "max_posts": 134,
+  "max_llm_posts": 77,
+  "max_embedding_posts": 57,
+  "max_combined_tokens": 3148544,
+  "reader_calls": 57,
+  "filter_calls": 20,
+  "reserve_rule": "UTF8 serialized payload bytes + 2048 + max_tokens; 1024 bytes envelope allowance; conservative reservation, not measured tokenizer counts",
+  "attempts_per_request": 1,
+  "retry": 0,
+  "redirects": 0,
+  "timeout": [
+    30,
+    300
+  ],
+  "failures": "known reader length/empty/unusable -> attempted_failed, no retry, continue; filter/transport/unknown/budget/pin/infrastructure -> stop",
+  "cache": "3 immutable parent cases reused by exact identity; reader failure retained; no replay of any attempted case",
+  "cost": "new physical query usage separate from logical replay and E1 known32601955/unknown61588; no tariffs",
+  "tokenizer_cache": {
+    "directory": "C:\\Users\\Elisei\\.codex\\worktrees\\dense-target-smoke\\Rag, GraphRAG\\.cache\\tiktoken",
+    "sha256": {
+      "9b5ad71b2ce5302211f9c61530b329a4922fc6a4": "223921b76ee99bde995b7ff738513eef100fb51d18c93597a113bcffe865b2a7"
+    }
+  },
+  "http_authorized": false,
+  "outcome_policy": "reader_known_response_failure_continue_v2",
+  "parent_run": {
+    "plan": "C:\\Users\\Elisei\\.codex\\worktrees\\e2-shared-evaluation\\Rag, GraphRAG\\results\\summary\\e2-smoke10-plan.json",
+    "directory": "C:\\Users\\Elisei\\.codex\\worktrees\\e2-shared-evaluation\\Rag, GraphRAG\\results\\raw\\e2-smoke10-8d9ce08b",
+    "run_id": "e4bd76e8-e779-48b0-9e02-b7746ed866d2",
+    "files": {
+      "C:\\Users\\Elisei\\.codex\\worktrees\\e2-shared-evaluation\\Rag, GraphRAG\\results\\summary\\e2-smoke10-plan.json": "8d9ce08b71255ef619a84299da5001096de8da2186de40988e4507da36d7cb97",
+      "C:\\Users\\Elisei\\.codex\\worktrees\\e2-shared-evaluation\\Rag, GraphRAG\\results\\raw\\e2-smoke10-8d9ce08b\\manifest.json": "10518f35d13773196dfc1a695224d2cf310237cb2d68323306ae655d526b5797",
+      "C:\\Users\\Elisei\\.codex\\worktrees\\e2-shared-evaluation\\Rag, GraphRAG\\results\\raw\\e2-smoke10-8d9ce08b\\usage.jsonl": "7ade115d11b92361d5f7e934987c4558a408e4f76f8ba660bf2e4384ce0fb361",
+      "C:\\Users\\Elisei\\.codex\\worktrees\\dense-target-smoke\\Rag, GraphRAG\\.cache\\e2-01d70cd178573becfaf3a1702dca1ae4874706af2905972baea5f4a4f4ad1289.claim.json": "3e22dd864ada6ee6476f023cc4e7b9ce3c08b454742f7ceb6d834b36541e7c67",
+      "C:\\Users\\Elisei\\.codex\\worktrees\\e2-shared-evaluation\\Rag, GraphRAG\\results\\raw\\e2-smoke10-8d9ce08b\\question-4bfaf06311a75b56bec2adff44645cac5ab56063f57cf65af602e3ab7604dc93.json": "f81bc8255bb848af0f4851b627d75ff4a269beedf0122dca94ac5c5a901e1941",
+      "C:\\Users\\Elisei\\.codex\\worktrees\\e2-shared-evaluation\\Rag, GraphRAG\\results\\raw\\e2-smoke10-8d9ce08b\\98dc5532ec22eabf9d02636ef66d29321c1add33d6d7f3a234ca305353036820.json": "6b22ae880f19bc5bfefb62c1f4f7a301d2e6a7db7b03a8ce7c6403ec6fef7a69",
+      "C:\\Users\\Elisei\\.codex\\worktrees\\e2-shared-evaluation\\Rag, GraphRAG\\results\\raw\\e2-smoke10-8d9ce08b\\98dc5532ec22eabf9d02636ef66d29321c1add33d6d7f3a234ca305353036820.response.json": "85c37f897cbab56872c175df1748ea3ffbaace9df0ff15127aafca6e95749b3f",
+      "C:\\Users\\Elisei\\.codex\\worktrees\\e2-shared-evaluation\\Rag, GraphRAG\\results\\raw\\e2-smoke10-8d9ce08b\\b704cc9e621616eebda8a73d31f180ea017c8979778bdcc0d2dddf727764752e.json": "a0b05e3d41ad071e5405a64eb6ea1a12d2d38a7d93df290d0ee52f4501dd8683",
+      "C:\\Users\\Elisei\\.codex\\worktrees\\e2-shared-evaluation\\Rag, GraphRAG\\results\\raw\\e2-smoke10-8d9ce08b\\b704cc9e621616eebda8a73d31f180ea017c8979778bdcc0d2dddf727764752e.response.json": "ac2d1727f5e5b4ce74baedf644ce3d44c622c0223f58e3e5e291af5f28bd6956",
+      "C:\\Users\\Elisei\\.codex\\worktrees\\e2-shared-evaluation\\Rag, GraphRAG\\results\\raw\\e2-smoke10-8d9ce08b\\question-f1d573e0cd09ea5902361fdeac4c8a49f78b0631d10db1bf739d16e4d2f38518.json": "f57fc3fb08bafcc9df4b530e3a28908107fe65ce2a8699b1d29447d9352cd470",
+      "C:\\Users\\Elisei\\.codex\\worktrees\\e2-shared-evaluation\\Rag, GraphRAG\\results\\raw\\e2-smoke10-8d9ce08b\\a762347658df5db2c807153be7bd497dc62ad0a3a68e66abfa5b419c40268586.json": "85f73e9a17f3b3c96d57ea576f43180a57f30d41b1e8f674d46eceb1349badbd",
+      "C:\\Users\\Elisei\\.codex\\worktrees\\e2-shared-evaluation\\Rag, GraphRAG\\results\\raw\\e2-smoke10-8d9ce08b\\a762347658df5db2c807153be7bd497dc62ad0a3a68e66abfa5b419c40268586.response.json": "8b864a2fd96a6c1803047cac7f576a84a5cdd13fa8a2af6f245bd09d61d76035",
+      "C:\\Users\\Elisei\\.codex\\worktrees\\e2-shared-evaluation\\Rag, GraphRAG\\results\\raw\\e2-smoke10-8d9ce08b\\9f7e7d82c7b3434754da4b1f860ce4e0940858c6282afea73f7e8e2b7ae149d6.json": "5825fdc195a8933c9840a9be6e0d2ec1e112a8b2ae955a182e82b6476844b64d",
+      "C:\\Users\\Elisei\\.codex\\worktrees\\e2-shared-evaluation\\Rag, GraphRAG\\results\\raw\\e2-smoke10-8d9ce08b\\9f7e7d82c7b3434754da4b1f860ce4e0940858c6282afea73f7e8e2b7ae149d6.response.json": "5072aeb1cbd4d3f37166d7c1478e8123a3f42f437dfb9c8cf344eaadd7add229",
+      "C:\\Users\\Elisei\\.codex\\worktrees\\e2-shared-evaluation\\Rag, GraphRAG\\results\\raw\\e2-smoke10-8d9ce08b\\question-4c62a0e8f9fe2a146af76e2bf6890ba5c7da8ab986ea6f1e58869bc0d412ba40.json": "c755a137c92198261d230a19454da6ddb1441ad7a8dcc8dfc4c83e72ab285df9",
+      "C:\\Users\\Elisei\\.codex\\worktrees\\e2-shared-evaluation\\Rag, GraphRAG\\results\\raw\\e2-smoke10-8d9ce08b\\8566c218d5f7b93d9865c0661443f1f424874c7e6c9cc1404dfdd231f988f18c.json": "40c7ee35918d1015e3dcb89fb5b08b08d40e395006f18916cd37c051e87a8a01",
+      "C:\\Users\\Elisei\\.codex\\worktrees\\e2-shared-evaluation\\Rag, GraphRAG\\results\\raw\\e2-smoke10-8d9ce08b\\8566c218d5f7b93d9865c0661443f1f424874c7e6c9cc1404dfdd231f988f18c.response.json": "802d9dbad224976b183cac36c160c975827b0a8e0b7fce0eee1c047f625bedc0",
+      "C:\\Users\\Elisei\\.codex\\worktrees\\e2-shared-evaluation\\Rag, GraphRAG\\results\\raw\\e2-smoke10-8d9ce08b\\0b9d40860656183901f01f83f5b9514a8d73435a41ab02c6235931822f336914.json": "40bbab2c5f4e797fcc157ef6281f6f8d5ade9946cb087066e4cbf51f6f0b77f0",
+      "C:\\Users\\Elisei\\.codex\\worktrees\\e2-shared-evaluation\\Rag, GraphRAG\\results\\raw\\e2-smoke10-8d9ce08b\\0b9d40860656183901f01f83f5b9514a8d73435a41ab02c6235931822f336914.response.json": "5bddea9322b60fb8b1b8939f96fe90303ddc8da0c285187f41f78160156bc188"
+    },
+    "cases": {
+      "4bfaf06311a75b56bec2adff44645cac5ab56063f57cf65af602e3ab7604dc93": {
+        "path": "C:\\Users\\Elisei\\.codex\\worktrees\\e2-shared-evaluation\\Rag, GraphRAG\\results\\raw\\e2-smoke10-8d9ce08b\\question-4bfaf06311a75b56bec2adff44645cac5ab56063f57cf65af602e3ab7604dc93.json",
+        "sha256": "f81bc8255bb848af0f4851b627d75ff4a269beedf0122dca94ac5c5a901e1941",
+        "dataset": "musique",
+        "method": "dense",
+        "question_id": "3hop1__593288_720914_27537",
+        "status": "completed"
+      },
+      "f1d573e0cd09ea5902361fdeac4c8a49f78b0631d10db1bf739d16e4d2f38518": {
+        "path": "C:\\Users\\Elisei\\.codex\\worktrees\\e2-shared-evaluation\\Rag, GraphRAG\\results\\raw\\e2-smoke10-8d9ce08b\\question-f1d573e0cd09ea5902361fdeac4c8a49f78b0631d10db1bf739d16e4d2f38518.json",
+        "sha256": "f57fc3fb08bafcc9df4b530e3a28908107fe65ce2a8699b1d29447d9352cd470",
+        "dataset": "musique",
+        "method": "dense",
+        "question_id": "2hop__21104_16334",
+        "status": "completed"
+      },
+      "4c62a0e8f9fe2a146af76e2bf6890ba5c7da8ab986ea6f1e58869bc0d412ba40": {
+        "path": "C:\\Users\\Elisei\\.codex\\worktrees\\e2-shared-evaluation\\Rag, GraphRAG\\results\\raw\\e2-smoke10-8d9ce08b\\question-4c62a0e8f9fe2a146af76e2bf6890ba5c7da8ab986ea6f1e58869bc0d412ba40.json",
+        "sha256": "c755a137c92198261d230a19454da6ddb1441ad7a8dcc8dfc4c83e72ab285df9",
+        "dataset": "musique",
+        "method": "dense",
+        "question_id": "2hop__126306_396277",
+        "status": "attempted_failed"
+      }
+    },
+    "summary": {
+      "schema_version": 1,
+      "phases": [
+        {
+          "phase": "reader",
+          "provider": "target_api",
+          "attempts": 3,
+          "errors": 0,
+          "unfinished": 0,
+          "cache_hits": 0,
+          "cache_provenance_unknown": 0,
+          "known_subtotal": {
+            "llm_input_tokens": 4516,
+            "llm_output_tokens": 1102,
+            "embedding_input_tokens": 0
+          },
+          "unknown_fields": {
+            "llm_input_tokens": 0,
+            "llm_output_tokens": 0,
+            "embedding_input_tokens": 0
+          },
+          "complete": true,
+          "total": {
+            "llm_input_tokens": 4516,
+            "llm_output_tokens": 1102,
+            "embedding_input_tokens": 0
+          }
+        },
+        {
+          "phase": "retrieval",
+          "provider": "local_ollama",
+          "attempts": 3,
+          "errors": 0,
+          "unfinished": 0,
+          "cache_hits": 0,
+          "cache_provenance_unknown": 0,
+          "known_subtotal": {
+            "llm_input_tokens": 0,
+            "llm_output_tokens": 0,
+            "embedding_input_tokens": 69
+          },
+          "unknown_fields": {
+            "llm_input_tokens": 0,
+            "llm_output_tokens": 0,
+            "embedding_input_tokens": 0
+          },
+          "complete": true,
+          "total": {
+            "llm_input_tokens": 0,
+            "llm_output_tokens": 0,
+            "embedding_input_tokens": 69
+          }
+        }
+      ],
+      "known_subtotal": {
+        "llm_input_tokens": 4516,
+        "llm_output_tokens": 1102,
+        "embedding_input_tokens": 69
+      },
+      "complete": true,
+      "attempts": 6,
+      "historical_cache_cost_complete": true,
+      "journal_corrupt_tail": false,
+      "corrupt_tail_bytes": 0
+    },
+    "runtime_commit": "5dea658aec9e8f5c4a7dd1bc441bb690608a1294"
+  },
+  "remaining_cases": [
+    {
+      "dataset": "musique",
+      "method": "dense",
+      "question_id": "3hop1__9285_5188_86687"
+    },
+    {
+      "dataset": "musique",
+      "method": "dense",
+      "question_id": "2hop__53147_7298"
+    },
+    {
+      "dataset": "musique",
+      "method": "dense",
+      "question_id": "2hop__488811_30078"
+    },
+    {
+      "dataset": "musique",
+      "method": "dense",
+      "question_id": "2hop__460091_405771"
+    },
+    {
+      "dataset": "musique",
+      "method": "dense",
+      "question_id": "2hop__263728_705527"
+    },
+    {
+      "dataset": "musique",
+      "method": "dense",
+      "question_id": "3hop1__90327_78276_68042"
+    },
+    {
+      "dataset": "musique",
+      "method": "dense",
+      "question_id": "2hop__20256_74481"
+    },
+    {
+      "dataset": "musique",
+      "method": "hipporag2",
+      "question_id": "3hop1__593288_720914_27537"
+    },
+    {
+      "dataset": "musique",
+      "method": "hipporag2",
+      "question_id": "2hop__21104_16334"
+    },
+    {
+      "dataset": "musique",
+      "method": "hipporag2",
+      "question_id": "2hop__126306_396277"
+    },
+    {
+      "dataset": "musique",
+      "method": "hipporag2",
+      "question_id": "3hop1__9285_5188_86687"
+    },
+    {
+      "dataset": "musique",
+      "method": "hipporag2",
+      "question_id": "2hop__53147_7298"
+    },
+    {
+      "dataset": "musique",
+      "method": "hipporag2",
+      "question_id": "2hop__488811_30078"
+    },
+    {
+      "dataset": "musique",
+      "method": "hipporag2",
+      "question_id": "2hop__460091_405771"
+    },
+    {
+      "dataset": "musique",
+      "method": "hipporag2",
+      "question_id": "2hop__263728_705527"
+    },
+    {
+      "dataset": "musique",
+      "method": "hipporag2",
+      "question_id": "3hop1__90327_78276_68042"
+    },
+    {
+      "dataset": "musique",
+      "method": "hipporag2",
+      "question_id": "2hop__20256_74481"
+    },
+    {
+      "dataset": "musique",
+      "method": "raptor",
+      "question_id": "3hop1__593288_720914_27537"
+    },
+    {
+      "dataset": "musique",
+      "method": "raptor",
+      "question_id": "2hop__21104_16334"
+    },
+    {
+      "dataset": "musique",
+      "method": "raptor",
+      "question_id": "2hop__126306_396277"
+    },
+    {
+      "dataset": "musique",
+      "method": "raptor",
+      "question_id": "3hop1__9285_5188_86687"
+    },
+    {
+      "dataset": "musique",
+      "method": "raptor",
+      "question_id": "2hop__53147_7298"
+    },
+    {
+      "dataset": "musique",
+      "method": "raptor",
+      "question_id": "2hop__488811_30078"
+    },
+    {
+      "dataset": "musique",
+      "method": "raptor",
+      "question_id": "2hop__460091_405771"
+    },
+    {
+      "dataset": "musique",
+      "method": "raptor",
+      "question_id": "2hop__263728_705527"
+    },
+    {
+      "dataset": "musique",
+      "method": "raptor",
+      "question_id": "3hop1__90327_78276_68042"
+    },
+    {
+      "dataset": "musique",
+      "method": "raptor",
+      "question_id": "2hop__20256_74481"
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "dense",
+      "question_id": "5abd882f55429924427fd045"
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "dense",
+      "question_id": "5a78ed6855429970f5fffdd9"
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "dense",
+      "question_id": "5a729cc25542991f9a20c532"
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "dense",
+      "question_id": "5adc7f4a5542994650320d28"
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "dense",
+      "question_id": "5a84e0a45542991dd0999e11"
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "dense",
+      "question_id": "5a82edae55429966c78a6a9f"
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "dense",
+      "question_id": "5a80ad205542992bc0c4a79d"
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "dense",
+      "question_id": "5a7a9b9a5542990198eaf160"
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "dense",
+      "question_id": "5adc3a7055429947ff173913"
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "dense",
+      "question_id": "5a77c74155429967ab105291"
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "hipporag2",
+      "question_id": "5abd882f55429924427fd045"
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "hipporag2",
+      "question_id": "5a78ed6855429970f5fffdd9"
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "hipporag2",
+      "question_id": "5a729cc25542991f9a20c532"
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "hipporag2",
+      "question_id": "5adc7f4a5542994650320d28"
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "hipporag2",
+      "question_id": "5a84e0a45542991dd0999e11"
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "hipporag2",
+      "question_id": "5a82edae55429966c78a6a9f"
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "hipporag2",
+      "question_id": "5a80ad205542992bc0c4a79d"
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "hipporag2",
+      "question_id": "5a7a9b9a5542990198eaf160"
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "hipporag2",
+      "question_id": "5adc3a7055429947ff173913"
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "hipporag2",
+      "question_id": "5a77c74155429967ab105291"
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "raptor",
+      "question_id": "5abd882f55429924427fd045"
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "raptor",
+      "question_id": "5a78ed6855429970f5fffdd9"
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "raptor",
+      "question_id": "5a729cc25542991f9a20c532"
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "raptor",
+      "question_id": "5adc7f4a5542994650320d28"
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "raptor",
+      "question_id": "5a84e0a45542991dd0999e11"
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "raptor",
+      "question_id": "5a82edae55429966c78a6a9f"
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "raptor",
+      "question_id": "5a80ad205542992bc0c4a79d"
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "raptor",
+      "question_id": "5a7a9b9a5542990198eaf160"
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "raptor",
+      "question_id": "5adc3a7055429947ff173913"
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "raptor",
+      "question_id": "5a77c74155429967ab105291"
+    }
+  ],
+  "original_remaining_tokens": 3271113,
+  "original_remaining_posts": 134
+}

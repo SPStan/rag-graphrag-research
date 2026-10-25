@@ -2,32 +2,35 @@
 
 **E1 status:** 6/6 indexes completed under the structural protocol; physical known tokens=32601955; cost_complete=False; unknown reserve61588 preserved. Final audit/verify completed; monitoring paused.
 
-## Текущая очередь — 25 октября: smoke10 остановлен на reader length
+## Текущая очередь — 25 октября: continuation v2 готов offline
 
-- Пользователь разрешил exact plan8d9ce08b…7cb97; runtime5dea658.
-  Run `e4bd76e8-e779-48b0-9e02-b7746ed866d2`, private
-  `results/raw/e2-smoke10-8d9ce08b` в E2 worktree; terminal failed, worker завершён.
-- Dense MuSiQue:2completed/1failed/7not-attempted. На3-м вопросе reader
-  finish_reason=length, output512, reasoning_tokens0. Partial answer не принят.
-  Остальные5конфигураций не запускались. Это не завершённое сравнение/E2.
-- Новых6modelPOST(3Qwen/3localBGE), input4516/output1102/embed69=5687known.
-  Query usage complete, unknown/unfinished0. Original остаток3271113tokens/134POST.
-  Старый failed manifest/claims/ответы/план неизменны; повторов нет.
-- Оценщик выбранных tuning ID и local post-hoc tracking выполнены. MLflow
-  264300a75ed74af08af3d686bf1dc141, Langfuse efe3632f0793e409922ac0054cc93adf:
-  3attempts/15retrieved passages, usage4516/1102 подтверждён;4artifacts readback SHA.
-- После остановки исправлена JSON serialization отчёта (Path→str), добавлен
-  `--summarize-shared` в существующий runner. Он генерирует
-  [безопасную сводку](../results/summary/e2-smoke10.md), не запускает модели и
-  не переписывает source manifest. Original code pins относятся к5dea658,
-  текущий post-processing не является разрешением resume по старому SHA.
-- Следующий блок — offline предложение политики reader length и проверяемого
-  child/lineage: можно сохранить length как failed outcome и оценить остальные
-  57ID без повторной оплаты, не меняя reader. Это пока предложение, не допуск;
-  исходный план предписывал стоп. Не повышать cap/не менять prompt по F1 автоматически.
-- PR35 Draft/Refs #14 зависит от PR33/f8b9bb8; без pilot200/holdout/7B/merge.
-  Все6 E1 manifest SHA/2usedDense vector SHA неизменны, E1 unknown61588 сохранён.
-  E1 automation PAUSED/recovery2/2, не возобновлять.
+- PR35/codex/e2-shared-evaluation: исходный run e4bd76e8…66d2 и план8d9ce08b…7cb97
+  неизменны (2completed/1reader length/57not-attempted,5687known/6POST/unknown0).
+- v2: только известный завершённый reader length/empty/unusable/parser failure —
+  attempted_failed без retry, очередь продолжается. Unknown/budget/pin/config/
+  transport/инфраструктура — fatal stop. Fact filter Hippo по-прежнему строгий:
+  length/malformed/error стоп; корректный empty facts даёт штатный DPR fallback.
+- В existing runner добавлены offline child plan,19parent-file SHA, точная проверка
+  ID/model/options/index/evaluator/generation functions. Два completed результата и
+  исходный failed-case остаются у parent, runtime пропускает все3 без новых calls.
+- Child должен выполнить ровно57других пар method/dataset/question:
+  ≤134newPOST (57reader/≤20filter/57localBGE),≤77LLM/57embedding,
+  резерв3148544tokens из3271113; parent5687/6POST учитывается один раз.
+- Resume проверяет результат/ответ/usage по SHA и журналу, не выполняет retrieval/
+  filter/embedding/reader для уже учтённого случая. Failed run не перезапускается.
+  Canonical parent-child claim запрещает второй child для обхода остатка бюджета.
+- Synthetic runner/CLI тест:60уникальных случаев, reader failures не блокируют
+  следующий случай, повторный запуск не добавляет ни POST, ни cost. Fatal gates
+  и строгий Hippo filter проверены. Реальные новые model/embedding requests0.
+- Отчёт v2 не превращает not_attempted в ошибку: EM/F1=null при неполной группе,
+  общая таблица только при завершённом smoke; attempted_failed=0 в denominator10,
+  failure rate и mean attempted latency, фильтр Hippo и embeddings отдельно.
+- Frozen plan `results/summary/e2-smoke10-continuation-plan.json`, SHA
+  723a9993cfd710c8e958cc5ae422ca26dfce27b448acb6538b89f28b3990ffe6.
+  Реальный parent/all6E1 проверены offline; originals immutable. Целевые проверки:
+  33passed/2SDKskips; whole runner60cases/unknown/budget/model/pin/filter/resume.
+  Следующее — отдельное разрешение на этот exact SHA; старый допуск v2 не покрывает.
+  Pilot200/S500/check/holdout/смена reader/моделей/E1/rebuild/merge не разрешены.
 
 ## Предыдущий законченный блок E1 (справка)
 
