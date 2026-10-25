@@ -2,28 +2,35 @@
 
 **E1 status:** 6/6 indexes completed under the structural protocol; physical known tokens=32601955; cost_complete=False; unknown reserve61588 preserved. Final audit/verify completed; monitoring paused.
 
-## Текущая очередь — 25 октября: answer-only probe готов offline
+## Текущая очередь — 25 октября: answer-only diagnostic завершён
 
-- На HEAD9460b0e smoke10 закончен:43completed/17reader length/0not_attempted,
-  total209108known/140POST/unknown0. Результаты v2 и индексы неизменны.
-- Client formatting/retry defect не найден. Старый system/example/user suffix
-  явно требуют Thought;17length имеют reported reasoning_tokens0. Гипотеза:
-  запрос подробного plain-text reasoning конфликтует с cap512, причина не доказана.
-- Единственный кандидат shared-answer-only-v1: прежние Qwen/temp0/seed42/
-  thinkingfalse/cap512, context order/top5/parser; меняется только answer contract:
-  без Thought и demonstration reasoning, одна строка Answer. Для всех методов одинаково.
-- Exact private plan `.cache/e2-answer-only-diagnostic-plan.json`, SHA
-  `1b816118b0f2b5574abeb1e384fcde61a391f6bca9fe45a78b00a2649a71cf8b`;347source pins и12точных payload.
-  По2status-selected tuning IDs/dataset ×3метода, без gold/F1/новой выборки.
-- Только reader:≤12POST/152350новых combined tokens, embeddings/filter/retrieval0,
-  retry0/redirect0/timeout30/300. Первый length/empty/format/cycle/unknown/HTTP/
-  budget/pin error — stop; общий claim не допускает другой output/retry.
-- После всех12полных ответов — обязательный source-only audit, без gold/F1.
-  Это диагностика output contract, не новый benchmark и не принятие reader.
-  Pilot200/S500/check/holdout/rebuild/смена модели/merge не разрешены.
-- Existing runner prepare/execute проверен synthetic,31passed/2SDKskips.
-  Новых real model/embedding calls0. Следующее — отдельный допуск exact плана,
-  поскольку исходный smoke POST cap исчерпан; остаток tokens не разрешение.
+- Пользователь разрешил exact plan1b816118…71cf8b ответом «Продолжай».
+  Execution22e4553; run `eb9668ff-ef12-45c5-ac4e-4c52f868a84c` завершил12/12POST:
+  все finish=stop, одиночный Answer, reported reasoning_tokens0, без цикла/ошибок.
+- Новые LLM28132input/100output=28232known tokens, unknown0/unfinished0,
+  embedding/filter/retrieval/indexing POST0.12POST из12; token reserve152350 соблюдён.
+  Все347source pins неизменны, старые smoke results/manifests/стоимость сохранены.
+- Source-only audit12method cases (4unique tuning questions), без gold/F1:
+  7supported/2observed_error/3needs_review. Два former-length случая теперь дают
+  полный ответ, но подставляют неподходящий факт из distractor/другого исследования.
+  Три direct Roncalli answers поддержаны, но painter/death-place bridge отсутствует.
+  Для RAPTOR проверены answer-relevant original descendants, не только provenance.
+- Это technical pass с раскрытыми source findings, не подтверждение качества
+  или статистическая оценка error rate. Audit выполнен Codex, не независимым человеком.
+  Reader автоматически не принят; исходная общая таблица43/17 не пересчитывалась.
+- Raw immutable manifest остаётся responses_pending_source_audit; завершённая
+  assessment в raw/e2-answer-only-diagnostic-v1/source-audit.json и отдельном
+  original-source-proof.json с SHA. Отдельный diagnostic tracking без EM/F1.
+- Diagnostic tracking подтверждён: MLflow `b7fad1509ffa409e895761f68eeffbea`,
+  Langfuse `bdb7418a6537553f33942e2c9c6806b8`;12question/generation spans,
+  60cached context passages/nodes (не новые retrieval),0embedding POST.
+  Reader usage28132/100 сверено обратным чтением;8artifact round-trip SHA совпали.
+- Совокупный E2 query known237340=209108old+28232diagnostic, физически152POST;
+  E1known32601955/reserve61588/cost_complete=false отдельно, incomplete не снят.
+- Единственный следующий шаг — предложить фиксацию shared-answer-only-v1 как
+  общего output contract для отдельно согласуемого pilot200 с раскрытыми ошибками.
+  Новой цепочки prompt/cap/model проб на этих4вопросах не предлагать.
+  Pilot200/S500/check/holdout/rebuild/merge и новые model calls не разрешены.
 
 ## Предыдущий законченный блок E2
 

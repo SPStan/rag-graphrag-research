@@ -172,3 +172,42 @@ unsupported claims, потеря оговорок и несоответстви�
 Нет автоматического принятия reader/pilot200: отдельное решение после source audit,
 без перебора prompt по F1/проб по одному ответу и без смешивания версий результатов.
 Existing runner/Calls/Journal переиспользованы; отдельного runner/framework нет.
+
+## Фактическая answer-only проба — 25 октября
+
+Пользователь ответил «Продолжай» на конкретный запрос12POST/152350tokens/exact SHA
+1b816118…71cf8b. Runtime22e4553, run eb9668ff-ef12-45c5-ac4e-4c52f868a84c.
+Все12ответов — stop/одиночный Answer/known usage; reasoning_tokens0, неизвестных,
+unfinished и новых filter/embedding/retrieval/indexing calls0. Новые токены:
+28132LLM input/100output=28232, в пределах152350; использованы все12POST.
+347source pins/checkpoint/response SHA неизменны. Старые readers/results/claims
+и их209108tokens/140POST не переписывались; cumulative query237340tokens/152POST.
+E1known32601955/reserve61588/cost_complete=false по-прежнему отдельно.
+
+Source-only audit всех12методических случаев (4вопроса, enriched по old completion):
+7supported/2observed_error/3needs_review. Это не error rate/generalization estimate.
+Оба old-length случая перешли к короткому полному ответу, но:
+
+- MuSiQue/Hippo2hop__21104_16334 подставил результат исследования другого года/
+  другого genetic comparison; искомое исследование в его retrieved context отсутствует.
+- HotpotQA/Dense5abd882f55429924427fd045 подставил дату другого магазина из distractor;
+  контекст идентифицирует нужную компанию, но не содержит её founding date.
+- Три Roncalli case (по1на метод) содержат direct evidence причины отъезда,
+  но не всю painter/death-place связку. Это needs_review полноты grounding,
+  не доказанная неправильность самого короткого ответа.
+
+Для RAPTOR ответные утверждения проверены в оригинальных descendant passages,
+включая связь lake/town/population и историческую оговорку census2010. Descendant
+coverage само по себе не выдаётся за сохранённый в summary факт или passage recall.
+Для всех случаев source snippets/ID/SHA и raw model response сохранены private:
+`results/raw/e2-answer-only-diagnostic-v1/source-audit.json`,
+`original-source-proof.json`; gold/evaluator/F1/holdout не использовались.
+Codex review не является независимым human review. Raw terminal manifest неизменён;
+отдельная assessment завершает аудит без задней правки результатов worker.
+
+Вывод ограничен: technical output-contract pass подтверждён на12случаях, качество
+и полная faithful grounding не подтверждены. Reader автоматически не принят,
+общая smoke43/17 таблица не смешивается с новой версией. Единственное предложение:
+зафиксировать один shared-answer-only-v1 для отдельно согласуемого плана pilot200,
+раскрыв обычные retrieval/reader errors, без prompt/cap search по этим ответам.
+Новый pilot или дальнейшие модельные запросы этим результатом не разрешены.

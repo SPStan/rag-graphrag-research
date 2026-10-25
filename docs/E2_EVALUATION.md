@@ -289,7 +289,7 @@ safe trace IDs — в итоговой JSON. В установленном SDK r
   --summarize-shared results/summary/e2-smoke10-continuation
 ```
 
-## Текущий следующий блок: answer-only probe, только offline-подготовка
+## Зафиксированный план answer-only probe (теперь выполнен)
 
 [ADR0024: rationale,12IDs/payload SHA и критерии](../.adr/0024-shared-evaluation-ready-indexes.md).
 Plan `.cache/e2-answer-only-diagnostic-plan.json`, SHA
@@ -305,7 +305,7 @@ Plan `.cache/e2-answer-only-diagnostic-plan.json`, SHA
   --parent-output-dir results/raw/e2-smoke10-continuation-v2
 ```
 
-После отдельного допуска exact SHA, один запуск existing runner (сейчас не выполнять):
+Исторический однократный запуск после отдельного допуска exact SHA (выполнен; не повторять):
 
 ```powershell
 ./.venv-check/Scripts/python.exe -m scripts.run_dense_target `
@@ -319,3 +319,36 @@ Plan `.cache/e2-answer-only-diagnostic-plan.json`, SHA
 сбой — стоп; failed/unknown/repeat claims не перезапускаются. Проба не вызывает
 evaluator, не меняет старые summary/manifests, не запускает pilot200. Source audit
 отдельно до любого предложения большого прогона. Новых HTTP в подготовке0.
+
+## Завершение reader-only diagnostic — 25 октября
+
+Run eb9668ff-ef12-45c5-ac4e-4c52f868a84c, execution22e4553/exact file SHA1b816118…71cf8b,
+пользователь разрешил12POST ответом «Продолжай».12/12stop/valid Answer,100output tokens,
+28132input, embedding/filter0, unknown0/unfinished0; всё в bounds.347source pins
+проверены после запуска. Parent/continuation manifests/results/расходы immutable.
+
+Source audit:7supported/2observed_error/3needs_review. Две бывшие length ситуации
+теперь format-complete, но источник не поддерживает выбранный ответ для заданного
+вопроса. Три direct answers имеют неполную multihop evidence chain. Ответы и их
+источники разобраны offline без gold/F1; полный private source-audit.json закреплён
+в manifest/response/journal SHA, RAPTOR original-source-proof.json проверяет claims
+по исходным descendant passages. Это не новая comparative таблица качества.
+
+Technical pass не равен semantic pass/adoption. Только предложение зафиксировать
+один общий output contract для отдельно согласуемого pilot200; без новой цепочки
+prompt tuning на этих4вопросах, без смешивания версий. Текущий diagnostic закончен;
+никаких дополнительных POST, pilot200/S500/check/holdout/rebuild/merge не запускать.
+Совокупный query known237340tokens/152POST включает прежний smoke один раз;
+исторический E1 cost_complete=false сохраняется отдельно. Raw worker manifest
+responses_pending_source_audit не переписывается; отдельная assessment содержит
+завершённый audit с раскрытыми ошибками. Diagnostic tracking не создаёт F1 и не
+маскирует cached embedding/retrieval как новые операции.
+
+Локальный diagnostic export выполнен через existing MLflow/Langfuse exporters,
+один mixed-method reader-only view с12tuple identities dataset/method/original ID.
+MLflow `b7fad1509ffa409e895761f68eeffbea`, Langfuse
+`bdb7418a6537553f33942e2c9c6806b8`.12question/generation spans,60cached contexts;
+embedding observations явно performed_this_run=false, реальных embedding POST0.
+Reader usage28132/100 подтверждён;8artifact round-trip SHA совпали. EM/F1/recall=null,
+никаких новых model calls экспорт не создал. Source audit7/2/3 раскрыт в артефактах,
+а historical E1 incomplete cost и прежний smoke расход не пересчитаны как новые.
