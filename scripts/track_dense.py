@@ -64,10 +64,9 @@ def verify_langfuse_trace(observations, payload):
         "retrieval",
         "generation",
     }
-    if (
-        payload.get("system") == "hipporag2"
-        and payload.get("manifest", {}).get("mode") != "e2-smoke10"
-    ):
+    if payload.get("system") == "hipporag2" and not payload.get("manifest", {}).get(
+        "mode", ""
+    ).startswith("e2-"):
         expected_names.add("indexing")
         if any(
             name.startswith("openie_")
@@ -334,7 +333,7 @@ def export_mlflow(payload, mlflow):
                     }
                 }
             )
-            if system == "hipporag2" and manifest.get("mode") != "e2-smoke10":
+            if system == "hipporag2" and not manifest.get("mode", "").startswith("e2-"):
                 index = manifest.get("index", {})
                 root_span.set_attribute(
                     "rag.index_fingerprint",
@@ -437,6 +436,15 @@ def export_mlflow(payload, mlflow):
                                 "answer": row.get("answer"),
                                 "raw_answer": row.get("raw_answer"),
                                 "done_reason": row.get("done_reason"),
+                                "performed_this_run": not row.get(
+                                    "generation_reused", False
+                                ),
+                                "source_generation_run_id": row.get(
+                                    "generation_source_run_id"
+                                ),
+                                "source_generation_seconds": row.get(
+                                    "generation_source_seconds"
+                                ),
                                 "prompt_tokens": row.get("prompt_tokens"),
                                 "completion_tokens": row.get("completion_tokens"),
                                 "client_seconds": row.get("generation_wall_seconds"),
@@ -524,6 +532,7 @@ def export_langfuse(payload, base_dir=ROOT):
                 .get("token_accounting", {})
                 .get("journal_sha256"),
                 "token_accounting_summary": summary,
+                "historical_reuse_not_new_cost": accounting.get("historical_reuse"),
                 "token_accounting_complete": (
                     summary["complete"] if summary is not None else None
                 ),
@@ -554,10 +563,9 @@ def export_langfuse(payload, base_dir=ROOT):
                     }
                 }
             )
-            if (
-                system == "hipporag2"
-                and payload["manifest"].get("mode") != "e2-smoke10"
-            ):
+            if system == "hipporag2" and not payload["manifest"].get(
+                "mode", ""
+            ).startswith("e2-"):
                 index = payload["manifest"].get("index", {})
                 with client.start_as_current_observation(
                     as_type="chain",
@@ -651,6 +659,15 @@ def export_langfuse(payload, base_dir=ROOT):
                             "answer": row.get("answer"),
                             "raw_answer": row.get("raw_answer"),
                             "done_reason": row.get("done_reason"),
+                            "performed_this_run": not row.get(
+                                "generation_reused", False
+                            ),
+                            "source_generation_run_id": row.get(
+                                "generation_source_run_id"
+                            ),
+                            "source_generation_seconds": row.get(
+                                "generation_source_seconds"
+                            ),
                             "client_wall_seconds": row.get("generation_wall_seconds"),
                             "ollama_total_seconds": row.get("generation_seconds"),
                         },

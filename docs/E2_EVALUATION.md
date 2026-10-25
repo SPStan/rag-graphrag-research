@@ -1,5 +1,81 @@
 # E2: общий путь оценки готовых E1 индексов (#14)
 
+## Текущий блок26октября: pilot200 готов offline, не запущен
+
+[ADR0025](../.adr/0025-pilot200-shared-reader.md),
+[точный plan](../results/summary/e2-pilot200-plan.json), file SHA
+`284af290878ef53f9a486d1df956a8e02d72f147d3a6f1e2aa0b072efc5b4f01`.
+Работа в зависимой codex/e2-pilot200 от PR35/b708aa5; PR35 не расширяется.
+Reader shared-answer-only-v1 принят текущим поручением для всех3методов. Детали
+старого smoke/diagnostic ниже — исторические результаты, не новые pilot responses.
+
+1200cases=200pilot IDs×2datasets×3methods; исключены signal-check/holdout/прочиеS500.
+Reuse60contexts/12reader responses даёт максимум1188новых reader,380filter,
+1140localBGE; всего2708POST,1568externalLLM. Reserve57189854tokens, не forecast:
+1520×35584+530385cached-reader+2571789BGE.374source hashes, все6ready индексов прежние.
+План/limiting transport/stop policy/source costs/timing/CI подробно вADR0025.
+
+Воспроизвести подготовку без HTTP (существующий frozen plan не перезаписывается):
+
+```powershell
+./.venv-check/Scripts/python.exe -m scripts.run_dense_target `
+  --shared-plan results/summary/e2-pilot200-plan.json --prepare-pilot `
+  --e1-plan 'C:/Users/Elisei/.codex/worktrees/dense-target-smoke/Rag, GraphRAG/.cache/e1-hotpot-local-recovery2-plan.json' `
+  --e1-workspace 'C:/Users/Elisei/.codex/worktrees/dense-target-smoke/Rag, GraphRAG' `
+  --reuse-shared-plan results/summary/e2-smoke10-continuation-plan.json `
+  --reuse-shared-output results/raw/e2-smoke10-continuation-v2 `
+  --reuse-diagnostic-plan .cache/e2-answer-only-diagnostic-plan.json `
+  --reuse-diagnostic-output results/raw/e2-answer-only-diagnostic-v1
+```
+
+Однократное исполнение **только после допуска exact SHA**, все методы одним
+согласованным блоком, каждый в прежнем SDK interpreter (никакого install/update):
+
+```powershell
+$pilotPlan = 'results/summary/e2-pilot200-plan.json'
+$pilotOutput = 'results/raw/e2-pilot200-v1'
+$pilotSha = '284af290878ef53f9a486d1df956a8e02d72f147d3a6f1e2aa0b072efc5b4f01'
+$pilotRuntimes = [ordered]@{
+  dense = './.venv-check/Scripts/python.exe'
+  hipporag2 = 'C:/Users/Elisei/.codex/worktrees/template-alignment/Rag, GraphRAG/.cache/hipporag-sdk-venv/Scripts/python.exe'
+  raptor = 'C:/Users/Elisei/.codex/worktrees/dense-target-smoke/Rag, GraphRAG/.cache/raptor-venv/Scripts/python.exe'
+}
+foreach ($pilotMethod in $pilotRuntimes.Keys) {
+  & $pilotRuntimes[$pilotMethod] -m scripts.run_dense_target `
+    --shared-plan $pilotPlan --execute --shared-method $pilotMethod `
+    --output-dir $pilotOutput --approved-plan-sha256 $pilotSha `
+    --env-file 'C:/Users/Elisei/Documents/ChatGPT/Rag, GraphRAG/.env.target-api' `
+    --hippo-source 'C:/Users/Elisei/.codex/worktrees/template-alignment/Rag, GraphRAG/.cache/hipporag-sdk-1438aba3' `
+    --raptor-source 'C:/Users/Elisei/.codex/worktrees/dense-target-smoke/Rag, GraphRAG/.cache/raptor-source'
+  if ($LASTEXITCODE -ne 0) { throw 'Pilot stopped; no automatic retry/recovery' }
+  $pilotState = (Get-Content -LiteralPath "$pilotOutput/manifest.json" -Raw | ConvertFrom-Json).status
+  if ($pilotState -eq 'failed') { throw 'Fatal stop; preserve results, no next method' }
+}
+./.venv-check/Scripts/python.exe -m scripts.run_dense_target `
+  --shared-plan $pilotPlan --output-dir $pilotOutput `
+  --summarize-shared results/summary/e2-pilot200
+```
+
+Get-Content выше читает только atomic manifest после завершения worker, не live
+usage.jsonl. Один active running.lock/canonical claim; stale lock/unknown/failed
+не обходить и не удалять автоматически. Между штатными methods/checkpoints
+допускается same-output continuation с полным verify и без оплаты terminal cases.
+До исполнения убедиться, что нет другого worker; ошибки на первом запросе не
+запускают fresh-output/retry под тем же согласием. Готовые6индексов не пересчитывать.
+
+Report-only команда последняя выше не вызывает моделей и работает при partial
+run: not_attempted=null, comparison incomplete, сохранённый known/unknown usage.
+Итог:6строкEM/F1/failures/retrieval, fresh E2E сn, generation отдельно, input/output
+reader/filter/BGE отдельно для новых и source requests. Source times не складываются
+в новый E2E. Paired ΔEM/ΔF1 и descriptive95% bootstrap CI по тем же200IDs,
+2000resamples/seed42; это tuning/development, не independent confirmation.
+Development237340 включает91871доступных source reuse; не прибавлять оба повторно.
+E1cost_complete=false/reserve61588 отдельно, RAPTOR provenance не passage recall@5.
+Новых запросов в подготовке0; этот текст не допуск. Никаких S500/check/holdout,
+7B/новых model/prompt/cap серий/индексации/merge по этому плану.
+
+## Предыдущие законченные блоки E2 (история)
+
 Статус: **диагностический smoke10 завершён** после отдельного разрешения v2:
 60случаев=43completed/17reader length/0not_attempted. [Единая таблица](../results/summary/e2-smoke10-continuation.md).
 Это не pilot200/полный E2. Draft PR35 зависит от Draft PR33/f8b9bb8, собственный diff20файлов

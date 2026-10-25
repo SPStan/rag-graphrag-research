@@ -23,6 +23,7 @@ LIMIT = 3276800  # 80*(32000+1024+2048+512) + 60*(4096+1024+2048).
 METHODS = ("dense", "hipporag2", "raptor")
 CODE_FILES = (
     "scripts/e2_evaluation.py",
+    "scripts/e2_pilot.py",
     "scripts/e1_indexers.py",
     "scripts/run_dense.py",
     "scripts/run_dense_target.py",
@@ -47,7 +48,29 @@ def reader_payload(question, retrieval):
     return {"model": MODEL, "messages": messages, **target.OPTIONS}
 
 
-def prepare(e1_plan_path, workspace):
+def configured_reader_payload(plan, question, retrieval):
+    return (
+        answer_only_payload(question, retrieval)
+        if plan.get("reader_version") == "shared-answer-only-v1"
+        else reader_payload(question, retrieval)
+    )
+
+
+def parse_reader(plan, raw):
+    answer, status = dense.extract_target_reader_answer(raw)
+    if plan.get("reader_version") == "shared-answer-only-v1":
+        if status != "ok" or raw.strip() != "Answer: " + answer:
+            raise ReaderCaseFailure("reader_not_single_answer_line")
+        words = answer.split()
+        if any(
+            words[i : i + 8] == words[i + 8 : i + 16] == words[i + 16 : i + 24]
+            for i in range(len(words) - 23)
+        ):
+            raise ReaderCaseFailure("reader_repeated_8word_block_three_times")
+    return answer, status
+
+
+def prepare(e1_plan_path, workspace, *, pilot=False):
     workspace = Path(workspace).resolve()
     e1_plan_path = Path(e1_plan_path).resolve()
     source = dense.read_json(e1_plan_path)
@@ -55,11 +78,21 @@ def prepare(e1_plan_path, workspace):
     for dataset in target.DATASETS:
         split = ROOT / f"data/ids/{dataset}_comparison_split.json"
         ids_path = ROOT / f"data/ids/{dataset}_s500.json"
-        ids = dense.read_json(ids_path)["question_ids"][:10]
+        s500 = dense.read_json(ids_path)
+        ids = s500["views"]["pilot200"] if pilot else s500["question_ids"][:10]
         views = dense.read_json(split)
         if (
             views["source_sha256"] != dense.sha256_file(ids_path)
-            or ids != views["signal_tuning_ids"][:10]
+            or ids != views["signal_tuning_ids"][: len(ids)]
+            or (
+                pilot
+                and (
+                    len(ids) != 200
+                    or len(set(ids)) != 200
+                    or ids != views["pilot200_ids"]
+                    or ids != s500["question_ids"][:200]
+                )
+            )
             or set(ids)
             & set(views["signal_check_ids"] + views["legacy_holdout_reserved_ids"])
         ):
@@ -227,7 +260,13 @@ def verify_saved_case(plan, directory, result, records):
     pin = next(r for r in plan["datasets"][dataset]["indexes"] if r["method"] == method)
     if result["index_manifest_sha256"] != pin["manifest_sha256"]:
         raise ValueError("E2_result_index_changed")
+    if plan.get("version") == "e2-pilot200-v1":
+        from scripts import e2_pilot
+
+        e2_pilot.verify_reuse_result(plan, result)
     for op in result["operations"]:
+        if op.get("reused"):
+            continue  # Bound to the frozen source journal/body by verify_reuse_result.
         key = op["journal_object_id"]
         saved = dense.read_json(directory / f"{key}.json")
         response = dense.read_json(directory / f"{key}.response.json")
@@ -255,7 +294,9 @@ def verify_saved_case(plan, directory, result, records):
         payload = (
             embedding_payload(plan, result["question"])
             if kind == "embedding"
-            else reader_payload(result["question"], result["retrieval"])
+            else configured_reader_payload(
+                plan, result["question"], result["retrieval"]
+            )
             if op["operation"] == "reader"
             else None
         )
@@ -278,7 +319,7 @@ def verify_saved_case(plan, directory, result, records):
         if op["operation"] == "reader":
             try:
                 raw = reader_text(response)
-                answer, status = dense.extract_target_reader_answer(raw)
+                answer, status = parse_reader(plan, raw)
                 if status != "ok":
                     raise ReaderCaseFailure("reader_parser_failed")
             except ReaderCaseFailure:
@@ -435,7 +476,11 @@ def prepare_continuation(parent_plan, parent_directory):
 
 
 def check_parent_pins(plan):
-    for filename, sha in plan.get("parent_run", {}).get("files", {}).items():
+    files = {
+        **plan.get("parent_run", {}).get("files", {}),
+        **plan.get("pilot_reuse", {}).get("files", {}),
+    }
+    for filename, sha in files.items():
         if dense.sha256_file(Path(filename)) != sha:
             raise ValueError("E2_parent_pin_changed")
 
@@ -492,6 +537,10 @@ def lineage_records(plan, directory, manifest):
 
 
 def verify(plan):
+    if plan.get("version") == "e2-pilot200-v1":
+        from scripts import e2_pilot
+
+        return e2_pilot.verify(plan)
     if plan["version"] not in (VERSION, CONTINUATION_VERSION):
         raise ValueError("E2_plan_version_changed")
     for name, sha in plan["code_sha256"].items():
@@ -543,6 +592,27 @@ class Calls:
         url=None,
         headers=None,
     ):
+        if self.plan.get("version") == "e2-pilot200-v1":
+            if (
+                method not in METHODS
+                or dataset not in self.plan["datasets"]
+                or qid not in self.plan["datasets"][dataset]["question_ids"]
+            ):
+                raise ValueError("E2_pilot_case_outside_frozen_IDs")
+            reuse = self.plan["pilot_reuse"]
+            case = case_key(dataset, method, qid)
+            if (operation == "reader" and case in reuse["readers"]) or (
+                operation != "reader" and case in reuse["contexts"]
+            ):
+                raise ValueError("E2_pilot_compatible_reuse_must_not_POST")
+            if operation == "filter" and method != "hipporag2":
+                raise ValueError("E2_pilot_filter_only_Hippo")
+            if operation == "reader" and (
+                len(payload.get("messages", [])) != 4
+                or payload["messages"][:3]
+                != answer_only_payload("", {"passages": []})["messages"][:3]
+            ):
+                raise ValueError("E2_pilot_actual_reader_template_changed")
         if self.plan.get("version") == READER_PROBE_VERSION and (
             operation != "reader"
             or not any(
@@ -657,6 +727,11 @@ class Calls:
             token_limit=self.plan["max_combined_tokens"],
             timeout=(30, 300),
         )
+        if (
+            sum(self.journal.summary()["known_subtotal"].values())
+            > self.plan["max_combined_tokens"]
+        ):
+            raise ValueError("E2_reported_usage_exceeded_budget")
         # A stopped-but-invalid answer keeps its measured usage; it cannot be
         # replayed as a successful completed response.
         try:
@@ -760,6 +835,10 @@ def question_result(
         "raw_answer": None,
     }
 
+    from scripts import e2_pilot
+
+    reuse_key = case_key(dataset, method, query["id"])
+
     def call(payload, operation):
         options = send(operation) if send else {}
         t = time.perf_counter()
@@ -780,14 +859,21 @@ def question_result(
             "status": "failed",
         }
         try:
-            body, hit = calls.call(
-                payload,
-                method=method,
-                dataset=dataset,
-                qid=query["id"],
-                operation=operation,
-                **options,
-            )
+            if operation == "reader" and reuse_key in plan.get("pilot_reuse", {}).get(
+                "readers", {}
+            ):
+                body, provenance = e2_pilot.reader_reuse(plan, reuse_key, payload)
+                attempt.update(provenance)
+                hit = True
+            else:
+                body, hit = calls.call(
+                    payload,
+                    method=method,
+                    dataset=dataset,
+                    qid=query["id"],
+                    operation=operation,
+                    **options,
+                )
             cache[operation] = hit
             attempt.update(
                 status="completed",
@@ -821,41 +907,57 @@ def question_result(
                     )
                 }
                 attempt["physical_status"] = finished[-1]["status"]
+            attempt["transport_seconds"] = (
+                finished[-1].get("wall_seconds") if finished else None
+            )
             attempt["client_seconds"] = time.perf_counter() - t
             operations.append(attempt)
 
     stage_name = "query_embedding"
     t = time.perf_counter()
     try:
-        response = call(embedding_payload(plan, query["question"]), "query_embedding")
-        vectors = response["embeddings"]
-        if len(vectors) != 1:
-            raise ValueError("E2_query_embedding_shape")
-        stages["query_embedding"] = time.perf_counter() - t
-
-        def infer(messages):
-            return completed_text(
-                call({"model": MODEL, "messages": messages, **target.OPTIONS}, "filter")
-            )
-
-        stage_name = "retrieval"
-        t = time.perf_counter()
-        if method == "hipporag2":
-            rag = hippo(infer)
-            retrieval = indexes.retrieve_hippo_query_only(
-                loaded, rag, query["question"], vectors[0], plan["embedding_digest"]
-            )
+        reused_context = e2_pilot.context_reuse(plan, reuse_key)
+        if reused_context is not None:
+            retrieval, source_operations, context_provenance = reused_context
+            operations.extend(source_operations)
+            cache.update({o["operation"]: True for o in source_operations})
+            result["context_provenance"] = context_provenance
+            stages["context_replay"] = time.perf_counter() - t
         else:
-            retrieval = indexes.retrieve_ready_e1(
-                loaded,
-                query["question"],
-                vectors[0],
-                embedding_digest=plan["embedding_digest"],
-                sdk=sdk,
+            response = call(
+                embedding_payload(plan, query["question"]), "query_embedding"
             )
-        stages["retrieval"] = time.perf_counter() - t
+            vectors = response["embeddings"]
+            if len(vectors) != 1:
+                raise ValueError("E2_query_embedding_shape")
+            stages["query_embedding"] = time.perf_counter() - t
+
+            def infer(messages):
+                return completed_text(
+                    call(
+                        {"model": MODEL, "messages": messages, **target.OPTIONS},
+                        "filter",
+                    )
+                )
+
+            stage_name = "retrieval"
+            t = time.perf_counter()
+            if method == "hipporag2":
+                rag = hippo(infer)
+                retrieval = indexes.retrieve_hippo_query_only(
+                    loaded, rag, query["question"], vectors[0], plan["embedding_digest"]
+                )
+            else:
+                retrieval = indexes.retrieve_ready_e1(
+                    loaded,
+                    query["question"],
+                    vectors[0],
+                    embedding_digest=plan["embedding_digest"],
+                    sdk=sdk,
+                )
+            stages["retrieval"] = time.perf_counter() - t
         result["retrieval"] = retrieval
-        payload = reader_payload(query["question"], retrieval)
+        payload = configured_reader_payload(plan, query["question"], retrieval)
         result["reader_request_sha256"] = target.digest(payload)
         result["reader_message_utf8_bytes"] = len(
             json.dumps(payload["messages"], ensure_ascii=False).encode()
@@ -870,7 +972,7 @@ def question_result(
             else completed_text(response)
         )
         result["raw_answer"] = raw
-        answer, status = dense.extract_target_reader_answer(raw)
+        answer, status = parse_reader(plan, raw)
         if status != "ok":
             if plan.get("outcome_policy") == OUTCOME_POLICY:
                 raise ReaderCaseFailure("reader_parser_failed")
@@ -890,6 +992,23 @@ def question_result(
                 "reader_response" if not result["fatal"] else "execution"
             )
     finally:
+        if plan.get("version") == "e2-pilot200-v1":
+            result["reader_version"] = plan["reader_version"]
+            result["latency_mode"] = (
+                "fresh_end_to_end"
+                if "context_provenance" not in result
+                else "cached_context_cached_reader"
+                if cache.get("reader")
+                else "cached_context_fresh_reader"
+            )
+            result["reader_generation_seconds"] = next(
+                (
+                    o.get("transport_seconds")
+                    for o in operations
+                    if o["operation"] == "reader" and not o.get("reused")
+                ),
+                None,
+            )
         if stage_name not in stages:
             stages[stage_name] = time.perf_counter() - t
         result.update(
@@ -1033,7 +1152,7 @@ def execute(
             dense.write_json_atomic(mp, manifest)
         check_parent_pins(plan)
         result_references(plan, manifest, directory)
-        if plan.get("parent_run"):
+        if plan.get("parent_run") or plan.get("version") == "e2-pilot200-v1":
             from scripts.token_accounting import read_records
 
             existing_records = read_records(directory / "usage.jsonl")
@@ -1348,7 +1467,7 @@ def summary(plan, directory):
                     "limitations": "smoke10 development, not independent quality evidence; failed operation usage in global physical journal",
                 }
             )
-    return {
+    result = {
         "run_id": manifest["run_id"],
         "rows": table,
         "question_results": details,
@@ -1357,6 +1476,11 @@ def summary(plan, directory):
         and all(r["comparison_complete"] for r in table),
         "historical_E1_excluded": True,
     }
+    if plan.get("version") == "e2-pilot200-v1":
+        from scripts import e2_pilot
+
+        e2_pilot.enrich_report(plan, result)
+    return result
 
 
 def tracking_payload(plan, directory, dataset, method):
@@ -1391,7 +1515,9 @@ def tracking_payload(plan, directory, dataset, method):
                 "name": plan["embedding_model"],
                 "digest": plan["embedding_digest"],
             },
-            reader_prompt_version=dense.READER_PROMPT_VERSION,
+            reader_prompt_version=plan.get(
+                "reader_version", dense.READER_PROMPT_VERSION
+            ),
             prompt_tokens=reader.get("logical_usage", {}).get("llm_input_tokens"),
             completion_tokens=reader.get("logical_usage", {}).get("llm_output_tokens"),
             query_embedding_prompt_tokens=embedding.get("logical_usage", {}).get(
@@ -1406,8 +1532,20 @@ def tracking_payload(plan, directory, dataset, method):
             if key in plan.get("parent_run", {}).get("cases", {})
             else Path(directory)
         )
+        if row.get("context_provenance"):
+            row["context_source_run_id"] = row["context_provenance"]["run_id"]
+        row["generation_reused"] = bool(reader.get("reused"))
+        row["generation_source_run_id"] = reader.get("producer_run_id")
+        row["generation_source_seconds"] = reader.get("source_transport_seconds")
+        if reader.get("reused"):
+            row["generation_wall_seconds"] = None
         if reader:
-            response = producer / f"{reader['journal_object_id']}.response.json"
+            response = (
+                Path(reader["source_directory"])
+                / f"{reader['source_object_id']}.response.json"
+                if reader.get("reused")
+                else producer / f"{reader['journal_object_id']}.response.json"
+            )
             if response.exists():
                 saved = dense.read_json(response)
                 choice = saved.get("choices", [{}])[0]
@@ -1433,10 +1571,14 @@ def tracking_payload(plan, directory, dataset, method):
         r for r in report["rows"] if r["dataset"] == dataset and r["method"] == method
     )
     manifest = {
-        "mode": "e2-smoke10",
+        "mode": "e2-pilot200"
+        if plan.get("version") == "e2-pilot200-v1"
+        else "e2-smoke10",
         "generation": {
             "model": {"name": MODEL, "digest": None},
-            "reader_prompt_version": dense.READER_PROMPT_VERSION,
+            "reader_prompt_version": plan.get(
+                "reader_version", dense.READER_PROMPT_VERSION
+            ),
         },
         "embedding": {
             "model": {
@@ -1466,7 +1608,8 @@ def tracking_payload(plan, directory, dataset, method):
         "token_accounting": {
             "status": "verified",
             "summary": phases,
-            "scope": "partition of common query journal; E1 excluded",
+            "scope": "partition of new physical query journal; E1 excluded",
+            "historical_reuse": aggregate.get("reused_source_usage_by_operation"),
         },
     }
 
@@ -1594,6 +1737,21 @@ def write_report(plan_path, directory, public_prefix):
         },
         "limitations": "development smoke only; failed run is not a completed comparison; E1 unknown61588 remains separate",
     }
+    if plan.get("version") == "e2-pilot200-v1":
+        from scripts import e2_pilot
+
+        safe.update(
+            pilot_accounting=report["pilot_accounting"],
+            paired_comparisons=report["paired_comparisons"],
+            comparative_metrics=report["rows"]
+            if report["comparison_complete"]
+            else None,
+            kind="e2_pilot200",
+        )
+        dense.write_json_atomic(prefix.with_suffix(".json"), safe)
+        e2_pilot.write_markdown(plan, report, safe, prefix)
+        assert dense.sha256_file(manifest_path) == manifest_sha
+        return safe
     dense.write_json_atomic(prefix.with_suffix(".json"), safe)
     lines = [
         "# E2 smoke10: " + manifest["status"],

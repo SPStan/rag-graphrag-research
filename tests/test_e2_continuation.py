@@ -2,6 +2,7 @@
 
 import copy
 import json
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -22,7 +23,7 @@ def scenario(tmp_path, monkeypatch):
     for dataset in runner.DATASETS:
         raw = tmp_path / f"data/processed/{dataset}"
         raw.mkdir(parents=True)
-        queries = [{"id": f"q{i}", "question": f"Which city {i}?"} for i in range(10)]
+        queries = [{"id": f"q{i}", "question": f"Which city {i}?"} for i in range(11)]
         dense.write_json_atomic(raw / "corpus.json", corpus)
         dense.write_json_atomic(raw / "queries.json", queries)
         dense.write_json_atomic(
@@ -33,8 +34,9 @@ def scenario(tmp_path, monkeypatch):
             ],
         )
         datasets[dataset] = {
-            "question_ids": [q["id"] for q in queries],
+            "question_ids": [q["id"] for q in queries[:10]],
             "labels_sha256_evaluator_only": dense.sha256_file(raw / "labels.json"),
+            "queries_sha256": runner.digest(queries[:10]),
             "indexes": [
                 {
                     "method": m,
@@ -534,3 +536,308 @@ def test_answer_only_diagnostic_existing_runner(scenario, monkeypatch, fault):
     altered["cases"][0]["payload"]["max_tokens"] = 1024
     with pytest.raises(ValueError, match="contract_changed"):
         e2.verify_reader_probe(altered)
+
+
+@pytest.fixture
+def pilot_scenario(scenario, monkeypatch):
+    from scripts import e2_pilot as pilot
+
+    s = scenario
+    for method in e2.METHODS:
+        run_method(s, method, monkeypatch)
+    diagnostic_plan = s.root / "diagnostic-plan.json"
+    runner.dense.write_json_atomic(
+        diagnostic_plan, e2.prepare_reader_probe(s.child_plan, s.output)
+    )
+    diagnostic = s.root / "diagnostic"
+    e2.execute_reader_probe(
+        diagnostic_plan,
+        diagnostic,
+        approved_sha=dense.sha256_file(diagnostic_plan),
+        config=s.config,
+    )
+    # Same immutable synthetic corpus/labels, now include an unseen query q10.
+    # Real production prepare separately enforces200published tuning IDs.
+    base = e2.prepare(None, None)
+    for data in base["datasets"].values():
+        data["question_ids"] = [f"q{i}" for i in range(11)]
+    monkeypatch.setattr(e2, "prepare", lambda *a, **kw: copy.deepcopy(base))
+    frozen = pilot.complete_plan(
+        base, s.child_plan, s.output, diagnostic_plan, diagnostic
+    )
+    s.pilot_plan = s.root / "pilot-plan.json"
+    dense.write_json_atomic(s.pilot_plan, frozen)
+    s.pilot_output = s.root / "pilot"
+    s.plan = frozen
+    s.source_bytes = {
+        Path(name): Path(name).read_bytes() for name in frozen["pilot_reuse"]["files"]
+    }
+    return s
+
+
+def test_pilot_existing_runner_reuse_common_reader_cost_and_latency(
+    pilot_scenario, monkeypatch
+):
+    from scripts import e2_pilot as pilot
+
+    s = pilot_scenario
+    assert (
+        s.plan["reader_calls"] == 54
+        and s.plan["filter_calls"] == 2
+        and s.plan["max_embedding_posts"] == 6
+        and s.plan["max_posts"] == 62
+    )
+    assert (
+        len(s.plan["pilot_reuse"]["contexts"]) == 60
+        and len(s.plan["pilot_reuse"]["readers"]) == 12
+    )
+    before = len(s.state["posts"])
+    for field, value in (
+        ("max_posts", 63),
+        ("max_combined_tokens", 1),
+        ("reader_options", {**runner.OPTIONS, "max_tokens": 1024}),
+    ):
+        altered = {**s.plan, field: value}
+        with pytest.raises(ValueError, match="plan_or_reuse_changed"):
+            pilot.verify(altered)
+    query_file = s.root / "data/processed/musique/queries.json"
+    original_queries = query_file.read_bytes()
+    changed_queries = dense.read_json(query_file)
+    changed_queries[0]["question"] = "Different question same ID"
+    dense.write_json_atomic(query_file, changed_queries)
+    with pytest.raises(ValueError, match="question_text_changed"):
+        pilot.verify(s.plan)
+    query_file.write_bytes(original_queries)
+    assert len(s.state["posts"]) == before
+    payload = e2.configured_reader_payload(
+        s.plan,
+        "Where?",
+        {
+            "passages": [{"title": "T", "text": "Source", "gold": "SECRET"}],
+            "supporting_ids": ["SECRET"],
+        },
+    )
+    assert "SECRET" not in json.dumps(payload)
+    assert payload["messages"][0]["content"] == e2.ANSWER_ONLY_SYSTEM
+    assert payload["max_tokens"] == 512
+    blocked = e2.Calls(s.root / "blocked-pilot", s.plan, run_id="blocked")
+    frozen_case = next(iter(s.plan["pilot_reuse"]["readers"]))
+    context = dense.read_json(
+        Path(s.plan["pilot_reuse"]["contexts"][frozen_case]["path"])
+    )
+    for operation in ("reader", "filter", "query_embedding"):
+        with pytest.raises(ValueError, match="must_not_POST"):
+            blocked.call(
+                payload,
+                method=context["method"],
+                dataset=context["dataset"],
+                qid=context["question_id"],
+                operation=operation,
+            )
+    with pytest.raises(ValueError, match="outside_frozen_IDs"):
+        blocked.call(
+            payload,
+            method="dense",
+            dataset="musique",
+            qid="holdout-forbidden",
+            operation="reader",
+        )
+    old_payload = e2.reader_payload("Which city 10?", {"passages": []})
+    with pytest.raises(ValueError, match="actual_reader_template_changed"):
+        blocked.call(
+            old_payload,
+            method="dense",
+            dataset="musique",
+            qid="q10",
+            operation="reader",
+        )
+    assert len(s.state["posts"]) == before
+    # One known length is measured as0, but does not stop the next case.
+    s.state["reader_outcomes"] = ["length"]
+    original = runner.requests.Session.post
+
+    def observed_post(self, url, *, json, **kwargs):
+        response = original(self, url, json=json, **kwargs)
+        if (
+            not url.endswith("/api/embed")
+            and json["messages"][-1]["content"] != "filter-marker"
+        ):
+            assert json["messages"][0]["content"] == e2.ANSWER_ONLY_SYSTEM
+            assert json["messages"][2]["content"] == "Answer: 1862."
+            assert all("Thought:" not in m["content"] for m in json["messages"])
+            assert all(json[k] == v for k, v in runner.OPTIONS.items())
+            # Technically valid but semantically wrong must not stop execution.
+            if json["messages"][-1]["content"].endswith("Question: Which city 10?"):
+                body = response.json()
+                body["choices"][0]["message"]["content"] = "Answer: London"
+                response.json = lambda: body
+        return response
+
+    monkeypatch.setattr(runner.requests.Session, "post", observed_post)
+
+    def execute(method):
+        with patch(
+            "sys.argv",
+            [
+                "run_dense_target",
+                "--shared-plan",
+                str(s.pilot_plan),
+                "--execute",
+                "--shared-method",
+                method,
+                "--output-dir",
+                str(s.pilot_output),
+                "--approved-plan-sha256",
+                dense.sha256_file(s.pilot_plan),
+            ],
+        ):
+            runner.main()
+
+    execute("dense")
+    partial = e2.summary(s.plan, s.pilot_output)
+    assert not partial["comparison_complete"] and partial["paired_comparisons"] == []
+    assert any(
+        r["status"] == "not_attempted" and r["metrics"]["em"] is None
+        for r in partial["question_results"]
+    )
+    execute("hipporag2")
+    execute("raptor")
+    manifest = dense.read_json(s.pilot_output / "manifest.json")
+    assert manifest["status"] == "completed" and len(manifest["results"]) == 66
+    assert len(s.state["posts"]) - before == 62
+    report = e2.summary(s.plan, s.pilot_output)
+    assert report["comparison_complete"]
+    assert (
+        sum(r["status"] == "attempted_failed" for r in report["question_results"]) == 1
+    )
+    assert (
+        sum(
+            r.get("latency_mode") == "fresh_end_to_end"
+            for r in report["question_results"]
+        )
+        == 6
+    )
+    assert (
+        sum(
+            r.get("latency_mode") == "cached_context_cached_reader"
+            for r in report["question_results"]
+        )
+        == 12
+    )
+    assert sum(r["fresh_e2e_cases"] for r in report["rows"]) == 6
+    assert sum(r["fresh_reader_cases"] for r in report["rows"]) == 54
+    assert all(r["mean_attempted_seconds"] is None for r in report["rows"])
+    assert len(report["paired_comparisons"]) == 12
+    assert report["pilot_accounting"]["new_physical"]["attempts"] == 62
+    assert report["pilot_accounting"]["development_physical"]["known_subtotal"] == {
+        "llm_input_tokens": 920,
+        "llm_output_tokens": 368,
+        "embedding_input_tokens": 60,
+    }
+    assert report["pilot_accounting"]["reused_source_known"] == {
+        "llm_input_tokens": 320,
+        "llm_output_tokens": 128,
+        "embedding_input_tokens": 60,
+    }
+    # All compatible diagnostic answers, regardless of any external review, reused.
+    reader_ops = [
+        o
+        for r in report["question_results"]
+        for o in r.get("operations", [])
+        if o["operation"] == "reader" and o.get("reused")
+    ]
+    assert len(reader_ops) == 12
+    count = len(s.state["posts"])
+    journal = (s.pilot_output / "usage.jsonl").read_bytes()
+    for method in e2.METHODS:
+        execute(method)
+    assert (
+        len(s.state["posts"]) == count
+        and (s.pilot_output / "usage.jsonl").read_bytes() == journal
+    )
+    assert all(path.read_bytes() == data for path, data in s.source_bytes.items())
+    with pytest.raises(ValueError, match="other_directory"):
+        e2.execute(
+            s.pilot_plan,
+            s.root / "other-pilot",
+            "dense",
+            approved_sha=dense.sha256_file(s.pilot_plan),
+            config=s.config,
+        )
+    safe = e2.write_report(s.pilot_plan, s.pilot_output, s.root / "pilot-report")
+    assert safe["kind"] == "e2_pilot200" and safe["model_posts"] == 62
+    assert (
+        safe["pilot_accounting"]["reused_source_known"]["embedding_input_tokens"] == 60
+    )
+    # Pure report regeneration never calls the model transport.
+    with patch.object(
+        runner.requests.Session, "post", side_effect=AssertionError("HTTP forbidden")
+    ):
+        with patch(
+            "sys.argv",
+            [
+                "run_dense_target",
+                "--shared-plan",
+                str(s.pilot_plan),
+                "--output-dir",
+                str(s.pilot_output),
+                "--summarize-shared",
+                str(s.root / "pilot-report"),
+            ],
+        ):
+            runner.main()
+
+
+def test_pilot_unknown_and_pin_mismatch_stop_before_reuse_or_retry(
+    pilot_scenario, monkeypatch
+):
+    from scripts import e2_pilot as pilot
+
+    s = pilot_scenario
+    before = len(s.state["posts"])
+    path = next(iter(s.source_bytes))
+    original = path.read_bytes()
+    path.write_bytes(original + b" ")
+    with pytest.raises(ValueError, match="pin_changed"):
+        pilot.verify(s.plan)
+    assert len(s.state["posts"]) == before
+    path.write_bytes(original)
+    s.state["fault"] = "unknown"
+    result = e2.execute(
+        s.pilot_plan,
+        s.pilot_output,
+        "dense",
+        approved_sha=dense.sha256_file(s.pilot_plan),
+        config=s.config,
+    )
+    assert result["status"] == "failed" and len(s.state["posts"]) == before + 1
+    accounting = result["token_accounting"]["summary"]
+    assert not accounting["complete"]
+    with pytest.raises(ValueError, match="failed_or_changed"):
+        e2.execute(
+            s.pilot_plan,
+            s.pilot_output,
+            "dense",
+            approved_sha=dense.sha256_file(s.pilot_plan),
+            config=s.config,
+        )
+    assert len(s.state["posts"]) == before + 1
+    report = e2.summary(s.plan, s.pilot_output)
+    assert not report["comparison_complete"] and report["paired_comparisons"] == []
+    assert report["pilot_accounting"]["used_source_operations"] < 92
+    assert sum(report["pilot_accounting"]["reused_source_known"].values()) < sum(
+        report["pilot_accounting"]["available_source_reuse_known"].values()
+    )
+
+
+@pytest.mark.parametrize("dataset", runner.DATASETS)
+def test_pilot_published_200_order_unique_and_tuning_only(dataset):
+    s500 = dense.read_json(e2.ROOT / f"data/ids/{dataset}_s500.json")
+    split = dense.read_json(e2.ROOT / f"data/ids/{dataset}_comparison_split.json")
+    ids = s500["views"]["pilot200"]
+    assert len(ids) == len(set(ids)) == 200
+    assert ids == s500["question_ids"][:200] == split["pilot200_ids"]
+    assert set(ids) <= set(split["signal_tuning_ids"])
+    assert not set(ids) & set(
+        split["signal_check_ids"] + split["legacy_holdout_reserved_ids"]
+    )

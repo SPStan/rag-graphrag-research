@@ -564,6 +564,11 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--shared-plan", type=Path)
     parser.add_argument("--prepare-shared", action="store_true")
+    parser.add_argument("--prepare-pilot", action="store_true")
+    parser.add_argument("--reuse-shared-plan", type=Path)
+    parser.add_argument("--reuse-shared-output", type=Path)
+    parser.add_argument("--reuse-diagnostic-plan", type=Path)
+    parser.add_argument("--reuse-diagnostic-output", type=Path)
     parser.add_argument(
         "--reader-probe-from",
         type=Path,
@@ -605,7 +610,45 @@ def main():
     if args.shared_plan:
         from scripts import e2_evaluation as shared
 
-        if args.reader_probe_from:
+        if args.prepare_pilot:
+            from scripts import e2_pilot
+
+            if args.execute or not all(
+                (
+                    args.e1_plan,
+                    args.e1_workspace,
+                    args.reuse_shared_plan,
+                    args.reuse_shared_output,
+                    args.reuse_diagnostic_plan,
+                    args.reuse_diagnostic_output,
+                )
+            ):
+                raise ValueError("E2_pilot_prepare_requires_sources_and_no_HTTP")
+            plan = e2_pilot.prepare(
+                args.e1_plan,
+                args.e1_workspace,
+                args.reuse_shared_plan,
+                args.reuse_shared_output,
+                args.reuse_diagnostic_plan,
+                args.reuse_diagnostic_output,
+            )
+            if args.shared_plan.exists() and dense.read_json(args.shared_plan) != plan:
+                raise ValueError("E2_existing_pilot_plan_changed")
+            dense.write_json_atomic(args.shared_plan, plan)
+            print(
+                json.dumps(
+                    {
+                        "plan_sha256": dense.sha256_file(args.shared_plan),
+                        "cases": plan["pilot_protocol"]["cases"],
+                        "reader_POST": plan["reader_calls"],
+                        "filter_POST": plan["filter_calls"],
+                        "embedding_POST": plan["max_embedding_posts"],
+                        "max_combined_tokens": plan["max_combined_tokens"],
+                        "http_calls": 0,
+                    }
+                )
+            )
+        elif args.reader_probe_from:
             if args.execute or not args.parent_output_dir:
                 raise ValueError("E2_probe_prepare_requires_source_and_no_execution")
             plan = shared.prepare_reader_probe(

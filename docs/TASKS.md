@@ -2,7 +2,34 @@
 
 **E1 status:** 6/6 indexes completed under the structural protocol; physical known tokens=32601955; cost_complete=False; unknown reserve61588 preserved. Final audit/verify completed; monitoring paused.
 
-## Текущая очередь — 25 октября: answer-only diagnostic завершён
+## Текущая очередь — 26 октября: pilot200 подготовлен offline
+
+- Ветка codex/e2-pilot200 от b708aa5, отдельный зависимый Draft к PR35;
+  PR35 остаётся Draft/20files, основной checkout с правками не изменяется.
+- shared-answer-only-v1 закреплён прямым поручением пользователя: основание
+  format/length, не F1. Общий основной runner/transport всех3методов использует
+  этот payload, cap512/temp0/seed42/thinkingfalse/parser/byte gates неизменны.
+-1200cases =200ordered published tuning IDs×2×3. Gold/supporting только evaluator.
+  [ADR0025](../.adr/0025-pilot200-shared-reader.md) фиксирует scope, reuse и cost.
+- Проверенный reuse:60contexts и все12совместимых answer-only responses, включая
+  ошибки содержания. СтарыеThought ответы не переносятся;374sourcefile SHA pinned.
+- Новый предел1188reader/≤380filter/1140localBGE=2708POST,≤1568externalLLM.
+  Reserve57189854tokens — верхняя граница payload, не прогноз. Retry0/redirect0,
+  timeout30/300. Первый fatal/unknown/pin/budget/overflow stop, без recovery;
+  known reader failures продолжают очередь без повторов. Filter strict отдельно.
+- Source91871known — часть development237340, не дополнительный расход;
+  новые physical, used source и development отдельно. E1known32601955/reserve61588/
+  cost_complete=false неизменны. Cache timing не freshE2E, исторические времена
+  не суммируются с новыми; JSON хранит source run/stage timing.
+- Frozen plan results/summary/e2-pilot200-plan.json SHA
+  `284af290878ef53f9a486d1df956a8e02d72f147d3a6f1e2aa0b072efc5b4f01`.
+  Native indexes/source artifacts проверены offline; real model calls0.
+  Следующее — один допуск exact плана для всех3методов/двух датасетов; pilot ещё
+  не запускался. После допуска whole script до fatal, без новых prompt/cap проб.
+
+## Предыдущий законченный блок E2
+
+### Answer-only diagnostic завершён (история)
 
 - Пользователь разрешил exact plan1b816118…71cf8b ответом «Продолжай».
   Execution22e4553; run `eb9668ff-ef12-45c5-ac4e-4c52f868a84c` завершил12/12POST:
