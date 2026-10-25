@@ -1279,6 +1279,23 @@ def summary(plan, directory):
                 for k, v in values.items():
                     if v is not None:
                         bucket["known_subtotal"][k] += v
+            by_operation = {}
+            for operation in ("query_embedding", "filter", "reader"):
+                selected = [o for o in operations if o["operation"] == operation]
+                if selected:
+                    by_operation[operation] = {
+                        "calls": len(selected),
+                        "known_subtotal": {
+                            k: sum(
+                                o.get("logical_usage", {}).get(k) or 0 for o in selected
+                            )
+                            for k in (
+                                "llm_input_tokens",
+                                "llm_output_tokens",
+                                "embedding_input_tokens",
+                            )
+                        },
+                    }
             table.append(
                 {
                     "dataset": dataset,
@@ -1318,6 +1335,7 @@ def summary(plan, directory):
                     if complete
                     else None,
                     "logical_usage_by_model": usage,
+                    "usage_by_operation": by_operation,
                     "limitations": "smoke10 development, not independent quality evidence; failed operation usage in global physical journal",
                 }
             )
@@ -1372,6 +1390,24 @@ def tracking_payload(plan, directory, dataset, method):
             ),
             query_embedding_client_seconds=embedding.get("client_seconds"),
             generation_wall_seconds=reader.get("client_seconds"),
+        )
+        key = case_key(row["dataset"], row["method"], row["question_id"])
+        producer = (
+            Path(plan["parent_run"]["directory"])
+            if key in plan.get("parent_run", {}).get("cases", {})
+            else Path(directory)
+        )
+        if reader:
+            response = producer / f"{reader['journal_object_id']}.response.json"
+            if response.exists():
+                saved = dense.read_json(response)
+                choice = saved.get("choices", [{}])[0]
+                row["done_reason"] = choice.get("finish_reason")
+                row["raw_answer"] = choice.get("message", {}).get("content")
+        row["answer_extraction_status"] = (
+            "ok"
+            if row["status"] == "completed"
+            else row.get("error", {}).get("reason", row["status"])
         )
         row.setdefault("question", "not attempted after stop")
         questions.append(
@@ -1555,49 +1591,75 @@ def write_report(plan_path, directory, public_prefix):
         "",
         f"Run `{manifest['run_id']}`; plan `{safe['plan_sha256']}`.",
         "",
-        "| Датасет | Метод | План | Completed | Failed | Не запускались |",
-        "|---|---|---:|---:|---:|---:|",
+        f"Учтены60cases: {outcome_counts['completed']} completed, {outcome_counts['attempted_failed']} attempted_failed, {outcome_counts['not_attempted']} not_attempted. Reader/model/prompt/cap512 неизменны; retries0.",
+        "",
     ]
-    for r in rows:
-        lines.append(
-            f"| {r['dataset']} | {r['method']} | {r['planned']} | {r['completed']} | {r['attempted_failed']} | {r['not_attempted']} |"
-        )
-    lines.extend(
-        [
-            "",
-            f"Модельных POST: {safe['model_posts']} ({safe['llm_posts']}LLM/{safe['embedding_posts']}local BGE).",
-            f"Known LLM input={known['llm_input_tokens']}, output={known['llm_output_tokens']}, local embedding={known['embedding_input_tokens']}; всего {sum(known.values())}.",
-            f"Query cost_complete={safe['query_cost_complete']}; unknown={safe['new_unknown_attempts']}; unfinished={safe['unfinished_attempts']}.",
-            "",
-            f"Остаток исходных caps: {safe['remaining_original_tokens']}tokens/{safe['remaining_original_posts']}POST. Это не допуск к новому run после остановки.",
-        ]
-    )
-    for f in failures:
-        lines.extend(
-            [
-                "",
-                f"Attempted failure: {f['method']}/{f['dataset']}/{f['question_id']}; {f.get('operation')} finish_reason={f.get('finish_reason')}. Partial response не принят.",
-            ]
-        )
     if report["comparison_complete"]:
         lines.extend(
             [
-                "",
-                "| Dataset | Method | EM | F1 | Failure rate | Mean attempted seconds | Usage by model (LLM in/out; embedding) |",
-                "|---|---|---:|---:|---:|---:|---|",
+                "| Dataset | Method | EM % | F1 % | Completed / failed | Failure % | Mean query s | LLM in / out | BGE tokens | Passage recall@5 % | RAPTOR provenance % |",
+                "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
             ]
         )
         for r in report["rows"]:
-            lines.append(
-                f"| {r['dataset']} | {r['method']} | {r['em']:.4f} | {r['f1']:.4f} | {r['failure_rate']:.4f} | {r['mean_attempted_seconds']:.3f} | {json.dumps(r['logical_usage_by_model'], ensure_ascii=False)} |"
+            llm = r["logical_usage_by_model"].get(MODEL, {}).get("known_subtotal", {})
+            embedding = (
+                r["logical_usage_by_model"]
+                .get(plan["embedding_model"], {})
+                .get("known_subtotal", {})
             )
+            recall = (
+                f"{r['passage_recall_at_5'] * 100:.2f}"
+                if r["passage_recall_at_5"] is not None
+                else "—"
+            )
+            provenance = (
+                f"{r['provenance_coverage'] * 100:.2f}"
+                if r["method"] == "raptor"
+                else "—"
+            )
+            lines.append(
+                f"| {r['dataset']} | {r['method']} | {r['em'] * 100:.2f} | {r['f1'] * 100:.2f} | {r['completed']} / {r['attempted_failed']} | {r['failure_rate'] * 100:.1f} | {r['mean_attempted_seconds']:.3f} | {llm.get('llm_input_tokens', 0)} / {llm.get('llm_output_tokens', 0)} | {embedding.get('embedding_input_tokens', 0)} | {recall} | {provenance} |"
+            )
+    else:
+        lines.extend(
+            [
+                "Сравнение неполное: EM/F1 для незавершённых групп=null; not_attempted не считается неправильным ответом.",
+                "",
+                "| Dataset | Method | Completed | Attempted failed | Not attempted |",
+                "|---|---|---:|---:|---:|",
+            ]
+        )
+        for r in rows:
+            lines.append(
+                f"| {r['dataset']} | {r['method']} | {r['completed']} | {r['attempted_failed']} | {r['not_attempted']} |"
+            )
+    filter_usage = {
+        k: sum(
+            r.get("usage_by_operation", {})
+            .get("filter", {})
+            .get("known_subtotal", {})
+            .get(k, 0)
+            for r in report["rows"]
+        )
+        for k in ("llm_input_tokens", "llm_output_tokens")
+    }
     lines.extend(
         [
             "",
-            "Completed и attempted_failed входят в завершённый denominator; attempted_failed даёт EM/F1=0. Not_attempted не считается неправильным ответом: сравнение с такими случаями неполное, EM/F1=null. Это development smoke, не pilot200.",
-            "E1 known32601955/unknown reserve61588 и все6индексов сохранены отдельно. В Git нет gold/сырого ответа/корпуса. Refs #14; без pilot200/QA holdout/merge.",
+            f"Query LLM input={known['llm_input_tokens']}, output={known['llm_output_tokens']}; local BGE input={known['embedding_input_tokens']}. Query cost_complete={safe['query_cost_complete']}; unknown={safe['new_unknown_attempts']}; unfinished={safe['unfinished_attempts']}.",
+            f"Модельных POST={safe['model_posts']} ({safe['llm_posts']}LLM/{safe['embedding_posts']}localBGE), новых child POST={safe['new_model_posts']}. Parent/child учтены один раз.",
+            f"Hippo fact filter включён в LLM totals: input={filter_usage['llm_input_tokens']}, output={filter_usage['llm_output_tokens']}. Reader/filter отдельно — usage_by_operation в JSON.",
             "",
-            f"Данные: [{prefix.name}.json]({prefix.name}.json). Private raw: `{directory}`.",
+            "На законченном smoke denominator=10/cfg; attempted_failed даёт EM/F1=0. Mean query time включает failed cases, query embedding/retrieval/filter/reader; исключает preflight/index loading/паузы между cases. Source parent timing сохранён, это не cold-run benchmark.",
+            "RAPTOR top5 — nodes. Passage recall@5 не сопоставим; provenance — покрытие union descendant source IDs, не доказательство сохранения нужного факта в summary.",
+            f"E1 отдельно: physical known={e1_cost['physical_known_tokens']}; unknown reserve={safe['e1_historical_cost']['unknown_reserved_upper_bound']}; cost_complete={e1_cost['cost_complete']}. Reserve не actual usage; деньги не оценивались. E1 индексы не перестраивались.",
+            "",
+            f"Ошибки и точные source/request/response SHA: [{prefix.name}.json]({prefix.name}.json). Private raw: `{directory}`. Полные тексты/gold в Git не публикуются.",
+            "Development tuning smoke n=10/dataset, не pilot200 и не выбор победителя. Hippo Qwen/GPT extraction policy/observed errors раскрыты в ADR0023; это сравнение конкретных конфигураций, не чистого эффекта архитектуры.",
+            "",
+            "**Один следующий шаг:** общий пересмотр reader для всех методов перед pilot200 из-за наблюдаемых reader length failures. Решение основано на завершённости ответа, не на лучшем F1; новая reader version не смешивается с v2. Новых model calls этот отчёт не разрешает.",
+            "Refs #14; Draft, без pilot200/S500/check/holdout/новых моделей/rebuild/merge.",
         ]
     )
     prefix.with_suffix(".md").write_text("\n".join(lines) + "\n", encoding="utf-8")

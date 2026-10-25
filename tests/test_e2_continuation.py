@@ -325,6 +325,33 @@ def test_runner_continuation_60_unique_cases_and_reader_failure_resume(
         is None
     )
 
+    # Derived tracking keeps the parent length and all statuses, without turning
+    # a raw partial into a completed answer or double-counting filter usage.
+    payload = e2.tracking_payload(plan, s.output, "musique", "dense")
+    assert len(payload["rows"]) == 10
+    source_failure = next(r for r in payload["rows"] if r["question_id"] == "q2")
+    assert source_failure["status"] == "attempted_failed"
+    assert source_failure["done_reason"] == "length"
+    assert not source_failure["answer"]
+    assert source_failure["raw_answer"] is not None
+    assert s.parent_bytes == {
+        p.name: p.read_bytes() for p in s.parent.iterdir() if p.is_file()
+    }
+    for aggregate in report["rows"]:
+        operations = aggregate["usage_by_operation"]
+        assert operations["reader"]["calls"] == 10
+        assert operations["query_embedding"]["calls"] == 10
+        if aggregate["method"] == "hipporag2":
+            assert operations["filter"]["calls"] == 10
+        for field in known:
+            assert sum(
+                op["known_subtotal"].get(field, 0) for op in operations.values()
+            ) == sum(
+                model["known_subtotal"].get(field, 0)
+                for model in aggregate["logical_usage_by_model"].values()
+            )
+    assert (s.root / "report.md").read_text(encoding="utf-8").count("| musique |") == 3
+
     # Even if all60 have a result file, a terminal infrastructure stop is not
     # a completed comparison. Do not publish its metrics as a complete smoke.
     terminal = dense.read_json(s.output / "manifest.json")

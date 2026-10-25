@@ -448,6 +448,8 @@ def export_mlflow(payload, mlflow):
                             "answer_extraction_status": row.get(
                                 "answer_extraction_status"
                             ),
+                            "status": row.get("status"),
+                            "error": row.get("error"),
                         }
                     )
 
@@ -631,7 +633,10 @@ def export_langfuse(payload, base_dir=ROOT):
                         as_type="retriever",
                         name="retrieval",
                         input={"question": row["question"], "top_k": row["top_k"]},
-                        output={"documents": item["retrieved_passages"]},
+                        output={
+                            "documents": item["retrieved_passages"],
+                            "operations": row.get("operations", []),
+                        },
                     ):
                         pass
                     with client.start_as_current_observation(
@@ -666,6 +671,8 @@ def export_langfuse(payload, base_dir=ROOT):
                             "answer_extraction_status": row.get(
                                 "answer_extraction_status"
                             ),
+                            "status": row.get("status"),
+                            "error": row.get("error"),
                         }
                     )
         client.flush()

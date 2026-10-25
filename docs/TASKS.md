@@ -2,35 +2,32 @@
 
 **E1 status:** 6/6 indexes completed under the structural protocol; physical known tokens=32601955; cost_complete=False; unknown reserve61588 preserved. Final audit/verify completed; monitoring paused.
 
-## Текущая очередь — 25 октября: continuation v2 готов offline
+## Текущая очередь — 25 октября: диагностический E2 smoke10 завершён
 
-- PR35/codex/e2-shared-evaluation: исходный run e4bd76e8…66d2 и план8d9ce08b…7cb97
-  неизменны (2completed/1reader length/57not-attempted,5687known/6POST/unknown0).
-- v2: только известный завершённый reader length/empty/unusable/parser failure —
-  attempted_failed без retry, очередь продолжается. Unknown/budget/pin/config/
-  transport/инфраструктура — fatal stop. Fact filter Hippo по-прежнему строгий:
-  length/malformed/error стоп; корректный empty facts даёт штатный DPR fallback.
-- В existing runner добавлены offline child plan,19parent-file SHA, точная проверка
-  ID/model/options/index/evaluator/generation functions. Два completed результата и
-  исходный failed-case остаются у parent, runtime пропускает все3 без новых calls.
-- Child должен выполнить ровно57других пар method/dataset/question:
-  ≤134newPOST (57reader/≤20filter/57localBGE),≤77LLM/57embedding,
-  резерв3148544tokens из3271113; parent5687/6POST учитывается один раз.
-- Resume проверяет результат/ответ/usage по SHA и журналу, не выполняет retrieval/
-  filter/embedding/reader для уже учтённого случая. Failed run не перезапускается.
-  Canonical parent-child claim запрещает второй child для обхода остатка бюджета.
-- Synthetic runner/CLI тест:60уникальных случаев, reader failures не блокируют
-  следующий случай, повторный запуск не добавляет ни POST, ни cost. Fatal gates
-  и строгий Hippo filter проверены. Реальные новые model/embedding requests0.
-- Отчёт v2 не превращает not_attempted в ошибку: EM/F1=null при неполной группе,
-  общая таблица только при завершённом smoke; attempted_failed=0 в denominator10,
-  failure rate и mean attempted latency, фильтр Hippo и embeddings отдельно.
-- Frozen plan `results/summary/e2-smoke10-continuation-plan.json`, SHA
-  723a9993cfd710c8e958cc5ae422ca26dfce27b448acb6538b89f28b3990ffe6.
-  Реальный parent/all6E1 проверены offline; originals immutable. Целевые проверки:
-  33passed/2SDKskips; whole runner60cases/unknown/budget/model/pin/filter/resume.
-  Следующее — отдельное разрешение на этот exact SHA; старый допуск v2 не покрывает.
-  Pilot200/S500/check/holdout/смена reader/моделей/E1/rebuild/merge не разрешены.
+- Пользователь отдельно разрешил exact continuation v2 SHA
+  `723a9993cfd710c8e958cc5ae422ca26dfce27b448acb6538b89f28b3990ffe6`.
+  Execution code537fa023; child `3bee5af5-13f9-43ad-b9d9-dee3dfd11171` completed.
+- Все60уникальных method/dataset/question случаев учтены:43completed,
+  17attempted_failed (reader length cap512),0not_attempted. Ответы partial не приняты,
+  retry0. Parent2completed+1failed неизменны, выполнены только57оставшихся случаев.
+- Новых childPOST134, вместе с parent140:60reader/20Hippo filter/60localBGE.
+  LLM188118input/19535output, embedding1455; всего209108known tokens,
+  child203421+parent5687 ровно один раз. Unknown0/unfinished0; token/post cap соблюдён.
+  Остаток original3067692tokens/0POST не является разрешением новых запросов.
+- Шесть E1 индексов не перестраивались; query journal содержит только embedding,
+  filter и reader. E1known32601955/reserve61588/cost_complete=false отдельны.
+- Единая [таблица](../results/summary/e2-smoke10-continuation.md) содержит EM/F1,
+  completed/failed/failure rate, measured mean query latency и LLM/BGE usage.
+  Failed даёт0, RAPTOR provenance не passage recall@5. Это tuning smoke10,
+  не pilot200/полный E2 и не доказательство преимущества архитектуры.
+- Local tracking:6MLflow/6Langfuse views по10cases;50retrieved nodes/passages
+  на trace, reader usage совпал;48artifact round-trip SHA совпали. Parent+child
+  это представление прежних140POST, не дополнительная стоимость. Экспорт
+  выполняется по одной конфигурации на процесс (Langfuse SDK resource lifecycle).
+- Единственный следующий шаг: общий пересмотр reader для всех методов перед
+  pilot200 по техническому признаку17/60length (28.3%), без подбора по F1.
+  Новая версия требует отдельного плана/допуска; эти результаты с ней не смешивать.
+  Pilot200/S500/check/holdout/новые модели/rebuild/merge не запускать.
 
 ## Предыдущий законченный блок E1 (справка)
 

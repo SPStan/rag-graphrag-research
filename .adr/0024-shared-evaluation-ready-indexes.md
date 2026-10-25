@@ -1,7 +1,7 @@
 # ADR-0024: общий reader на готовых E1 индексах
 
-Дата:25 октября2026. Статус: offline реализация; exact smoke10 разрешён пользователем
-и остановлен на первом reader length (2completed/1failed). Continuation не разрешён.
+Дата:25 октября2026. Статус: smoke10 и отдельно разрешённый continuation v2 завершены;
+43completed/17reader length/0not_attempted. Полный pilot E2 не выполнен.
 Refs #14; зависит от PR33/f8b9bb8. Протокол smoke — [E2_EVALUATION](../docs/E2_EVALUATION.md).
 
 ## Контекст и выбор
@@ -88,3 +88,16 @@ runner/CLI на60cases, success+reader outcomes+resume; parent SHA/config/model/
 budget/transport rejection, filter fatal, no duplicate expense. Новых real calls нет.
 После реального smoke — одно решение: freeze reader для pilot200 либо единый пересмотр
 для всех методов при технической проблеме; не выбирать конфигурацию по лучшему F1.
+
+## Наблюдение после разрешённого continuation v2
+
+Exact plan723a9993…0ffe6, execution537fa023, child3bee5af5…1171:
+60уникальных случаев,43completed/17attempted_failed, неизвестных/незапущенных0.
+Все failures — length при неизменном reader cap512; partial не приняты, retry0.
+Совокупно140POST/209108known tokens с parent один раз, filter включён,
+LLM188118input/19535output и BGE1455 отдельно. E1 incomplete cost не меняется.
+Это диагностическая таблица конкретных конфигураций, не подтверждение H1/эффекта
+архитектуры на независимых данных. Условие пересмотра reader сработало по17/60length,
+поэтому предложен один общий пересмотр для всех методов до pilot200, не поиск
+лучшего F1. Изменение reader ещё не принято/не запущено: отдельная версия и план,
+без смешивания с этими результатами. [Таблица](../results/summary/e2-smoke10-continuation.md).

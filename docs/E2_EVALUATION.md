@@ -1,16 +1,16 @@
 # E2: общий путь оценки готовых E1 индексов (#14)
 
-Статус: **smoke10 разрешён и остановлен**:2completed/1failed, остальные57 не запускались.
-[Фактическая сводка](../results/summary/e2-smoke10.md). Полного E2 нет. PR зависит от
-Draft PR33/f8b9bb8; собственный diff считается к `codex/e1-indexing`.
-После merge33 базу отдельного Draft PR нужно перевести на master. PR33 не меняется.
+Статус: **диагностический smoke10 завершён** после отдельного разрешения v2:
+60случаев=43completed/17reader length/0not_attempted. [Единая таблица](../results/summary/e2-smoke10-continuation.md).
+Это не pilot200/полный E2. Draft PR35 зависит от Draft PR33/f8b9bb8, собственный diff20файлов
+к `codex/e1-indexing`; после merge33 перенести base на master. PR33 не меняется.
 
-## Текущий блок: reader-outcome policy v2, только offline
+## Текущий блок: reader-outcome policy v2, завершён
 
-Новый [план продолжения](../results/summary/e2-smoke10-continuation-plan.json)
-закреплён на тех же20ordered tuning IDs/6индексах. Исполнение **не разрешено**.
-Изменение политики принято текущим поручением, новый API budget допуск отдельный.
-Исходные результаты/план8d9ce08b…7cb97 и расходы не переписываются.
+[План](../results/summary/e2-smoke10-continuation-plan.json) SHA723a9993…0ffe6
+разрешён пользователем и выполнен на execution537fa023, child3bee5af5…1171.
+Исходные3case/19parent pins/failed manifest/claims и расходы неизменны.
+Новых child запросов134, ровно57оставшихся cases; дальнейший execute запрещён.
 
 - Reader response с полным известным usage и length/empty/unusable/parser failure:
   `attempted_failed`, без повторного запроса, остальные случаи продолжаются.
@@ -248,3 +248,43 @@ Langfuse подтвердил15passages/4516input/1102output, MLflow4artifacts �
 пределы и denominator; любой другой error/unknown остаётся fatal. Нужен отдельный
 точный child-план/проверяемый lineage и допуск изменения stop-policy. Он здесь не
 реализован и не запущен; pilot200 не разрешён.
+
+## Фактическое завершение v2 — 25 октября
+
+Child3bee5af5-13f9-43ad-b9d9-dee3dfd11171 completed; все60case keys уникальны.
+43completed/17attempted_failed/0not_attempted; все17 — reader length при cap512.
+Reader/model/prompt/options не менялись, partial не принимались и не повторялись.
+Fatal infrastructure/filter errors не возникли. Parent5,687tokens/6POST включён один раз:
+new child203421tokens/134POST; total209108known/140POST=80LLM+60BGE.
+LLM188118input/19535output, localBGE1455; Hippo filter60853input/1331output включён.
+Unknown0/unfinished0; old/new response/request/case/journal SHA и19parent pins проверены.
+E1 core artifacts не перестраивались, query operations не содержат index/OpenIE.
+E1known32601955/reserve61588/cost_complete=false отдельно, не цена в деньгах.
+
+Единая таблица включает mean measured query time по10attempted cases, failures входят;
+исключены index loading/preflight и pacing. Это development tuning n10/dataset,
+не cold-run latency benchmark. RAPTOR provenance coverage не passage recall@5.
+Posthoc tracking шести конфигураций использует сохранённые60cases с failure status,
+физические расходы обоих journals считаются один раз; экспорт не новые model calls.
+
+**Один следующий шаг:** общий пересмотр reader для всех методов до pilot200,
+поскольку17/60length (28.3%) нарушают контракт завершённого ответа. Основание —
+технический исход, не лучший F1. Новый reader — отдельная версия/план/допуск,
+эти результаты с ней не смешиваются; новых проб и pilot200 сейчас нет.
+
+Локальный tracking подтверждён:6MLflow runs/6Langfuse traces по10question spans,
+50retrieved passages/nodes на trace, reader usage совпал;48artifact round-trips SHA
+совпали (включая source/child journals/manifests). Private receipts raw/tracking,
+safe trace IDs — в итоговой JSON. В установленном SDK resource manager singleton
+сохраняется после client.shutdown: повторный exporter в одном процессе может
+застрять на media queue flush. Экспортировать по одной конфигурации на процесс.
+Один уже записанный RAPTOR trace восстановлен обратным чтением/verify без повторной
+выгрузки; source traces не удалялись, новых inference/duplicated traces нет.
+Воспроизведение таблицы без моделей:
+
+```powershell
+./.venv-check/Scripts/python.exe -m scripts.run_dense_target `
+  --shared-plan results/summary/e2-smoke10-continuation-plan.json `
+  --output-dir results/raw/e2-smoke10-continuation-v2 `
+  --summarize-shared results/summary/e2-smoke10-continuation
+```
