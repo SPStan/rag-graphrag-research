@@ -565,6 +565,11 @@ def main():
     parser.add_argument("--shared-plan", type=Path)
     parser.add_argument("--prepare-shared", action="store_true")
     parser.add_argument(
+        "--reader-probe-from",
+        type=Path,
+        help="prepare answer-only cached-context diagnostic; no HTTP",
+    )
+    parser.add_argument(
         "--continue-shared-plan",
         type=Path,
         help="prepare child from this immutable parent plan; no HTTP",
@@ -600,7 +605,50 @@ def main():
     if args.shared_plan:
         from scripts import e2_evaluation as shared
 
-        if args.summarize_shared:
+        if args.reader_probe_from:
+            if args.execute or not args.parent_output_dir:
+                raise ValueError("E2_probe_prepare_requires_source_and_no_execution")
+            plan = shared.prepare_reader_probe(
+                args.reader_probe_from, args.parent_output_dir
+            )
+            if args.shared_plan.exists() and dense.read_json(args.shared_plan) != plan:
+                raise ValueError("E2_existing_probe_plan_changed")
+            dense.write_json_atomic(args.shared_plan, plan)
+            print(
+                json.dumps(
+                    {
+                        "plan_sha256": dense.sha256_file(args.shared_plan),
+                        "max_posts": plan["max_posts"],
+                        "max_combined_tokens": plan["max_combined_tokens"],
+                        "http_calls": 0,
+                    }
+                )
+            )
+        elif (
+            args.shared_plan.exists()
+            and dense.read_json(args.shared_plan).get("version")
+            == shared.READER_PROBE_VERSION
+        ):
+            if args.summarize_shared or args.shared_method:
+                raise ValueError("E2_probe_not_comparative_smoke")
+            if args.execute:
+                if not args.output_dir:
+                    raise ValueError("E2_output_required")
+                if args.env_file:
+                    load_dotenv(args.env_file, override=False)
+                result = shared.execute_reader_probe(
+                    args.shared_plan,
+                    args.output_dir,
+                    approved_sha=args.approved_plan_sha256,
+                    config=api.settings(os.environ),
+                )
+                print(
+                    json.dumps({"status": result["status"], "run_id": result["run_id"]})
+                )
+            else:
+                shared.verify_reader_probe(dense.read_json(args.shared_plan))
+                print("Reader probe verified offline; no HTTP.")
+        elif args.summarize_shared:
             if not args.output_dir or args.execute:
                 raise ValueError("E2_summary_requires_output_and_no_execution")
             report = shared.write_report(

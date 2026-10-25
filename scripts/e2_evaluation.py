@@ -543,6 +543,15 @@ class Calls:
         url=None,
         headers=None,
     ):
+        if self.plan.get("version") == READER_PROBE_VERSION and (
+            operation != "reader"
+            or not any(
+                (c["method"], c["dataset"], c["question_id"], c["payload"])
+                == (method, dataset, qid, payload)
+                for c in self.plan["cases"]
+            )
+        ):
+            raise ValueError("E2_probe_only_frozen_reader_payloads")
         kind = "embedding" if operation == "query_embedding" else "llm"
         provider = "local_ollama" if kind == "embedding" else "target_api"
         key = target.digest(
@@ -1665,3 +1674,230 @@ def write_report(plan_path, directory, public_prefix):
     prefix.with_suffix(".md").write_text("\n".join(lines) + "\n", encoding="utf-8")
     assert dense.sha256_file(manifest_path) == manifest_sha
     return safe
+
+
+READER_PROBE_VERSION = "e2-answer-only-probe-v1"
+ANSWER_ONLY_SYSTEM = (
+    "Answer the question using the supplied passages. Return exactly one line: "
+    "Answer: <concise answer>. Do not include reasoning, analysis or explanation."
+)
+
+
+def answer_only_payload(question, retrieval):
+    """One shared candidate: same demonstration/context, explicit answer only."""
+    payload = reader_payload(question, retrieval)
+    messages = payload["messages"]
+    messages[0]["content"] = ANSWER_ONLY_SYSTEM
+    for index in (1, 3):
+        suffix = "\nThought: "
+        if not messages[index]["content"].endswith(suffix):
+            raise ValueError("E2_reader_template_suffix_changed")
+        messages[index]["content"] = messages[index]["content"][: -len(suffix)]
+    answer, status = dense.extract_target_reader_answer(messages[2]["content"])
+    if status != "ok":
+        raise ValueError("E2_reader_demo_changed")
+    messages[2]["content"] = "Answer: " + answer
+    return payload
+
+
+def prepare_reader_probe(source_plan_path, source_directory):
+    """Freeze 12 cached-context requests without labels, SDK loading or HTTP."""
+    source_plan_path, source_directory = map(
+        lambda p: Path(p).resolve(), (source_plan_path, source_directory)
+    )
+    source = dense.read_json(source_plan_path)
+    manifest_path = source_directory / "manifest.json"
+    manifest = dense.read_json(manifest_path)
+    if (
+        manifest["status"] != "completed"
+        or manifest["plan_sha256"] != target.digest(source)
+        or (source_directory / "running.lock").exists()
+    ):
+        raise ValueError("E2_probe_source_not_completed")
+    physical, references = lineage_records(source, source_directory, manifest)
+    if any(not r["summary"]["complete"] for r in references):
+        raise ValueError("E2_probe_source_unknown")
+    refs = result_references(source, manifest, source_directory)
+    files = {str(source_plan_path): dense.sha256_file(source_plan_path)}
+    files.update(source.get("parent_run", {}).get("files", {}))
+    for reference in references:
+        journal = Path(reference["path"])
+        for path in (journal, journal.parent / "manifest.json"):
+            files[str(path)] = dense.sha256_file(path)
+    rows = {}
+    for key, (path, sha) in refs.items():
+        if dense.sha256_file(path) != sha:
+            raise ValueError("E2_probe_source_result_changed")
+        row = dense.read_json(path)
+        original = (
+            dense.read_json(Path(source["parent_run"]["plan"]))
+            if key in source.get("parent_run", {}).get("cases", {})
+            else source
+        )
+        verify_saved_case(original, path.parent, row, physical)
+        rows[key] = row
+        files[str(path)] = sha
+        for operation in row["operations"]:
+            for suffix in (".json", ".response.json"):
+                saved = path.parent / (operation["journal_object_id"] + suffix)
+                files[str(saved)] = dense.sha256_file(saved)
+    if len(rows) != 60:
+        raise ValueError("E2_probe_requires_60_source_cases")
+    cases = []
+    for dataset, data in source["datasets"].items():
+
+        def complete(qid):
+            return all(
+                rows[case_key(dataset, m, qid)]["status"] == "completed"
+                for m in METHODS
+            )
+
+        ids = data["question_ids"]
+        failure = next((q for q in ids if not complete(q)), ids[0])
+        control = next((q for q in ids if q != failure and complete(q)), None)
+        if control is None:
+            raise ValueError("E2_probe_no_common_completed_control")
+        for qid, stratum in (
+            (failure, "first_reader_failure_or_baseline"),
+            (control, "first_all_completed_control"),
+        ):
+            for method in METHODS:
+                row = rows[case_key(dataset, method, qid)]
+                payload = answer_only_payload(row["question"], row["retrieval"])
+                cases.append(
+                    {
+                        "dataset": dataset,
+                        "method": method,
+                        "question_id": qid,
+                        "stratum": stratum,
+                        "source_status": row["status"],
+                        "payload": payload,
+                        "payload_sha256": target.digest(payload),
+                        "source_case_sha256": refs[case_key(dataset, method, qid)][1],
+                    }
+                )
+    reserve = sum(
+        len(json.dumps(c["payload"], ensure_ascii=False).encode())
+        + 2048
+        + target.OPTIONS["max_tokens"]
+        for c in cases
+    )
+    return {
+        "version": READER_PROBE_VERSION,
+        "reader_version": "shared-answer-only-v1",
+        "source_plan": str(source_plan_path),
+        "source_directory": str(source_directory),
+        "source_run_id": manifest["run_id"],
+        "source_files": files,
+        "code_sha256": {name: dense.sha256_file(ROOT / name) for name in CODE_FILES},
+        "endpoint": "https://api.duckduck.cloud/v1",
+        "reader_model": MODEL,
+        "reader_options": target.OPTIONS,
+        "cases": cases,
+        "selection": "first known reader failure and first distinct all-method completed control in each frozen tuning order; statuses only, no labels/scores",
+        "max_posts": len(cases),
+        "max_llm_posts": len(cases),
+        "reader_calls": len(cases),
+        "max_embedding_posts": 0,
+        "filter_calls": 0,
+        "max_combined_tokens": reserve,
+        "retry": 0,
+        "redirects": 0,
+        "timeout": [30, 300],
+        "outcome_policy": OUTCOME_POLICY,
+        "http_authorized": False,
+        "stop": "first length/empty/invalid answer/unknown/HTTP/transport/budget/pin error; no retry or alternate prompt",
+        "acceptance": "all12 stop, known usage, exactly one nonempty Answer line, no8word block repeated3times consecutively; then source-only audit for unsupported claims/omitted qualifications without gold; no automatic adoption/pilot",
+        "cost": "new diagnostic budget, not remainder of exhausted smoke POST cap; prior209108 query tokens and incomplete E1 cost remain separate",
+    }
+
+
+def verify_reader_probe(plan):
+    if plan.get("version") != READER_PROBE_VERSION:
+        raise ValueError("E2_probe_version_changed")
+    for filename, sha in {
+        **plan["source_files"],
+        **{str(ROOT / k): v for k, v in plan["code_sha256"].items()},
+    }.items():
+        if dense.sha256_file(Path(filename)) != sha:
+            raise ValueError("E2_probe_source_or_code_changed")
+    if prepare_reader_probe(plan["source_plan"], plan["source_directory"]) != plan:
+        raise ValueError("E2_probe_payload_or_contract_changed")
+    return True
+
+
+def execute_reader_probe(plan_path, directory, *, approved_sha, config):
+    """Existing Calls/Journal transport, cached contexts only, one diagnostic run."""
+    import uuid
+
+    plan_path, directory = Path(plan_path).resolve(), Path(directory).resolve()
+    plan = dense.read_json(plan_path)
+    verify_reader_probe(plan)
+    if approved_sha != dense.sha256_file(plan_path) or not config:
+        raise ValueError("E2_exact_plan_approval_required_before_HTTP")
+    if config["base_url"] != plan["endpoint"] or config["model"] != MODEL:
+        raise ValueError("E2_endpoint_or_model_changed")
+    run_id = str(uuid.uuid4())
+    claim = (
+        Path(plan["source_directory"]).parent
+        / f"reader-probe-{target.digest(plan)}.claim.json"
+    )
+    if directory.exists():
+        raise ValueError("E2_probe_existing_output_no_retry")
+    with claim.open("x", encoding="utf-8") as stream:
+        json.dump({"run_id": run_id, "directory": str(directory)}, stream)
+    calls = Calls(directory, plan, run_id=run_id)
+    manifest = {
+        "run_id": run_id,
+        "plan_sha256": target.digest(plan),
+        "reader_version": plan["reader_version"],
+        "status": "running",
+        "results": [],
+    }
+    dense.write_json_atomic(directory / "manifest.json", manifest)
+    try:
+        with target.requests.Session() as remote:
+            for case in plan["cases"]:
+                manifest["current_case"] = {
+                    k: case[k] for k in ("dataset", "method", "question_id")
+                }
+                dense.write_json_atomic(directory / "manifest.json", manifest)
+                for filename, sha in plan["source_files"].items():
+                    if dense.sha256_file(Path(filename)) != sha:
+                        raise ValueError("E2_probe_source_changed")
+                body, _ = calls.call(
+                    case["payload"],
+                    method=case["method"],
+                    dataset=case["dataset"],
+                    qid=case["question_id"],
+                    operation="reader",
+                    session=remote,
+                    url=plan["endpoint"] + "/chat/completions",
+                    headers={"Authorization": "Bearer " + config["key"]},
+                )
+                raw = reader_text(body)
+                answer, status = dense.extract_target_reader_answer(raw)
+                if status != "ok" or raw.strip() != "Answer: " + answer:
+                    raise ReaderCaseFailure("reader_not_single_answer_line")
+                words = answer.split()
+                if any(
+                    words[i : i + 8] == words[i + 8 : i + 16] == words[i + 16 : i + 24]
+                    for i in range(len(words) - 23)
+                ):
+                    raise ReaderCaseFailure("reader_repeated_8word_block_three_times")
+                manifest["results"].append(
+                    {
+                        k: case[k]
+                        for k in ("dataset", "method", "question_id", "payload_sha256")
+                    }
+                )
+                dense.write_json_atomic(directory / "manifest.json", manifest)
+        manifest["status"] = "responses_pending_source_audit"
+    except Exception as exc:
+        manifest["status"] = "failed"
+        manifest["error"] = {"type": type(exc).__name__, "reason": str(exc)}
+    finally:
+        manifest["token_accounting"] = calls.journal.reference()
+        manifest["source_costs_not_recounted"] = True
+        dense.write_json_atomic(directory / "manifest.json", manifest)
+    return manifest

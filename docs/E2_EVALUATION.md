@@ -288,3 +288,34 @@ safe trace IDs — в итоговой JSON. В установленном SDK r
   --output-dir results/raw/e2-smoke10-continuation-v2 `
   --summarize-shared results/summary/e2-smoke10-continuation
 ```
+
+## Текущий следующий блок: answer-only probe, только offline-подготовка
+
+[ADR0024: rationale,12IDs/payload SHA и критерии](../.adr/0024-shared-evaluation-ready-indexes.md).
+Plan `.cache/e2-answer-only-diagnostic-plan.json`, SHA
+`1b816118b0f2b5574abeb1e384fcde61a391f6bca9fe45a78b00a2649a71cf8b`,≤12readerPOST/152350new tokens, без retrieval/filter/embedding.
+Ответы всех методов используют те же cached contexts, источник347pins проверен.
+Прежний reader не изменён: новый candidate — отдельная версия, не continuation v2.
+Подготовка воспроизводится без HTTP и без labels/evaluator:
+
+```powershell
+./.venv-check/Scripts/python.exe -m scripts.run_dense_target `
+  --shared-plan .cache/e2-answer-only-diagnostic-plan.json `
+  --reader-probe-from results/summary/e2-smoke10-continuation-plan.json `
+  --parent-output-dir results/raw/e2-smoke10-continuation-v2
+```
+
+После отдельного допуска exact SHA, один запуск existing runner (сейчас не выполнять):
+
+```powershell
+./.venv-check/Scripts/python.exe -m scripts.run_dense_target `
+  --shared-plan .cache/e2-answer-only-diagnostic-plan.json --execute `
+  --output-dir results/raw/e2-answer-only-diagnostic-v1 `
+  --approved-plan-sha256 1b816118b0f2b5574abeb1e384fcde61a391f6bca9fe45a78b00a2649a71cf8b `
+  --env-file 'C:/Users/Elisei/Documents/ChatGPT/Rag, GraphRAG/.env.target-api'
+```
+
+Результат responses_pending_source_audit не означает принятие reader. Первый любой
+сбой — стоп; failed/unknown/repeat claims не перезапускаются. Проба не вызывает
+evaluator, не меняет старые summary/manifests, не запускает pilot200. Source audit
+отдельно до любого предложения большого прогона. Новых HTTP в подготовке0.

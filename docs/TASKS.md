@@ -2,7 +2,32 @@
 
 **E1 status:** 6/6 indexes completed under the structural protocol; physical known tokens=32601955; cost_complete=False; unknown reserve61588 preserved. Final audit/verify completed; monitoring paused.
 
-## Текущая очередь — 25 октября: диагностический E2 smoke10 завершён
+## Текущая очередь — 25 октября: answer-only probe готов offline
+
+- На HEAD9460b0e smoke10 закончен:43completed/17reader length/0not_attempted,
+  total209108known/140POST/unknown0. Результаты v2 и индексы неизменны.
+- Client formatting/retry defect не найден. Старый system/example/user suffix
+  явно требуют Thought;17length имеют reported reasoning_tokens0. Гипотеза:
+  запрос подробного plain-text reasoning конфликтует с cap512, причина не доказана.
+- Единственный кандидат shared-answer-only-v1: прежние Qwen/temp0/seed42/
+  thinkingfalse/cap512, context order/top5/parser; меняется только answer contract:
+  без Thought и demonstration reasoning, одна строка Answer. Для всех методов одинаково.
+- Exact private plan `.cache/e2-answer-only-diagnostic-plan.json`, SHA
+  `1b816118b0f2b5574abeb1e384fcde61a391f6bca9fe45a78b00a2649a71cf8b`;347source pins и12точных payload.
+  По2status-selected tuning IDs/dataset ×3метода, без gold/F1/новой выборки.
+- Только reader:≤12POST/152350новых combined tokens, embeddings/filter/retrieval0,
+  retry0/redirect0/timeout30/300. Первый length/empty/format/cycle/unknown/HTTP/
+  budget/pin error — stop; общий claim не допускает другой output/retry.
+- После всех12полных ответов — обязательный source-only audit, без gold/F1.
+  Это диагностика output contract, не новый benchmark и не принятие reader.
+  Pilot200/S500/check/holdout/rebuild/смена модели/merge не разрешены.
+- Existing runner prepare/execute проверен synthetic,31passed/2SDKskips.
+  Новых real model/embedding calls0. Следующее — отдельный допуск exact плана,
+  поскольку исходный smoke POST cap исчерпан; остаток tokens не разрешение.
+
+## Предыдущий законченный блок E2
+
+### Диагностический E2 smoke10 завершён
 
 - Пользователь отдельно разрешил exact continuation v2 SHA
   `723a9993cfd710c8e958cc5ae422ca26dfce27b448acb6538b89f28b3990ffe6`.

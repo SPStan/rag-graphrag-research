@@ -3,6 +3,7 @@
 import copy
 import json
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import numpy as np
 import pytest
@@ -418,3 +419,118 @@ def test_runner_filter_length_still_fatal(scenario, monkeypatch):
     r = dense.read_json(next(s.output.glob("question-*.json")))
     assert r["fatal"] is True and r["failure_scope"] == "execution"
     assert len(s.state["posts"]) == 8
+
+
+@pytest.mark.parametrize(
+    "fault", [None, "length", "unknown", "transport", "malformed", "cycle"]
+)
+def test_answer_only_diagnostic_existing_runner(scenario, monkeypatch, fault):
+    s = scenario
+    for method in e2.METHODS:
+        run_method(s, method, monkeypatch)
+    # Neither labels nor scoring/retrieval may participate in the new diagnostic.
+    original_read = dense.read_json
+
+    def no_labels(path):
+        assert str(path).split("/")[-1] != "labels.json"
+        assert not str(path).endswith("labels.json")
+        return original_read(path)
+
+    monkeypatch.setattr(dense, "read_json", no_labels)
+    monkeypatch.setattr(e2, "summary", lambda *a: pytest.fail("no gold evaluator"))
+    probe_path = s.root / "reader-probe.json"
+    with patch(
+        "sys.argv",
+        [
+            "run_dense_target",
+            "--shared-plan",
+            str(probe_path),
+            "--reader-probe-from",
+            str(s.child_plan),
+            "--parent-output-dir",
+            str(s.output),
+        ],
+    ):
+        runner.main()
+    probe = dense.read_json(probe_path)
+    assert probe["max_posts"] == probe["max_llm_posts"] == 12
+    assert probe["max_embedding_posts"] == probe["filter_calls"] == 0
+    assert (
+        len({(c["dataset"], c["method"], c["question_id"]) for c in probe["cases"]})
+        == 12
+    )
+    for c in probe["cases"]:
+        assert c["payload"]["max_tokens"] == 512
+        assert not any("Thought:" in m["content"] for m in c["payload"]["messages"])
+        assert c["payload"]["messages"][2]["content"] == "Answer: 1862."
+    blocked_calls = e2.Calls(s.root / "blocked-probe-calls", probe, run_id="blocked")
+    for forbidden in ("query_embedding", "filter"):
+        case = probe["cases"][0]
+        with pytest.raises(ValueError, match="only_frozen_reader"):
+            blocked_calls.call(
+                case["payload"],
+                method=case["method"],
+                dataset=case["dataset"],
+                qid=case["question_id"],
+                operation=forbidden,
+            )
+    with pytest.raises(ValueError, match="approval_required"):
+        e2.execute_reader_probe(
+            probe_path, s.root / "not-approved", approved_sha="wrong", config=s.config
+        )
+    assert not (s.root / "not-approved").exists()
+    for key, value in (("max_posts", 13), ("max_combined_tokens", 1)):
+        changed = {**probe, key: value}
+        with pytest.raises(ValueError, match="contract_changed"):
+            e2.verify_reader_probe(changed)
+    posts = len(s.state["posts"])
+    s.state["reader_outcomes"] = [fault] if fault in ("length", "malformed") else []
+    s.state["fault"] = fault if fault in ("unknown", "transport") else None
+    if fault == "cycle":
+        session_class = runner.requests.Session
+        original_post = session_class.post
+
+        def cycle_post(self, *args, **kwargs):
+            response = original_post(self, *args, **kwargs)
+            body = response.json()
+            body["choices"][0]["message"]["content"] = "Answer: " + "Paris " * 32
+            response.json = lambda: body
+            return response
+
+        monkeypatch.setattr(session_class, "post", cycle_post)
+    monkeypatch.setattr(runner.api, "settings", lambda env: s.config)
+    output = s.root / "reader-diagnostic"
+    with patch(
+        "sys.argv",
+        [
+            "run_dense_target",
+            "--shared-plan",
+            str(probe_path),
+            "--execute",
+            "--output-dir",
+            str(output),
+            "--approved-plan-sha256",
+            dense.sha256_file(probe_path),
+        ],
+    ):
+        runner.main()
+    result = dense.read_json(output / "manifest.json")
+    assert result["status"] == (
+        "responses_pending_source_audit" if fault is None else "failed"
+    )
+    delta = s.state["posts"][posts:]
+    assert len(delta) == (12 if fault is None else 1)
+    assert all(operation == "reader" for operation, _ in delta)
+    assert result["token_accounting"]["summary"]["attempts"] == len(delta)
+    with pytest.raises((FileExistsError, ValueError)):
+        e2.execute_reader_probe(
+            probe_path,
+            s.root / "other-output",
+            approved_sha=dense.sha256_file(probe_path),
+            config=s.config,
+        )
+    assert len(s.state["posts"]) == posts + len(delta)
+    altered = copy.deepcopy(probe)
+    altered["cases"][0]["payload"]["max_tokens"] = 1024
+    with pytest.raises(ValueError, match="contract_changed"):
+        e2.verify_reader_probe(altered)
