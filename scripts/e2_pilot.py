@@ -479,6 +479,7 @@ def enrich_report(plan, report):
             limitations="development pilot, not independent confirmation; cached latency not fresh E2E",
         )
     actual_sources = {}
+    lineage_sources = {}
     for case in report["question_results"]:
         for op in case.get("operations", []):
             if op.get("reused"):
@@ -488,7 +489,10 @@ def enrich_report(plan, report):
                     and actual_sources[identity] != op["logical_usage"]
                 ):
                     raise ValueError("E2_pilot_conflicting_reuse_cost")
-                actual_sources[identity] = op["logical_usage"]
+                if op["producer_run_id"] == plan.get("parent_run", {}).get("run_id"):
+                    lineage_sources[identity] = op["logical_usage"]
+                else:
+                    actual_sources[identity] = op["logical_usage"]
     actual_reused = {
         k: sum(u.get(k) or 0 for u in actual_sources.values())
         for k in ("llm_input_tokens", "llm_output_tokens", "embedding_input_tokens")
@@ -498,6 +502,11 @@ def enrich_report(plan, report):
         "reused_source_known": actual_reused,
         "available_source_reuse_known": plan["pilot_reuse"]["reused_source_known"],
         "used_source_operations": len(actual_sources),
+        "lineage_stage_reuse_known": {
+            k: sum(u.get(k) or 0 for u in lineage_sources.values())
+            for k in ("llm_input_tokens", "llm_output_tokens", "embedding_input_tokens")
+        },
+        "lineage_stage_reuse_scope": "already included in physical parent journal; never added again",
         "development_physical": plan["pilot_reuse"]["development_physical"],
         "scope": "reused costs are a subset of development cost; do not add development twice; E1 excluded/incomplete",
     }
@@ -581,7 +590,7 @@ def write_markdown(plan, report, safe, prefix):
         "Reader/filter LLM input/output and embedding tokens are separated in JSON; each cell separates reader(R) input/output, filter(F) input/output and BGE input. Not-attempted is not a wrong answer; incomplete groups have null EM/F1. Known reader failures count as0 only in completed groups.",
         "Cached context/reader results are not fresh latency; source timing provenance stays in private per-case data and is never added across runs. RAPTOR provenance coverage is not passage recall@5.",
         "",
-        f"New physical known: {safe['known_query_tokens']}; new POST={safe['new_model_posts']}; unknown={safe['new_unknown_attempts']}. Reused source costs are a subset of the separately reported development expense, not additional physical cost. E1known32601955/unknown reserve61588/cost_complete=false separate.",
+        f"Pilot physical lineage known: {safe['known_query_tokens']}; total POST={safe['model_posts']}; current run POST={safe['new_model_posts']}; unknown={safe['new_unknown_attempts']}. Reused source costs are a subset of the separately reported development expense, not additional physical cost. E1known32601955/unknown reserve61588/cost_complete=false separate.",
         "",
     ]
     if not report["comparison_complete"]:
@@ -595,3 +604,303 @@ def write_markdown(plan, report, safe, prefix):
         "Includes mixed Hippo extraction configuration and disclosed source errors; no architecture-only causality. Refs #14; Draft, no merge/holdout/S500.",
     ]
     prefix.with_suffix(".md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+# One bounded continuation of the terminal pilot, not a general retry engine.
+PILOT_RUNTIME = "41ee909c14ffca5dff552fa65d46f33f39d9ed8d"
+CONTINUATION_BYTES = 65536
+
+
+def input_size_bounds(plan):
+    """Worst top5 escaped-text size, no retrieval, labels or token-count claims."""
+    source = dense.read_json(Path(plan["e1_plan"]))
+    bounds = {}
+    for dataset, data in plan["datasets"].items():
+        raw = Path(source["data_root"]) / f"data/processed/{dataset}"
+        corpus = dense.read_json(raw / "corpus.json")
+        queries = e2.select_in_view(
+            dense.read_json(raw / "queries.json"), data["question_ids"], "query"
+        )
+        question = max(
+            queries,
+            key=lambda q: len(json.dumps(q["question"], ensure_ascii=False).encode()),
+        )["question"]
+        row = next(r for r in data["indexes"] if r["method"] == "raptor")
+        tree = dense.read_json(
+            Path(plan["e1_workspace"]) / row["e1_row"]["output"] / "tree.json"
+        )
+        nodes = [
+            {"title": f"RAPTOR node {n['index']}", "text": n["text"]}
+            for n in tree["nodes"]
+        ]
+        for method, items in (("raptor", nodes), ("dense_or_hippo", corpus)):
+            # Projection has identical title/text escaping to the message string;
+            # all other per-passage delimiters have constant length.
+            selected = sorted(
+                items,
+                key=lambda x: len(
+                    json.dumps(
+                        {k: x[k] for k in ("title", "text")}, ensure_ascii=False
+                    ).encode()
+                ),
+                reverse=True,
+            )[:5]
+            payload = e2.answer_only_payload(
+                question, {"passages": selected}, message_limit=2**63 - 1
+            )
+            bounds[f"{dataset}/{method}"] = {
+                "nodes": len(items),
+                "largest_5_text_bytes": [len(x["text"].encode()) for x in selected],
+                "max_question_json_bytes": len(
+                    json.dumps(question, ensure_ascii=False).encode()
+                ),
+                "synthetic_top5_message_bytes": len(
+                    json.dumps(payload["messages"], ensure_ascii=False).encode()
+                ),
+            }
+    return bounds
+
+
+def validate_original_pilot(parent):
+    """Rebuild all original data/index/reuse pins with current verification code."""
+    import hashlib
+    import subprocess
+
+    if (
+        parent.get("version") != VERSION
+        or parent.get("parent_run")
+        or parent.get("pilot_continuation")
+    ):
+        raise ValueError("E2_only_original_pilot_can_parent")
+    for name, sha in parent["code_sha256"].items():
+        original = subprocess.check_output(
+            ["git", "-C", str(e2.ROOT), "show", PILOT_RUNTIME + ":" + name]
+        )
+        # Original approved Windows runtime hashed CRLF working-tree bytes;
+        # Git stores LF blobs. Reconstruct that exact representation, not a new SHA.
+        original = original.replace(b"\r\n", b"\n").replace(b"\n", b"\r\n")
+        if hashlib.sha256(original).hexdigest() != sha:
+            raise ValueError("E2_pilot_parent_runtime_SHA_changed")
+    reuse = parent["pilot_reuse"]
+    rebuilt = prepare(
+        parent["e1_plan"],
+        parent["e1_workspace"],
+        reuse["source_plan"],
+        reuse["source_directory"],
+        reuse["diagnostic_plan"],
+        reuse["diagnostic_directory"],
+    )
+    rebuilt["code_sha256"] = parent["code_sha256"]
+    if rebuilt != parent:
+        raise ValueError("E2_original_pilot_contract_changed")
+
+
+def continuation_snapshot(parent_path, directory):
+    parent_path, directory = Path(parent_path).resolve(), Path(directory).resolve()
+    parent = dense.read_json(parent_path)
+    validate_original_pilot(parent)
+    mp = directory / "manifest.json"
+    manifest = dense.read_json(mp)
+    ref = verified_reference(manifest, mp)
+    if (
+        manifest["status"] != "failed"
+        or manifest["plan_sha256"] != target.digest(parent)
+        or ref["status"] != "verified"
+        or not ref["summary"]["complete"]
+        or (directory / "running.lock").exists()
+    ):
+        raise ValueError("E2_pilot_parent_not_terminal_known")
+    claim = (
+        Path(parent["e1_workspace"])
+        / ".cache"
+        / f"e2-{target.digest(parent)}.claim.json"
+    )
+    if dense.read_json(claim) != {"directory": str(directory)}:
+        raise ValueError("E2_pilot_parent_claim_changed")
+    files = {}  # Historical source pins remain in pilot_reuse, without duplication.
+    for path in (parent_path, mp, directory / "usage.jsonl", claim):
+        files[str(path)] = dense.sha256_file(path)
+    records = read_records(directory / "usage.jsonl")
+    cases, overflow, seen = {}, {}, set()
+    for key, sha in manifest["results"].items():
+        path = directory / f"question-{key}.json"
+        if dense.sha256_file(path) != sha:
+            raise ValueError("E2_pilot_parent_result_changed")
+        result = dense.read_json(path)
+        if key != e2.case_key(
+            result["dataset"], result["method"], result["question_id"]
+        ):
+            raise ValueError("E2_pilot_parent_case_changed")
+        e2.verify_saved_case(parent, directory, result, records)
+        files[str(path)] = sha
+        if result["status"] == "completed":
+            # Actual outbound reader payload, parser and result verified above;
+            # increased admission does not alter a single byte of this payload.
+            payload = e2.answer_only_payload(
+                result["question"],
+                result["retrieval"],
+                message_limit=CONTINUATION_BYTES,
+            )
+            if target.digest(payload) != result["reader_request_sha256"]:
+                raise ValueError("E2_completed_payload_changed")
+            cases[key] = {
+                "path": str(path),
+                "sha256": sha,
+                "dataset": result["dataset"],
+                "method": result["method"],
+                "question_id": result["question_id"],
+                "status": "completed",
+            }
+        elif (
+            result.get("fatal")
+            and result["method"] == "raptor"
+            and result.get("error")
+            == {"type": "ValueError", "reason": "E2_context_overflow_no_truncation"}
+            and result.get("retrieval", {}).get("passages")
+            and [o["operation"] for o in result["operations"]] == ["query_embedding"]
+            and all(
+                o.get("physical_attempted") and o["status"] == "completed"
+                for o in result["operations"]
+            )
+        ):
+            overflow[key] = {"path": str(path), "sha256": sha}
+        else:
+            raise ValueError("E2_only_pre_reader_overflow_can_continue")
+        for op in result["operations"]:
+            if op.get("reused"):
+                continue
+            identity = op["journal_object_id"]
+            if identity in seen:
+                raise ValueError("E2_duplicate_parent_operation")
+            seen.add(identity)
+            for suffix in (".json", ".response.json"):
+                fp = directory / (identity + suffix)
+                files[str(fp)] = dense.sha256_file(fp)
+    if len(overflow) != 1 or seen != {
+        r["object_id"] for r in records if r["event"] == "started"
+    }:
+        raise ValueError("E2_unattributed_or_nonunique_parent_attempt")
+    return (
+        parent,
+        {
+            "plan": str(parent_path),
+            "directory": str(directory),
+            "run_id": manifest["run_id"],
+            "files": files,
+            "cases": cases,
+            "summary": ref["summary"],
+            "runtime_commit": PILOT_RUNTIME,
+        },
+        overflow,
+    )
+
+
+def prepare_continuation(parent_path, directory, proof_path):
+    parent, snapshot, overflow = continuation_snapshot(parent_path, directory)
+    proof_path = Path(proof_path).resolve()
+    proof = dense.read_json(proof_path)
+    if (
+        proof["message_utf8_bytes_limit"] != CONTINUATION_BYTES
+        or proof["size_bounds"] != input_size_bounds(parent)
+        or max(v["synthetic_top5_message_bytes"] for v in proof["size_bounds"].values())
+        > CONTINUATION_BYTES
+        or proof["conservative_input_plus_output_bound"]
+        != CONTINUATION_BYTES + 2048 + target.OPTIONS["max_tokens"]
+        or proof["reported_context_window"] != 262144
+    ):
+        raise ValueError("E2_input_bound_proof_changed")
+    for filename, sha in proof["tokenizer_files"].items():
+        if dense.sha256_file(Path(filename)) != sha:
+            raise ValueError("E2_native_tokenizer_pin_changed")
+    fresh = copy.deepcopy(parent)
+    fresh["code_sha256"] = {
+        name: dense.sha256_file(e2.ROOT / name) for name in e2.CODE_FILES
+    }
+    fresh["pilot_reuse"]["contexts"].update(overflow)
+    fresh["pilot_reuse"]["files"][str(proof_path)] = dense.sha256_file(proof_path)
+    fresh["pilot_reuse"]["files"].update(proof["tokenizer_files"])
+    expected = {
+        e2.case_key(d, m, q): {"dataset": d, "method": m, "question_id": q}
+        for d, data in fresh["datasets"].items()
+        for m in e2.METHODS
+        for q in data["question_ids"]
+    }
+    if not set(snapshot["cases"]) <= set(expected) or not set(overflow) <= set(
+        expected
+    ):
+        raise ValueError("E2_parent_ID_outside_plan")
+    remaining = {k: v for k, v in expected.items() if k not in snapshot["cases"]}
+    if any(v["method"] != "raptor" for v in remaining.values()):
+        raise ValueError("E2_continuation_only_remaining_RAPTOR")
+    source = dense.read_json(Path(parent["e1_plan"]))
+    queries = {
+        d: {
+            q["id"]: q["question"]
+            for q in e2.select_in_view(
+                dense.read_json(
+                    Path(source["data_root"]) / f"data/processed/{d}/queries.json"
+                ),
+                data["question_ids"],
+                "query",
+            )
+        }
+        for d, data in fresh["datasets"].items()
+    }
+    readers = sum(k not in fresh["pilot_reuse"]["readers"] for k in remaining)
+    embedding = sum(k not in fresh["pilot_reuse"]["contexts"] for k in remaining)
+    er = sum(
+        len(
+            json.dumps(
+                e2.embedding_payload(fresh, queries[c["dataset"]][c["question_id"]]),
+                ensure_ascii=False,
+            ).encode()
+        )
+        + 2048
+        for k, c in remaining.items()
+        if k not in fresh["pilot_reuse"]["contexts"]
+    )
+    # Per-request checked_post uses exact bytes; reserve a max envelope for every
+    # remaining reader, including those whose context is already available.
+    reserve = (
+        readers * (CONTINUATION_BYTES + 1024 + 2048 + target.OPTIONS["max_tokens"]) + er
+    )
+    available_tokens = parent["max_combined_tokens"] - sum(
+        snapshot["summary"]["known_subtotal"].values()
+    )
+    available_posts = parent["max_posts"] - snapshot["summary"]["attempts"]
+    if reserve > available_tokens or readers + embedding > available_posts:
+        raise ValueError("E2_continuation_exceeds_original_remainder")
+    fresh.update(
+        mode="pilot200_continuation_pending_approval",
+        pilot_continuation={
+            "parent_plan": str(Path(parent_path).resolve()),
+            "parent_directory": str(Path(directory).resolve()),
+            "bound_proof": str(proof_path),
+            "overflow_context_cases": overflow,
+            "recovery": "none after fatal; same-output only after clean method boundary; no unknown replay",
+            "embedding_reserve": er,
+            "inherited_payloads_unchanged": len(snapshot["cases"]),
+        },
+        parent_run=snapshot,
+        remaining_cases=list(remaining.values()),
+        message_utf8_bytes_limit=CONTINUATION_BYTES,
+        reader_calls=readers,
+        filter_calls=0,
+        max_llm_posts=readers,
+        max_embedding_posts=embedding,
+        max_posts=readers + embedding,
+        max_combined_tokens=reserve,
+        original_remaining_tokens=available_tokens,
+        original_remaining_posts=available_posts,
+    )
+    return fresh
+
+
+def verify_continuation(plan):
+    spec = plan["pilot_continuation"]
+    candidate = prepare_continuation(
+        spec["parent_plan"], spec["parent_directory"], spec["bound_proof"]
+    )
+    if candidate != plan:
+        raise ValueError("E2_continuation_plan_changed")
+    return True

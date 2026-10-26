@@ -2,7 +2,25 @@
 
 **E1 status:** 6/6 indexes completed under the structural protocol; physical known tokens=32601955; cost_complete=False; unknown reserve61588 preserved. Final audit/verify completed; monitoring paused.
 
-## Текущая очередь — 26 октября: pilot200 остановлен по протоколу
+## Текущая очередь — 26 октября: RAPTOR continuation разрешён, подготовлен
+
+- PR33/35/36 очищены без смены O/N/R/H, все Draft; зависимости master→33→35→36.
+  Основной checkout не изменён. Runtime parent41ee909, parent failed неизменен.
+- [ADR0026](../.adr/0026-pilot200-input-admission-continuation.md):32000было локальным
+  byte guard, не пределом модели. Overflow37608bytes=9860native input tokens;
+  общий gate65536 покрывает worst-byte top5 bound63955 без изменения входов.
+- [Continuation plan](../results/summary/e2-pilot200-continuation-plan.json), SHA
+  `cbdc1a8c063d74d4848793338c78c7b915c9e9a98b6815943741b4e644ddf400`. Пользователь прямо разрешил любой план RAPTOR continuation;
+  допуск относится к этому ограниченному плану, повторное согласие не требуется.
+-812готовых payload/results совместимы.388outcomes остаются;2cached answers,
+  ≤386новыхreader+377localBGE=763POST, filter0. Reserve27530699tokens≤54784356remaining;
+  новыйoutput results/raw/e2-pilot200-continuation-v1, original failed/source неизменны.
+- Только отсутствующие стадии; сохранённый overflow embedding/retrieval переиспользуется.
+  Unknown/infra/transport/pin/budget/overflow fatal, retry0/recovery0, no Dense/Hippo/rebuild.
+- Следующее: завершить gate/коммит, запустить один автономный worker по exact SHA;
+  при успехе strict1200audit/единая таблица/paired comparison/local tracking безmodel calls.
+
+## Предыдущая остановка pilot200 (история)
 
 - Отдельный зависимый Draft PR36, codex/e2-pilot200; PR35 и основной checkout
   не изменены. Runtime `41ee909c14ffca5dff552fa65d46f33f39d9ed8d`.

@@ -1,0 +1,95 @@
+{
+  "message_utf8_bytes_limit": 65536,
+  "size_bounds": {
+    "musique/raptor": {
+      "nodes": 7438,
+      "largest_5_text_bytes": [
+        12385,
+        12235,
+        11915,
+        11743,
+        11391
+      ],
+      "max_question_json_bytes": 234,
+      "synthetic_top5_message_bytes": 63955
+    },
+    "musique/dense_or_hippo": {
+      "nodes": 5500,
+      "largest_5_text_bytes": [
+        2012,
+        1942,
+        1908,
+        1926,
+        1883
+      ],
+      "max_question_json_bytes": 234,
+      "synthetic_top5_message_bytes": 13239
+    },
+    "hotpotqa/raptor": {
+      "nodes": 7595,
+      "largest_5_text_bytes": [
+        11141,
+        11086,
+        10894,
+        10886,
+        10706
+      ],
+      "max_question_json_bytes": 213,
+      "synthetic_top5_message_bytes": 58961
+    },
+    "hotpotqa/dense_or_hippo": {
+      "nodes": 5500,
+      "largest_5_text_bytes": [
+        7819,
+        6183,
+        4728,
+        3914,
+        3540
+      ],
+      "max_question_json_bytes": 213,
+      "synthetic_top5_message_bytes": 29753
+    }
+  },
+  "conservative_input_plus_output_bound": 68096,
+  "reported_context_window": 262144,
+  "deployment_contract_source": "docs/OPENIE_TARGET_CHECK.md, user contract14October; deployment revision not independently measured",
+  "tokenizer_files": {
+    "C:\\Users\\Elisei\\.codex\\worktrees\\template-alignment\\Rag, GraphRAG\\.cache\\qwen38-tokenizer\\1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0\\tokenizer.json": "0997f410c57a1f4e53b09e4be8f4a172d90edd9564368fb0847030937229b9f3",
+    "C:\\Users\\Elisei\\.codex\\worktrees\\template-alignment\\Rag, GraphRAG\\.cache\\qwen38-tokenizer\\1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0\\tokenizer_config.json": "b11349aafa7cdc6a320767cf7ceb29ed82f7eda5d65e8e0819e76f0ce947bf27",
+    "C:\\Users\\Elisei\\.codex\\worktrees\\template-alignment\\Rag, GraphRAG\\.cache\\qwen38-tokenizer\\1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0\\chat_template.jinja": "c3cf9e34abf4f9e36c2d72165aa9c132d3e2a725b6c2586aaa3a8af9d7a81041"
+  },
+  "native_tokenizer_class": "Qwen2TokenizerFast",
+  "native_counts": [
+    {
+      "dataset": "musique",
+      "method": "raptor",
+      "input_tokens": 16490,
+      "output_cap": 512,
+      "rendered_sha256": "9ce0a97935f4cf04d2c758f575e7f406f2c14da33f4e664ccc62662f082e4489"
+    },
+    {
+      "dataset": "musique",
+      "method": "dense_or_hippo",
+      "input_tokens": 2756,
+      "output_cap": 512,
+      "rendered_sha256": "dd5f11142dfee2270fbfede1f8a4fe590a10625b14e1ca1b80252492a82a7f39"
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "raptor",
+      "input_tokens": 15381,
+      "output_cap": 512,
+      "rendered_sha256": "d2b5bd255d054ffe26d43ee25de3c3afc50b8f94fb767a4efd8b8fc6cd1b5692"
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "dense_or_hippo",
+      "input_tokens": 7011,
+      "output_cap": 512,
+      "rendered_sha256": "71d39d0adc7bfa3dec74317c1b7ad56fe82e10d139ef86fc3401324a23cee089"
+    }
+  ],
+  "method": "byte-BPE conservative byte bound plus2048template allowance+512output; native counts below are measurements of synthetic size-extreme prompts, not worst tokenization proofs",
+  "HTTP_calls": 0,
+  "overflow_native_input_tokens": 9860
+}

@@ -841,3 +841,212 @@ def test_pilot_published_200_order_unique_and_tuning_only(dataset):
     assert not set(ids) & set(
         split["signal_check_ids"] + split["legacy_holdout_reserved_ids"]
     )
+
+
+@pytest.fixture
+def bounded_pilot_child(pilot_scenario, monkeypatch):
+    from scripts import e2_pilot as pilot
+
+    s = pilot_scenario
+    # Tiny synthetic source contexts have less reservation headroom than the
+    # real1200-case pilot. Fund this fixture BEFORE its first physical attempt.
+    original_verify = pilot.verify
+    s.plan["max_combined_tokens"] += 1_000_000
+    dense.write_json_atomic(s.pilot_plan, s.plan)
+
+    def funded_synthetic_verify(plan):
+        base = copy.deepcopy(plan)
+        base["max_combined_tokens"] -= 1_000_000
+        return original_verify(base)
+
+    monkeypatch.setattr(pilot, "verify", funded_synthetic_verify)
+    native = e2.indexes.retrieve_ready_e1
+
+    def long_context(loaded, question, vector, **kw):
+        r = native(loaded, question, vector, **kw)
+        if (
+            loaded["manifest_sha256"] == "musique-raptor"
+            and question == "Which city 10?"
+        ):
+            r["passages"][0]["text"] = "long original text " * 2100
+        return r
+
+    monkeypatch.setattr(e2.indexes, "retrieve_ready_e1", long_context)
+    s.child_plan, s.output = s.pilot_plan, s.pilot_output
+    for method in e2.METHODS:
+        run_method(s, method, monkeypatch)
+    m = dense.read_json(s.output / "manifest.json")
+    assert m["status"] == "failed"
+    assert len(m["results"]) == 55
+    s.terminal_bytes = {p: p.read_bytes() for p in s.output.iterdir() if p.is_file()}
+    monkeypatch.setattr(pilot, "validate_original_pilot", pilot.verify)
+    bounds = {"synthetic": {"synthetic_top5_message_bytes": 50000}}
+    monkeypatch.setattr(pilot, "input_size_bounds", lambda p: bounds)
+    proof = s.root / "bound-proof.json"
+    dense.write_json_atomic(
+        proof,
+        {
+            "message_utf8_bytes_limit": 65536,
+            "size_bounds": bounds,
+            "conservative_input_plus_output_bound": 68096,
+            "reported_context_window": 262144,
+            "tokenizer_files": {},
+        },
+    )
+    s.continuation_plan = s.root / "pilot-child-plan.json"
+    with patch(
+        "sys.argv",
+        [
+            "run_dense_target",
+            "--shared-plan",
+            str(s.continuation_plan),
+            "--continue-pilot-plan",
+            str(s.pilot_plan),
+            "--parent-output-dir",
+            str(s.pilot_output),
+            "--pilot-bound-proof",
+            str(proof),
+        ],
+    ):
+        runner.main()
+    s.continuation = dense.read_json(s.continuation_plan)
+    s.continuation_output = s.root / "pilot-child"
+    return s
+
+
+def test_bounded_pilot_child_existing_cli_reuses_only_missing_stages(
+    bounded_pilot_child, monkeypatch
+):
+    from scripts import e2_pilot as pilot
+
+    s = bounded_pilot_child
+    plan = s.continuation
+    assert len(plan["parent_run"]["cases"]) == 54
+    assert len(plan["remaining_cases"]) == 12
+    assert plan["reader_calls"] == 10
+    assert plan["max_embedding_posts"] == 1 and plan["filter_calls"] == 0
+    assert plan["max_posts"] == 11
+    assert plan["max_combined_tokens"] <= plan["original_remaining_tokens"]
+    before = len(s.state["posts"])
+    s.child_plan, s.output = s.continuation_plan, s.continuation_output
+    run_method(s, "raptor", monkeypatch)
+    new = s.state["posts"][before:]
+    assert len(new) == 11
+    assert sum(op == "reader" for op, _ in new) == 10
+    assert sum(op == "embedding" for op, _ in new) == 1
+    assert any(
+        "long original text " * 2100 in p["messages"][-1]["content"]
+        for op, p in new
+        if op == "reader"
+    )
+    assert dense.read_json(s.output / "manifest.json")["status"] == "completed"
+    report = e2.summary(plan, s.output)
+    assert report["comparison_complete"]
+    cases = report["question_results"]
+    assert (
+        len(cases) == 66
+        and len({(c["method"], c["dataset"], c["question_id"]) for c in cases}) == 66
+    )
+    assert all(c["status"] == "completed" for c in cases)
+    assert report["physical_query_accounting"]["summary"]["attempts"] == 62
+    assert (
+        report["pilot_accounting"]["lineage_stage_reuse_known"][
+            "embedding_input_tokens"
+        ]
+        == 1
+    )
+    assert (
+        report["pilot_accounting"]["reused_source_known"]
+        == s.plan["pilot_reuse"]["reused_source_known"]
+    )
+    for path, content in s.terminal_bytes.items():
+        assert path.read_bytes() == content
+    for path, content in s.source_bytes.items():
+        assert path.read_bytes() == content
+    paid = len(s.state["posts"])
+    run_method(s, "raptor", monkeypatch)
+    assert len(s.state["posts"]) == paid
+    for key, value in (
+        ("message_utf8_bytes_limit", 70000),
+        ("max_posts", 12),
+        ("reader_options", {"max_tokens": 1024}),
+    ):
+        altered = {**plan, key: value}
+        with pytest.raises(ValueError, match="continuation_plan_changed"):
+            pilot.verify_continuation(altered)
+    changed = copy.deepcopy(plan)
+    changed["code_sha256"]["scripts/e2_pilot.py"] = "bad"
+    with pytest.raises(ValueError, match="continuation_plan_changed"):
+        pilot.verify_continuation(changed)
+
+
+def test_new_byte_gate_keeps_full_payload_and_rejects_before_reader(pilot_scenario):
+    s = pilot_scenario
+    retrieval = {"passages": [{"title": "T", "text": "unchanged content " * 2100}]}
+    with pytest.raises(ValueError, match="context_overflow"):
+        e2.configured_reader_payload(s.plan, "Which?", retrieval)
+    child = {**s.plan, "message_utf8_bytes_limit": 65536}
+    payload = e2.configured_reader_payload(child, "Which?", retrieval)
+    assert retrieval["passages"][0]["text"] in payload["messages"][-1]["content"]
+    assert len(json.dumps(payload["messages"]).encode()) > 32000
+    assert payload == e2.answer_only_payload("Which?", retrieval, message_limit=65536)
+    with pytest.raises(ValueError, match="context_overflow"):
+        e2.configured_reader_payload(
+            child, "Which?", {"passages": [{"title": "T", "text": "z" * 66000}]}
+        )
+
+
+def test_pilot_child_transport_completed_filter_and_budget_gates(bounded_pilot_child):
+    s = bounded_pilot_child
+    plan = copy.deepcopy(s.continuation)
+    calls = e2.Calls(s.root / "transport-gates", plan, run_id="gate-only")
+    inherited = next(iter(plan["parent_run"]["cases"].values()))
+    payload = e2.answer_only_payload("Which?", {"passages": []})
+    with pytest.raises(ValueError, match="no_new_completed_case_or_filter"):
+        calls.call(
+            payload,
+            method=inherited["method"],
+            dataset=inherited["dataset"],
+            qid=inherited["question_id"],
+            operation="reader",
+        )
+    with pytest.raises(ValueError, match="no_new_completed_case_or_filter"):
+        calls.call(
+            payload, method="raptor", dataset="hotpotqa", qid="q10", operation="filter"
+        )
+    plan["max_combined_tokens"] = 1
+    # Real checked_post path rejects reservation before synthetic session.post.
+    before = len(s.state["posts"])
+    with pytest.raises(ValueError, match="budget"):
+        calls.call(
+            payload,
+            method="raptor",
+            dataset="hotpotqa",
+            qid="q10",
+            operation="reader",
+            session=runner.requests.Session(),
+            url=s.config["base_url"] + "/chat/completions",
+        )
+    assert len(s.state["posts"]) == before
+
+
+def test_pilot_continuation_rejects_active_parent_and_changed_pin(bounded_pilot_child):
+    from scripts import e2_pilot as pilot
+
+    s = bounded_pilot_child
+    lock = s.pilot_output / "running.lock"
+    lock.write_text("live", encoding="utf-8")
+    with pytest.raises(ValueError, match="parent_not_terminal_known"):
+        pilot.verify_continuation(s.continuation)
+    lock.unlink()
+    claim = next(
+        p
+        for p in s.continuation["parent_run"]["files"]
+        if p.endswith("claim.json")
+        and dense.read_json(Path(p)).get("directory") == str(s.pilot_output)
+    )
+    original = Path(claim).read_bytes()
+    dense.write_json_atomic(Path(claim), {"directory": "other-output"})
+    with pytest.raises(ValueError, match="parent_claim_changed"):
+        pilot.verify_continuation(s.continuation)
+    Path(claim).write_bytes(original)

@@ -50,7 +50,11 @@ def reader_payload(question, retrieval):
 
 def configured_reader_payload(plan, question, retrieval):
     return (
-        answer_only_payload(question, retrieval)
+        answer_only_payload(
+            question,
+            retrieval,
+            message_limit=plan.get("message_utf8_bytes_limit", MESSAGE_BYTES),
+        )
         if plan.get("reader_version") == "shared-answer-only-v1"
         else reader_payload(question, retrieval)
     )
@@ -540,7 +544,11 @@ def verify(plan):
     if plan.get("version") == "e2-pilot200-v1":
         from scripts import e2_pilot
 
-        return e2_pilot.verify(plan)
+        return (
+            e2_pilot.verify_continuation(plan)
+            if plan.get("pilot_continuation")
+            else e2_pilot.verify(plan)
+        )
     if plan["version"] not in (VERSION, CONTINUATION_VERSION):
         raise ValueError("E2_plan_version_changed")
     for name, sha in plan["code_sha256"].items():
@@ -601,6 +609,12 @@ class Calls:
                 raise ValueError("E2_pilot_case_outside_frozen_IDs")
             reuse = self.plan["pilot_reuse"]
             case = case_key(dataset, method, qid)
+            if self.plan.get("pilot_continuation") and (
+                case in self.plan["parent_run"]["cases"]
+                or method != "raptor"
+                or operation not in ("reader", "query_embedding")
+            ):
+                raise ValueError("E2_continuation_no_new_completed_case_or_filter")
             if (operation == "reader" and case in reuse["readers"]) or (
                 operation != "reader" and case in reuse["contexts"]
             ):
@@ -682,7 +696,7 @@ class Calls:
             payload.get("model") != MODEL
             or any(payload.get(k) != v for k, v in target.OPTIONS.items())
             or len(json.dumps(payload["messages"], ensure_ascii=False).encode())
-            > MESSAGE_BYTES
+            > self.plan.get("message_utf8_bytes_limit", MESSAGE_BYTES)
         ):
             raise ValueError("E2_LLM_payload_contract")
         if kind == "embedding" and (
@@ -692,7 +706,12 @@ class Calls:
             raise ValueError("E2_embedding_payload_contract")
         if (
             len(json.dumps(payload, ensure_ascii=False).encode())
-            > (QUERY_BYTES if kind == "embedding" else MESSAGE_BYTES) + 1024
+            > (
+                QUERY_BYTES
+                if kind == "embedding"
+                else self.plan.get("message_utf8_bytes_limit", MESSAGE_BYTES)
+            )
+            + 1024
         ):
             raise ValueError("E2_payload_envelope_overflow")
         check_parent_pins(self.plan)
@@ -1073,6 +1092,8 @@ def execute(
     plan_path, directory = Path(plan_path).resolve(), Path(directory).resolve()
     plan = dense.read_json(plan_path)
     verify(plan)
+    if plan.get("pilot_continuation") and method != "raptor":
+        raise ValueError("E2_pilot_continuation_executes_only_RAPTOR")
     if approved_sha != dense.sha256_file(plan_path) or config is None:
         raise ValueError("E2_exact_plan_approval_required_before_HTTP")
     if (
@@ -1841,9 +1862,16 @@ ANSWER_ONLY_SYSTEM = (
 )
 
 
-def answer_only_payload(question, retrieval):
+def answer_only_payload(question, retrieval, *, message_limit=MESSAGE_BYTES):
     """One shared candidate: same demonstration/context, explicit answer only."""
-    payload = reader_payload(question, retrieval)
+    # Byte admission is local policy, not model context length. Build the same
+    # messages first, then gate the actual answer-only payload, never truncate.
+    passages = [{"title": p["title"], "text": p["text"]} for p in retrieval["passages"]]
+    payload = {
+        "model": MODEL,
+        "messages": dense.build_reader_messages(question, passages),
+        **target.OPTIONS,
+    }
     messages = payload["messages"]
     messages[0]["content"] = ANSWER_ONLY_SYSTEM
     for index in (1, 3):
@@ -1855,6 +1883,8 @@ def answer_only_payload(question, retrieval):
     if status != "ok":
         raise ValueError("E2_reader_demo_changed")
     messages[2]["content"] = "Answer: " + answer
+    if len(json.dumps(messages, ensure_ascii=False).encode()) > message_limit:
+        raise ValueError("E2_context_overflow_no_truncation")
     return payload
 
 

@@ -565,6 +565,8 @@ def main():
     parser.add_argument("--shared-plan", type=Path)
     parser.add_argument("--prepare-shared", action="store_true")
     parser.add_argument("--prepare-pilot", action="store_true")
+    parser.add_argument("--continue-pilot-plan", type=Path)
+    parser.add_argument("--pilot-bound-proof", type=Path)
     parser.add_argument("--reuse-shared-plan", type=Path)
     parser.add_argument("--reuse-shared-output", type=Path)
     parser.add_argument("--reuse-diagnostic-plan", type=Path)
@@ -610,7 +612,32 @@ def main():
     if args.shared_plan:
         from scripts import e2_evaluation as shared
 
-        if args.prepare_pilot:
+        if args.continue_pilot_plan:
+            from scripts import e2_pilot
+
+            if args.execute or not args.parent_output_dir or not args.pilot_bound_proof:
+                raise ValueError(
+                    "E2_pilot_continuation_prepare_offline_sources_required"
+                )
+            plan = e2_pilot.prepare_continuation(
+                args.continue_pilot_plan, args.parent_output_dir, args.pilot_bound_proof
+            )
+            if args.shared_plan.exists() and dense.read_json(args.shared_plan) != plan:
+                raise ValueError("E2_frozen_plan_cannot_be_overwritten")
+            dense.write_json_atomic(args.shared_plan, plan)
+            print(
+                json.dumps(
+                    {
+                        "plan_sha256": dense.sha256_file(args.shared_plan),
+                        "reader_POST": plan["reader_calls"],
+                        "embedding_POST": plan["max_embedding_posts"],
+                        "max_POST": plan["max_posts"],
+                        "max_combined_tokens": plan["max_combined_tokens"],
+                        "http_calls": 0,
+                    }
+                )
+            )
+        elif args.prepare_pilot:
             from scripts import e2_pilot
 
             if args.execute or not all(

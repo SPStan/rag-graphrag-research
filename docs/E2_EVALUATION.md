@@ -1,6 +1,44 @@
 # E2: общий путь оценки готовых E1 индексов (#14)
 
-## Результат26октября: pilot200 неполон
+## Продолжение26октября: только оставшийся RAPTOR
+
+[ADR0026](../.adr/0026-pilot200-input-admission-continuation.md) и
+[bound proof](../results/summary/e2-pilot200-input-bound.json) обосновывают общий
+byte gate65536, без truncation/payload/retrieval изменений. Native overflow count9860,
+а не37608tokens. Пользователь разрешил любой план продолжения RAPTOR.
+812completed наследуются;388outcomes=386новыхreader+2cached,377новыхlocalBGE,
+filter0. Новые≤763POST/27530699tokens; исходный остаток не расширен.
+
+Подготовка offline уже выполнена existing runner:
+
+```powershell
+./.venv-check/Scripts/python.exe -m scripts.run_dense_target `
+  --shared-plan results/summary/e2-pilot200-continuation-plan.json `
+  --continue-pilot-plan results/summary/e2-pilot200-plan.json `
+  --parent-output-dir results/raw/e2-pilot200-v1 `
+  --pilot-bound-proof results/summary/e2-pilot200-input-bound.json
+```
+
+Однократное выполнение разрешённого exact плана (parent не перезапускать):
+
+```powershell
+& 'C:/Users/Elisei/.codex/worktrees/dense-target-smoke/Rag, GraphRAG/.cache/raptor-venv/Scripts/python.exe' `
+  -m scripts.run_dense_target `
+  --shared-plan results/summary/e2-pilot200-continuation-plan.json `
+  --execute --shared-method raptor --output-dir results/raw/e2-pilot200-continuation-v1 `
+  --approved-plan-sha256 cbdc1a8c063d74d4848793338c78c7b915c9e9a98b6815943741b4e644ddf400 `
+  --env-file 'C:/Users/Elisei/Documents/ChatGPT/Rag, GraphRAG/.env.target-api' `
+  --raptor-source 'C:/Users/Elisei/.codex/worktrees/dense-target-smoke/Rag, GraphRAG/.cache/raptor-source'
+```
+
+Одна попытка на request; retry/redirect/recovery0,timeout30/300. Первый fatal
+останавливает worker без новой копии/child. Known reader failure сохраняется,
+следующие cases продолжаются. Budget проверяется доPOST. Исходные manifests,
+claims, responses и стоимость неизменны; parent stage reuse не double count.
+После terminal — existing report-only --summarize-shared results/summary/e2-pilot200;
+строгий audit1200cases, paired bootstrap по протоколу и local tracking безmodelcalls.
+
+## Результат первоначального запуска26октября: pilot200 неполон
 
 - Отдельный зависимый Draft PR36, codex/e2-pilot200; PR35 и основной checkout
   не изменены. Runtime `41ee909c14ffca5dff552fa65d46f33f39d9ed8d`.
