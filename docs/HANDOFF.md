@@ -2,6 +2,15 @@
 
 **E1 status:** 6/6 indexes completed under the structural protocol; physical known tokens=32601955; cost_complete=False; unknown reserve61588 preserved. Final audit/verify completed; monitoring paused.
 
+## Итоговые PR — консолидация26октября
+
+- Issue13 → Draft PR33; карта необходимых изменений34 в docs/E1_INDEXING.md.
+  Все исправления уже сохранены; старый stopped статус не переносится.
+- Issue14 → Draft PR36; временная база codex/e1-indexing. PR35 уже в истории36.
+  Закрытие34/35 после проверки сохранности/CI, без merge, удаления веток и артефактов.
+- Runtime pins/результаты/лимиты неизменны. Научное согласование отдельно;
+  Refs13/14, без Ready/merge/закрытия issues и новых модельных вызовов.
+
 ## Текущая очередь — 25 октября: E1 завершён, 6/6
 
 - Dense×2, RAPTOR×2 и HippoRAG2×2 имеют completed; строгая штатная
