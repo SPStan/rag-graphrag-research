@@ -1,6 +1,30 @@
 # E2: общий путь оценки готовых E1 индексов (#14)
 
-## Продолжение26октября: только оставшийся RAPTOR
+## Результат continuation26октября: неполный pilot, новый unknown
+
+- Runtime3914d70, child fadc0797-34e3-4468-8f0d-bc9ef1289f3a terminal failed
+  в2026-10-26T02:11:11Z. Worker завершён, retry/recovery0; исходные manifests/claims
+  не менялись. Мониторинг завершает работу; повтор POST не разрешён.
+- Reader target API оборвал соединение без ответа (RemoteDisconnected), HotpotQA
+  question5adbe75455429944faac23af. Один physical reader POST имеет unknown usage.
+  Reserve22545tokens сохранён как консервативная граница, не расход/ноль.
+- [Текущая неполная таблица](../results/summary/e2-pilot200.md):1061completed,
+  1attempted_failed,138not_attempted. Dense/Hippo×2 и RAPTOR Mu по200готовых;
+  RAPTOR Hotpot61completed+1transport failure+138not attempted. Paired inference нет.
+- Child487POST=248reader+239BGE,937346known tokens;1unknown reader. Pilot parent+child
+  2432POST/3342844known; E2сdevelopment2584POST/3580184known,cost_complete=false.
+  E1known32601955/reserve61588/cost_complete=false отдельно. Unknown не засчитан нулём.
+- Бывший byte overflow пройден полным неизменённым payload:37608bytes,
+  native9860/server9860input tokens,5output; embedding/retrieval reused. Byte gate
+  не вызвал новую остановку. Все новые результаты и стоимость сохраняются.
+- Existing report-only сформировал6строк без новых HTTP. Live reader подтвердил
+  finished487,unknown1,inflight0,corrupt-tail0. Partial tracking не экспортирован;
+  полное1200-case/audit/paired сравнение не объявляется выполненным.
+- Единственный следующий шаг: уточнить у владельца API исход запроса по сохранённым
+  метаданным/времени, не повторяя его. Сообщения оператору не отправлялись. До решения
+  о пропущенном unknown case нового continuation нет; бюджет/протокол не ослаблять.
+
+## Подготовка продолжения (история; failed child не перезапускать)
 
 [ADR0026](../.adr/0026-pilot200-input-admission-continuation.md) и
 [bound proof](../results/summary/e2-pilot200-input-bound.json) обосновывают общий

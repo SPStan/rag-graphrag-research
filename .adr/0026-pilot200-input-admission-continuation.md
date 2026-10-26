@@ -90,3 +90,18 @@ worker и проверенный code/plan SHA; исполняемый код п
 существующий local tracking без model calls, meaningful commit/push. Replay time
 не fresh E2E, RAPTOR provenance не passage recall@5, tuning/mixed extractor/E1
 неполнота сохраняются. Никаких S500/check/holdout/rebuild/новых моделей/merge.
+
+## Наблюдение исполнения
+
+Child fadc0797 завершил249новых случаев и остановился на250-м: reader
+RemoteDisconnected, исход1POST неизвестен, retry0. RAPTOR Mu200complete,
+Hotpot61complete/1transport failed/138notattempted. Combined1061/1/138.
+Child937346known/487POST; unknown reserve22545 не actual. E2 cumulative
+known3580184/2584POST,cost_complete=false; E1 отдельно.
+
+Бывший overflowcase:37608bytes,9860native/server input,5output, embedding reused.
+Это подтверждает локальную природу прежнего byte gate, но не завершает pilot.
+Новый transport failure не повод поднимать limit или повторять unknown.
+[Неполная таблица](../results/summary/e2-pilot200.md) сохраняет готовые группы;
+paired inference/полныйtracking не объявляются завершёнными. Следующий шаг —
+уточнить исход unknown у владельца API без нового POST; оператору не писали.

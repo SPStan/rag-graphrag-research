@@ -2,23 +2,29 @@
 
 **E1 status:** 6/6 indexes completed under the structural protocol; physical known tokens=32601955; cost_complete=False; unknown reserve61588 preserved. Final audit/verify completed; monitoring paused.
 
-## Текущая очередь — 26 октября: RAPTOR continuation разрешён, подготовлен
+## Текущая очередь — 26 октября: continuation остановлен, reader usage неизвестен
 
-- PR33/35/36 очищены без смены O/N/R/H, все Draft; зависимости master→33→35→36.
-  Основной checkout не изменён. Runtime parent41ee909, parent failed неизменен.
-- [ADR0026](../.adr/0026-pilot200-input-admission-continuation.md):32000было локальным
-  byte guard, не пределом модели. Overflow37608bytes=9860native input tokens;
-  общий gate65536 покрывает worst-byte top5 bound63955 без изменения входов.
-- [Continuation plan](../results/summary/e2-pilot200-continuation-plan.json), SHA
-  `cbdc1a8c063d74d4848793338c78c7b915c9e9a98b6815943741b4e644ddf400`. Пользователь прямо разрешил любой план RAPTOR continuation;
-  допуск относится к этому ограниченному плану, повторное согласие не требуется.
--812готовых payload/results совместимы.388outcomes остаются;2cached answers,
-  ≤386новыхreader+377localBGE=763POST, filter0. Reserve27530699tokens≤54784356remaining;
-  новыйoutput results/raw/e2-pilot200-continuation-v1, original failed/source неизменны.
-- Только отсутствующие стадии; сохранённый overflow embedding/retrieval переиспользуется.
-  Unknown/infra/transport/pin/budget/overflow fatal, retry0/recovery0, no Dense/Hippo/rebuild.
-- Следующее: завершить gate/коммит, запустить один автономный worker по exact SHA;
-  при успехе strict1200audit/единая таблица/paired comparison/local tracking безmodel calls.
+- Runtime3914d70, child fadc0797-34e3-4468-8f0d-bc9ef1289f3a terminal failed
+  в2026-10-26T02:11:11Z. Worker завершён, retry/recovery0; исходные manifests/claims
+  не менялись. Мониторинг завершает работу; повтор POST не разрешён.
+- Reader target API оборвал соединение без ответа (RemoteDisconnected), HotpotQA
+  question5adbe75455429944faac23af. Один physical reader POST имеет unknown usage.
+  Reserve22545tokens сохранён как консервативная граница, не расход/ноль.
+- [Текущая неполная таблица](../results/summary/e2-pilot200.md):1061completed,
+  1attempted_failed,138not_attempted. Dense/Hippo×2 и RAPTOR Mu по200готовых;
+  RAPTOR Hotpot61completed+1transport failure+138not attempted. Paired inference нет.
+- Child487POST=248reader+239BGE,937346known tokens;1unknown reader. Pilot parent+child
+  2432POST/3342844known; E2сdevelopment2584POST/3580184known,cost_complete=false.
+  E1known32601955/reserve61588/cost_complete=false отдельно. Unknown не засчитан нулём.
+- Бывший byte overflow пройден полным неизменённым payload:37608bytes,
+  native9860/server9860input tokens,5output; embedding/retrieval reused. Byte gate
+  не вызвал новую остановку. Все новые результаты и стоимость сохраняются.
+- Existing report-only сформировал6строк без новых HTTP. Live reader подтвердил
+  finished487,unknown1,inflight0,corrupt-tail0. Partial tracking не экспортирован;
+  полное1200-case/audit/paired сравнение не объявляется выполненным.
+- Единственный следующий шаг: уточнить у владельца API исход запроса по сохранённым
+  метаданным/времени, не повторяя его. Сообщения оператору не отправлялись. До решения
+  о пропущенном unknown case нового continuation нет; бюджет/протокол не ослаблять.
 
 ## Предыдущая остановка pilot200 (история)
 
