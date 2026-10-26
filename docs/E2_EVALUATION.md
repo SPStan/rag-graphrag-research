@@ -29,7 +29,12 @@
 - Latency instrumented/cross-run, включает guards/persistence; validation lineage
   послеcontinuation больше. Source/replay не freshE2E; RAPTORprovenance не passage
   recall@5. Tuning/mixedHippo/errors/E1incomplete раскрыты. Сравнение не causal.
-- Код и результаты сохранены в Draft PR36(19files), Refs14; Ready/merge/issueclosure
+- CI cleanup: восстановлены conventional title prefixes(PR36 exp,PR35 feat).
+  19history findings проверены:9code SHA,6HF tokenizer SHA,2case IDs,2usage formulas.
+  Добавлены только точные commit/path/rule/line fingerprints; blanket exclusions нет.
+  Local full-history scan201commits:0findings; отдельный synthetic stdin canary
+  обнаружен generic-api-key. Ответы/планы/расходы/модельные вызовы не менялись.
+- Код и результаты сохранены в Draft PR36(20files), Refs14; Ready/merge/issueclosure
   не выполняются. Следующий шаг — научное ревью таблицы/ограничений перед отдельно
   разрешаемым этапом. S500/check/holdout/7B/newmodels/rebuild не запускать.
 
