@@ -37,11 +37,48 @@
 - Рабочий выбор по tuning pilot — HippoRAG2 против Dense на тех же двух датасетах,
   без 2Wiki. Обоснование F1/EM и более высокой стоимости с fact filter добавлено
   в итоговый отчёт и ADR0025; параметры/результаты/JSON/расходы не менялись.
-  Это не независимое подтверждение и не допуск задачи9. Научное согласование
-  и анализ типичных ошибок полного пилота остаются открытыми; issue14 не закрывать.
+  Это не независимое подтверждение и не допуск задачи9.
+- Offline error review: SHA1200results и прежние EM/F1 подтверждены; выбранные
+  по фиксированным outcome strata6вопросов/18случаев сверены с top5/source.
+  Показаны missing evidence, неверное событие/организация, paraphrase/краткость
+  и reference ambiguity. Это иллюстрации, не частоты причин; labels/метрики/JSON
+  неизменны, HTTP0. Следующий шаг — научное ревью выбора и ограничений;
+  текущие O/N/R/H ещё не подтверждены, issue14 не закрывать.
 - Код и результаты сохранены в Draft PR36(20files), Refs14; Ready/merge/issueclosure
   не выполняются. Следующий шаг — научное ревью таблицы/ограничений перед отдельно
   разрешаемым этапом. S500/check/holdout/7B/newmodels/rebuild не запускать.
+
+## Воспроизведение выбора примеров ошибок без HTTP
+
+В E2 worktree выполнить этот код через `.venv-check/Scripts/python.exe -`
+(PowerShell here-string). Он использует существующий runner/evaluator, проверяет
+сохранённые lineage/results и печатает только ID/метрики, без gold или корпуса.
+Ручные выводы о содержании контекста приведены в итоговом Markdown, не в JSON.
+
+```python
+import json
+from pathlib import Path
+from unittest.mock import patch
+import requests
+from scripts import e2_evaluation as e
+plan = json.loads(Path("results/summary/e2-pilot200-unattempted-plan.json").read_text(encoding="utf-8"))
+with patch.object(requests.Session, "request", side_effect=AssertionError("HTTP forbidden")):
+    report = e.summary(plan, Path("results/raw/e2-pilot200-unattempted-v1"))
+rows = {(x["dataset"], x["method"], x["question_id"]): x for x in report["question_results"]}
+assert len(rows) == 1200 and report["comparison_complete"]
+for ds, data in plan["datasets"].items():
+    selected = []
+    for rule in (lambda xs: all(x["f1"] == 0 for x in xs),
+                 lambda xs: len({x["em"] for x in xs}) > 1,
+                 lambda xs: any(0 < x["f1"] < 1 for x in xs)):
+        q = next(q for q in data["question_ids"]
+                 if all(rows[ds, m, q]["status"] == "completed" for m in e.METHODS)
+                 and rule([rows[ds, m, q]["metrics"] for m in e.METHODS]))
+        if q not in selected:
+            selected.append(q)
+    for q in selected:
+        print(ds, q, [(m, rows[ds, m, q]["metrics"]) for m in e.METHODS])
+```
 
 ## Воспроизведение отчёта без HTTP
 
