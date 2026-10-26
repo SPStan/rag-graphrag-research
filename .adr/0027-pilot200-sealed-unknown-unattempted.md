@@ -64,3 +64,24 @@ worker. Source parser/evaluator/model/retrieval/prompt не меняются.
 обновлённая очередь и Draft PR. No S500/check/holdout/7B/rebuild/merge. Исходные
 failed runs не перезапускаются и не переписываются. Ещё один sealed-unknown child
 этот механизм не создаёт: потребуется отдельное решение, не цепочка recoveries.
+
+## Проверенный результат
+
+Run20a6360f завершил138новых cases/276POST/456469known tokens,newunknown0.
+Полный audit0HTTP:1200unique,1199completed+1historical transport failed,0notattempted,
+immutable lineage и ровно1sealed unknown. Pilot physical3799313known/2708POST,
+E2cumulative4036653known/2860POST;22545reserve и cost_complete=false сохранены.
+[Финальная таблица](../results/summary/e2-pilot200.md) содержит12paired comparisons.
+
+6MLflow/6Langfuse views по200cases,66artifactSHA; фактические retrieval/generation
+contexts в обоих сервисах совпали полностью, unknown не стал0. Reporting correction
+перенесла33BGE stage-reuse tokens из source bucket вpilotphysical, сохранивобщую
+сумму; регрессия проверяет conservation. Langfuse root историческое metadata поле
+сопровождается явной OTEL cost-attribution-correction annotation, без reexport/modelcalls.
+Metadata APIpreview обрезаетдлинныеvalueдо200chars; полное чтение черезexpand_metadata.
+Legacy span-update был отклонён и не повторялся; рабочая OTEL annotation проверена.
+
+Timings из разных запусков включаютguard/persistence overhead и не дают чистой
+architecture latency оценки; readertransport отдельно. Source/replay времена не
+суммируются. Следующий шаг — научное ревью tuning результата, без автоматического
+перехода к S500/holdout. Исполнение4bd1d25 и последующий reporting fix разделены.

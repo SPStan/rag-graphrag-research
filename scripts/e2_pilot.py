@@ -444,6 +444,15 @@ def _usage(ops):
 
 
 def enrich_report(plan, report):
+    # Replaying a stage from an earlier pilot run does not turn its physical
+    # cost into development/source expense. Attribute within the same lineage.
+    physical_run_ids = {plan.get("parent_run", {}).get("run_id")} | {
+        p["run_id"] for p in plan.get("physical_parents", [])
+    }
+
+    def pilot_physical(op):
+        return not op.get("reused") or op.get("producer_run_id") in physical_run_ids
+
     for row in report["rows"]:
         cases = [
             r
@@ -463,10 +472,10 @@ def enrich_report(plan, report):
         ]
         row.update(
             new_physical_usage_by_operation=_usage(
-                [o for o in ops if not o.get("reused")]
+                [o for o in ops if pilot_physical(o)]
             ),
             reused_source_usage_by_operation=_usage(
-                [o for o in ops if o.get("reused")]
+                [o for o in ops if o.get("reused") and not pilot_physical(o)]
             ),
             fresh_e2e_cases=len(fresh),
             fresh_reader_cases=len(generation),

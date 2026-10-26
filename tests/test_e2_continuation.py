@@ -1319,3 +1319,83 @@ def test_tracking_preserves_unknown_and_verifies_all_known_usage():
     observations[4].usage_details["input"] = 11
     with pytest.raises(RuntimeError, match="does not match"):
         verify_langfuse_trace(observations, payload)
+
+
+def test_report_conserves_physical_cost_when_stage_is_reused_inside_lineage():
+    from scripts import e2_pilot as pilot
+
+    fields = ("llm_input_tokens", "llm_output_tokens", "embedding_input_tokens")
+
+    def op(run, key, tokens):
+        return {
+            "operation": "query_embedding",
+            "reused": True,
+            "producer_run_id": run,
+            "source_object_id": key,
+            "logical_usage": {
+                "llm_input_tokens": None,
+                "llm_output_tokens": None,
+                "embedding_input_tokens": tokens,
+            },
+        }
+
+    plan = {
+        "parent_run": {"run_id": "immediate"},
+        "physical_parents": [{"run_id": "root"}],
+        "pilot_reuse": {
+            "reused_source_known": dict(zip(fields, (0, 0, 241))),
+            "development_physical": {},
+        },
+    }
+    report = {
+        "rows": [{"dataset": "musique", "method": "raptor"}],
+        "question_results": [
+            {
+                "dataset": "musique",
+                "method": "raptor",
+                "operations": [
+                    op("root", "existing-pilot-stage", 33),
+                    op("development", "source-stage", 241),
+                ],
+            }
+        ],
+        "physical_query_accounting": {
+            "summary": {"known_subtotal": dict(zip(fields, (0, 0, 33)))}
+        },
+        "comparison_complete": False,
+    }
+    pilot.enrich_report(plan, report)
+    row = report["rows"][0]
+    assert (
+        row["new_physical_usage_by_operation"]["query_embedding"]["known_subtotal"][
+            "embedding_input_tokens"
+        ]
+        == 33
+    )
+    assert (
+        row["reused_source_usage_by_operation"]["query_embedding"]["known_subtotal"][
+            "embedding_input_tokens"
+        ]
+        == 241
+    )
+    assert (
+        report["pilot_accounting"]["reused_source_known"]["embedding_input_tokens"]
+        == 241
+    )
+    assert (
+        report["pilot_accounting"]["lineage_stage_reuse_known"][
+            "embedding_input_tokens"
+        ]
+        == 33
+    )
+    assert (
+        sum(
+            r["new_physical_usage_by_operation"]["query_embedding"]["known_subtotal"][
+                "embedding_input_tokens"
+            ]
+            for r in report["rows"]
+        )
+        == report["physical_query_accounting"]["summary"]["known_subtotal"][
+            "embedding_input_tokens"
+        ]
+    )

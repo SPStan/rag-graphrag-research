@@ -2,24 +2,38 @@
 
 **E1 status:** 6/6 indexes completed under the structural protocol; physical known tokens=32601955; cost_complete=False; unknown reserve61588 preserved. Final audit/verify completed; monitoring paused.
 
-## Текущая очередь — 26 октября: новый допуск, только138незапущенных RAPTOR cases
+## Текущая очередь — 26 октября: pilot200 завершён,1199ответов+1transport failure
 
-- Пользователь после уведомления об unknown повторно разрешил продолжать работу.
-  [ADR0027](../.adr/0027-pilot200-sealed-unknown-unattempted.md) закрепляет отдельный
-  unattempted-only run. Unknown case не повторяется и не объявляется completed.
-- Наследуются1062terminal cases (1061completed+1transport failure); остаётся138.
-  Unknown usage остаётсяnull, reserve22545 вычтен из бюджета; E1unknown61588 отдельно.
-- [Exact plan](../results/summary/e2-pilot200-unattempted-plan.json), SHA
-  `125dfe5e75afc2fe1bdb2eb4e2d3c174ef113b7ff847cd72dcba2b955472b24b`. Новые≤138reader+138localBGE=276POST, filter0,
-  reserve9849117tokens≤26570808available. Original pilot cap не расширен.
-- Сохранены модель/reader/full top5/order/параметры/byte gate/индексы. Terminal
-  infrastructure failure получает pipeline score0 с явным marker, не модельную ошибку;
-  paired bootstrap всех200IDs остаётся tuning и раскрывает technical failure.
-- Три-run physical lineage и разные per-case producers проверяются без double count.
-  Любая новая fatal/unknown останавливает очередь, automatic recovery0; будущий
-  sealed-child этим механизмом запрещён. Никаких S500/check/holdout/rebuild/merge.
-- Следующее: закончить gate/коммит, один worker новогоoutput
-  results/raw/e2-pilot200-unattempted-v1; затем1200-case audit/таблица/tracking.
+- Все1200unique method/dataset/question cases учтены:1199completed,
+  1infrastructure attempted_failed,0not_attempted. [Единая таблица](../results/summary/e2-pilot200.md)
+  и[JSON](../results/summary/e2-pilot200.json). Это complete pipeline comparison,
+  не1200ответов и не независимое подтверждение качества/преимущества архитектуры.
+- Runtime4bd1d25, final run20a6360f-24f4-4151-a70c-76632d0a81aa:138newcompleted,
+  276POST,456469known tokens (LLM452100input/941output,BGE3428),newunknown0.
+  Сохранённый historical reader unknown не повторён; reserve22545,usage=null.
+- Pilot physical3799313known/2708POST. E2сdevelopment4036653known/2860POST,
+  cost_complete=false. Source91871 — часть development237340, безdouble count.
+  E1known32601955/reserve61588/cost_complete=false отдельно. Index rebuild0.
+- EM/F1(%): Mu Dense33.00/43.60,Hippo42.50/52.61,RAPTOR32.50/43.49;
+  Hotpot Dense59.00/70.81,Hippo69.00/79.29,RAPTOR57.00/70.51.
+  RAPTOR Hotpot199completed+1transport failure(0.5%), pipeline EM/F1=0длянего;
+  это не неверный ответ reader. Paired bootstrap2000seed42,n200,12comparisons.
+- HTTP0terminal audit проверил1200unique,1062parents/138new, все data/index/
+  result/response/checkpoint/journal SHA, одну sealed unknown identity; sourcefailed/
+  claims неизменны. Первоначальная ошибка окружения audit(PYTHONPATH) исправлена
+  без нового run/POST. Execution pins4bd1d25 отделены от postprocessing correction.
+- Local tracking:6MLflow/6Langfuse views по200cases,66artifact roundtripSHA;
+  в обоих сервисах6000retrieval+6000generation documents совпали с source по
+  title/text/order, вMLflow также answers. Reader usage/unknown проверены.
+- Reporting-only correction:33BGE tokens reuse внутриpilot отнесены кpilotphysical,
+  не кdevelopment cache; global cost/answers/payloads не менялись. Regression3passed.
+  Langfuse содержит явную cost-attribution-correction annotation без trace reexport.
+- Latency instrumented/cross-run, включает guards/persistence; validation lineage
+  послеcontinuation больше. Source/replay не freshE2E; RAPTORprovenance не passage
+  recall@5. Tuning/mixedHippo/errors/E1incomplete раскрыты. Сравнение не causal.
+- Код и результаты сохранены в Draft PR36(19files), Refs14; Ready/merge/issueclosure
+  не выполняются. Следующий шаг — научное ревью таблицы/ограничений перед отдельно
+  разрешаемым этапом. S500/check/holdout/7B/newmodels/rebuild не запускать.
 
 ## Предыдущая transport-остановка (история)
 

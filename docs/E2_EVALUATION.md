@@ -1,6 +1,46 @@
 # E2: общий путь оценки готовых E1 индексов (#14)
 
-## Новый допуск26октября: только138незапущенных случаев
+## Результат26октября: pilot200 complete по1200pipeline cases
+
+- Все1200unique method/dataset/question cases учтены:1199completed,
+  1infrastructure attempted_failed,0not_attempted. [Единая таблица](../results/summary/e2-pilot200.md)
+  и[JSON](../results/summary/e2-pilot200.json). Это complete pipeline comparison,
+  не1200ответов и не независимое подтверждение качества/преимущества архитектуры.
+- Runtime4bd1d25, final run20a6360f-24f4-4151-a70c-76632d0a81aa:138newcompleted,
+  276POST,456469known tokens (LLM452100input/941output,BGE3428),newunknown0.
+  Сохранённый historical reader unknown не повторён; reserve22545,usage=null.
+- Pilot physical3799313known/2708POST. E2сdevelopment4036653known/2860POST,
+  cost_complete=false. Source91871 — часть development237340, безdouble count.
+  E1known32601955/reserve61588/cost_complete=false отдельно. Index rebuild0.
+- EM/F1(%): Mu Dense33.00/43.60,Hippo42.50/52.61,RAPTOR32.50/43.49;
+  Hotpot Dense59.00/70.81,Hippo69.00/79.29,RAPTOR57.00/70.51.
+  RAPTOR Hotpot199completed+1transport failure(0.5%), pipeline EM/F1=0длянего;
+  это не неверный ответ reader. Paired bootstrap2000seed42,n200,12comparisons.
+- HTTP0terminal audit проверил1200unique,1062parents/138new, все data/index/
+  result/response/checkpoint/journal SHA, одну sealed unknown identity; sourcefailed/
+  claims неизменны. Первоначальная ошибка окружения audit(PYTHONPATH) исправлена
+  без нового run/POST. Execution pins4bd1d25 отделены от postprocessing correction.
+- Local tracking:6MLflow/6Langfuse views по200cases,66artifact roundtripSHA;
+  в обоих сервисах6000retrieval+6000generation documents совпали с source по
+  title/text/order, вMLflow также answers. Reader usage/unknown проверены.
+- Reporting-only correction:33BGE tokens reuse внутриpilot отнесены кpilotphysical,
+  не кdevelopment cache; global cost/answers/payloads не менялись. Regression3passed.
+  Langfuse содержит явную cost-attribution-correction annotation без trace reexport.
+- Latency instrumented/cross-run, включает guards/persistence; validation lineage
+  послеcontinuation больше. Source/replay не freshE2E; RAPTORprovenance не passage
+  recall@5. Tuning/mixedHippo/errors/E1incomplete раскрыты. Сравнение не causal.
+- Код и результаты сохранены в Draft PR36(19files), Refs14; Ready/merge/issueclosure
+  не выполняются. Следующий шаг — научное ревью таблицы/ограничений перед отдельно
+  разрешаемым этапом. S500/check/holdout/7B/newmodels/rebuild не запускать.
+
+## Воспроизведение отчёта без HTTP
+
+Existing --summarize-shared из сохранённых raw/lineage пересчитывает только evaluation
+и safe summary; runtime pins сохраняются. План/API execute ниже — история,
+завершённый run не перезапускать. Стоимость остаётся incomplete из-за одного
+исторического unknown, даже при полном покрытии200IDs×2×3.
+
+## Подготовка последнего bounded run (история)
 
 [ADR0027](../.adr/0027-pilot200-sealed-unknown-unattempted.md) сохраняет1terminal
 transport failure сnull usage и22545reserve. Это новый явно разрешённый run,
