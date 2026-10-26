@@ -1,6 +1,34 @@
 # E2: общий путь оценки готовых E1 индексов (#14)
 
-## Текущий блок26октября: pilot200 готов offline, не запущен
+## Результат26октября: pilot200 неполон
+
+- Отдельный зависимый Draft PR36, codex/e2-pilot200; PR35 и основной checkout
+  не изменены. Runtime `41ee909c14ffca5dff552fa65d46f33f39d9ed8d`.
+- После прямого допуска exact plan284af290…5b4f01 выполнен run
+  `84454233-8d21-4731-922a-5a31184610e0`. Terminal failed; без retry/recovery.
+- 812completed,1attempted_failed,387not_attempted из1200уникальных случаев.
+  Dense/Hippo×2 завершили по200, RAPTOR Mu12completed+1overflow, Hotpot0.
+  [Неполная таблица](../results/summary/e2-pilot200-incomplete.md): парные выводы
+  не публикуются; незапущенные случаи не засчитаны как неверные ответы.
+- RAPTOR Mu question `4hop1__802394_153080_159767_81096`: actual answer-only
+  messages37608UTF8bytes >32000. Это реальный overflow без truncation;
+  reader POST не было, только33known BGE tokens. Не ошибка ответа reader.
+- 1945новых POST=802reader+380Hippo filter+763BGE; все finished/known,
+  unknown0/unfinished0. LLM2356693input/29066output, BGE19739input:
+  2405498новых combined tokens. Все813saved cases,374source pins,
+  полные data/index/code pins и immutable terminal journal проверены offline.
+- Used source80504tokens/80operations — часть development237340/152POST,
+  не дополнительный расход. E2physical cumulative2642838tokens/2097POST.
+  E1known32601955/reserve61588/cost_complete=false остаётся отдельно.
+  Исторические времена не превращены в freshE2E. Старые результаты неизменны.
+- Единственный следующий шаг: предложить общую политику ограничения входного
+  контекста для всех методов через ADR до continuation. Нельзя молча поднять
+  limit/обрезать контекст/перезапустить failed plan. Остаток54784356tokens/763POST
+  не является разрешением. S500/check/holdout/7B/rebuild/новые пробы не запущены.
+- Partial pilot не экспортирован в MLflow/Langfuse: публичная таблица и строгие
+  raw artifacts — источник этого результата; прежние tracking views не менялись.
+
+## Подготовка и команда первого запуска (история; failed run не перезапускать)
 
 [ADR0025](../.adr/0025-pilot200-shared-reader.md),
 [точный plan](../results/summary/e2-pilot200-plan.json), file SHA

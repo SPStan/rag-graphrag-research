@@ -2,7 +2,35 @@
 
 **E1 status:** 6/6 indexes completed under the structural protocol; physical known tokens=32601955; cost_complete=False; unknown reserve61588 preserved. Final audit/verify completed; monitoring paused.
 
-## Текущая очередь — 26 октября: pilot200 подготовлен offline
+## Текущая очередь — 26 октября: pilot200 остановлен по протоколу
+
+- Отдельный зависимый Draft PR36, codex/e2-pilot200; PR35 и основной checkout
+  не изменены. Runtime `41ee909c14ffca5dff552fa65d46f33f39d9ed8d`.
+- После прямого допуска exact plan284af290…5b4f01 выполнен run
+  `84454233-8d21-4731-922a-5a31184610e0`. Terminal failed; без retry/recovery.
+- 812completed,1attempted_failed,387not_attempted из1200уникальных случаев.
+  Dense/Hippo×2 завершили по200, RAPTOR Mu12completed+1overflow, Hotpot0.
+  [Неполная таблица](../results/summary/e2-pilot200-incomplete.md): парные выводы
+  не публикуются; незапущенные случаи не засчитаны как неверные ответы.
+- RAPTOR Mu question `4hop1__802394_153080_159767_81096`: actual answer-only
+  messages37608UTF8bytes >32000. Это реальный overflow без truncation;
+  reader POST не было, только33known BGE tokens. Не ошибка ответа reader.
+- 1945новых POST=802reader+380Hippo filter+763BGE; все finished/known,
+  unknown0/unfinished0. LLM2356693input/29066output, BGE19739input:
+  2405498новых combined tokens. Все813saved cases,374source pins,
+  полные data/index/code pins и immutable terminal journal проверены offline.
+- Used source80504tokens/80operations — часть development237340/152POST,
+  не дополнительный расход. E2physical cumulative2642838tokens/2097POST.
+  E1known32601955/reserve61588/cost_complete=false остаётся отдельно.
+  Исторические времена не превращены в freshE2E. Старые результаты неизменны.
+- Единственный следующий шаг: предложить общую политику ограничения входного
+  контекста для всех методов через ADR до continuation. Нельзя молча поднять
+  limit/обрезать контекст/перезапустить failed plan. Остаток54784356tokens/763POST
+  не является разрешением. S500/check/holdout/7B/rebuild/новые пробы не запущены.
+- Partial pilot не экспортирован в MLflow/Langfuse: публичная таблица и строгие
+  raw artifacts — источник этого результата; прежние tracking views не менялись.
+
+## Подготовка pilot200 (история)
 
 - Ветка codex/e2-pilot200 от b708aa5, отдельный зависимый Draft к PR35;
   PR35 остаётся Draft/20files, основной checkout с правками не изменяется.
@@ -24,7 +52,7 @@
 - Frozen plan results/summary/e2-pilot200-plan.json SHA
   `284af290878ef53f9a486d1df956a8e02d72f147d3a6f1e2aa0b072efc5b4f01`.
   Native indexes/source artifacts проверены offline; real model calls0.
-  Следующее — один допуск exact плана для всех3методов/двух датасетов; pilot ещё
+  Следующее — один допуск exact плана для всех3методов/двух датасетов; на момент подготовки pilot ещё
   не запускался. После допуска whole script до fatal, без новых prompt/cap проб.
 
 ## Предыдущий законченный блок E2

@@ -1,7 +1,8 @@
 # ADR-0025: pilot200 с закреплённым общим answer-only reader
 
 Дата:26 октября2026. Reader принят для экспериментальной конфигурации прямым
-поручением пользователя. План подготовлен offline; реальный pilot **не разрешён**.
+поручением пользователя. План подготовлен offline, затем отдельно разрешён пользователем. Pilot остановлен
+при предусмотренном fatal overflow; автоматическое продолжение не разрешено.
 Refs #14. Зависимая ветка codex/e2-pilot200 от PR35/b708aa5, base
 codex/e2-shared-evaluation. PR35 остаётся Draft и не меняется. Предшествующее
 решение/диагностика: [ADR0024](0024-shared-evaluation-ready-indexes.md).
@@ -137,3 +138,25 @@ Plan [e2-pilot200-plan.json](../results/summary/e2-pilot200-plan.json), file SHA
 До отдельного допуска этого exact SHA API-вызовы запрещены. Один допуск покрывает
 все3метода/оба набора до fatal stop, без отдельного разрешения на каждый метод.
 Команда в [E2 protocol](../docs/E2_EVALUATION.md).
+
+## Наблюдение после разрешённого запуска
+
+Runtime41ee909, run84454233-8d21-4731-922a-5a31184610e0:812completed,
+1fatal context overflow,387not_attempted. [Неполная таблица](../results/summary/e2-pilot200-incomplete.md).
+Actual answer-only messages37608UTF8bytes при прежнем limit32000; это не только
+проверка размера старого Thought-template. Пять RAPTOR nodes дали слишком большой
+контекст. На failed case reader не вызывался; BGE33known tokens сохранены.
+Stop policy соблюдена, ничего не усечено и не перезапущено.
+
+Новый physical2405498tokens/1945POST, unknown0/unfinished0; использованный source80504
+входит в development237340. Совокупно E2physical2642838tokens/2097POST; E1 отдельно
+с прежней неполнотой. Все813saved cases и полные source/data/index/code pins
+перепроверены offline, terminal manifest/journal неизменны. Четыре complete groups
+имеют EM/F1, RAPTOR groups null; paired inference отсутствует.
+
+Предложение следующего блока: сначала общая для всех методов политика входного
+контекста с явным token/byte budget и учётом summary nodes. Альтернатива повышения
+лимита требует проверки фактического deployment context и нового reserve, поэтому
+не принимается автоматически. Любое изменение входного контекста создаёт новую
+конфигурацию; старый failed run и ready indexes остаются неизменными. До отдельного
+решения нет continuation, truncation, новой модельной пробы или расширения бюджета.
