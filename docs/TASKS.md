@@ -2,7 +2,26 @@
 
 **E1 status:** 6/6 indexes completed under the structural protocol; physical known tokens=32601955; cost_complete=False; unknown reserve61588 preserved. Final audit/verify completed; monitoring paused.
 
-## Текущая очередь — 26 октября: continuation остановлен, reader usage неизвестен
+## Текущая очередь — 26 октября: новый допуск, только138незапущенных RAPTOR cases
+
+- Пользователь после уведомления об unknown повторно разрешил продолжать работу.
+  [ADR0027](../.adr/0027-pilot200-sealed-unknown-unattempted.md) закрепляет отдельный
+  unattempted-only run. Unknown case не повторяется и не объявляется completed.
+- Наследуются1062terminal cases (1061completed+1transport failure); остаётся138.
+  Unknown usage остаётсяnull, reserve22545 вычтен из бюджета; E1unknown61588 отдельно.
+- [Exact plan](../results/summary/e2-pilot200-unattempted-plan.json), SHA
+  `125dfe5e75afc2fe1bdb2eb4e2d3c174ef113b7ff847cd72dcba2b955472b24b`. Новые≤138reader+138localBGE=276POST, filter0,
+  reserve9849117tokens≤26570808available. Original pilot cap не расширен.
+- Сохранены модель/reader/full top5/order/параметры/byte gate/индексы. Terminal
+  infrastructure failure получает pipeline score0 с явным marker, не модельную ошибку;
+  paired bootstrap всех200IDs остаётся tuning и раскрывает technical failure.
+- Три-run physical lineage и разные per-case producers проверяются без double count.
+  Любая новая fatal/unknown останавливает очередь, automatic recovery0; будущий
+  sealed-child этим механизмом запрещён. Никаких S500/check/holdout/rebuild/merge.
+- Следующее: закончить gate/коммит, один worker новогоoutput
+  results/raw/e2-pilot200-unattempted-v1; затем1200-case audit/таблица/tracking.
+
+## Предыдущая transport-остановка (история)
 
 - Runtime3914d70, child fadc0797-34e3-4468-8f0d-bc9ef1289f3a terminal failed
   в2026-10-26T02:11:11Z. Worker завершён, retry/recovery0; исходные manifests/claims

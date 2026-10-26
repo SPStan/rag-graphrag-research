@@ -23,7 +23,7 @@ def scenario(tmp_path, monkeypatch):
     for dataset in runner.DATASETS:
         raw = tmp_path / f"data/processed/{dataset}"
         raw.mkdir(parents=True)
-        queries = [{"id": f"q{i}", "question": f"Which city {i}?"} for i in range(11)]
+        queries = [{"id": f"q{i}", "question": f"Which city {i}?"} for i in range(13)]
         dense.write_json_atomic(raw / "corpus.json", corpus)
         dense.write_json_atomic(raw / "queries.json", queries)
         dense.write_json_atomic(
@@ -1050,3 +1050,272 @@ def test_pilot_continuation_rejects_active_parent_and_changed_pin(bounded_pilot_
     with pytest.raises(ValueError, match="parent_claim_changed"):
         pilot.verify_continuation(s.continuation)
     Path(claim).write_bytes(original)
+
+
+@pytest.fixture
+def sealed_transport_scenario(pilot_scenario, monkeypatch):
+    from scripts import e2_pilot as pilot
+
+    s = pilot_scenario
+    previous = s.plan["pilot_reuse"]
+    base = e2.prepare(None, None)
+    for data in base["datasets"].values():
+        data["question_ids"] = [f"q{i}" for i in range(13)]
+    monkeypatch.setattr(e2, "prepare", lambda *a, **kw: copy.deepcopy(base))
+    s.plan = pilot.complete_plan(
+        base,
+        previous["source_plan"],
+        previous["source_directory"],
+        previous["diagnostic_plan"],
+        previous["diagnostic_directory"],
+    )
+    original_verify = pilot.verify
+    s.plan["max_combined_tokens"] += 1_000_000
+    dense.write_json_atomic(s.pilot_plan, s.plan)
+
+    def verify_funded(p):
+        value = copy.deepcopy(p)
+        value["max_combined_tokens"] -= 1_000_000
+        return original_verify(value)
+
+    monkeypatch.setattr(pilot, "verify", verify_funded)
+    native = e2.indexes.retrieve_ready_e1
+
+    def long_context(loaded, question, vector, **kwargs):
+        result = native(loaded, question, vector, **kwargs)
+        if (
+            loaded["manifest_sha256"] == "musique-raptor"
+            and question == "Which city 10?"
+        ):
+            result["passages"][0]["text"] = "full source " * 3000
+        return result
+
+    monkeypatch.setattr(e2.indexes, "retrieve_ready_e1", long_context)
+    s.child_plan, s.output = s.pilot_plan, s.pilot_output
+    for method in e2.METHODS:
+        run_method(s, method, monkeypatch)
+    assert dense.read_json(s.pilot_output / "manifest.json")["status"] == "failed"
+    monkeypatch.setattr(pilot, "validate_original_pilot", pilot.verify)
+    bounds = {"synthetic": {"synthetic_top5_message_bytes": 50000}}
+    monkeypatch.setattr(pilot, "input_size_bounds", lambda p: bounds)
+    proof = s.root / "sealed-bound.json"
+    dense.write_json_atomic(
+        proof,
+        {
+            "message_utf8_bytes_limit": 65536,
+            "size_bounds": bounds,
+            "conservative_input_plus_output_bound": 68096,
+            "reported_context_window": 262144,
+            "tokenizer_files": {},
+        },
+    )
+    issued = s.root / "issued-plan.json"
+    dense.write_json_atomic(
+        issued, pilot.prepare_input_continuation(s.pilot_plan, s.pilot_output, proof)
+    )
+    issued_output = s.root / "issued-run"
+    original_post = runner.requests.Session.post
+    fault = {"sent": False}
+
+    def remote_disconnect(self, url, *, json, **kwargs):
+        if (
+            not fault["sent"]
+            and not url.endswith("/api/embed")
+            and json["messages"][-1]["content"].endswith("Question: Which city 11?")
+        ):
+            fault["sent"] = True
+            s.state["posts"].append(("reader", copy.deepcopy(json)))
+            raise runner.requests.ConnectionError(
+                "('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))"
+            )
+        return original_post(self, url, json=json, **kwargs)
+
+    monkeypatch.setattr(runner.requests.Session, "post", remote_disconnect)
+    s.child_plan, s.output = issued, issued_output
+    run_method(s, "raptor", monkeypatch)
+    manifest = dense.read_json(issued_output / "manifest.json")
+    assert manifest["status"] == "failed" and fault["sent"]
+    # Synthetic source has no real historical Git3914d70; snapshot and payload
+    # validation remain real, only that deployment-runtime check is substituted.
+    monkeypatch.setattr(pilot, "validate_transport_parent", lambda p: None)
+    s.issued, s.issued_output = issued, issued_output
+    s.proof = proof
+    s.sealed_plan_path = s.root / "sealed-plan.json"
+    with patch(
+        "sys.argv",
+        [
+            "run_dense_target",
+            "--shared-plan",
+            str(s.sealed_plan_path),
+            "--continue-pilot-plan",
+            str(issued),
+            "--parent-output-dir",
+            str(issued_output),
+            "--pilot-bound-proof",
+            str(proof),
+        ],
+    ):
+        runner.main()
+    s.sealed = dense.read_json(s.sealed_plan_path)
+    s.sealed_output = s.root / "sealed-run"
+    s.frozen_inputs = {
+        p: p.read_bytes()
+        for directory in (s.pilot_output, issued_output)
+        for p in directory.iterdir()
+        if p.is_file()
+    }
+    return s
+
+
+def test_unattempted_cli_seals_unknown_never_retries_and_merges_three_runs(
+    sealed_transport_scenario, monkeypatch
+):
+    from scripts import e2_pilot as pilot
+
+    s = sealed_transport_scenario
+    plan = s.sealed
+    assert len(plan["parent_run"]["cases"]) == 64
+    assert len(plan["remaining_cases"]) == 14
+    assert plan["reader_calls"] == 12 and plan["max_embedding_posts"] == 4
+    assert plan["max_posts"] == 16
+    reserve = plan["sealed_unknown"][0]["reservation_tokens"]
+    source = dense.read_json(s.issued)
+    known = sum(plan["parent_run"]["summary"]["known_subtotal"].values())
+    assert (
+        plan["original_remaining_tokens"]
+        == source["max_combined_tokens"] - known - reserve
+    )
+    assert plan["max_combined_tokens"] <= plan["original_remaining_tokens"]
+    before = len(s.state["posts"])
+    s.child_plan, s.output = s.sealed_plan_path, s.sealed_output
+    run_method(s, "raptor", monkeypatch)
+    assert len(s.state["posts"]) - before == 16
+    assert not any(
+        op == "reader"
+        and payload["messages"][-1]["content"].endswith("Question: Which city 11?")
+        and "full source" in payload["messages"][-1]["content"]
+        for op, payload in s.state["posts"][before:]
+    )
+    report = e2.summary(plan, s.output)
+    assert report["comparison_complete"] and len(report["question_results"]) == 78
+    assert (
+        len(
+            {
+                (r["dataset"], r["method"], r["question_id"])
+                for r in report["question_results"]
+            }
+        )
+        == 78
+    )
+    assert (
+        sum(r["status"] == "attempted_failed" for r in report["question_results"]) == 1
+    )
+    assert (
+        sum(
+            not p["summary"]["complete"]
+            for p in report["physical_query_accounting"]["lineage"]
+        )
+        == 1
+    )
+    assert not report["physical_query_accounting"]["summary"]["complete"]
+    assert (
+        report["physical_query_accounting"]["summary"]["attempts"]
+        == s.plan["max_posts"]
+    )
+    unknown_case = next(
+        r
+        for r in report["question_results"]
+        if e2.case_key(r["dataset"], r["method"], r["question_id"])
+        == plan["sealed_unknown"][0]["case_key"]
+    )
+    assert unknown_case["metrics"]["em"] == 0 and unknown_case["metrics"]["f1"] == 0
+    for path, content in s.frozen_inputs.items():
+        assert path.read_bytes() == content
+    safe = e2.write_report(s.sealed_plan_path, s.output, s.root / "sealed-report")
+    assert safe["new_unknown_attempts"] == 0 and safe["lineage_unknown_attempts"] == 1
+    assert not safe["query_cost_complete"] and safe["comparison_complete"]
+    views = e2.tracking_payload(plan, s.output, "musique", "raptor")
+    failed = next(r for r in views["rows"] if r["status"] == "attempted_failed")
+    assert failed["prompt_tokens"] is None and failed["completion_tokens"] is None
+    for key in ("max_combined_tokens", "max_posts"):
+        bad = {**plan, key: plan[key] + 1}
+        with pytest.raises(ValueError, match="continuation_plan_changed"):
+            pilot.verify_continuation(bad)
+    bad = copy.deepcopy(plan)
+    bad["sealed_unknown"][0]["reservation_tokens"] = 0
+    with pytest.raises(ValueError, match="continuation_plan_changed"):
+        pilot.verify_continuation(bad)
+
+
+def test_sealed_unknown_transport_gate_and_changed_checkpoint(
+    sealed_transport_scenario,
+):
+    from scripts import e2_pilot as pilot
+
+    s = sealed_transport_scenario
+    plan = s.sealed
+    key = plan["sealed_unknown"][0]["case_key"]
+    case = dense.read_json(Path(plan["parent_run"]["cases"][key]["path"]))
+    calls = e2.Calls(s.root / "sealed-transport", plan, run_id="no-retry")
+    payload = e2.configured_reader_payload(plan, case["question"], case["retrieval"])
+    before = len(s.state["posts"])
+    with pytest.raises(ValueError, match="no_new_completed_case_or_filter"):
+        calls.call(
+            payload,
+            method=case["method"],
+            dataset=case["dataset"],
+            qid=case["question_id"],
+            operation="reader",
+            session=runner.requests.Session(),
+            url=s.config["base_url"] + "/chat/completions",
+        )
+    assert len(s.state["posts"]) == before
+    cp = s.issued_output / (plan["sealed_unknown"][0]["object_id"] + ".json")
+    original = cp.read_bytes()
+    dense.write_json_atomic(
+        cp, {"status": "completed", "key": plan["sealed_unknown"][0]["object_id"]}
+    )
+    with pytest.raises(ValueError, match="unknown_reader_identity"):
+        pilot.prepare_unattempted(s.issued, s.issued_output, s.proof)
+    cp.write_bytes(original)
+
+
+def test_tracking_preserves_unknown_and_verifies_all_known_usage():
+    from scripts.track_dense import verify_langfuse_trace
+
+    payload = {
+        "run_id": "mixed",
+        "rows": [
+            {"prompt_tokens": 10, "completion_tokens": 3},
+            {"prompt_tokens": None, "completion_tokens": None},
+        ],
+        "questions": [{"retrieved_passages": [{"text": "saved"}]}] * 2,
+    }
+    observations = [
+        SimpleNamespace(
+            name="dense-rag-run", metadata={"run_id": "mixed"}, input={}, output={}
+        )
+    ]
+    for usage in ({"input": 10, "output": 3}, {}):
+        observations.extend(
+            [
+                SimpleNamespace(name="question"),
+                SimpleNamespace(name="query-embedding"),
+                SimpleNamespace(
+                    name="retrieval", output={"documents": [{"text": "saved"}]}
+                ),
+                SimpleNamespace(
+                    name="generation", input={}, output={}, usage_details=usage
+                ),
+            ]
+        )
+    result = verify_langfuse_trace(observations, payload)
+    assert result["generation_usage"] == {"input": 10, "output": 3}
+    assert result["generation_usage_unknown"] == 1
+    observations[-1].usage_details = {"input": 0, "output": 0}
+    with pytest.raises(RuntimeError, match="converted to zero"):
+        verify_langfuse_trace(observations, payload)
+    observations[-1].usage_details = {}
+    observations[4].usage_details["input"] = 11
+    with pytest.raises(RuntimeError, match="does not match"):
+        verify_langfuse_trace(observations, payload)

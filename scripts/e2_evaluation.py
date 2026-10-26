@@ -519,7 +519,11 @@ def lineage_records(plan, directory, manifest):
     references = []
     seen = set()
     paths = []
-    if plan.get("parent_run"):
+    if plan.get("physical_parents"):
+        paths.extend(
+            Path(p["directory"]) / "manifest.json" for p in plan["physical_parents"]
+        )
+    elif plan.get("parent_run"):
         paths.append(Path(plan["parent_run"]["directory"]) / "manifest.json")
     paths.append(Path(directory) / "manifest.json")
     for path in paths:
@@ -1549,7 +1553,7 @@ def tracking_payload(plan, directory, dataset, method):
         )
         key = case_key(row["dataset"], row["method"], row["question_id"])
         producer = (
-            Path(plan["parent_run"]["directory"])
+            Path(plan["parent_run"]["cases"][key]["path"]).parent
             if key in plan.get("parent_run", {}).get("cases", {})
             else Path(directory)
         )
@@ -1687,7 +1691,7 @@ def write_report(plan_path, directory, public_prefix):
         producer = directory
         key = case_key(result["dataset"], result["method"], result["question_id"])
         if key in plan.get("parent_run", {}).get("cases", {}):
-            producer = Path(plan["parent_run"]["directory"])
+            producer = Path(plan["parent_run"]["cases"][key]["path"]).parent
         for op in result.get("operations", []):
             response = producer / f"{op['journal_object_id']}.response.json"
             if op["status"] != "failed" or not response.exists():
@@ -1723,7 +1727,14 @@ def write_report(plan_path, directory, public_prefix):
         "query_cost_complete": report["physical_query_accounting"]["summary"][
             "complete"
         ],
-        "new_unknown_attempts": sum(r["usage_status"] != "complete" for r in finished),
+        "new_unknown_attempts": sum(
+            r["usage_status"] != "complete" and r["run_id"] == manifest["run_id"]
+            for r in finished
+        ),
+        "lineage_unknown_attempts": sum(
+            r["usage_status"] != "complete" for r in finished
+        ),
+        "historical_unknown_reservations": plan.get("sealed_unknown", []),
         "unfinished_attempts": len(started) - len(finished),
         "remaining_original_tokens": plan.get(
             "original_remaining_tokens", plan["max_combined_tokens"]

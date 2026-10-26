@@ -124,21 +124,34 @@ def verify_langfuse_trace(observations, payload):
     for observation in by_name["generation"]:
         usage = object_value(observation.usage_details) or {}
         for key in ("input", "output"):
-            if key in usage:
+            if isinstance(usage.get(key), int) and not isinstance(usage[key], bool):
                 generation_usage[key] = generation_usage.get(key, 0) + usage[key]
     for key, row_field in (("input", "prompt_tokens"), ("output", "completion_tokens")):
         values = [row.get(row_field) for row in payload["rows"]]
-        if all(
-            isinstance(value, int) and not isinstance(value, bool) for value in values
-        ):
-            if generation_usage.get(key) != sum(values):
-                raise RuntimeError(
-                    "Langfuse generation token usage does not match the saved JSONL"
-                )
+        known_values = [
+            v for v in values if isinstance(v, int) and not isinstance(v, bool)
+        ]
+        if generation_usage.get(key, 0) != sum(known_values):
+            raise RuntimeError(
+                "Langfuse generation token usage does not match the saved JSONL"
+            )
+        expected_unknown = len(values) - len(known_values)
+        missing = sum(
+            (object_value(o.usage_details) or {}).get(key) is None
+            for o in by_name["generation"]
+        )
+        if missing != expected_unknown:
+            raise RuntimeError(
+                "Langfuse unknown generation usage was estimated or converted to zero"
+            )
     return {
         "observation_names": sorted(by_name),
         "retrieved_passages": retrieval_count,
         "generation_usage": generation_usage,
+        "generation_usage_unknown": sum(
+            row.get("prompt_tokens") is None or row.get("completion_tokens") is None
+            for row in payload["rows"]
+        ),
     }
 
 
@@ -704,7 +717,13 @@ def export_langfuse(payload, base_dir=ROOT):
         while time.monotonic() < deadline:
             observations = get_all_langfuse_observations(client, trace_id)
             names = {observation.name for observation in observations}
-            if expected.issubset(names):
+            # Ingestion is asynchronous: a200-case trace may expose all names
+            # before the final batches arrive. Wait locally for complete counts.
+            complete_counts = all(
+                sum(o.name == name for o in observations) >= len(payload["questions"])
+                for name in ("question", "query-embedding", "retrieval", "generation")
+            )
+            if expected.issubset(names) and complete_counts:
                 verification = verify_langfuse_trace(observations, payload)
                 return {
                     "trace_id": trace_id,

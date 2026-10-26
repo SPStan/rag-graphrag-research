@@ -489,7 +489,10 @@ def enrich_report(plan, report):
                     and actual_sources[identity] != op["logical_usage"]
                 ):
                     raise ValueError("E2_pilot_conflicting_reuse_cost")
-                if op["producer_run_id"] == plan.get("parent_run", {}).get("run_id"):
+                if op["producer_run_id"] in (
+                    {plan.get("parent_run", {}).get("run_id")}
+                    | {p["run_id"] for p in plan.get("physical_parents", [])}
+                ):
                     lineage_sources[identity] = op["logical_usage"]
                 else:
                     actual_sources[identity] = op["logical_usage"]
@@ -795,7 +798,7 @@ def continuation_snapshot(parent_path, directory):
     )
 
 
-def prepare_continuation(parent_path, directory, proof_path):
+def prepare_input_continuation(parent_path, directory, proof_path):
     parent, snapshot, overflow = continuation_snapshot(parent_path, directory)
     proof_path = Path(proof_path).resolve()
     proof = dense.read_json(proof_path)
@@ -904,3 +907,289 @@ def verify_continuation(plan):
     if candidate != plan:
         raise ValueError("E2_continuation_plan_changed")
     return True
+
+
+TRANSPORT_PARENT_RUNTIME = "3914d70a17554fd6f466026b0aa5f60a02cde715"
+
+
+def validate_transport_parent(parent):
+    """Only the issued first continuation can supply a sealed unknown case."""
+    import hashlib
+    import subprocess
+
+    if not parent.get("pilot_continuation") or parent.get("sealed_unknown"):
+        raise ValueError("E2_only_first_continuation_can_supply_unknown")
+    for name, sha in parent["code_sha256"].items():
+        original = subprocess.check_output(
+            ["git", "-C", str(e2.ROOT), "show", TRANSPORT_PARENT_RUNTIME + ":" + name]
+        )
+        lf = original.replace(b"\r\n", b"\n")
+        if sha not in {
+            hashlib.sha256(lf).hexdigest(),
+            hashlib.sha256(lf.replace(b"\n", b"\r\n")).hexdigest(),
+        }:
+            raise ValueError("E2_transport_parent_runtime_changed")
+    spec = parent["pilot_continuation"]
+    candidate = prepare_input_continuation(
+        spec["parent_plan"], spec["parent_directory"], spec["bound_proof"]
+    )
+    candidate["code_sha256"] = parent["code_sha256"]
+    if candidate != parent:
+        raise ValueError("E2_transport_parent_contract_changed")
+
+
+def seal_unknown_reader(parent, directory, result, records):
+    """Verify an absent reader response, never turn an unknown POST into a miss."""
+    if (
+        result["status"] != "attempted_failed"
+        or not result.get("fatal")
+        or result.get("error", {}).get("type") != "ConnectionError"
+        or "RemoteDisconnected" not in result["error"]["reason"]
+        or result["method"] != "raptor"
+        or result.get("answer")
+        or result.get("raw_answer")
+        or [o["operation"] for o in result["operations"]]
+        != ["query_embedding", "reader"]
+    ):
+        raise ValueError("E2_not_terminal_remote_reader_failure")
+    embedding, reader = result["operations"]
+    partial = copy.deepcopy(result)
+    partial["operations"] = [embedding]
+    e2.verify_saved_case(parent, directory, partial, records)
+    payload = e2.configured_reader_payload(
+        parent, result["question"], result["retrieval"]
+    )
+    object_id = target.digest(
+        {
+            "plan": target.digest(parent),
+            "method": result["method"],
+            "dataset": result["dataset"],
+            "qid": result["question_id"],
+            "operation": "reader",
+            "payload": payload,
+        }
+    )
+    terminal = [
+        r
+        for r in records
+        if r["event"] == "finished" and r.get("object_id") == object_id
+    ]
+    unknown = [
+        r
+        for r in records
+        if r["event"] == "finished" and r["usage_status"] != "complete"
+    ]
+    checkpoint = Path(directory) / (object_id + ".json")
+    saved = dense.read_json(checkpoint)
+    if (
+        len(terminal) != 1
+        or terminal != unknown
+        or terminal[0]["status"] != "error"
+        or terminal[0]["kind"] != "llm"
+        or terminal[0]["provider"] != "target_api"
+        or terminal[0]["model"] != e2.MODEL
+        or terminal[0]["llm_input_tokens"] is not None
+        or terminal[0]["llm_output_tokens"] is not None
+        or reader.get("logical_usage", {}).get("llm_input_tokens") is not None
+        or reader.get("logical_usage", {}).get("llm_output_tokens") is not None
+        or reader["journal_object_id"] != object_id
+        or reader["request_payload_sha256"] != target.digest(payload)
+        or result["reader_request_sha256"] != target.digest(payload)
+        or not reader.get("physical_attempted")
+        or reader["status"] != "failed"
+        or saved != {"status": "started", "key": object_id}
+        or (Path(directory) / (object_id + ".response.json")).exists()
+    ):
+        raise ValueError("E2_unknown_reader_identity_or_outcome_changed")
+    return {
+        "run_id": result["run_id"],
+        "object_id": object_id,
+        "case_key": e2.case_key(
+            result["dataset"], result["method"], result["question_id"]
+        ),
+        "reservation_tokens": len(json.dumps(payload, ensure_ascii=False).encode())
+        + 2048
+        + target.OPTIONS["max_tokens"],
+        "usage_status": "unknown",
+        "response_status": "absent",
+        "retry": "forbidden",
+        "metric_policy": "terminal infrastructure failure; pipeline EM/F1=0, failure disclosed; not a wrong reader answer",
+    }
+
+
+def prepare_unattempted(parent_path, directory, proof_path):
+    """Explicitly reauthorized unattempted-only run; keep one unknown sealed."""
+    parent_path, directory = Path(parent_path).resolve(), Path(directory).resolve()
+    parent = dense.read_json(parent_path)
+    validate_transport_parent(parent)
+    e2.check_parent_pins(parent)
+    mp = directory / "manifest.json"
+    m = dense.read_json(mp)
+    ref = verified_reference(m, mp)
+    if (
+        m["status"] != "failed"
+        or m["plan_sha256"] != target.digest(parent)
+        or ref["status"] != "verified"
+        or (directory / "running.lock").exists()
+    ):
+        raise ValueError("E2_transport_parent_not_terminal")
+    records = read_records(directory / "usage.jsonl")
+    starts = [r for r in records if r["event"] == "started"]
+    ends = [r for r in records if r["event"] == "finished"]
+    if (
+        records.corrupt_tail
+        or len(starts) != len(ends)
+        or {r["attempt_id"] for r in starts} != {r["attempt_id"] for r in ends}
+    ):
+        raise ValueError("E2_unfinished_or_corrupt_transport_parent")
+    claim = (
+        Path(parent["e1_workspace"])
+        / ".cache"
+        / f"e2-{target.digest(parent)}.claim.json"
+    )
+    parent_claim = (
+        Path(parent["e1_workspace"])
+        / ".cache"
+        / f"e2-continuation-of-{target.digest(parent['parent_run']['files'])}.claim.json"
+    )
+    if dense.read_json(claim) != {"directory": str(directory)} or dense.read_json(
+        parent_claim
+    ) != {"plan_sha256": target.digest(parent), "directory": str(directory)}:
+        raise ValueError("E2_transport_parent_claim_changed")
+    cases = copy.deepcopy(parent["parent_run"]["cases"])
+    files = dict(parent["parent_run"]["files"])
+    for path in (parent_path, mp, directory / "usage.jsonl", claim, parent_claim):
+        files[str(path)] = dense.sha256_file(path)
+    unknowns, seen = [], set()
+    for key, sha in m["results"].items():
+        path = directory / f"question-{key}.json"
+        if key in cases or dense.sha256_file(path) != sha:
+            raise ValueError("E2_transport_parent_case_changed")
+        row = dense.read_json(path)
+        if key != e2.case_key(row["dataset"], row["method"], row["question_id"]):
+            raise ValueError("E2_transport_parent_key_changed")
+        if row["status"] == "completed":
+            e2.verify_saved_case(parent, directory, row, records)
+        else:
+            unknowns.append(seal_unknown_reader(parent, directory, row, records))
+        cases[key] = {
+            "path": str(path),
+            "sha256": sha,
+            "dataset": row["dataset"],
+            "method": row["method"],
+            "question_id": row["question_id"],
+            "status": row["status"],
+        }
+        files[str(path)] = sha
+        for op in row["operations"]:
+            if op.get("reused"):
+                continue
+            opid = op["journal_object_id"]
+            if opid in seen:
+                raise ValueError("E2_duplicate_transport_parent_attempt")
+            seen.add(opid)
+            for suffix in (".json", ".response.json"):
+                artifact = directory / (opid + suffix)
+                if artifact.exists():
+                    files[str(artifact)] = dense.sha256_file(artifact)
+    if len(unknowns) != 1 or seen != {r["object_id"] for r in starts}:
+        raise ValueError("E2_not_one_sealed_unknown_or_unattributed_attempt")
+    sealed = unknowns[0]
+    fresh = copy.deepcopy(parent)
+    fresh["code_sha256"] = {n: dense.sha256_file(e2.ROOT / n) for n in e2.CODE_FILES}
+    expected = {
+        e2.case_key(d, m, q): {"dataset": d, "method": m, "question_id": q}
+        for d, data in parent["datasets"].items()
+        for m in e2.METHODS
+        for q in data["question_ids"]
+    }
+    if not set(cases) <= set(expected):
+        raise ValueError("E2_transport_parent_case_outside_view")
+    remaining = {k: r for k, r in expected.items() if k not in cases}
+    if any(r["method"] != "raptor" for k, r in remaining.items()):
+        raise ValueError("E2_remaining_only_unattempted_RAPTOR")
+    if Path(proof_path).resolve() != Path(parent["pilot_continuation"]["bound_proof"]):
+        raise ValueError("E2_input_proof_changed_after_transport_stop")
+    source = dense.read_json(Path(parent["e1_plan"]))
+    er = 0
+    for dataset, data in parent["datasets"].items():
+        queries = e2.select_in_view(
+            dense.read_json(
+                Path(source["data_root"]) / f"data/processed/{dataset}/queries.json"
+            ),
+            data["question_ids"],
+            "query",
+        )
+        er += sum(
+            len(
+                json.dumps(
+                    e2.embedding_payload(parent, q["question"]), ensure_ascii=False
+                ).encode()
+            )
+            + 2048
+            for q in queries
+            if e2.case_key(dataset, "raptor", q["id"]) in remaining
+            and e2.case_key(dataset, "raptor", q["id"])
+            not in parent["pilot_reuse"]["contexts"]
+        )
+    n = sum(k not in parent["pilot_reuse"]["readers"] for k in remaining)
+    embeddings = sum(k not in parent["pilot_reuse"]["contexts"] for k in remaining)
+    reserve = n * (CONTINUATION_BYTES + 1024 + 2048 + target.OPTIONS["max_tokens"]) + er
+    available = (
+        parent["max_combined_tokens"]
+        - sum(ref["summary"]["known_subtotal"].values())
+        - sealed["reservation_tokens"]
+    )
+    posts = parent["max_posts"] - len(starts)
+    if reserve > available or n + embeddings > posts:
+        raise ValueError("E2_sealed_unknown_reservation_or_POST_budget_exceeded")
+    fresh.update(
+        mode="pilot200_unattempted_after_explicit_reauthorization",
+        sealed_unknown=[sealed],
+        physical_parents=[
+            {
+                "directory": parent["parent_run"]["directory"],
+                "run_id": parent["parent_run"]["run_id"],
+            },
+            {"directory": str(directory), "run_id": m["run_id"]},
+        ],
+        parent_run={
+            "plan": str(parent_path),
+            "directory": str(directory),
+            "run_id": m["run_id"],
+            "files": files,
+            "cases": cases,
+            "summary": ref["summary"],
+            "runtime_commit": TRANSPORT_PARENT_RUNTIME,
+        },
+        pilot_continuation={
+            "parent_plan": str(parent_path),
+            "parent_directory": str(directory),
+            "bound_proof": str(Path(proof_path).resolve()),
+            "reauthorized_unattempted_only": True,
+            "automatic_recovery": 0,
+            "embedding_reserve": er,
+            "inherited_terminal_cases": len(cases),
+            "failure_score_policy": sealed["metric_policy"],
+        },
+        remaining_cases=list(remaining.values()),
+        reader_calls=n,
+        filter_calls=0,
+        max_llm_posts=n,
+        max_embedding_posts=embeddings,
+        max_posts=n + embeddings,
+        max_combined_tokens=reserve,
+        original_remaining_tokens=available,
+        original_remaining_posts=posts,
+    )
+    fresh["pilot_protocol"]["reserve_formula"] = (
+        "new readers*(65536+1024+2048+512) + exact new BGE UTF8 payload bytes+2048; sealed unknown reserve subtracted before new budget"
+    )
+    return fresh
+
+
+def prepare_continuation(parent_path, directory, proof_path):
+    parent = dense.read_json(Path(parent_path))
+    if parent.get("pilot_continuation"):
+        return prepare_unattempted(parent_path, directory, proof_path)
+    return prepare_input_continuation(parent_path, directory, proof_path)

@@ -1,6 +1,32 @@
 # E2: общий путь оценки готовых E1 индексов (#14)
 
-## Результат continuation26октября: неполный pilot, новый unknown
+## Новый допуск26октября: только138незапущенных случаев
+
+[ADR0027](../.adr/0027-pilot200-sealed-unknown-unattempted.md) сохраняет1terminal
+transport failure сnull usage и22545reserve. Это новый явно разрешённый run,
+не retry неизвестного POST.1061completed+1failed наследуются,138cases остаются.
+Пределы138reader/138localBGE=276POST,9849117tokens из26570808available послеreserve.
+Pipeline EM/F1 использует0для infrastructure failure с явным раскрытием; cost_complete
+остаётсяfalse. Это не неверный ответ reader и не independent architecture evidence.
+
+```powershell
+& 'C:/Users/Elisei/.codex/worktrees/dense-target-smoke/Rag, GraphRAG/.cache/raptor-venv/Scripts/python.exe' `
+  -m scripts.run_dense_target `
+  --shared-plan results/summary/e2-pilot200-unattempted-plan.json `
+  --execute --shared-method raptor --output-dir results/raw/e2-pilot200-unattempted-v1 `
+  --approved-plan-sha256 125dfe5e75afc2fe1bdb2eb4e2d3c174ef113b7ff847cd72dcba2b955472b24b `
+  --env-file 'C:/Users/Elisei/Documents/ChatGPT/Rag, GraphRAG/.env.target-api' `
+  --raptor-source 'C:/Users/Elisei/.codex/worktrees/dense-target-smoke/Rag, GraphRAG/.cache/raptor-source'
+```
+
+Preflight: strict source/result/response/checkpoint/three-journal SHA и sealed unknown
+identity, новое usage должно бытьcomplete. Одна попытка/request, retry/redirect/recovery0,
+timeout30/300; новые unknown/transport/infra/budget/pin/overflow → stop. Автопродолжения
+нет, original failed/unknown не меняются. После1200accountedcases — один existing
+report/paired bootstrap и posthoc local tracking без model calls. Старая неполная
+таблица вGit85a61b8, raw результаты immutable; текущая safe summary обновляется.
+
+## Результат предыдущего continuation: неполный pilot, unknown
 
 - Runtime3914d70, child fadc0797-34e3-4468-8f0d-bc9ef1289f3a terminal failed
   в2026-10-26T02:11:11Z. Worker завершён, retry/recovery0; исходные manifests/claims
