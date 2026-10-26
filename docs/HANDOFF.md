@@ -2,6 +2,17 @@
 
 **E1 status:** 6/6 indexes completed under the structural protocol; physical known tokens=32601955; cost_complete=False; unknown reserve61588 preserved. Final audit/verify completed; monitoring paused.
 
+## Итоговые PR — консолидация26октября
+
+- Issue13 → Draft PR33; исправления34 уже сохранены и развиты, карта в E1_INDEXING.
+- Issue14 → Draft PR36, включая весь PR35; временная база codex/e1-indexing.
+  Закрытие34/35 после проверки сохранности/CI, без merge и удаления веток.
+- Diff36 объединяет реализацию и pilot одной issue, превышение20файлов раскрыто.
+  После отдельно разрешённого merge33 проверить master/merge-base/diff36, особенно
+  при squash, и лишь затем перевести36 на master; не предполагать чистый diff.
+- O/N/R/H неизменны, submit уже отправлен; ждём куратора, повтор не нужен.
+  Refs13/14; без Ready/merge/новых экспериментов. Runtime/артефакты неизменны.
+
 ## Текущая очередь — 26 октября: pilot200 завершён,1199ответов+1transport failure
 
 - Все1200unique method/dataset/question cases учтены:1199completed,

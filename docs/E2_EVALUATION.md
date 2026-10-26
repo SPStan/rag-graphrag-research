@@ -1,5 +1,47 @@
 # E2: общий путь оценки готовых E1 индексов (#14)
 
+## Консолидация issue #14 в итоговый PR #36 — 26 октября
+
+Итоговый Draft PR36 сохраняет всю опубликованную историю issue14. PR35/HEADb708aa5
+является предком исходного HEAD36/3fda04f; его закрытие не используется как способ
+переноса кода. Временная база PR36 — codex/e1-indexing (PR33), а не ветка35.
+Итоговый diff включает общую E2 реализацию, smoke/continuation, answer-only
+reader diagnostic, pilot200, tracking, тесты и документы issue14.
+
+Карта сохранности PR35:
+
+- scripts/e2_evaluation.py и tests/test_e2_evaluation.py: общий runner, все20исходных
+  test/helper definitions сохранены. Native query adapters в e1_indexers и CLI
+  интеграция run_dense_target необходимы для E2 без переиндексации.
+- tests/test_e2_continuation.py: все7исходных definitions сохранены, теперь21;
+  exact reuse/lineage/failed-case/no-POST guards расширены для пилота.
+- token_accounting.py сохраняет известный usage HTTP-ошибки; соответствующий
+  schema regression адаптирован. run_e1 CLI verify получает read-only возврат.
+  Эти общие изменения принадлежат интеграции E2 и не являются новым E1 запуском.
+- smoke/diagnostic artifacts, ADR0024, evaluation/tracking tests остаются в истории
+  и текущем дереве. Пилот и ADR0025–0027 их дополняют; версии reader не смешиваются.
+- Итоговая таблица1200cases, raw manifests/claims/usage/runtime pins и прежние
+  результаты не переписываются консолидацией. Privateraw не добавляется в Git.
+
+Ожидаемый объединённый diff —33файла (точное число/размер проверяются на итоговом
+HEAD). Превышение20не скрывается: это общая реализация оценки плюс pilot200 одной
+issue. Посторонние пользовательские правки основного checkout не включены;
+отдельный PR ради формального лимита не создаётся.
+
+Порядок интеграции: сначала ревью и отдельно разрешённый merge33; затем проверка
+master против ветки36 и перевод базы36 на master. При squash merge33 старые E1
+коммиты могут остаться в merge-base diff36. Простая смена базы не считается
+доказательством чистого diff: нужно проверить дерево, привнести master обычным
+merge с сохранением E2, проверить список файлов/семантику и выполнить gate/CI.
+Force-push/rebase, Ready/merge и новые эксперименты сейчас не выполняются.
+
+Issue14 сохраняет Refs: все1200cases учтены,6конфигураций связаны с E1/run IDs,
+рабочий выбор Hippo и offline разбор6вопросов/18случаев опубликованы. Требуются
+научное подтверждение текущих O/N/R/H и принятие tuning/mixed extractor/source
+errors/одного sealed unknown/неполного E1. Следующий эксперимент без нового
+плана/бюджета не разрешён; активные часы человека из wall time не выводятся.
+PR35 закрывается без merge только после проверки сохранности/CI итогового36.
+
 ## Результат26октября: pilot200 complete по1200pipeline cases
 
 - Все1200unique method/dataset/question cases учтены:1199completed,
