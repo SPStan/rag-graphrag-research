@@ -2,16 +2,22 @@
 
 **E1 status:** 6/6 indexes completed under the structural protocol; physical known tokens=32601955; cost_complete=False; unknown reserve61588 preserved. Final audit/verify completed; monitoring paused.
 
-## Итоговые PR — консолидация26октября
+## Текущая очередь — последовательная интеграция E1/E2
 
-- Issue13 → Draft PR33; карта необходимых изменений34 в docs/E1_INDEXING.md.
-  Все исправления уже сохранены; старый stopped статус не переносится.
-- Issue14 → Draft PR36; временная база codex/e1-indexing. PR35 уже в истории36.
-  Закрытие34/35 после проверки сохранности/CI, без merge, удаления веток и артефактов.
-- Runtime pins/результаты/лимиты неизменны. Научное согласование отдельно;
-  Refs13/14, без Ready/merge/закрытия issues и новых модельных вызовов.
+- Научные O/N/R/H PR33/issue13 и PR36/issue14 подтверждены куратором по
+  текущему сообщению пользователя. Публичное одобрение бота/GitHub review
+  не заявляется; научные формулировки не меняются.
+- Пользователь разрешил Ready и последовательный обычный merge33, затем36
+  только после актуальных проверок, без обхода защиты/checks/reviews.
+  База36 переводится на master после merge33 и проверки сохранности diff.
+- Сохранённые допуски mixed extractor, bounded continuations/recovery и unknown
+  остаются применимыми. Structural6/6 не превращается в semantic_verified;
+  E1cost_complete=false/reserve61588 сохраняются. Новых model calls нет.
+- После интеграции итоговых PR следующая задача — issue15: фиксация полного
+  протокола и проверяемого reuse. Сам этап15 здесь не запускается, новых моделей,
+  индексации, S500, signal-check и holdout нет.
 
-## Текущая очередь — 25 октября: E1 завершён, 6/6
+## Сохранённый результат E1 — 6/6 структурно проверенных индексов
 
 - Dense×2, RAPTOR×2 и HippoRAG2×2 имеют completed; строгая штатная
   offline verify проверила все6 manifest/journal/artifact SHA без HTTP.
@@ -35,9 +41,10 @@
   Terminal proof: .cache/e1-six-index-final-verification.json; current plan
   .cache/e1-hotpot-local-recovery2-plan.json SHA dafe33064f78…fb61f37.
 - Таблица и безопасная JSON: results/summary/e1-indexing.md и .json.
-  Следующее — техническое ревью Draft PR33 и актуальное O/N/R/H отдельно.
-  Refs #13; без автоматического Ready/merge/закрытия issue, QA/E2/holdout.
-  Для E2 потребуется отдельный план и Hippo read-only adapter; его здесь нет.
+  Критерии структурного E1 и явного неполного учёта представлены в PR33.
+  Научные формулировки подтверждены по сообщению пользователя; Ready/merge
+  разрешены только после технических проверок. E2 уже представлен PR36;
+  следующий этап после интеграции — issue15, без новых запусков в этом блоке.
 
 ## История — не текущие инструкции запуска
 
