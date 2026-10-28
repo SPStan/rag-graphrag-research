@@ -343,6 +343,14 @@ def test_published_manifest_accounts_for_every_case_and_scope():
     assert sum(m["source_reuse_subset_of_development"].values()) == 91871
     assert not m["pilot_physical"]["complete"]
     assert m["sealed_unknown"][0]["reservation_tokens"] == 22545
+    assert "case_key" not in m["sealed_unknown"][0]
+    assert m["sealed_unknown"][0]["case_id_sha256"] == e2.case_key(
+        "hotpotqa", "raptor", "5adbe75455429944faac23af"
+    )
+    for producer in m["pilot_provenance"]:
+        assert {p["file"] for p in producer["runtime_code_sha256"]} == set(
+            e2.CODE_FILES
+        )
     assert (
         sum(
             r["unknown_operations"]

@@ -95,3 +95,12 @@ payload/model/options/retrieval, несовместимости/недоступ
 `data/sources.lock.json`; текущие processed corpus/query bytes проверяются отдельно.
 Endpoint reader и embedding backend входят в значимый контракт наряду с моделями;
 равенство alias не позволяет незаметно перенести reuse на другой backend.
+
+CI history scan выявил восемь false positives в двух новых minified manifests:
+три runtime SHA файла `scripts/token_accounting.py` и один hash sealed case в
+каждой версии. Каждый SHA сверен с Git blob LF/CRLF соответствующего runtime,
+case ID — с SHA256([dataset,method,published tuning ID]). В `.gitleaksignore`
+добавлены только два точных commit:path:rule:line fingerprints, как в прежнем
+протоколе репозитория. Текущие pins представлены парами file/sha256, sealed ID
+назван `case_id_sha256`; значения не менялись. История не переписывается,
+новые commits/values продолжают сканироваться, secret checks остаются обязательны.

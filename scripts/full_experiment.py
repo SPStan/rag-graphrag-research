@@ -337,7 +337,10 @@ def build(plan, source, roots):
                 "plan_digest": target.digest(p),
                 "manifest": roots.safe(directory / "manifest.json"),
                 "manifest_sha256": dense.sha256_file(directory / "manifest.json"),
-                "runtime_code_sha256": p["code_sha256"],
+                "runtime_code_sha256": [
+                    {"file": name, "sha256": sha}
+                    for name, sha in sorted(p["code_sha256"].items())
+                ],
                 "runtime_commit": {
                     "84454233-8d21-4731-922a-5a31184610e0": pilot.PILOT_RUNTIME,
                     "fadc0797-34e3-4468-8f0d-bc9ef1289f3a": "3914d70a17554fd6f466026b0aa5f60a02cde715",
@@ -527,7 +530,13 @@ def build(plan, source, roots):
         "datasets": datasets,
         "configurations": configurations,
         "pilot_provenance": provenance,
-        "sealed_unknown": plan["sealed_unknown"],
+        "sealed_unknown": [
+            {
+                ("case_id_sha256" if key == "case_key" else key): value
+                for key, value in item.items()
+            }
+            for item in plan["sealed_unknown"]
+        ],
         "logical_reused_usage_by_configuration": dict(logical),
         "pilot_physical": physical,
         "budget_proposal": budget_value,
