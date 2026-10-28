@@ -90,3 +90,8 @@ F1 (утечка выбора), и сравнение только HEAD (merge �
 затем обязательный offline gate. Пересмотр нужен при смене значимых входов,
 payload/model/options/retrieval, несовместимости/недоступности artifact или новом
 разрешённом протоколе; старые результаты и execution pins не переписываются.
+
+Источник корпуса закреплён как `osunlp/HippoRAG_2` с revision и SHA
+`data/sources.lock.json`; текущие processed corpus/query bytes проверяются отдельно.
+Endpoint reader и embedding backend входят в значимый контракт наряду с моделями;
+равенство alias не позволяет незаметно перенести reuse на другой backend.

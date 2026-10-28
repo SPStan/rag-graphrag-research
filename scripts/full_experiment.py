@@ -22,6 +22,8 @@ OUTPUT = "results/raw/e2-pilot200-unattempted-v1"
 PUBLIC = "results/summary/full-experiment.json"
 FIELDS = accounting.TOKEN_FIELDS
 CONTRACT = (
+    "endpoint",
+    "embedding_endpoint",
     "reader_model",
     "embedding_model",
     "embedding_digest",
@@ -150,6 +152,12 @@ def classify(plan, producer, directory, result, sha, queries, records):
             )
 
         require(pin(plan) == pin(producer), "index_contract_changed")
+        dataset = result["dataset"]
+        require(
+            plan["datasets"][dataset].get("corpus_sha256")
+            == producer["datasets"][dataset].get("corpus_sha256"),
+            "corpus_contract_changed",
+        )
         require(
             result["reader_request_sha256"]
             == target.digest(
@@ -343,12 +351,21 @@ def build(plan, source, roots):
         p = dense.read_json(p["parent_run"]["plan"])
     print("Verified terminal lineage and source pins", flush=True)
     refs = e2.result_references(plan, manifest, roots.artifact / OUTPUT)
+    lock_path = ROOT / "data/sources.lock.json"
+    source_lock = dense.read_json(lock_path)
+    require(
+        source_lock["repository"] == "osunlp/HippoRAG_2", "source_repository_changed"
+    )
     queries, datasets, full = {}, {}, copy.deepcopy(plan)
     for dataset, data in plan["datasets"].items():
         ids_path = ROOT / f"data/ids/{dataset}_s500.json"
         split_path = ROOT / f"data/ids/{dataset}_comparison_split.json"
         s500, split = dense.read_json(ids_path), dense.read_json(split_path)
         ids = s500["question_ids"]
+        require(
+            source_lock["revision"] == s500["source_revision"],
+            "source_revision_changed",
+        )
         check_split(ids, split)
         require(
             split["source_sha256"] == dense.sha256_file(ids_path)
@@ -498,6 +515,13 @@ def build(plan, source, roots):
         "cases": 3000,
         "counts": dict(counts),
         "contract": contract(plan),
+        "data_source": {
+            "repository": source_lock["repository"],
+            "revision": source_lock["revision"],
+            "lock": "repo:data/sources.lock.json",
+            "lock_sha256": dense.sha256_file(lock_path),
+            "scope": "source metadata pinned; processed corpus/query bytes verified; raw gold never parsed",
+        },
         "input_message_bytes_limit": 65536,
         "input_bounds": bounds,
         "datasets": datasets,

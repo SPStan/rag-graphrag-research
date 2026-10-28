@@ -87,13 +87,27 @@ def test_existing_runner_result_is_reused_without_transport(saved_case):
 
 
 @pytest.mark.parametrize(
-    "change", ["options", "index", "payload", "result_sha", "checkpoint", "missing"]
+    "change",
+    [
+        "options",
+        "endpoint",
+        "corpus",
+        "index",
+        "payload",
+        "result_sha",
+        "checkpoint",
+        "missing",
+    ],
 )
 def test_changed_or_missing_artifact_never_compatible(saved_case, change):
     s, producer, result, path, sha = saved_case
     plan, result = copy.deepcopy(producer), copy.deepcopy(result)
     if change == "options":
         plan["reader_options"]["max_tokens"] = 1024
+    elif change == "endpoint":
+        plan["endpoint"] = "http://changed.invalid"
+    elif change == "corpus":
+        plan["datasets"][result["dataset"]]["corpus_sha256"] = "changed"
     elif change == "index":
         plan["datasets"][result["dataset"]]["indexes"][0]["manifest_sha256"] = "changed"
     elif change == "payload":
@@ -313,6 +327,10 @@ def test_published_manifest_accounts_for_every_case_and_scope():
         counts["missing"] += len(c["missing_ids"])
         for qid in ids:
             keys.add(e2.case_key(c["dataset"], c["method"], qid))
+    assert m["data_source"]["repository"] == "osunlp/HippoRAG_2"
+    assert m["data_source"]["lock_sha256"] == dense.sha256_file(
+        full.ROOT / "data/sources.lock.json"
+    )
     assert len(keys) == m["cases"] == 3000
     assert (
         counts
