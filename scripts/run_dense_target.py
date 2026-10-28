@@ -132,7 +132,12 @@ def checked_post(
             save_private_json(response_path, body, headers)
         if 300 <= response.status_code < 400:
             raise ValueError("redirect_refused")
-        response.raise_for_status()
+        try:
+            response.raise_for_status()
+        except requests.HTTPError as exc:
+            # Preserve reported usage even when the HTTP status itself fails.
+            exc.usage_payload = body
+            raise
         return body
 
     result = recorded_call(
@@ -557,6 +562,36 @@ def execute(
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--shared-plan", type=Path)
+    parser.add_argument("--prepare-shared", action="store_true")
+    parser.add_argument("--prepare-pilot", action="store_true")
+    parser.add_argument("--continue-pilot-plan", type=Path)
+    parser.add_argument("--pilot-bound-proof", type=Path)
+    parser.add_argument("--reuse-shared-plan", type=Path)
+    parser.add_argument("--reuse-shared-output", type=Path)
+    parser.add_argument("--reuse-diagnostic-plan", type=Path)
+    parser.add_argument("--reuse-diagnostic-output", type=Path)
+    parser.add_argument(
+        "--reader-probe-from",
+        type=Path,
+        help="prepare answer-only cached-context diagnostic; no HTTP",
+    )
+    parser.add_argument(
+        "--continue-shared-plan",
+        type=Path,
+        help="prepare child from this immutable parent plan; no HTTP",
+    )
+    parser.add_argument("--parent-output-dir", type=Path)
+    parser.add_argument(
+        "--summarize-shared", type=Path, help="public report prefix; no execution"
+    )
+    parser.add_argument("--e1-plan", type=Path)
+    parser.add_argument("--e1-workspace", type=Path)
+    parser.add_argument("--shared-method", choices=("dense", "hipporag2", "raptor"))
+    parser.add_argument("--output-dir", type=Path)
+    parser.add_argument("--approved-plan-sha256")
+    parser.add_argument("--hippo-source", type=Path)
+    parser.add_argument("--raptor-source", type=Path)
     parser.add_argument("--data-root", type=Path, default=ROOT)
     parser.add_argument("--env-file", type=Path)
     parser.add_argument("--dataset", choices=DATASETS, help="restrict to one dataset")
@@ -574,6 +609,172 @@ def main():
         help="spend tokens: at most 5 sequential reader calls per dataset",
     )
     args = parser.parse_args()
+    if args.shared_plan:
+        from scripts import e2_evaluation as shared
+
+        if args.continue_pilot_plan:
+            from scripts import e2_pilot
+
+            if args.execute or not args.parent_output_dir or not args.pilot_bound_proof:
+                raise ValueError(
+                    "E2_pilot_continuation_prepare_offline_sources_required"
+                )
+            plan = e2_pilot.prepare_continuation(
+                args.continue_pilot_plan, args.parent_output_dir, args.pilot_bound_proof
+            )
+            if args.shared_plan.exists() and dense.read_json(args.shared_plan) != plan:
+                raise ValueError("E2_frozen_plan_cannot_be_overwritten")
+            dense.write_json_atomic(args.shared_plan, plan)
+            print(
+                json.dumps(
+                    {
+                        "plan_sha256": dense.sha256_file(args.shared_plan),
+                        "reader_POST": plan["reader_calls"],
+                        "embedding_POST": plan["max_embedding_posts"],
+                        "max_POST": plan["max_posts"],
+                        "max_combined_tokens": plan["max_combined_tokens"],
+                        "http_calls": 0,
+                    }
+                )
+            )
+        elif args.prepare_pilot:
+            from scripts import e2_pilot
+
+            if args.execute or not all(
+                (
+                    args.e1_plan,
+                    args.e1_workspace,
+                    args.reuse_shared_plan,
+                    args.reuse_shared_output,
+                    args.reuse_diagnostic_plan,
+                    args.reuse_diagnostic_output,
+                )
+            ):
+                raise ValueError("E2_pilot_prepare_requires_sources_and_no_HTTP")
+            plan = e2_pilot.prepare(
+                args.e1_plan,
+                args.e1_workspace,
+                args.reuse_shared_plan,
+                args.reuse_shared_output,
+                args.reuse_diagnostic_plan,
+                args.reuse_diagnostic_output,
+            )
+            if args.shared_plan.exists() and dense.read_json(args.shared_plan) != plan:
+                raise ValueError("E2_existing_pilot_plan_changed")
+            dense.write_json_atomic(args.shared_plan, plan)
+            print(
+                json.dumps(
+                    {
+                        "plan_sha256": dense.sha256_file(args.shared_plan),
+                        "cases": plan["pilot_protocol"]["cases"],
+                        "reader_POST": plan["reader_calls"],
+                        "filter_POST": plan["filter_calls"],
+                        "embedding_POST": plan["max_embedding_posts"],
+                        "max_combined_tokens": plan["max_combined_tokens"],
+                        "http_calls": 0,
+                    }
+                )
+            )
+        elif args.reader_probe_from:
+            if args.execute or not args.parent_output_dir:
+                raise ValueError("E2_probe_prepare_requires_source_and_no_execution")
+            plan = shared.prepare_reader_probe(
+                args.reader_probe_from, args.parent_output_dir
+            )
+            if args.shared_plan.exists() and dense.read_json(args.shared_plan) != plan:
+                raise ValueError("E2_existing_probe_plan_changed")
+            dense.write_json_atomic(args.shared_plan, plan)
+            print(
+                json.dumps(
+                    {
+                        "plan_sha256": dense.sha256_file(args.shared_plan),
+                        "max_posts": plan["max_posts"],
+                        "max_combined_tokens": plan["max_combined_tokens"],
+                        "http_calls": 0,
+                    }
+                )
+            )
+        elif (
+            args.shared_plan.exists()
+            and dense.read_json(args.shared_plan).get("version")
+            == shared.READER_PROBE_VERSION
+        ):
+            if args.summarize_shared or args.shared_method:
+                raise ValueError("E2_probe_not_comparative_smoke")
+            if args.execute:
+                if not args.output_dir:
+                    raise ValueError("E2_output_required")
+                if args.env_file:
+                    load_dotenv(args.env_file, override=False)
+                result = shared.execute_reader_probe(
+                    args.shared_plan,
+                    args.output_dir,
+                    approved_sha=args.approved_plan_sha256,
+                    config=api.settings(os.environ),
+                )
+                print(
+                    json.dumps({"status": result["status"], "run_id": result["run_id"]})
+                )
+            else:
+                shared.verify_reader_probe(dense.read_json(args.shared_plan))
+                print("Reader probe verified offline; no HTTP.")
+        elif args.summarize_shared:
+            if not args.output_dir or args.execute:
+                raise ValueError("E2_summary_requires_output_and_no_execution")
+            report = shared.write_report(
+                args.shared_plan, args.output_dir, args.summarize_shared
+            )
+            print(
+                json.dumps(
+                    {
+                        "status": report["status"],
+                        "run_id": report["run_id"],
+                        "model_posts": report["model_posts"],
+                    }
+                )
+            )
+        elif args.prepare_shared or args.continue_shared_plan:
+            plan = (
+                shared.prepare_continuation(
+                    args.continue_shared_plan, args.parent_output_dir
+                )
+                if args.continue_shared_plan
+                else shared.prepare(args.e1_plan, args.e1_workspace)
+            )
+            if args.shared_plan.exists():
+                if dense.read_json(args.shared_plan) != plan:
+                    raise ValueError("E2_existing_plan_changed")
+            else:
+                dense.write_json_atomic(args.shared_plan, plan)
+            print(
+                json.dumps(
+                    {
+                        "plan_sha256": dense.sha256_file(args.shared_plan),
+                        "max_posts": plan["max_posts"],
+                        "max_combined_tokens": plan["max_combined_tokens"],
+                        "http_calls": 0,
+                    }
+                )
+            )
+        elif args.execute:
+            if not args.output_dir or not args.shared_method:
+                raise ValueError("E2_output_and_method_required")
+            if args.env_file:
+                load_dotenv(args.env_file, override=False)
+            result = shared.execute(
+                args.shared_plan,
+                args.output_dir,
+                args.shared_method,
+                approved_sha=args.approved_plan_sha256,
+                config=api.settings(os.environ),
+                hippo_source=args.hippo_source,
+                raptor_source=args.raptor_source,
+            )
+            print(json.dumps({"status": result["status"], "run_id": result["run_id"]}))
+        else:
+            shared.verify(dense.read_json(args.shared_plan))
+            print("Shared E2 plan verified offline; no HTTP.")
+        return
     prepared = [prepare(dataset, args.data_root) for dataset in DATASETS]
     plan_path = ROOT / "results" / "summary" / "dense-target-smoke-plan.json"
     plans = {"datasets": [item[0] for item in prepared]}

@@ -2,22 +2,212 @@
 
 **E1 status:** 6/6 indexes completed under the structural protocol; physical known tokens=32601955; cost_complete=False; unknown reserve61588 preserved. Final audit/verify completed; monitoring paused.
 
-## Текущая очередь — последовательная интеграция E1/E2
+## Текущая очередь — issue #15: полный протокол и reuse
 
+- Следующий этап после интеграции E1/E2 — issue15: фиксация полного протокола,
+  pinned versions/ID/лимитов и проверяемого reuse. Сам этап15 в этой задаче
+  не запускается; новых LLM/embedding calls, S500, holdout и индексации нет.
 - Научные O/N/R/H PR33/issue13 и PR36/issue14 подтверждены куратором по
-  текущему сообщению пользователя. Публичное одобрение бота/GitHub review
-  не заявляется; научные формулировки не меняются.
-- Пользователь разрешил Ready и последовательный обычный merge33, затем36
-  только после актуальных проверок, без обхода защиты/checks/reviews.
-  База36 переводится на master после merge33 и проверки сохранности diff.
-- Сохранённые допуски mixed extractor, bounded continuations/recovery и unknown
-  остаются применимыми. Structural6/6 не превращается в semantic_verified;
-  E1cost_complete=false/reserve61588 сохраняются. Новых model calls нет.
-- После интеграции итоговых PR следующая задача — issue15: фиксация полного
-  протокола и проверяемого reuse. Сам этап15 здесь не запускается, новых моделей,
-  индексации, S500, signal-check и holdout нет.
+  текущему сообщению пользователя. Ссылка/дата решения не выдумываются;
+  публичного GitHub review/одобрения бота не заявляем. Карточки неизменны.
+- Ready и последовательный обычный merge33→36 разрешены после актуальных
+  проверок, без обхода защиты/checks/reviews. PR36 переводится на master
+  после интеграции33 и проверки полного E2 diff; результаты/runtime не меняются.
+- Прежние согласования mixed extractor, продолжений и sealed unknown сохранены.
+  Semantic_verified=false и cost_complete=false остаются ограничениями.
+  После merge проверяются CLOSED issues13/14 и Done их существующих Project cards.
+- PR34/35 уже закрыты как заменённые; ветки и артефакты сохранены.
 
-## Сохранённый результат E1 — 6/6 структурно проверенных индексов
+## Сохранённый результат pilot200 — 1199ответов+1transport failure
+
+- Все1200unique method/dataset/question cases учтены:1199completed,
+  1infrastructure attempted_failed,0not_attempted. [Единая таблица](../results/summary/e2-pilot200.md)
+  и[JSON](../results/summary/e2-pilot200.json). Это complete pipeline comparison,
+  не1200ответов и не независимое подтверждение качества/преимущества архитектуры.
+- Runtime4bd1d25, final run20a6360f-24f4-4151-a70c-76632d0a81aa:138newcompleted,
+  276POST,456469known tokens (LLM452100input/941output,BGE3428),newunknown0.
+  Сохранённый historical reader unknown не повторён; reserve22545,usage=null.
+- Pilot physical3799313known/2708POST. E2сdevelopment4036653known/2860POST,
+  cost_complete=false. Source91871 — часть development237340, безdouble count.
+  E1known32601955/reserve61588/cost_complete=false отдельно. Index rebuild0.
+- EM/F1(%): Mu Dense33.00/43.60,Hippo42.50/52.61,RAPTOR32.50/43.49;
+  Hotpot Dense59.00/70.81,Hippo69.00/79.29,RAPTOR57.00/70.51.
+  RAPTOR Hotpot199completed+1transport failure(0.5%), pipeline EM/F1=0длянего;
+  это не неверный ответ reader. Paired bootstrap2000seed42,n200,12comparisons.
+- HTTP0terminal audit проверил1200unique,1062parents/138new, все data/index/
+  result/response/checkpoint/journal SHA, одну sealed unknown identity; sourcefailed/
+  claims неизменны. Первоначальная ошибка окружения audit(PYTHONPATH) исправлена
+  без нового run/POST. Execution pins4bd1d25 отделены от postprocessing correction.
+- Local tracking:6MLflow/6Langfuse views по200cases,66artifact roundtripSHA;
+  в обоих сервисах6000retrieval+6000generation documents совпали с source по
+  title/text/order, вMLflow также answers. Reader usage/unknown проверены.
+- Reporting-only correction:33BGE tokens reuse внутриpilot отнесены кpilotphysical,
+  не кdevelopment cache; global cost/answers/payloads не менялись. Regression3passed.
+  Langfuse содержит явную cost-attribution-correction annotation без trace reexport.
+- Latency instrumented/cross-run, включает guards/persistence; validation lineage
+  послеcontinuation больше. Source/replay не freshE2E; RAPTORprovenance не passage
+  recall@5. Tuning/mixedHippo/errors/E1incomplete раскрыты. Сравнение не causal.
+- CI cleanup: восстановлены conventional title prefixes(PR36 exp,PR35 feat).
+  19history findings проверены:9code SHA,6HF tokenizer SHA,2case IDs,2usage formulas.
+  Добавлены только точные commit/path/rule/line fingerprints; blanket exclusions нет.
+  Local full-history scan201commits:0findings; отдельный synthetic stdin canary
+  обнаружен generic-api-key. Ответы/планы/расходы/модельные вызовы не менялись.
+- Рабочий выбор по tuning pilot — HippoRAG2 против Dense на тех же двух датасетах,
+  без 2Wiki. Обоснование F1/EM и более высокой стоимости с fact filter добавлено
+  в итоговый отчёт и ADR0025; параметры/результаты/JSON/расходы не менялись.
+  Это не независимое подтверждение и не допуск задачи9.
+- Offline error review: SHA1200results и прежние EM/F1 подтверждены; выбранные
+  по фиксированным outcome strata6вопросов/18случаев сверены с top5/source.
+  Показаны missing evidence, неверное событие/организация, paraphrase/краткость
+  и reference ambiguity. Это иллюстрации, не частоты причин; labels/метрики/JSON
+  неизменны, HTTP0. Научные формулировки подтверждены по сообщению пользователя;
+  это не опубликованное одобрение бота или GitHub review.
+- Реализация и результаты issue14 собраны в PR36; фактический diff относительно
+  master проверяется после merge33. При успешном CI разрешены Ready/merge36 и
+  закрытие issue14/Done существующей карточки. Следующая очередь — issue15,
+  только протокол/reuse в отдельном блоке; новых экспериментов здесь нет.
+
+## Предыдущая transport-остановка (история)
+
+- Runtime3914d70, child fadc0797-34e3-4468-8f0d-bc9ef1289f3a terminal failed
+  в2026-10-26T02:11:11Z. Worker завершён, retry/recovery0; исходные manifests/claims
+  не менялись. Мониторинг завершает работу; повтор POST не разрешён.
+- Reader target API оборвал соединение без ответа (RemoteDisconnected), HotpotQA
+  question5adbe75455429944faac23af. Один physical reader POST имеет unknown usage.
+  Reserve22545tokens сохранён как консервативная граница, не расход/ноль.
+- [Текущая неполная таблица](../results/summary/e2-pilot200.md):1061completed,
+  1attempted_failed,138not_attempted. Dense/Hippo×2 и RAPTOR Mu по200готовых;
+  RAPTOR Hotpot61completed+1transport failure+138not attempted. Paired inference нет.
+- Child487POST=248reader+239BGE,937346known tokens;1unknown reader. Pilot parent+child
+  2432POST/3342844known; E2сdevelopment2584POST/3580184known,cost_complete=false.
+  E1known32601955/reserve61588/cost_complete=false отдельно. Unknown не засчитан нулём.
+- Бывший byte overflow пройден полным неизменённым payload:37608bytes,
+  native9860/server9860input tokens,5output; embedding/retrieval reused. Byte gate
+  не вызвал новую остановку. Все новые результаты и стоимость сохраняются.
+- Existing report-only сформировал6строк без новых HTTP. Live reader подтвердил
+  finished487,unknown1,inflight0,corrupt-tail0. Partial tracking не экспортирован;
+  полное1200-case/audit/paired сравнение не объявляется выполненным.
+- Единственный следующий шаг: уточнить у владельца API исход запроса по сохранённым
+  метаданным/времени, не повторяя его. Сообщения оператору не отправлялись. До решения
+  о пропущенном unknown case нового continuation нет; бюджет/протокол не ослаблять.
+
+## Предыдущая остановка pilot200 (история)
+
+- Отдельный зависимый Draft PR36, codex/e2-pilot200; PR35 и основной checkout
+  не изменены. Runtime `41ee909c14ffca5dff552fa65d46f33f39d9ed8d`.
+- После прямого допуска exact plan284af290…5b4f01 выполнен run
+  `84454233-8d21-4731-922a-5a31184610e0`. Terminal failed; без retry/recovery.
+- 812completed,1attempted_failed,387not_attempted из1200уникальных случаев.
+  Dense/Hippo×2 завершили по200, RAPTOR Mu12completed+1overflow, Hotpot0.
+  [Неполная таблица](../results/summary/e2-pilot200-incomplete.md): парные выводы
+  не публикуются; незапущенные случаи не засчитаны как неверные ответы.
+- RAPTOR Mu question `4hop1__802394_153080_159767_81096`: actual answer-only
+  messages37608UTF8bytes >32000. Это реальный overflow без truncation;
+  reader POST не было, только33known BGE tokens. Не ошибка ответа reader.
+- 1945новых POST=802reader+380Hippo filter+763BGE; все finished/known,
+  unknown0/unfinished0. LLM2356693input/29066output, BGE19739input:
+  2405498новых combined tokens. Все813saved cases,374source pins,
+  полные data/index/code pins и immutable terminal journal проверены offline.
+- Used source80504tokens/80operations — часть development237340/152POST,
+  не дополнительный расход. E2physical cumulative2642838tokens/2097POST.
+  E1known32601955/reserve61588/cost_complete=false остаётся отдельно.
+  Исторические времена не превращены в freshE2E. Старые результаты неизменны.
+- Единственный следующий шаг: предложить общую политику ограничения входного
+  контекста для всех методов через ADR до continuation. Нельзя молча поднять
+  limit/обрезать контекст/перезапустить failed plan. Остаток54784356tokens/763POST
+  не является разрешением. S500/check/holdout/7B/rebuild/новые пробы не запущены.
+- Partial pilot не экспортирован в MLflow/Langfuse: публичная таблица и строгие
+  raw artifacts — источник этого результата; прежние tracking views не менялись.
+
+## Подготовка pilot200 (история)
+
+- Ветка codex/e2-pilot200 от b708aa5, отдельный зависимый Draft к PR35;
+  PR35 остаётся Draft/20files, основной checkout с правками не изменяется.
+- shared-answer-only-v1 закреплён прямым поручением пользователя: основание
+  format/length, не F1. Общий основной runner/transport всех3методов использует
+  этот payload, cap512/temp0/seed42/thinkingfalse/parser/byte gates неизменны.
+-1200cases =200ordered published tuning IDs×2×3. Gold/supporting только evaluator.
+  [ADR0025](../.adr/0025-pilot200-shared-reader.md) фиксирует scope, reuse и cost.
+- Проверенный reuse:60contexts и все12совместимых answer-only responses, включая
+  ошибки содержания. СтарыеThought ответы не переносятся;374sourcefile SHA pinned.
+- Новый предел1188reader/≤380filter/1140localBGE=2708POST,≤1568externalLLM.
+  Reserve57189854tokens — верхняя граница payload, не прогноз. Retry0/redirect0,
+  timeout30/300. Первый fatal/unknown/pin/budget/overflow stop, без recovery;
+  known reader failures продолжают очередь без повторов. Filter strict отдельно.
+- Source91871known — часть development237340, не дополнительный расход;
+  новые physical, used source и development отдельно. E1known32601955/reserve61588/
+  cost_complete=false неизменны. Cache timing не freshE2E, исторические времена
+  не суммируются с новыми; JSON хранит source run/stage timing.
+- Frozen plan results/summary/e2-pilot200-plan.json SHA
+  `284af290878ef53f9a486d1df956a8e02d72f147d3a6f1e2aa0b072efc5b4f01`.
+  Native indexes/source artifacts проверены offline; real model calls0.
+  Следующее — один допуск exact плана для всех3методов/двух датасетов; на момент подготовки pilot ещё
+  не запускался. После допуска whole script до fatal, без новых prompt/cap проб.
+
+## Предыдущий законченный блок E2
+
+### Answer-only diagnostic завершён (история)
+
+- Пользователь разрешил exact plan1b816118…71cf8b ответом «Продолжай».
+  Execution22e4553; run `eb9668ff-ef12-45c5-ac4e-4c52f868a84c` завершил12/12POST:
+  все finish=stop, одиночный Answer, reported reasoning_tokens0, без цикла/ошибок.
+- Новые LLM28132input/100output=28232known tokens, unknown0/unfinished0,
+  embedding/filter/retrieval/indexing POST0.12POST из12; token reserve152350 соблюдён.
+  Все347source pins неизменны, старые smoke results/manifests/стоимость сохранены.
+- Source-only audit12method cases (4unique tuning questions), без gold/F1:
+  7supported/2observed_error/3needs_review. Два former-length случая теперь дают
+  полный ответ, но подставляют неподходящий факт из distractor/другого исследования.
+  Три direct Roncalli answers поддержаны, но painter/death-place bridge отсутствует.
+  Для RAPTOR проверены answer-relevant original descendants, не только provenance.
+- Это technical pass с раскрытыми source findings, не подтверждение качества
+  или статистическая оценка error rate. Audit выполнен Codex, не независимым человеком.
+  Reader автоматически не принят; исходная общая таблица43/17 не пересчитывалась.
+- Raw immutable manifest остаётся responses_pending_source_audit; завершённая
+  assessment в raw/e2-answer-only-diagnostic-v1/source-audit.json и отдельном
+  original-source-proof.json с SHA. Отдельный diagnostic tracking без EM/F1.
+- Diagnostic tracking подтверждён: MLflow `b7fad1509ffa409e895761f68eeffbea`,
+  Langfuse `bdb7418a6537553f33942e2c9c6806b8`;12question/generation spans,
+  60cached context passages/nodes (не новые retrieval),0embedding POST.
+  Reader usage28132/100 сверено обратным чтением;8artifact round-trip SHA совпали.
+- Совокупный E2 query known237340=209108old+28232diagnostic, физически152POST;
+  E1known32601955/reserve61588/cost_complete=false отдельно, incomplete не снят.
+- Единственный следующий шаг — предложить фиксацию shared-answer-only-v1 как
+  общего output contract для отдельно согласуемого pilot200 с раскрытыми ошибками.
+  Новой цепочки prompt/cap/model проб на этих4вопросах не предлагать.
+  Pilot200/S500/check/holdout/rebuild/merge и новые model calls не разрешены.
+
+## Предыдущий законченный блок E2
+
+### Диагностический E2 smoke10 завершён
+
+- Пользователь отдельно разрешил exact continuation v2 SHA
+  `723a9993cfd710c8e958cc5ae422ca26dfce27b448acb6538b89f28b3990ffe6`.
+  Execution code537fa023; child `3bee5af5-13f9-43ad-b9d9-dee3dfd11171` completed.
+- Все60уникальных method/dataset/question случаев учтены:43completed,
+  17attempted_failed (reader length cap512),0not_attempted. Ответы partial не приняты,
+  retry0. Parent2completed+1failed неизменны, выполнены только57оставшихся случаев.
+- Новых childPOST134, вместе с parent140:60reader/20Hippo filter/60localBGE.
+  LLM188118input/19535output, embedding1455; всего209108known tokens,
+  child203421+parent5687 ровно один раз. Unknown0/unfinished0; token/post cap соблюдён.
+  Остаток original3067692tokens/0POST не является разрешением новых запросов.
+- Шесть E1 индексов не перестраивались; query journal содержит только embedding,
+  filter и reader. E1known32601955/reserve61588/cost_complete=false отдельны.
+- Единая [таблица](../results/summary/e2-smoke10-continuation.md) содержит EM/F1,
+  completed/failed/failure rate, measured mean query latency и LLM/BGE usage.
+  Failed даёт0, RAPTOR provenance не passage recall@5. Это tuning smoke10,
+  не pilot200/полный E2 и не доказательство преимущества архитектуры.
+- Local tracking:6MLflow/6Langfuse views по10cases;50retrieved nodes/passages
+  на trace, reader usage совпал;48artifact round-trip SHA совпали. Parent+child
+  это представление прежних140POST, не дополнительная стоимость. Экспорт
+  выполняется по одной конфигурации на процесс (Langfuse SDK resource lifecycle).
+- Единственный следующий шаг: общий пересмотр reader для всех методов перед
+  pilot200 по техническому признаку17/60length (28.3%), без подбора по F1.
+  Новая версия требует отдельного плана/допуска; эти результаты с ней не смешивать.
+  Pilot200/S500/check/holdout/новые модели/rebuild/merge не запускать.
+
+## Предыдущий законченный блок E1 (справка)
+
+## Текущая очередь — 25 октября: E1 завершён, 6/6
 
 - Dense×2, RAPTOR×2 и HippoRAG2×2 имеют completed; строгая штатная
   offline verify проверила все6 manifest/journal/artifact SHA без HTTP.
@@ -41,10 +231,9 @@
   Terminal proof: .cache/e1-six-index-final-verification.json; current plan
   .cache/e1-hotpot-local-recovery2-plan.json SHA dafe33064f78…fb61f37.
 - Таблица и безопасная JSON: results/summary/e1-indexing.md и .json.
-  Критерии структурного E1 и явного неполного учёта представлены в PR33.
-  Научные формулировки подтверждены по сообщению пользователя; Ready/merge
-  разрешены только после технических проверок. E2 уже представлен PR36;
-  следующий этап после интеграции — issue15, без новых запусков в этом блоке.
+  Следующее — техническое ревью Draft PR33 и актуальное O/N/R/H отдельно.
+  Refs #13; без автоматического Ready/merge/закрытия issue, QA/E2/holdout.
+  Для E2 потребуется отдельный план и Hippo read-only adapter; его здесь нет.
 
 ## История — не текущие инструкции запуска
 

@@ -1,0 +1,1662 @@
+{
+  "schema_version": 1,
+  "kind": "e2_smoke10",
+  "status": "completed",
+  "run_id": "3bee5af5-13f9-43ad-b9d9-dee3dfd11171",
+  "plan_sha256": "723a9993cfd710c8e958cc5ae422ca26dfce27b448acb6538b89f28b3990ffe6",
+  "execution_code_pins": {
+    "scripts/e2_evaluation.py": "5b5badf9b83246c1a811639ebae0790dc949ae868a58a9630f65d7d776fed40b",
+    "scripts/e1_indexers.py": "26ca8a006701b799d488df688a9210e152383f868e173b093558a8a1534dac81",
+    "scripts/run_dense.py": "b6cf8da3f987a1d7ad37ac16639ddf6a1f5523e8ccc0117ad015a423efaacaac",
+    "scripts/run_dense_target.py": "c14b80095c965dfa4b6adcadd96fa7e3a00f22fe5f568eb4100a259b5cb5ef70",
+    "scripts/run_e1.py": "ea921a6c4b747ea9e081c0421c5dd384ac21d7e78fd0568d501328a37a660e8b",
+    "scripts/evaluate_dense.py": "1e39159a7eb02bff83b7bd0fd04a6c062762e43554b7bf6e66caf7e95c47ccd7",
+    "scripts/answer_parser.py": "bed7477e2ca0ace452821e2adb13cf8b045aa6443617b141c13fadf18e56bf18",
+    "scripts/token_accounting.py": "3259f9db8afbf5abd2e0c083cdaf45b1e4d511ec30c49e284722e640e11ebf75",
+    "scripts/run_raptor_smoke.py": "9660b1a16461a79ba08245e16c58aedce32a3e0a0eb81425ce4ea164d610541c",
+    "scripts/vendor/hipporag2_musique_template.py": "fada8f3cffcd2b657f2eec268f46e5deafc09471d609ba6292a58e3baea79c51",
+    "scripts/preflight_hipporag_repair_prompts.py": "ef1b50e6339ebb1fd116ae740f541f2bf4af1e578e8877a820c6e163a09743f2",
+    "scripts/track_dense.py": "d3e87ff1be88959f2fd6db42467dc71da68a7bd162bb11518f7f4ac0b8f5f4da",
+    "scripts/evaluation_view.py": "b0504290b247f3dbf70be159e3bb54c2b9091f04fbb7f5f0014527399bd601a6"
+  },
+  "manifest_sha256": "5a4dc730188f8f8cd3cc88cfc992a1e0775279bf015ac6a438e10cb66f5e6bcb",
+  "journal_sha256": "7afc2eb30b4e9401effe2ff44ac295ad80583d2ff27999c4ae697c42ff65154c",
+  "raw_directory": "results\\raw\\e2-smoke10-continuation-v2",
+  "rows": [
+    {
+      "dataset": "musique",
+      "method": "dense",
+      "planned": 10,
+      "completed": 5,
+      "attempted_failed": 5,
+      "not_attempted": 0
+    },
+    {
+      "dataset": "musique",
+      "method": "hipporag2",
+      "planned": 10,
+      "completed": 6,
+      "attempted_failed": 4,
+      "not_attempted": 0
+    },
+    {
+      "dataset": "musique",
+      "method": "raptor",
+      "planned": 10,
+      "completed": 5,
+      "attempted_failed": 5,
+      "not_attempted": 0
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "dense",
+      "planned": 10,
+      "completed": 8,
+      "attempted_failed": 2,
+      "not_attempted": 0
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "hipporag2",
+      "planned": 10,
+      "completed": 10,
+      "attempted_failed": 0,
+      "not_attempted": 0
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "raptor",
+      "planned": 10,
+      "completed": 9,
+      "attempted_failed": 1,
+      "not_attempted": 0
+    }
+  ],
+  "outcome_counts": {
+    "completed": 43,
+    "attempted_failed": 17
+  },
+  "model_posts": 140,
+  "llm_posts": 80,
+  "embedding_posts": 60,
+  "known_query_tokens": {
+    "llm_input_tokens": 188118,
+    "llm_output_tokens": 19535,
+    "embedding_input_tokens": 1455
+  },
+  "known_combined_query_tokens": 209108,
+  "query_cost_complete": true,
+  "new_unknown_attempts": 0,
+  "unfinished_attempts": 0,
+  "remaining_original_tokens": 3067692,
+  "remaining_original_posts": 0,
+  "new_model_posts": 134,
+  "physical_lineage": [
+    {
+      "status": "verified",
+      "summary": {
+        "schema_version": 1,
+        "phases": [
+          {
+            "phase": "reader",
+            "provider": "target_api",
+            "attempts": 3,
+            "errors": 0,
+            "unfinished": 0,
+            "cache_hits": 0,
+            "cache_provenance_unknown": 0,
+            "known_subtotal": {
+              "llm_input_tokens": 4516,
+              "llm_output_tokens": 1102,
+              "embedding_input_tokens": 0
+            },
+            "unknown_fields": {
+              "llm_input_tokens": 0,
+              "llm_output_tokens": 0,
+              "embedding_input_tokens": 0
+            },
+            "complete": true,
+            "total": {
+              "llm_input_tokens": 4516,
+              "llm_output_tokens": 1102,
+              "embedding_input_tokens": 0
+            }
+          },
+          {
+            "phase": "retrieval",
+            "provider": "local_ollama",
+            "attempts": 3,
+            "errors": 0,
+            "unfinished": 0,
+            "cache_hits": 0,
+            "cache_provenance_unknown": 0,
+            "known_subtotal": {
+              "llm_input_tokens": 0,
+              "llm_output_tokens": 0,
+              "embedding_input_tokens": 69
+            },
+            "unknown_fields": {
+              "llm_input_tokens": 0,
+              "llm_output_tokens": 0,
+              "embedding_input_tokens": 0
+            },
+            "complete": true,
+            "total": {
+              "llm_input_tokens": 0,
+              "llm_output_tokens": 0,
+              "embedding_input_tokens": 69
+            }
+          }
+        ],
+        "known_subtotal": {
+          "llm_input_tokens": 4516,
+          "llm_output_tokens": 1102,
+          "embedding_input_tokens": 69
+        },
+        "complete": true,
+        "attempts": 6,
+        "historical_cache_cost_complete": true,
+        "journal_corrupt_tail": false,
+        "corrupt_tail_bytes": 0
+      },
+      "path": "C:\\Users\\Elisei\\.codex\\worktrees\\e2-shared-evaluation\\Rag, GraphRAG\\results\\raw\\e2-smoke10-8d9ce08b\\usage.jsonl"
+    },
+    {
+      "status": "verified",
+      "summary": {
+        "schema_version": 1,
+        "phases": [
+          {
+            "phase": "reader",
+            "provider": "target_api",
+            "attempts": 57,
+            "errors": 0,
+            "unfinished": 0,
+            "cache_hits": 0,
+            "cache_provenance_unknown": 0,
+            "known_subtotal": {
+              "llm_input_tokens": 122749,
+              "llm_output_tokens": 17102,
+              "embedding_input_tokens": 0
+            },
+            "unknown_fields": {
+              "llm_input_tokens": 0,
+              "llm_output_tokens": 0,
+              "embedding_input_tokens": 0
+            },
+            "complete": true,
+            "total": {
+              "llm_input_tokens": 122749,
+              "llm_output_tokens": 17102,
+              "embedding_input_tokens": 0
+            }
+          },
+          {
+            "phase": "retrieval",
+            "provider": "local_ollama",
+            "attempts": 57,
+            "errors": 0,
+            "unfinished": 0,
+            "cache_hits": 0,
+            "cache_provenance_unknown": 0,
+            "known_subtotal": {
+              "llm_input_tokens": 0,
+              "llm_output_tokens": 0,
+              "embedding_input_tokens": 1386
+            },
+            "unknown_fields": {
+              "llm_input_tokens": 0,
+              "llm_output_tokens": 0,
+              "embedding_input_tokens": 0
+            },
+            "complete": true,
+            "total": {
+              "llm_input_tokens": 0,
+              "llm_output_tokens": 0,
+              "embedding_input_tokens": 1386
+            }
+          },
+          {
+            "phase": "retrieval",
+            "provider": "target_api",
+            "attempts": 20,
+            "errors": 0,
+            "unfinished": 0,
+            "cache_hits": 0,
+            "cache_provenance_unknown": 0,
+            "known_subtotal": {
+              "llm_input_tokens": 60853,
+              "llm_output_tokens": 1331,
+              "embedding_input_tokens": 0
+            },
+            "unknown_fields": {
+              "llm_input_tokens": 0,
+              "llm_output_tokens": 0,
+              "embedding_input_tokens": 0
+            },
+            "complete": true,
+            "total": {
+              "llm_input_tokens": 60853,
+              "llm_output_tokens": 1331,
+              "embedding_input_tokens": 0
+            }
+          }
+        ],
+        "known_subtotal": {
+          "llm_input_tokens": 183602,
+          "llm_output_tokens": 18433,
+          "embedding_input_tokens": 1386
+        },
+        "complete": true,
+        "attempts": 134,
+        "historical_cache_cost_complete": true,
+        "journal_corrupt_tail": false,
+        "corrupt_tail_bytes": 0
+      },
+      "path": "results\\raw\\e2-smoke10-continuation-v2\\usage.jsonl"
+    }
+  ],
+  "failures": [
+    {
+      "dataset": "musique",
+      "method": "dense",
+      "question_id": "2hop__126306_396277",
+      "error": {
+        "type": "ValueError",
+        "reason": "E2_incomplete_or_unknown_response"
+      },
+      "partial_response_accepted": false,
+      "operation": "reader",
+      "response_sha256": "5bddea9322b60fb8b1b8939f96fe90303ddc8da0c285187f41f78160156bc188",
+      "finish_reason": "length",
+      "reported_usage": {
+        "completion_tokens": 512,
+        "prompt_tokens": 1476,
+        "total_tokens": 1988,
+        "completion_tokens_details": {
+          "reasoning_tokens": 0
+        }
+      }
+    },
+    {
+      "dataset": "musique",
+      "method": "dense",
+      "question_id": "3hop1__9285_5188_86687",
+      "error": {
+        "type": "ReaderCaseFailure",
+        "reason": "reader_length"
+      },
+      "partial_response_accepted": false,
+      "operation": "reader",
+      "response_sha256": "1262a9ca5e6c9328c555e300b7059af158a8a83c141be08d5776db1dd97a4970",
+      "finish_reason": "length",
+      "reported_usage": {
+        "completion_tokens": 512,
+        "prompt_tokens": 1657,
+        "total_tokens": 2169,
+        "completion_tokens_details": {
+          "reasoning_tokens": 0
+        }
+      }
+    },
+    {
+      "dataset": "musique",
+      "method": "dense",
+      "question_id": "2hop__488811_30078",
+      "error": {
+        "type": "ReaderCaseFailure",
+        "reason": "reader_length"
+      },
+      "partial_response_accepted": false,
+      "operation": "reader",
+      "response_sha256": "d79a0d2050bfcf4ebc0cf05a653dc4bb94ba686c7dcbd180d61b6b937f38bfef",
+      "finish_reason": "length",
+      "reported_usage": {
+        "completion_tokens": 512,
+        "prompt_tokens": 1462,
+        "total_tokens": 1974,
+        "completion_tokens_details": {
+          "reasoning_tokens": 0
+        }
+      }
+    },
+    {
+      "dataset": "musique",
+      "method": "dense",
+      "question_id": "2hop__263728_705527",
+      "error": {
+        "type": "ReaderCaseFailure",
+        "reason": "reader_length"
+      },
+      "partial_response_accepted": false,
+      "operation": "reader",
+      "response_sha256": "b6920f2bc7a8a66fc62a78335bb68a72e9f3bdaba61527707cbd2292414b9075",
+      "finish_reason": "length",
+      "reported_usage": {
+        "completion_tokens": 512,
+        "prompt_tokens": 1616,
+        "total_tokens": 2128,
+        "completion_tokens_details": {
+          "reasoning_tokens": 0
+        }
+      }
+    },
+    {
+      "dataset": "musique",
+      "method": "dense",
+      "question_id": "3hop1__90327_78276_68042",
+      "error": {
+        "type": "ReaderCaseFailure",
+        "reason": "reader_length"
+      },
+      "partial_response_accepted": false,
+      "operation": "reader",
+      "response_sha256": "e7fc2dbe8234aeb0c2717f47ccf58b41f830a520de8723308b49ecde0f267928",
+      "finish_reason": "length",
+      "reported_usage": {
+        "completion_tokens": 512,
+        "prompt_tokens": 1651,
+        "total_tokens": 2163,
+        "completion_tokens_details": {
+          "reasoning_tokens": 0
+        }
+      }
+    },
+    {
+      "dataset": "musique",
+      "method": "hipporag2",
+      "question_id": "2hop__21104_16334",
+      "error": {
+        "type": "ReaderCaseFailure",
+        "reason": "reader_length"
+      },
+      "partial_response_accepted": false,
+      "operation": "reader",
+      "response_sha256": "6e4c554209638bdb17b55350f38008841a019eca809636634c7ded847088c789",
+      "finish_reason": "length",
+      "reported_usage": {
+        "completion_tokens": 512,
+        "prompt_tokens": 1757,
+        "total_tokens": 2269,
+        "completion_tokens_details": {
+          "reasoning_tokens": 0
+        }
+      }
+    },
+    {
+      "dataset": "musique",
+      "method": "hipporag2",
+      "question_id": "3hop1__9285_5188_86687",
+      "error": {
+        "type": "ReaderCaseFailure",
+        "reason": "reader_length"
+      },
+      "partial_response_accepted": false,
+      "operation": "reader",
+      "response_sha256": "9f3501b27018544dd803bc74faaa38e5f4545366720b9252bb6bb210a6f86628",
+      "finish_reason": "length",
+      "reported_usage": {
+        "completion_tokens": 512,
+        "prompt_tokens": 1692,
+        "total_tokens": 2204,
+        "completion_tokens_details": {
+          "reasoning_tokens": 0
+        }
+      }
+    },
+    {
+      "dataset": "musique",
+      "method": "hipporag2",
+      "question_id": "2hop__263728_705527",
+      "error": {
+        "type": "ReaderCaseFailure",
+        "reason": "reader_length"
+      },
+      "partial_response_accepted": false,
+      "operation": "reader",
+      "response_sha256": "c97b0a2bc6cfcd7ec27d8e052a90a8512bb69ba79169b90be6cbb85bd0a3ecc6",
+      "finish_reason": "length",
+      "reported_usage": {
+        "completion_tokens": 512,
+        "prompt_tokens": 1484,
+        "total_tokens": 1996,
+        "completion_tokens_details": {
+          "reasoning_tokens": 0
+        }
+      }
+    },
+    {
+      "dataset": "musique",
+      "method": "hipporag2",
+      "question_id": "3hop1__90327_78276_68042",
+      "error": {
+        "type": "ReaderCaseFailure",
+        "reason": "reader_length"
+      },
+      "partial_response_accepted": false,
+      "operation": "reader",
+      "response_sha256": "976d3b3a55e759e33294c3c7d06a0c1b04e1ef06da7c6ac78ce3250560f5c833",
+      "finish_reason": "length",
+      "reported_usage": {
+        "completion_tokens": 512,
+        "prompt_tokens": 1608,
+        "total_tokens": 2120,
+        "completion_tokens_details": {
+          "reasoning_tokens": 0
+        }
+      }
+    },
+    {
+      "dataset": "musique",
+      "method": "raptor",
+      "question_id": "2hop__126306_396277",
+      "error": {
+        "type": "ReaderCaseFailure",
+        "reason": "reader_length"
+      },
+      "partial_response_accepted": false,
+      "operation": "reader",
+      "response_sha256": "508a55138819b3b373a098ad2140e3e3bfdaa4ccca2ed384ab2cdee5fdff147a",
+      "finish_reason": "length",
+      "reported_usage": {
+        "completion_tokens": 512,
+        "prompt_tokens": 2402,
+        "total_tokens": 2914,
+        "completion_tokens_details": {
+          "reasoning_tokens": 0
+        }
+      }
+    },
+    {
+      "dataset": "musique",
+      "method": "raptor",
+      "question_id": "3hop1__9285_5188_86687",
+      "error": {
+        "type": "ReaderCaseFailure",
+        "reason": "reader_length"
+      },
+      "partial_response_accepted": false,
+      "operation": "reader",
+      "response_sha256": "d10866acf93d21aa2cad87c66d6ae39900db7b7d9d7c6f0ee49af8e1f1bf2c92",
+      "finish_reason": "length",
+      "reported_usage": {
+        "completion_tokens": 512,
+        "prompt_tokens": 2176,
+        "total_tokens": 2688,
+        "completion_tokens_details": {
+          "reasoning_tokens": 0
+        }
+      }
+    },
+    {
+      "dataset": "musique",
+      "method": "raptor",
+      "question_id": "2hop__488811_30078",
+      "error": {
+        "type": "ReaderCaseFailure",
+        "reason": "reader_length"
+      },
+      "partial_response_accepted": false,
+      "operation": "reader",
+      "response_sha256": "f9482948a13adb111a3ecb113782b9a31d72b7678c1d16bf241419fa71393adf",
+      "finish_reason": "length",
+      "reported_usage": {
+        "completion_tokens": 512,
+        "prompt_tokens": 7277,
+        "total_tokens": 7789,
+        "completion_tokens_details": {
+          "reasoning_tokens": 0
+        }
+      }
+    },
+    {
+      "dataset": "musique",
+      "method": "raptor",
+      "question_id": "2hop__263728_705527",
+      "error": {
+        "type": "ReaderCaseFailure",
+        "reason": "reader_length"
+      },
+      "partial_response_accepted": false,
+      "operation": "reader",
+      "response_sha256": "07ecbe13c0be1c45a5d9361d573c37c6ebce0dbdddc04ad86390824e45829c01",
+      "finish_reason": "length",
+      "reported_usage": {
+        "completion_tokens": 512,
+        "prompt_tokens": 3392,
+        "total_tokens": 3904,
+        "completion_tokens_details": {
+          "reasoning_tokens": 0
+        }
+      }
+    },
+    {
+      "dataset": "musique",
+      "method": "raptor",
+      "question_id": "3hop1__90327_78276_68042",
+      "error": {
+        "type": "ReaderCaseFailure",
+        "reason": "reader_length"
+      },
+      "partial_response_accepted": false,
+      "operation": "reader",
+      "response_sha256": "4efdf87fa12eb019481074549c894becd7e361ad620d02481f5ee5f6ec994352",
+      "finish_reason": "length",
+      "reported_usage": {
+        "completion_tokens": 512,
+        "prompt_tokens": 1974,
+        "total_tokens": 2486,
+        "completion_tokens_details": {
+          "reasoning_tokens": 0
+        }
+      }
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "dense",
+      "question_id": "5abd882f55429924427fd045",
+      "error": {
+        "type": "ReaderCaseFailure",
+        "reason": "reader_length"
+      },
+      "partial_response_accepted": false,
+      "operation": "reader",
+      "response_sha256": "717d2a8e7111a723936076ec4f01f9841d53782dd233045ad7f4234fe096ffa6",
+      "finish_reason": "length",
+      "reported_usage": {
+        "completion_tokens": 512,
+        "prompt_tokens": 1226,
+        "total_tokens": 1738,
+        "completion_tokens_details": {
+          "reasoning_tokens": 0
+        }
+      }
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "dense",
+      "question_id": "5a80ad205542992bc0c4a79d",
+      "error": {
+        "type": "ReaderCaseFailure",
+        "reason": "reader_length"
+      },
+      "partial_response_accepted": false,
+      "operation": "reader",
+      "response_sha256": "b7ce8ad88654514ee5c3ea2a33ea12a7baa1d9727d0d60685775b374c8227cc9",
+      "finish_reason": "length",
+      "reported_usage": {
+        "completion_tokens": 512,
+        "prompt_tokens": 1650,
+        "total_tokens": 2162,
+        "completion_tokens_details": {
+          "reasoning_tokens": 0
+        }
+      }
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "raptor",
+      "question_id": "5a80ad205542992bc0c4a79d",
+      "error": {
+        "type": "ReaderCaseFailure",
+        "reason": "reader_length"
+      },
+      "partial_response_accepted": false,
+      "operation": "reader",
+      "response_sha256": "ee22db794f0065ec686dda2c2c85f1f5d56cc467140190079ef8877151be5943",
+      "finish_reason": "length",
+      "reported_usage": {
+        "completion_tokens": 512,
+        "prompt_tokens": 4272,
+        "total_tokens": 4784,
+        "completion_tokens_details": {
+          "reasoning_tokens": 0
+        }
+      }
+    }
+  ],
+  "comparison_complete": true,
+  "comparative_metrics": [
+    {
+      "dataset": "musique",
+      "method": "dense",
+      "planned": 10,
+      "completed": 5,
+      "attempted_failed": 5,
+      "not_attempted": 0,
+      "comparison_complete": true,
+      "failure_rate": 0.5,
+      "completion_rate": 0.5,
+      "em": 0.3,
+      "f1": 0.32857142857142857,
+      "passage_recall_at_5": 0.6333333333333333,
+      "provenance_coverage": 0.6333333333333333,
+      "mean_attempted_seconds": 9.360811670002658,
+      "mean_completed_seconds": 4.660507599997618,
+      "logical_usage_by_model": {
+        "bge-m3:latest": {
+          "known_subtotal": {
+            "llm_input_tokens": 0,
+            "llm_output_tokens": 0,
+            "embedding_input_tokens": 241
+          },
+          "unknown_operations": 0,
+          "complete": true
+        },
+        "iairlab/qwen3.8-27b": {
+          "known_subtotal": {
+            "llm_input_tokens": 15667,
+            "llm_output_tokens": 3816,
+            "embedding_input_tokens": 0
+          },
+          "unknown_operations": 0,
+          "complete": true
+        }
+      },
+      "usage_by_operation": {
+        "query_embedding": {
+          "calls": 10,
+          "known_subtotal": {
+            "llm_input_tokens": 0,
+            "llm_output_tokens": 0,
+            "embedding_input_tokens": 241
+          }
+        },
+        "reader": {
+          "calls": 10,
+          "known_subtotal": {
+            "llm_input_tokens": 15667,
+            "llm_output_tokens": 3816,
+            "embedding_input_tokens": 0
+          }
+        }
+      },
+      "limitations": "smoke10 development, not independent quality evidence; failed operation usage in global physical journal"
+    },
+    {
+      "dataset": "musique",
+      "method": "hipporag2",
+      "planned": 10,
+      "completed": 6,
+      "attempted_failed": 4,
+      "not_attempted": 0,
+      "comparison_complete": true,
+      "failure_rate": 0.4,
+      "completion_rate": 0.6,
+      "em": 0.3,
+      "f1": 0.42615384615384616,
+      "passage_recall_at_5": 0.7833333333333333,
+      "provenance_coverage": 0.7833333333333333,
+      "mean_attempted_seconds": 4.213710619999984,
+      "mean_completed_seconds": 3.4608076666666725,
+      "logical_usage_by_model": {
+        "bge-m3:latest": {
+          "known_subtotal": {
+            "llm_input_tokens": 0,
+            "llm_output_tokens": 0,
+            "embedding_input_tokens": 241
+          },
+          "unknown_operations": 0,
+          "complete": true
+        },
+        "iairlab/qwen3.8-27b": {
+          "known_subtotal": {
+            "llm_input_tokens": 46525,
+            "llm_output_tokens": 3946,
+            "embedding_input_tokens": 0
+          },
+          "unknown_operations": 0,
+          "complete": true
+        }
+      },
+      "usage_by_operation": {
+        "query_embedding": {
+          "calls": 10,
+          "known_subtotal": {
+            "llm_input_tokens": 0,
+            "llm_output_tokens": 0,
+            "embedding_input_tokens": 241
+          }
+        },
+        "filter": {
+          "calls": 10,
+          "known_subtotal": {
+            "llm_input_tokens": 30436,
+            "llm_output_tokens": 647,
+            "embedding_input_tokens": 0
+          }
+        },
+        "reader": {
+          "calls": 10,
+          "known_subtotal": {
+            "llm_input_tokens": 16089,
+            "llm_output_tokens": 3299,
+            "embedding_input_tokens": 0
+          }
+        }
+      },
+      "limitations": "smoke10 development, not independent quality evidence; failed operation usage in global physical journal"
+    },
+    {
+      "dataset": "musique",
+      "method": "raptor",
+      "planned": 10,
+      "completed": 5,
+      "attempted_failed": 5,
+      "not_attempted": 0,
+      "comparison_complete": true,
+      "failure_rate": 0.5,
+      "completion_rate": 0.5,
+      "em": 0.2,
+      "f1": 0.3333333333333333,
+      "passage_recall_at_5": null,
+      "provenance_coverage": 0.6833333333333333,
+      "mean_attempted_seconds": 5.478718740000113,
+      "mean_completed_seconds": 4.968444760000239,
+      "logical_usage_by_model": {
+        "bge-m3:latest": {
+          "known_subtotal": {
+            "llm_input_tokens": 0,
+            "llm_output_tokens": 0,
+            "embedding_input_tokens": 241
+          },
+          "unknown_operations": 0,
+          "complete": true
+        },
+        "iairlab/qwen3.8-27b": {
+          "known_subtotal": {
+            "llm_input_tokens": 30974,
+            "llm_output_tokens": 3856,
+            "embedding_input_tokens": 0
+          },
+          "unknown_operations": 0,
+          "complete": true
+        }
+      },
+      "usage_by_operation": {
+        "query_embedding": {
+          "calls": 10,
+          "known_subtotal": {
+            "llm_input_tokens": 0,
+            "llm_output_tokens": 0,
+            "embedding_input_tokens": 241
+          }
+        },
+        "reader": {
+          "calls": 10,
+          "known_subtotal": {
+            "llm_input_tokens": 30974,
+            "llm_output_tokens": 3856,
+            "embedding_input_tokens": 0
+          }
+        }
+      },
+      "limitations": "smoke10 development, not independent quality evidence; failed operation usage in global physical journal"
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "dense",
+      "planned": 10,
+      "completed": 8,
+      "attempted_failed": 2,
+      "not_attempted": 0,
+      "comparison_complete": true,
+      "failure_rate": 0.2,
+      "completion_rate": 0.8,
+      "em": 0.3,
+      "f1": 0.37333333333333335,
+      "passage_recall_at_5": 0.85,
+      "provenance_coverage": 0.85,
+      "mean_attempted_seconds": 2.475177320000148,
+      "mean_completed_seconds": 1.9800274375000981,
+      "logical_usage_by_model": {
+        "bge-m3:latest": {
+          "known_subtotal": {
+            "llm_input_tokens": 0,
+            "llm_output_tokens": 0,
+            "embedding_input_tokens": 244
+          },
+          "unknown_operations": 0,
+          "complete": true
+        },
+        "iairlab/qwen3.8-27b": {
+          "known_subtotal": {
+            "llm_input_tokens": 14414,
+            "llm_output_tokens": 2586,
+            "embedding_input_tokens": 0
+          },
+          "unknown_operations": 0,
+          "complete": true
+        }
+      },
+      "usage_by_operation": {
+        "query_embedding": {
+          "calls": 10,
+          "known_subtotal": {
+            "llm_input_tokens": 0,
+            "llm_output_tokens": 0,
+            "embedding_input_tokens": 244
+          }
+        },
+        "reader": {
+          "calls": 10,
+          "known_subtotal": {
+            "llm_input_tokens": 14414,
+            "llm_output_tokens": 2586,
+            "embedding_input_tokens": 0
+          }
+        }
+      },
+      "limitations": "smoke10 development, not independent quality evidence; failed operation usage in global physical journal"
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "hipporag2",
+      "planned": 10,
+      "completed": 10,
+      "attempted_failed": 0,
+      "not_attempted": 0,
+      "comparison_complete": true,
+      "failure_rate": 0.0,
+      "completion_rate": 1.0,
+      "em": 0.5,
+      "f1": 0.5733333333333334,
+      "passage_recall_at_5": 0.95,
+      "provenance_coverage": 0.95,
+      "mean_attempted_seconds": 3.105474090000007,
+      "mean_completed_seconds": 3.105474090000007,
+      "logical_usage_by_model": {
+        "bge-m3:latest": {
+          "known_subtotal": {
+            "llm_input_tokens": 0,
+            "llm_output_tokens": 0,
+            "embedding_input_tokens": 244
+          },
+          "unknown_operations": 0,
+          "complete": true
+        },
+        "iairlab/qwen3.8-27b": {
+          "known_subtotal": {
+            "llm_input_tokens": 45564,
+            "llm_output_tokens": 2548,
+            "embedding_input_tokens": 0
+          },
+          "unknown_operations": 0,
+          "complete": true
+        }
+      },
+      "usage_by_operation": {
+        "query_embedding": {
+          "calls": 10,
+          "known_subtotal": {
+            "llm_input_tokens": 0,
+            "llm_output_tokens": 0,
+            "embedding_input_tokens": 244
+          }
+        },
+        "filter": {
+          "calls": 10,
+          "known_subtotal": {
+            "llm_input_tokens": 30417,
+            "llm_output_tokens": 684,
+            "embedding_input_tokens": 0
+          }
+        },
+        "reader": {
+          "calls": 10,
+          "known_subtotal": {
+            "llm_input_tokens": 15147,
+            "llm_output_tokens": 1864,
+            "embedding_input_tokens": 0
+          }
+        }
+      },
+      "limitations": "smoke10 development, not independent quality evidence; failed operation usage in global physical journal"
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "raptor",
+      "planned": 10,
+      "completed": 9,
+      "attempted_failed": 1,
+      "not_attempted": 0,
+      "comparison_complete": true,
+      "failure_rate": 0.1,
+      "completion_rate": 0.9,
+      "em": 0.4,
+      "f1": 0.47333333333333333,
+      "passage_recall_at_5": null,
+      "provenance_coverage": 0.9,
+      "mean_attempted_seconds": 4.1981253500001,
+      "mean_completed_seconds": 3.999143544444552,
+      "logical_usage_by_model": {
+        "bge-m3:latest": {
+          "known_subtotal": {
+            "llm_input_tokens": 0,
+            "llm_output_tokens": 0,
+            "embedding_input_tokens": 244
+          },
+          "unknown_operations": 0,
+          "complete": true
+        },
+        "iairlab/qwen3.8-27b": {
+          "known_subtotal": {
+            "llm_input_tokens": 34974,
+            "llm_output_tokens": 2783,
+            "embedding_input_tokens": 0
+          },
+          "unknown_operations": 0,
+          "complete": true
+        }
+      },
+      "usage_by_operation": {
+        "query_embedding": {
+          "calls": 10,
+          "known_subtotal": {
+            "llm_input_tokens": 0,
+            "llm_output_tokens": 0,
+            "embedding_input_tokens": 244
+          }
+        },
+        "reader": {
+          "calls": 10,
+          "known_subtotal": {
+            "llm_input_tokens": 34974,
+            "llm_output_tokens": 2783,
+            "embedding_input_tokens": 0
+          }
+        }
+      },
+      "limitations": "smoke10 development, not independent quality evidence; failed operation usage in global physical journal"
+    }
+  ],
+  "tracking": {
+    "scope": "posthoc six configuration views; source and child physical costs counted once, not extra inference",
+    "views": {
+      "musique-dense": {
+        "mlflow": {
+          "experiment_id": "2",
+          "mlflow_run_id": "2a0fbc8d05c740c89db076ff14b05a53",
+          "trace": {
+            "trace_id": "tr-0247221ccd369483480e591c6b9851db",
+            "span_names": [
+              "e2-shared-query-run",
+              "query-embedding",
+              "question",
+              "question",
+              "retrieval",
+              "retrieval",
+              "generation",
+              "query-embedding",
+              "generation",
+              "query-embedding",
+              "question",
+              "generation",
+              "retrieval",
+              "retrieval",
+              "query-embedding",
+              "question",
+              "retrieval",
+              "question",
+              "generation",
+              "query-embedding",
+              "query-embedding",
+              "generation",
+              "question",
+              "generation",
+              "query-embedding",
+              "question",
+              "retrieval",
+              "retrieval",
+              "retrieval",
+              "query-embedding",
+              "question",
+              "generation",
+              "retrieval",
+              "generation",
+              "question",
+              "query-embedding",
+              "retrieval",
+              "generation",
+              "question",
+              "generation",
+              "query-embedding"
+            ]
+          }
+        },
+        "langfuse": {
+          "trace_id": "4f3fee00b24b7f7b26441ec388cd9876",
+          "observation_names": [
+            "e2-shared-query-run",
+            "generation",
+            "query-embedding",
+            "question",
+            "retrieval"
+          ],
+          "retrieved_passages": 50,
+          "generation_usage": {
+            "input": 15667,
+            "output": 3816
+          },
+          "trace_url": "http://localhost:3000/project/cmu4eytkr0006o707cn1hr42k/traces/4f3fee00b24b7f7b26441ec388cd9876"
+        },
+        "artifact_roundtrip": {
+          "status": "verified",
+          "artifacts": [
+            {
+              "name": "provenance/0/cases.jsonl",
+              "sha256": "624b78b32a25729ed344e041ea22d0a2049946cf58b9f0aab4ecf7153ec6ec76"
+            },
+            {
+              "name": "provenance/1/metrics.json",
+              "sha256": "9e434d5021fdb2dd1f154c91a50091cd9d1862fedc2d7127366df76914b33b1f"
+            },
+            {
+              "name": "provenance/2/tracking-manifest.json",
+              "sha256": "52d25abf1365897d9724cda68c227a3a4c37d39e39391299186bd9a5a12fdd14"
+            },
+            {
+              "name": "provenance/3/usage.jsonl",
+              "sha256": "7afc2eb30b4e9401effe2ff44ac295ad80583d2ff27999c4ae697c42ff65154c"
+            },
+            {
+              "name": "provenance/4/manifest.json",
+              "sha256": "10518f35d13773196dfc1a695224d2cf310237cb2d68323306ae655d526b5797"
+            },
+            {
+              "name": "provenance/5/usage.jsonl",
+              "sha256": "7ade115d11b92361d5f7e934987c4558a408e4f76f8ba660bf2e4384ce0fb361"
+            },
+            {
+              "name": "provenance/6/manifest.json",
+              "sha256": "5a4dc730188f8f8cd3cc88cfc992a1e0775279bf015ac6a438e10cb66f5e6bcb"
+            },
+            {
+              "name": "provenance/7/e2-smoke10-continuation-plan.json",
+              "sha256": "723a9993cfd710c8e958cc5ae422ca26dfce27b448acb6538b89f28b3990ffe6"
+            }
+          ]
+        },
+        "cases": 10,
+        "completed": 5,
+        "failed": 5
+      },
+      "musique-hipporag2": {
+        "mlflow": {
+          "experiment_id": "2",
+          "mlflow_run_id": "1fd52a5886744cc8beb908d37ab1ccc1",
+          "trace": {
+            "trace_id": "tr-8f0910cebdca6f03ec48e3d187457d43",
+            "span_names": [
+              "e2-shared-query-run",
+              "query-embedding",
+              "question",
+              "generation",
+              "retrieval",
+              "question",
+              "generation",
+              "query-embedding",
+              "retrieval",
+              "question",
+              "query-embedding",
+              "query-embedding",
+              "retrieval",
+              "retrieval",
+              "generation",
+              "generation",
+              "question",
+              "query-embedding",
+              "generation",
+              "retrieval",
+              "retrieval",
+              "question",
+              "query-embedding",
+              "question",
+              "generation",
+              "query-embedding",
+              "question",
+              "retrieval",
+              "retrieval",
+              "generation",
+              "query-embedding",
+              "question",
+              "generation",
+              "retrieval",
+              "retrieval",
+              "question",
+              "question",
+              "generation",
+              "query-embedding",
+              "query-embedding",
+              "generation"
+            ]
+          }
+        },
+        "langfuse": {
+          "trace_id": "18a7714685d5a0a532f62b0bb3dd542a",
+          "observation_names": [
+            "e2-shared-query-run",
+            "generation",
+            "query-embedding",
+            "question",
+            "retrieval"
+          ],
+          "retrieved_passages": 50,
+          "generation_usage": {
+            "input": 16089,
+            "output": 3299
+          },
+          "trace_url": "http://localhost:3000/project/cmu4eytkr0006o707cn1hr42k/traces/18a7714685d5a0a532f62b0bb3dd542a"
+        },
+        "artifact_roundtrip": {
+          "status": "verified",
+          "artifacts": [
+            {
+              "name": "provenance/0/cases.jsonl",
+              "sha256": "d59413a7e2551eb57394ac74349a871d0173d23450f5196b8bc42c5934ff863e"
+            },
+            {
+              "name": "provenance/1/metrics.json",
+              "sha256": "23f9203ecf082169a34fa3af367c48075c4317090f2b2c9db1591041b52657ef"
+            },
+            {
+              "name": "provenance/2/tracking-manifest.json",
+              "sha256": "d8e2997ca97001cfa97ddce6e94224d8ee6531558974765a48bbeccd50174ae6"
+            },
+            {
+              "name": "provenance/3/usage.jsonl",
+              "sha256": "7afc2eb30b4e9401effe2ff44ac295ad80583d2ff27999c4ae697c42ff65154c"
+            },
+            {
+              "name": "provenance/4/manifest.json",
+              "sha256": "10518f35d13773196dfc1a695224d2cf310237cb2d68323306ae655d526b5797"
+            },
+            {
+              "name": "provenance/5/usage.jsonl",
+              "sha256": "7ade115d11b92361d5f7e934987c4558a408e4f76f8ba660bf2e4384ce0fb361"
+            },
+            {
+              "name": "provenance/6/manifest.json",
+              "sha256": "5a4dc730188f8f8cd3cc88cfc992a1e0775279bf015ac6a438e10cb66f5e6bcb"
+            },
+            {
+              "name": "provenance/7/e2-smoke10-continuation-plan.json",
+              "sha256": "723a9993cfd710c8e958cc5ae422ca26dfce27b448acb6538b89f28b3990ffe6"
+            }
+          ]
+        },
+        "cases": 10,
+        "completed": 6,
+        "failed": 4
+      },
+      "musique-raptor": {
+        "mlflow": {
+          "experiment_id": "2",
+          "mlflow_run_id": "f171dc33f6594a909956afe19730e961",
+          "trace": {
+            "trace_id": "tr-319c69d9b5f04e898dc3f1cf66bdf2e3",
+            "span_names": [
+              "e2-shared-query-run",
+              "retrieval",
+              "question",
+              "query-embedding",
+              "generation",
+              "generation",
+              "query-embedding",
+              "query-embedding",
+              "question",
+              "retrieval",
+              "retrieval",
+              "question",
+              "generation",
+              "generation",
+              "query-embedding",
+              "question",
+              "retrieval",
+              "query-embedding",
+              "question",
+              "generation",
+              "query-embedding",
+              "generation",
+              "retrieval",
+              "question",
+              "retrieval",
+              "question",
+              "query-embedding",
+              "generation",
+              "retrieval",
+              "question",
+              "generation",
+              "question",
+              "query-embedding",
+              "retrieval",
+              "query-embedding",
+              "retrieval",
+              "generation",
+              "question",
+              "query-embedding",
+              "retrieval",
+              "generation"
+            ]
+          }
+        },
+        "langfuse": {
+          "trace_id": "ee8460fcea021e4a4537852cdf4b4828",
+          "observation_names": [
+            "e2-shared-query-run",
+            "generation",
+            "query-embedding",
+            "question",
+            "retrieval"
+          ],
+          "retrieved_passages": 50,
+          "generation_usage": {
+            "input": 30974,
+            "output": 3856
+          },
+          "recovered_after_export_interruption": true
+        },
+        "artifact_roundtrip": {
+          "status": "verified",
+          "artifacts": [
+            {
+              "name": "provenance/0/cases.jsonl",
+              "sha256": "9ce225851c982cf1a452d24832a8b1caceded9b09aa24fce2885a43d5ada4b3a"
+            },
+            {
+              "name": "provenance/1/metrics.json",
+              "sha256": "e5ba06f2f93981d332ef760b0af9b1c7cbed7169eedc7b016192acdaca512316"
+            },
+            {
+              "name": "provenance/2/tracking-manifest.json",
+              "sha256": "5e5bc6dd6791cb710e32353620f4e16095e66d27ac1c2dad249a947ca6621bc1"
+            },
+            {
+              "name": "provenance/3/usage.jsonl",
+              "sha256": "7afc2eb30b4e9401effe2ff44ac295ad80583d2ff27999c4ae697c42ff65154c"
+            },
+            {
+              "name": "provenance/4/manifest.json",
+              "sha256": "10518f35d13773196dfc1a695224d2cf310237cb2d68323306ae655d526b5797"
+            },
+            {
+              "name": "provenance/5/usage.jsonl",
+              "sha256": "7ade115d11b92361d5f7e934987c4558a408e4f76f8ba660bf2e4384ce0fb361"
+            },
+            {
+              "name": "provenance/6/manifest.json",
+              "sha256": "5a4dc730188f8f8cd3cc88cfc992a1e0775279bf015ac6a438e10cb66f5e6bcb"
+            },
+            {
+              "name": "provenance/7/e2-smoke10-continuation-plan.json",
+              "sha256": "723a9993cfd710c8e958cc5ae422ca26dfce27b448acb6538b89f28b3990ffe6"
+            }
+          ]
+        },
+        "cases": 10,
+        "completed": 5,
+        "failed": 5
+      },
+      "hotpotqa-dense": {
+        "mlflow": {
+          "experiment_id": "2",
+          "mlflow_run_id": "4d14302189fb478c8c57454508298d1c",
+          "trace": {
+            "trace_id": "tr-830ef138f2a204c31cfdd93bbbaec41e",
+            "span_names": [
+              "e2-shared-query-run",
+              "question",
+              "query-embedding",
+              "generation",
+              "retrieval",
+              "retrieval",
+              "query-embedding",
+              "generation",
+              "question",
+              "generation",
+              "query-embedding",
+              "question",
+              "query-embedding",
+              "retrieval",
+              "generation",
+              "retrieval",
+              "question",
+              "generation",
+              "question",
+              "generation",
+              "question",
+              "query-embedding",
+              "retrieval",
+              "retrieval",
+              "query-embedding",
+              "retrieval",
+              "question",
+              "query-embedding",
+              "generation",
+              "query-embedding",
+              "retrieval",
+              "question",
+              "generation",
+              "query-embedding",
+              "generation",
+              "question",
+              "retrieval",
+              "question",
+              "generation",
+              "retrieval",
+              "query-embedding"
+            ]
+          }
+        },
+        "langfuse": {
+          "trace_id": "baa67553fe3653a54cdf048ff307757b",
+          "observation_names": [
+            "e2-shared-query-run",
+            "generation",
+            "query-embedding",
+            "question",
+            "retrieval"
+          ],
+          "retrieved_passages": 50,
+          "generation_usage": {
+            "input": 14414,
+            "output": 2586
+          },
+          "trace_url": "http://localhost:3000/project/cmu4eytkr0006o707cn1hr42k/traces/baa67553fe3653a54cdf048ff307757b"
+        },
+        "artifact_roundtrip": {
+          "status": "verified",
+          "artifacts": [
+            {
+              "name": "provenance/0/cases.jsonl",
+              "sha256": "05b257c02861aa901e1d49a5908f08eff994d0dae1030f3517840f09b51bd578"
+            },
+            {
+              "name": "provenance/1/metrics.json",
+              "sha256": "14cb1c63411c85ee888fbaf96f30d827067d2800693dec2db085aa04c407d6fa"
+            },
+            {
+              "name": "provenance/2/tracking-manifest.json",
+              "sha256": "a0e9f8d1091ca4e21f3bcacbdb872469c61f656e8154a8af8bf4b5f89bd2941b"
+            },
+            {
+              "name": "provenance/3/usage.jsonl",
+              "sha256": "7afc2eb30b4e9401effe2ff44ac295ad80583d2ff27999c4ae697c42ff65154c"
+            },
+            {
+              "name": "provenance/4/manifest.json",
+              "sha256": "10518f35d13773196dfc1a695224d2cf310237cb2d68323306ae655d526b5797"
+            },
+            {
+              "name": "provenance/5/usage.jsonl",
+              "sha256": "7ade115d11b92361d5f7e934987c4558a408e4f76f8ba660bf2e4384ce0fb361"
+            },
+            {
+              "name": "provenance/6/manifest.json",
+              "sha256": "5a4dc730188f8f8cd3cc88cfc992a1e0775279bf015ac6a438e10cb66f5e6bcb"
+            },
+            {
+              "name": "provenance/7/e2-smoke10-continuation-plan.json",
+              "sha256": "723a9993cfd710c8e958cc5ae422ca26dfce27b448acb6538b89f28b3990ffe6"
+            }
+          ]
+        },
+        "cases": 10,
+        "completed": 8,
+        "failed": 2
+      },
+      "hotpotqa-hipporag2": {
+        "mlflow": {
+          "experiment_id": "2",
+          "mlflow_run_id": "bedc8f8954894dfba241f48c0c57bcc3",
+          "trace": {
+            "trace_id": "tr-419c19fee836b141bb7d647f8ec38ece",
+            "span_names": [
+              "e2-shared-query-run",
+              "retrieval",
+              "query-embedding",
+              "question",
+              "query-embedding",
+              "generation",
+              "generation",
+              "question",
+              "retrieval",
+              "question",
+              "query-embedding",
+              "retrieval",
+              "question",
+              "retrieval",
+              "query-embedding",
+              "generation",
+              "retrieval",
+              "question",
+              "retrieval",
+              "question",
+              "query-embedding",
+              "generation",
+              "query-embedding",
+              "generation",
+              "generation",
+              "query-embedding",
+              "query-embedding",
+              "question",
+              "retrieval",
+              "retrieval",
+              "generation",
+              "question",
+              "generation",
+              "question",
+              "query-embedding",
+              "generation",
+              "retrieval",
+              "generation",
+              "question",
+              "retrieval",
+              "query-embedding"
+            ]
+          }
+        },
+        "langfuse": {
+          "trace_id": "2ef47b3712a1c9022a90ef91486f142b",
+          "observation_names": [
+            "e2-shared-query-run",
+            "generation",
+            "query-embedding",
+            "question",
+            "retrieval"
+          ],
+          "retrieved_passages": 50,
+          "generation_usage": {
+            "input": 15147,
+            "output": 1864
+          },
+          "trace_url": "http://localhost:3000/project/cmu4eytkr0006o707cn1hr42k/traces/2ef47b3712a1c9022a90ef91486f142b"
+        },
+        "artifact_roundtrip": {
+          "status": "verified",
+          "artifacts": [
+            {
+              "name": "provenance/0/cases.jsonl",
+              "sha256": "741a1e245e4cec338681cc1c36209acf7490fca862dc69c5082a0fd129b25afa"
+            },
+            {
+              "name": "provenance/1/metrics.json",
+              "sha256": "1e88d633869cfee8adb2ad3f691c7193cf2d2488eab4dea50043a322c42a6029"
+            },
+            {
+              "name": "provenance/2/tracking-manifest.json",
+              "sha256": "7dcb122bda3480af348e8d51e2b170b2e1b4862a28e95231bcc2b0e8e03bba0d"
+            },
+            {
+              "name": "provenance/3/usage.jsonl",
+              "sha256": "7afc2eb30b4e9401effe2ff44ac295ad80583d2ff27999c4ae697c42ff65154c"
+            },
+            {
+              "name": "provenance/4/manifest.json",
+              "sha256": "10518f35d13773196dfc1a695224d2cf310237cb2d68323306ae655d526b5797"
+            },
+            {
+              "name": "provenance/5/usage.jsonl",
+              "sha256": "7ade115d11b92361d5f7e934987c4558a408e4f76f8ba660bf2e4384ce0fb361"
+            },
+            {
+              "name": "provenance/6/manifest.json",
+              "sha256": "5a4dc730188f8f8cd3cc88cfc992a1e0775279bf015ac6a438e10cb66f5e6bcb"
+            },
+            {
+              "name": "provenance/7/e2-smoke10-continuation-plan.json",
+              "sha256": "723a9993cfd710c8e958cc5ae422ca26dfce27b448acb6538b89f28b3990ffe6"
+            }
+          ]
+        },
+        "cases": 10,
+        "completed": 10,
+        "failed": 0
+      },
+      "hotpotqa-raptor": {
+        "mlflow": {
+          "experiment_id": "2",
+          "mlflow_run_id": "0734cb55cc2d4449b9c6ce29c16bfbee",
+          "trace": {
+            "trace_id": "tr-11c0f4ab362023713965bf81dca8fb84",
+            "span_names": [
+              "e2-shared-query-run",
+              "question",
+              "generation",
+              "query-embedding",
+              "retrieval",
+              "query-embedding",
+              "retrieval",
+              "question",
+              "question",
+              "query-embedding",
+              "generation",
+              "retrieval",
+              "question",
+              "retrieval",
+              "query-embedding",
+              "generation",
+              "generation",
+              "retrieval",
+              "retrieval",
+              "query-embedding",
+              "query-embedding",
+              "generation",
+              "question",
+              "question",
+              "query-embedding",
+              "question",
+              "generation",
+              "question",
+              "query-embedding",
+              "generation",
+              "retrieval",
+              "query-embedding",
+              "retrieval",
+              "retrieval",
+              "generation",
+              "question",
+              "question",
+              "generation",
+              "query-embedding",
+              "generation",
+              "retrieval"
+            ]
+          }
+        },
+        "langfuse": {
+          "trace_id": "e5f800a974dc43f9b0729873c6ce2583",
+          "observation_names": [
+            "e2-shared-query-run",
+            "generation",
+            "query-embedding",
+            "question",
+            "retrieval"
+          ],
+          "retrieved_passages": 50,
+          "generation_usage": {
+            "input": 34974,
+            "output": 2783
+          },
+          "trace_url": "http://localhost:3000/project/cmu4eytkr0006o707cn1hr42k/traces/e5f800a974dc43f9b0729873c6ce2583"
+        },
+        "artifact_roundtrip": {
+          "status": "verified",
+          "artifacts": [
+            {
+              "name": "provenance/0/cases.jsonl",
+              "sha256": "f65d69df43f6a81cce89420444c55b2155d6ff9133fc4a2d472fd0f3ce6f937c"
+            },
+            {
+              "name": "provenance/1/metrics.json",
+              "sha256": "9c65849b8f053896176f8feac0b297c697887af1d44629dd55fc83703875b509"
+            },
+            {
+              "name": "provenance/2/tracking-manifest.json",
+              "sha256": "ce7d17806e34d8dbf573a1d9edbe9aa75e0d6e072dca2676f8cf77a2334fe207"
+            },
+            {
+              "name": "provenance/3/usage.jsonl",
+              "sha256": "7afc2eb30b4e9401effe2ff44ac295ad80583d2ff27999c4ae697c42ff65154c"
+            },
+            {
+              "name": "provenance/4/manifest.json",
+              "sha256": "10518f35d13773196dfc1a695224d2cf310237cb2d68323306ae655d526b5797"
+            },
+            {
+              "name": "provenance/5/usage.jsonl",
+              "sha256": "7ade115d11b92361d5f7e934987c4558a408e4f76f8ba660bf2e4384ce0fb361"
+            },
+            {
+              "name": "provenance/6/manifest.json",
+              "sha256": "5a4dc730188f8f8cd3cc88cfc992a1e0775279bf015ac6a438e10cb66f5e6bcb"
+            },
+            {
+              "name": "provenance/7/e2-smoke10-continuation-plan.json",
+              "sha256": "723a9993cfd710c8e958cc5ae422ca26dfce27b448acb6538b89f28b3990ffe6"
+            }
+          ]
+        },
+        "cases": 10,
+        "completed": 9,
+        "failed": 1
+      }
+    },
+    "status": "verified",
+    "interruption_recovery": {
+      "cause": "Langfuse resource manager reused after shutdown; media flush has no active consumer",
+      "interrupted_view": "musique-raptor",
+      "traces": [
+        {
+          "trace_id": "ee8460fcea021e4a4537852cdf4b4828",
+          "status": "recovered_verified",
+          "verification": {
+            "observation_names": [
+              "e2-shared-query-run",
+              "generation",
+              "query-embedding",
+              "question",
+              "retrieval"
+            ],
+            "retrieved_passages": 50,
+            "generation_usage": {
+              "input": 30974,
+              "output": 3856
+            }
+          }
+        }
+      ],
+      "model_calls": 0
+    },
+    "export_lifecycle": "one configuration per process; previously verified views retained; no extra inference or trace duplication"
+  },
+  "continuation_authorized": false,
+  "e1_historical_cost_excluded": true,
+  "e1_historical_cost": {
+    "physical_known_tokens": 32601955,
+    "unknown_reserved_upper_bound": 61588,
+    "cost_complete": false,
+    "source_sha256": "149b96963ee7fd712a934f7a915c32575203d2226848b330d4d9707dd1e356aa"
+  },
+  "limitations": "development smoke only; failed run is not a completed comparison; E1 unknown61588 remains separate"
+}

@@ -64,7 +64,9 @@ def verify_langfuse_trace(observations, payload):
         "retrieval",
         "generation",
     }
-    if payload.get("system") == "hipporag2":
+    if payload.get("system") == "hipporag2" and not payload.get("manifest", {}).get(
+        "mode", ""
+    ).startswith("e2-"):
         expected_names.add("indexing")
         if any(
             name.startswith("openie_")
@@ -122,21 +124,34 @@ def verify_langfuse_trace(observations, payload):
     for observation in by_name["generation"]:
         usage = object_value(observation.usage_details) or {}
         for key in ("input", "output"):
-            if key in usage:
+            if isinstance(usage.get(key), int) and not isinstance(usage[key], bool):
                 generation_usage[key] = generation_usage.get(key, 0) + usage[key]
     for key, row_field in (("input", "prompt_tokens"), ("output", "completion_tokens")):
         values = [row.get(row_field) for row in payload["rows"]]
-        if all(
-            isinstance(value, int) and not isinstance(value, bool) for value in values
-        ):
-            if generation_usage.get(key) != sum(values):
-                raise RuntimeError(
-                    "Langfuse generation token usage does not match the saved JSONL"
-                )
+        known_values = [
+            v for v in values if isinstance(v, int) and not isinstance(v, bool)
+        ]
+        if generation_usage.get(key, 0) != sum(known_values):
+            raise RuntimeError(
+                "Langfuse generation token usage does not match the saved JSONL"
+            )
+        expected_unknown = len(values) - len(known_values)
+        missing = sum(
+            (object_value(o.usage_details) or {}).get(key) is None
+            for o in by_name["generation"]
+        )
+        if missing != expected_unknown:
+            raise RuntimeError(
+                "Langfuse unknown generation usage was estimated or converted to zero"
+            )
     return {
         "observation_names": sorted(by_name),
         "retrieved_passages": retrieval_count,
         "generation_usage": generation_usage,
+        "generation_usage_unknown": sum(
+            row.get("prompt_tokens") is None or row.get("completion_tokens") is None
+            for row in payload["rows"]
+        ),
     }
 
 
@@ -305,7 +320,11 @@ def export_mlflow(payload, mlflow):
             params["context_source_run_id"] = context_source_run_id
         mlflow.log_params(params)
         mlflow.log_metrics(
-            {key: float(metrics[key]) for key in ("em", "token_f1", "recall_at_k")}
+            {
+                key: float(metrics[key])
+                for key in ("em", "token_f1", "recall_at_k")
+                if metrics[key] is not None
+            }
         )
 
         # MLflow's trace is a retrospective run record; timings are the measured values
@@ -327,7 +346,7 @@ def export_mlflow(payload, mlflow):
                     }
                 }
             )
-            if system == "hipporag2":
+            if system == "hipporag2" and not manifest.get("mode", "").startswith("e2-"):
                 index = manifest.get("index", {})
                 root_span.set_attribute(
                     "rag.index_fingerprint",
@@ -410,7 +429,12 @@ def export_mlflow(payload, mlflow):
                         span.set_inputs(
                             {"question": row["question"], "top_k": row["top_k"]}
                         )
-                        span.set_outputs({"documents": item["retrieved_passages"]})
+                        span.set_outputs(
+                            {
+                                "documents": item["retrieved_passages"],
+                                "operations": row.get("operations", []),
+                            }
+                        )
                     with mlflow.start_span(name="generation", span_type="LLM") as span:
                         span.set_inputs(
                             {
@@ -425,6 +449,15 @@ def export_mlflow(payload, mlflow):
                                 "answer": row.get("answer"),
                                 "raw_answer": row.get("raw_answer"),
                                 "done_reason": row.get("done_reason"),
+                                "performed_this_run": not row.get(
+                                    "generation_reused", False
+                                ),
+                                "source_generation_run_id": row.get(
+                                    "generation_source_run_id"
+                                ),
+                                "source_generation_seconds": row.get(
+                                    "generation_source_seconds"
+                                ),
                                 "prompt_tokens": row.get("prompt_tokens"),
                                 "completion_tokens": row.get("completion_tokens"),
                                 "client_seconds": row.get("generation_wall_seconds"),
@@ -436,6 +469,8 @@ def export_mlflow(payload, mlflow):
                             "answer_extraction_status": row.get(
                                 "answer_extraction_status"
                             ),
+                            "status": row.get("status"),
+                            "error": row.get("error"),
                         }
                     )
 
@@ -510,6 +545,7 @@ def export_langfuse(payload, base_dir=ROOT):
                 .get("token_accounting", {})
                 .get("journal_sha256"),
                 "token_accounting_summary": summary,
+                "historical_reuse_not_new_cost": accounting.get("historical_reuse"),
                 "token_accounting_complete": (
                     summary["complete"] if summary is not None else None
                 ),
@@ -540,7 +576,9 @@ def export_langfuse(payload, base_dir=ROOT):
                     }
                 }
             )
-            if system == "hipporag2":
+            if system == "hipporag2" and not payload["manifest"].get(
+                "mode", ""
+            ).startswith("e2-"):
                 index = payload["manifest"].get("index", {})
                 with client.start_as_current_observation(
                     as_type="chain",
@@ -616,7 +654,10 @@ def export_langfuse(payload, base_dir=ROOT):
                         as_type="retriever",
                         name="retrieval",
                         input={"question": row["question"], "top_k": row["top_k"]},
-                        output={"documents": item["retrieved_passages"]},
+                        output={
+                            "documents": item["retrieved_passages"],
+                            "operations": row.get("operations", []),
+                        },
                     ):
                         pass
                     with client.start_as_current_observation(
@@ -631,6 +672,15 @@ def export_langfuse(payload, base_dir=ROOT):
                             "answer": row.get("answer"),
                             "raw_answer": row.get("raw_answer"),
                             "done_reason": row.get("done_reason"),
+                            "performed_this_run": not row.get(
+                                "generation_reused", False
+                            ),
+                            "source_generation_run_id": row.get(
+                                "generation_source_run_id"
+                            ),
+                            "source_generation_seconds": row.get(
+                                "generation_source_seconds"
+                            ),
                             "client_wall_seconds": row.get("generation_wall_seconds"),
                             "ollama_total_seconds": row.get("generation_seconds"),
                         },
@@ -651,6 +701,8 @@ def export_langfuse(payload, base_dir=ROOT):
                             "answer_extraction_status": row.get(
                                 "answer_extraction_status"
                             ),
+                            "status": row.get("status"),
+                            "error": row.get("error"),
                         }
                     )
         client.flush()
@@ -665,7 +717,13 @@ def export_langfuse(payload, base_dir=ROOT):
         while time.monotonic() < deadline:
             observations = get_all_langfuse_observations(client, trace_id)
             names = {observation.name for observation in observations}
-            if expected.issubset(names):
+            # Ingestion is asynchronous: a200-case trace may expose all names
+            # before the final batches arrive. Wait locally for complete counts.
+            complete_counts = all(
+                sum(o.name == name for o in observations) >= len(payload["questions"])
+                for name in ("question", "query-embedding", "retrieval", "generation")
+            )
+            if expected.issubset(names) and complete_counts:
                 verification = verify_langfuse_trace(observations, payload)
                 return {
                     "trace_id": trace_id,

@@ -1,0 +1,492 @@
+{
+  "schema_version": 1,
+  "kind": "e2_pilot200",
+  "status": "failed",
+  "run_id": "84454233-8d21-4731-922a-5a31184610e0",
+  "plan_sha256": "284af290878ef53f9a486d1df956a8e02d72f147d3a6f1e2aa0b072efc5b4f01",
+  "execution_code_pins": {
+    "scripts/e2_evaluation.py": "b5a5f8a6f55d33aba443c6ef9711cd9eb15c6877658478e858375459fd0674b6",
+    "scripts/e2_pilot.py": "5d1dea22019fc811beec8b83ff445ce2c61d36883e41d3345a50088239765a58",
+    "scripts/e1_indexers.py": "26ca8a006701b799d488df688a9210e152383f868e173b093558a8a1534dac81",
+    "scripts/run_dense.py": "b6cf8da3f987a1d7ad37ac16639ddf6a1f5523e8ccc0117ad015a423efaacaac",
+    "scripts/run_dense_target.py": "a839a5e49976396191942cfa4b763c46ba0d6081ba4aeb2e83d0b7baf1640dd6",
+    "scripts/run_e1.py": "ea921a6c4b747ea9e081c0421c5dd384ac21d7e78fd0568d501328a37a660e8b",
+    "scripts/evaluate_dense.py": "1e39159a7eb02bff83b7bd0fd04a6c062762e43554b7bf6e66caf7e95c47ccd7",
+    "scripts/answer_parser.py": "bed7477e2ca0ace452821e2adb13cf8b045aa6443617b141c13fadf18e56bf18",
+    "scripts/token_accounting.py": "3259f9db8afbf5abd2e0c083cdaf45b1e4d511ec30c49e284722e640e11ebf75",
+    "scripts/run_raptor_smoke.py": "9660b1a16461a79ba08245e16c58aedce32a3e0a0eb81425ce4ea164d610541c",
+    "scripts/vendor/hipporag2_musique_template.py": "fada8f3cffcd2b657f2eec268f46e5deafc09471d609ba6292a58e3baea79c51",
+    "scripts/preflight_hipporag_repair_prompts.py": "ef1b50e6339ebb1fd116ae740f541f2bf4af1e578e8877a820c6e163a09743f2",
+    "scripts/track_dense.py": "1c2407d1488d85905e99fc94bb94c7322dd85f16126e6c7b539449708c356edc",
+    "scripts/evaluation_view.py": "b0504290b247f3dbf70be159e3bb54c2b9091f04fbb7f5f0014527399bd601a6"
+  },
+  "manifest_sha256": "814874633f1c1094db5449984cbebab872847a3980eb4bed97028079c0e23185",
+  "journal_sha256": "66f7503f654c38d3a808276ac0ac0f56b15f7505383f2d7822a1ac436a2a4f37",
+  "raw_directory": "results\\raw\\e2-pilot200-v1",
+  "rows": [
+    {
+      "dataset": "musique",
+      "method": "dense",
+      "planned": 200,
+      "completed": 200,
+      "attempted_failed": 0,
+      "not_attempted": 0
+    },
+    {
+      "dataset": "musique",
+      "method": "hipporag2",
+      "planned": 200,
+      "completed": 200,
+      "attempted_failed": 0,
+      "not_attempted": 0
+    },
+    {
+      "dataset": "musique",
+      "method": "raptor",
+      "planned": 200,
+      "completed": 12,
+      "attempted_failed": 1,
+      "not_attempted": 187
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "dense",
+      "planned": 200,
+      "completed": 200,
+      "attempted_failed": 0,
+      "not_attempted": 0
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "hipporag2",
+      "planned": 200,
+      "completed": 200,
+      "attempted_failed": 0,
+      "not_attempted": 0
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "raptor",
+      "planned": 200,
+      "completed": 0,
+      "attempted_failed": 0,
+      "not_attempted": 200
+    }
+  ],
+  "outcome_counts": {
+    "completed": 812,
+    "attempted_failed": 1,
+    "not_attempted": 387
+  },
+  "model_posts": 1945,
+  "llm_posts": 1182,
+  "embedding_posts": 763,
+  "known_query_tokens": {
+    "llm_input_tokens": 2356693,
+    "llm_output_tokens": 29066,
+    "embedding_input_tokens": 19739
+  },
+  "known_combined_query_tokens": 2405498,
+  "query_cost_complete": true,
+  "new_unknown_attempts": 0,
+  "unfinished_attempts": 0,
+  "remaining_original_tokens": 54784356,
+  "remaining_original_posts": 763,
+  "new_model_posts": 1945,
+  "physical_lineage": [
+    {
+      "status": "verified",
+      "summary": {
+        "schema_version": 1,
+        "phases": [
+          {
+            "phase": "reader",
+            "provider": "target_api",
+            "attempts": 802,
+            "errors": 0,
+            "unfinished": 0,
+            "cache_hits": 0,
+            "cache_provenance_unknown": 0,
+            "known_subtotal": {
+              "llm_input_tokens": 1199436,
+              "llm_output_tokens": 6014,
+              "embedding_input_tokens": 0
+            },
+            "unknown_fields": {
+              "llm_input_tokens": 0,
+              "llm_output_tokens": 0,
+              "embedding_input_tokens": 0
+            },
+            "complete": true,
+            "total": {
+              "llm_input_tokens": 1199436,
+              "llm_output_tokens": 6014,
+              "embedding_input_tokens": 0
+            }
+          },
+          {
+            "phase": "retrieval",
+            "provider": "local_ollama",
+            "attempts": 763,
+            "errors": 0,
+            "unfinished": 0,
+            "cache_hits": 0,
+            "cache_provenance_unknown": 0,
+            "known_subtotal": {
+              "llm_input_tokens": 0,
+              "llm_output_tokens": 0,
+              "embedding_input_tokens": 19739
+            },
+            "unknown_fields": {
+              "llm_input_tokens": 0,
+              "llm_output_tokens": 0,
+              "embedding_input_tokens": 0
+            },
+            "complete": true,
+            "total": {
+              "llm_input_tokens": 0,
+              "llm_output_tokens": 0,
+              "embedding_input_tokens": 19739
+            }
+          },
+          {
+            "phase": "retrieval",
+            "provider": "target_api",
+            "attempts": 380,
+            "errors": 0,
+            "unfinished": 0,
+            "cache_hits": 0,
+            "cache_provenance_unknown": 0,
+            "known_subtotal": {
+              "llm_input_tokens": 1157257,
+              "llm_output_tokens": 23052,
+              "embedding_input_tokens": 0
+            },
+            "unknown_fields": {
+              "llm_input_tokens": 0,
+              "llm_output_tokens": 0,
+              "embedding_input_tokens": 0
+            },
+            "complete": true,
+            "total": {
+              "llm_input_tokens": 1157257,
+              "llm_output_tokens": 23052,
+              "embedding_input_tokens": 0
+            }
+          }
+        ],
+        "known_subtotal": {
+          "llm_input_tokens": 2356693,
+          "llm_output_tokens": 29066,
+          "embedding_input_tokens": 19739
+        },
+        "complete": true,
+        "attempts": 1945,
+        "historical_cache_cost_complete": true,
+        "journal_corrupt_tail": false,
+        "corrupt_tail_bytes": 0
+      },
+      "path": "results\\raw\\e2-pilot200-v1\\usage.jsonl"
+    }
+  ],
+  "failures": [
+    {
+      "dataset": "musique",
+      "method": "raptor",
+      "question_id": "4hop1__802394_153080_159767_81096",
+      "error": {
+        "type": "ValueError",
+        "reason": "E2_context_overflow_no_truncation"
+      },
+      "partial_response_accepted": false
+    }
+  ],
+  "comparison_complete": false,
+  "comparative_metrics": null,
+  "tracking": null,
+  "continuation_authorized": false,
+  "e1_historical_cost_excluded": true,
+  "e1_historical_cost": {
+    "physical_known_tokens": 32601955,
+    "unknown_reserved_upper_bound": 61588,
+    "cost_complete": false,
+    "source_sha256": "149b96963ee7fd712a934f7a915c32575203d2226848b330d4d9707dd1e356aa"
+  },
+  "limitations": "development smoke only; failed run is not a completed comparison; E1 unknown61588 remains separate",
+  "pilot_accounting": {
+    "new_physical": {
+      "schema_version": 1,
+      "phases": [
+        {
+          "phase": "reader",
+          "provider": "target_api",
+          "attempts": 802,
+          "errors": 0,
+          "unfinished": 0,
+          "cache_hits": 0,
+          "cache_provenance_unknown": 0,
+          "known_subtotal": {
+            "llm_input_tokens": 1199436,
+            "llm_output_tokens": 6014,
+            "embedding_input_tokens": 0
+          },
+          "unknown_fields": {
+            "llm_input_tokens": 0,
+            "llm_output_tokens": 0,
+            "embedding_input_tokens": 0
+          },
+          "complete": true,
+          "total": {
+            "llm_input_tokens": 1199436,
+            "llm_output_tokens": 6014,
+            "embedding_input_tokens": 0
+          }
+        },
+        {
+          "phase": "retrieval",
+          "provider": "local_ollama",
+          "attempts": 763,
+          "errors": 0,
+          "unfinished": 0,
+          "cache_hits": 0,
+          "cache_provenance_unknown": 0,
+          "known_subtotal": {
+            "llm_input_tokens": 0,
+            "llm_output_tokens": 0,
+            "embedding_input_tokens": 19739
+          },
+          "unknown_fields": {
+            "llm_input_tokens": 0,
+            "llm_output_tokens": 0,
+            "embedding_input_tokens": 0
+          },
+          "complete": true,
+          "total": {
+            "llm_input_tokens": 0,
+            "llm_output_tokens": 0,
+            "embedding_input_tokens": 19739
+          }
+        },
+        {
+          "phase": "retrieval",
+          "provider": "target_api",
+          "attempts": 380,
+          "errors": 0,
+          "unfinished": 0,
+          "cache_hits": 0,
+          "cache_provenance_unknown": 0,
+          "known_subtotal": {
+            "llm_input_tokens": 1157257,
+            "llm_output_tokens": 23052,
+            "embedding_input_tokens": 0
+          },
+          "unknown_fields": {
+            "llm_input_tokens": 0,
+            "llm_output_tokens": 0,
+            "embedding_input_tokens": 0
+          },
+          "complete": true,
+          "total": {
+            "llm_input_tokens": 1157257,
+            "llm_output_tokens": 23052,
+            "embedding_input_tokens": 0
+          }
+        }
+      ],
+      "known_subtotal": {
+        "llm_input_tokens": 2356693,
+        "llm_output_tokens": 29066,
+        "embedding_input_tokens": 19739
+      },
+      "complete": true,
+      "attempts": 1945,
+      "historical_cache_cost_complete": true,
+      "journal_corrupt_tail": false,
+      "corrupt_tail_bytes": 0
+    },
+    "reused_source_known": {
+      "llm_input_tokens": 77880,
+      "llm_output_tokens": 1413,
+      "embedding_input_tokens": 1211
+    },
+    "available_source_reuse_known": {
+      "llm_input_tokens": 88985,
+      "llm_output_tokens": 1431,
+      "embedding_input_tokens": 1455
+    },
+    "used_source_operations": 80,
+    "development_physical": {
+      "schema_version": 1,
+      "phases": [
+        {
+          "phase": "reader",
+          "provider": "target_api",
+          "attempts": 72,
+          "errors": 0,
+          "unfinished": 0,
+          "cache_hits": 0,
+          "cache_provenance_unknown": 0,
+          "known_subtotal": {
+            "llm_input_tokens": 155397,
+            "llm_output_tokens": 18304,
+            "embedding_input_tokens": 0
+          },
+          "unknown_fields": {
+            "llm_input_tokens": 0,
+            "llm_output_tokens": 0,
+            "embedding_input_tokens": 0
+          },
+          "complete": true,
+          "total": {
+            "llm_input_tokens": 155397,
+            "llm_output_tokens": 18304,
+            "embedding_input_tokens": 0
+          }
+        },
+        {
+          "phase": "retrieval",
+          "provider": "local_ollama",
+          "attempts": 60,
+          "errors": 0,
+          "unfinished": 0,
+          "cache_hits": 0,
+          "cache_provenance_unknown": 0,
+          "known_subtotal": {
+            "llm_input_tokens": 0,
+            "llm_output_tokens": 0,
+            "embedding_input_tokens": 1455
+          },
+          "unknown_fields": {
+            "llm_input_tokens": 0,
+            "llm_output_tokens": 0,
+            "embedding_input_tokens": 0
+          },
+          "complete": true,
+          "total": {
+            "llm_input_tokens": 0,
+            "llm_output_tokens": 0,
+            "embedding_input_tokens": 1455
+          }
+        },
+        {
+          "phase": "retrieval",
+          "provider": "target_api",
+          "attempts": 20,
+          "errors": 0,
+          "unfinished": 0,
+          "cache_hits": 0,
+          "cache_provenance_unknown": 0,
+          "known_subtotal": {
+            "llm_input_tokens": 60853,
+            "llm_output_tokens": 1331,
+            "embedding_input_tokens": 0
+          },
+          "unknown_fields": {
+            "llm_input_tokens": 0,
+            "llm_output_tokens": 0,
+            "embedding_input_tokens": 0
+          },
+          "complete": true,
+          "total": {
+            "llm_input_tokens": 60853,
+            "llm_output_tokens": 1331,
+            "embedding_input_tokens": 0
+          }
+        }
+      ],
+      "known_subtotal": {
+        "llm_input_tokens": 216250,
+        "llm_output_tokens": 19635,
+        "embedding_input_tokens": 1455
+      },
+      "complete": true,
+      "attempts": 152,
+      "historical_cache_cost_complete": true,
+      "journal_corrupt_tail": false,
+      "corrupt_tail_bytes": 0
+    },
+    "scope": "reused costs are a subset of development cost; do not add development twice; E1 excluded/incomplete"
+  },
+  "paired_comparisons": [],
+  "terminal_audit": {
+    "run_id": "84454233-8d21-4731-922a-5a31184610e0",
+    "runtime_commit": "41ee909c14ffca5dff552fa65d46f33f39d9ed8d",
+    "status": "terminal_failed_verified",
+    "all_plan_index_data_source_pins_verified": true,
+    "saved_cases_verified": 813,
+    "unique_planned_cases": 1200,
+    "outcomes": {
+      "completed": 812,
+      "attempted_failed": 1,
+      "not_attempted": 387
+    },
+    "physical_started": 1945,
+    "physical_finished": 1945,
+    "unknown": 0,
+    "operations": {
+      "reader": 802,
+      "query_embedding": 763,
+      "filter": 380
+    },
+    "immutable_terminal_sha256": {
+      "results\\raw\\e2-pilot200-v1\\manifest.json": "814874633f1c1094db5449984cbebab872847a3980eb4bed97028079c0e23185",
+      "results\\raw\\e2-pilot200-v1\\usage.jsonl": "66f7503f654c38d3a808276ac0ac0f56b15f7505383f2d7822a1ac436a2a4f37"
+    },
+    "HTTP_calls_for_audit": 0
+  },
+  "overflow_audit": {
+    "run_id": "84454233-8d21-4731-922a-5a31184610e0",
+    "case": {
+      "dataset": "musique",
+      "method": "raptor",
+      "question_id": "4hop1__802394_153080_159767_81096"
+    },
+    "error": {
+      "type": "ValueError",
+      "reason": "E2_context_overflow_no_truncation"
+    },
+    "old_Thought_message_bytes": 37977,
+    "actual_answer_only_message_bytes": 37608,
+    "limit": 32000,
+    "new_payload_would_fit": false,
+    "retrieved_nodes": [
+      {
+        "title": "RAPTOR node 5821",
+        "text_utf8_bytes": 6842
+      },
+      {
+        "title": "RAPTOR node 7334",
+        "text_utf8_bytes": 10691
+      },
+      {
+        "title": "RAPTOR node 6958",
+        "text_utf8_bytes": 8308
+      },
+      {
+        "title": "RAPTOR node 7335",
+        "text_utf8_bytes": 4835
+      },
+      {
+        "title": "RAPTOR node 6655",
+        "text_utf8_bytes": 3068
+      }
+    ],
+    "operations": [
+      {
+        "operation": "query_embedding",
+        "physical_attempted": true,
+        "logical_usage": {
+          "llm_input_tokens": null,
+          "llm_output_tokens": null,
+          "embedding_input_tokens": 33
+        }
+      }
+    ],
+    "manifest_sha256": "814874633f1c1094db5449984cbebab872847a3980eb4bed97028079c0e23185",
+    "journal_sha256": "66f7503f654c38d3a808276ac0ac0f56b15f7505383f2d7822a1ac436a2a4f37",
+    "source_result_sha256": "005ca1b76f74366e4871e4f07e11152d05075703637aa49ffc6f0c16f32a22bf",
+    "new_HTTP_calls": 0
+  },
+  "cumulative_e2_physical_known_tokens": 2642838,
+  "cumulative_e2_physical_posts": 2097
+}

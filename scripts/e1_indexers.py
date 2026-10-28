@@ -408,6 +408,7 @@ def load_ready_e1(plan, row, corpus, workspace=ROOT):
         "corpus": corpus,
         "manifest_sha256": dense.sha256_file(path),
         "embedding_digest": plan["embedding_digest"],
+        "directory": path.parent,
     }
     if row["method"] == "dense":
         with dense.np.load(path.parent / "vectors.npz", allow_pickle=False) as saved:
@@ -435,7 +436,12 @@ def load_ready_e1(plan, row, corpus, workspace=ROOT):
             if node["text"] != f"{doc['title']}\n{doc['text']}":
                 raise ValueError("E2_raptor_leaf_text_changed")
         return {**common, "kind": "raptor", "tree": tree, "ancestry": ancestry}
-    raise ValueError("E2_Hippo_read_only_adapter_requires_completed_graph")
+    if row["method"] == "hipporag2":
+        mapping = dense.read_json(path.parent / "source-map.json")
+        if set(mapping) != set(ids) or len(set(mapping.values())) != len(ids):
+            raise ValueError("E2_hippo_source_mapping_changed")
+        return {**common, "kind": "hipporag2", "source_map": mapping}
+    raise ValueError("E2_unknown_method")
 
 
 def retrieve_ready_e1(loaded, question, query_vector, *, embedding_digest, sdk=None):
@@ -452,6 +458,7 @@ def retrieve_ready_e1(loaded, question, query_vector, *, embedding_digest, sdk=N
             "kind": "passages",
             "passages": passages,
             "source_ids": [p["id"] for p in passages],
+            "scores": [float(score) for _, score in ranked],
             "new_embedding_calls": 0,
         }
     if sdk is None:
@@ -474,7 +481,7 @@ def retrieve_ready_e1(loaded, question, query_vector, *, embedding_digest, sdk=N
         ),
         tree,
     )
-    selected, _ = retriever.retrieve_information_collapse_tree(question, 5, 3000)
+    selected, _ = retriever.retrieve_information_collapse_tree(question, 5, 2**63 - 1)
     if not selected:
         raise ValueError("E2_empty_cached_retrieval")
     covered = sorted(set().union(*(loaded["ancestry"][n.index] for n in selected)))
@@ -484,6 +491,22 @@ def retrieve_ready_e1(loaded, question, query_vector, *, embedding_digest, sdk=N
             {"title": f"RAPTOR node {n.index}", "text": n.text} for n in selected
         ],
         "node_ids": [n.index for n in selected],
+        "nodes": [
+            {
+                "id": n.index,
+                "level": next(
+                    int(level)
+                    for level, indices in loaded["tree"]["layers"].items()
+                    if n.index in indices
+                ),
+                "source_ids": sorted(loaded["ancestry"][n.index]),
+            }
+            for n in selected
+        ],
+        "scores": [
+            float(dense.np.dot(vector, dense.normalize_rows([n.embeddings["BGE"]])[0]))
+            for n in selected
+        ],
         "source_ids": covered,
         "new_embedding_calls": 0,
     }
@@ -535,4 +558,143 @@ def replay_cached_reader(query, retrieval, responses, label):
         "cached_usage": usage,
         "historical_cost_complete": None,
         "new_model_calls": 0,
+    }
+
+
+def load_hippo_query_only(loaded, source, infer):
+    """Use pinned retrieval methods on verified persisted stores; no SDK constructors.
+
+    The SDK constructor opens mutable stores/locks and OpenIE. Bypass only that
+    lifecycle. Its prepare_retrieval_objects rebuilds IN-MEMORY lookup maps from
+    saved triples; add_fact_edges does not alter an existing complete graph.
+    """
+    from scripts.preflight_hipporag_repair_prompts import (
+        verify_target_prompt_installation,
+    )
+
+    verify_target_prompt_installation(source)
+    import ast
+    import igraph
+    from hipporag import HippoRAG
+    from hipporag.embedding_store import EmbeddingStore
+    from hipporag.rerank import DSPyFilter
+    from hipporag.utils.config_utils import BaseConfig
+
+    def forbidden(*args, **kwargs):
+        raise ValueError("E2_indexing_or_uncached_embedding_forbidden")
+
+    class QueryOnly(HippoRAG):
+        index = delete = save_igraph = save_openie_results = forbidden
+
+    class LLM:
+        error = None
+
+        def infer(self, messages, max_new_tokens=512, **kwargs):
+            try:
+                if max_new_tokens != 512 or kwargs:
+                    raise ValueError("E2_unplanned_filter_options")
+                return self.handler(messages), {}, False
+            except Exception as exc:
+                self.error = exc
+                raise
+
+    class Filter(DSPyFilter):
+        def parse_filter(self, response):
+            # SDK swallows parse/transport errors into legitimate empty-fact DPR.
+            # Preserve native matching, but make malformed responses fatal later.
+            try:
+                marker = "[[ ## fact_after_filter ## ]]"
+                end = "[[ ## completed ## ]]"
+                if response.count(marker) != 1 or response.count(end) != 1:
+                    raise ValueError("E2_filter_markers_invalid")
+                value = response.split(marker)[1].split(end)[0].strip()
+                parsed = ast.literal_eval(value)
+                facts = parsed["fact"]
+                if (
+                    set(parsed) != {"fact"}
+                    or not isinstance(facts, list)
+                    or any(
+                        not isinstance(f, list)
+                        or len(f) != 3
+                        or any(not isinstance(v, str) or not v.strip() for v in f)
+                        for f in facts
+                    )
+                ):
+                    raise ValueError("E2_filter_shape_invalid")
+                return super().parse_filter(response)
+            except Exception as exc:
+                rag.extraction_llm.error = exc
+                raise
+
+    base = loaded["directory"] / "index"
+    directory = base / "qwen3.8-27b-target_bge-m3-target"
+    rag = QueryOnly.__new__(QueryOnly)
+    rag.global_config = BaseConfig(
+        linking_top_k=5, retrieval_top_k=5, passage_node_weight=0.05, damping=0.5
+    )
+    rag.graph = igraph.Graph.Read_Pickle(str(directory / "graph.pickle"))
+    rag._graph_state_available = True
+    rag.chunk_metadata = dense.read_json(directory / "chunk_metadata.json")
+    rag._openie_info = dense.read_json(
+        base / "openie_results_ner_qwen3.8-27b-target.json"
+    )["docs"]
+    for name in ("chunk", "entity", "fact"):
+        store = EmbeddingStore.__new__(EmbeddingStore)
+        store.namespace = name
+        store.filename = str(directory / f"{name}_embeddings/vdb_{name}.parquet")
+        if not dense.Path(store.filename).is_file():
+            raise ValueError("E2_store_missing")
+        store._load_data()  # Pinned read-only loader, no constructor/locks/upsert.
+        if dense.np.asarray(store.embeddings).shape != (len(store.hash_ids), 1024):
+            raise ValueError("E2_invalid_store_vectors")
+        store.insert_strings = store.delete = store._save_data = forbidden
+        setattr(rag, f"{name}_embedding_store", store)
+    docs = {p["id"]: f"{p['title']}\n{p['text']}" for p in loaded["corpus"]}
+    for source_id, key in loaded["source_map"].items():
+        if rag.chunk_embedding_store.get_row(key)["content"] != docs[source_id]:
+            raise ValueError("E2_hippo_source_text_changed")
+    rag.ready_to_retrieve = False
+    rag.ent_node_to_chunk_ids = None
+    rag.ppr_time = rag.rerank_time = rag.all_retrieval_time = 0
+    rag.extraction_llm = LLM()
+    rag.extraction_llm.handler = infer
+    rag.embedding_model = type(
+        "NoEmbedding", (), {"batch_encode": staticmethod(forbidden)}
+    )()
+    rag.rerank_filter = Filter(rag)
+    native_rerank = rag.rerank_facts
+
+    def checked_rerank(*args):
+        indices, facts, log = native_rerank(*args)
+        if log.get("error"):
+            raise ValueError("E2_native_rerank_failed: " + log["error"])
+        return indices, facts, log
+
+    rag.rerank_facts = checked_rerank
+    rag.prepare_retrieval_objects()
+    return rag
+
+
+def retrieve_hippo_query_only(loaded, rag, question, query_vector, embedding_digest):
+    if loaded["embedding_digest"] != embedding_digest:
+        raise ValueError("E2_query_embedding_model_changed")
+    vector = dense.normalize_rows([query_vector])[0]
+    if vector.shape != (1024,) or not dense.np.isfinite(vector).all():
+        raise ValueError("E2_query_vector_dimension_changed")
+    for kind in ("triple", "passage"):
+        rag.query_to_embedding[kind][question] = vector
+    rag.extraction_llm.error = None
+    result = rag.retrieve([question], num_to_retrieve=5)[0]
+    if rag.extraction_llm.error is not None:
+        raise rag.extraction_llm.error
+    by_text = {f"{p['title']}\n{p['text']}": p for p in loaded["corpus"]}
+    passages = [by_text[text] for text in result.docs]
+    return {
+        "kind": "passages",
+        "passages": passages,
+        "source_ids": [p["id"] for p in passages],
+        "scores": [float(s) for s in result.doc_scores],
+        "graph_seeds": result.graph_seeds,
+        "dense_fallback": not bool(result.graph_seeds),
+        "new_embedding_calls": 0,
     }
