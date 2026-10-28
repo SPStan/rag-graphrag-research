@@ -683,14 +683,162 @@ def build(plan, source, roots):
     }
 
 
+def musique_worklist(source):
+    """Stage issue16 from a verified freeze; never authorize or execute requests."""
+    data = source["datasets"]["musique"]
+    ids = data["ordered_ids"]
+    require(len(ids) == len(set(ids)) == 500, "musique_expected_500_unique_ids")
+    require(
+        e2.ordered_ids_sha256(ids) == data["ordered_ids_sha256"],
+        "musique_ID_pin_changed",
+    )
+    configs = [c for c in source["configurations"] if c["dataset"] == "musique"]
+    require(
+        len(configs) == 3 and {c["method"] for c in configs} == set(e2.METHODS),
+        "musique_three_methods_required",
+    )
+    all_cases, inherited, missing, methods = set(), 0, 0, []
+    for method in e2.METHODS:
+        config = next(c for c in configs if c["method"] == method)
+        reuse = config["cases"]
+        new_ids = config["missing_ids"]
+        require(
+            all(c["status"] == "compatible_completed" for c in reuse),
+            "musique_source_case_not_completed",
+        )
+        require(
+            [c["question_id"] for c in reuse] + new_ids == ids,
+            "musique_case_partition_changed",
+        )
+        keys = [e2.case_key("musique", method, qid) for qid in ids]
+        require(not all_cases.intersection(keys), "musique_duplicate_case")
+        all_cases.update(keys)
+        inherited += len(reuse)
+        missing += len(new_ids)
+        methods.append(
+            {
+                "method": method,
+                "index": config["index"],
+                "inherited_results": reuse,
+                "new_question_ids": new_ids,
+            }
+        )
+    require(len(all_cases) == 1500, "musique_case_count_changed")
+    parent_budget = source["budget_proposal"]["operational_budget_proposal"]
+    allocations = [a for a in parent_budget["allocations"] if a["dataset"] == "musique"]
+    require(
+        len(allocations) == 7
+        and all(a["allocation_tokens"] is not None for a in allocations),
+        "musique_budget_observations_missing",
+    )
+    empirical = sum(a["allocation_tokens"] for a in allocations)
+    headroom = parent_budget["admission_headroom_tokens"]
+    return {
+        "schema_version": 1,
+        "kind": "musique_S500_worklist",
+        "status": "prepared_pending_issue15_and_execution_plan",
+        "executable": False,
+        "http_authorized": False,
+        "execution_complete": False,
+        "source": {
+            "path": "repo:results/summary/full-experiment.json",
+            "canonical_json_sha256": target.digest(source),
+            "dependency": "PR37 / issue15; budget not approved",
+        },
+        "dataset": "musique",
+        "question_ids": ids,
+        "ordered_ids_sha256": data["ordered_ids_sha256"],
+        "corpus_sha256": data["corpus_sha256"],
+        "queries_sha256": data["queries_sha256"],
+        "contract": source["contract"],
+        "methods": methods,
+        "counts": {
+            "expected_cases": 1500,
+            "inherited_completed": inherited,
+            "not_attempted": missing,
+            "terminal_failures": 0,
+        },
+        "budget_proposal": {
+            "authorized": False,
+            "new_posts_upper": {
+                "reader": missing,
+                "filter": len(
+                    next(c for c in configs if c["method"] == "hipporag2")[
+                        "missing_ids"
+                    ]
+                ),
+                "query_embedding": missing,
+            },
+            "new_posts_total_upper": sum(a["new_calls_upper"] for a in allocations),
+            "pilot_maximum_allocation_tokens": empirical,
+            "admission_headroom_tokens": headroom,
+            "proposed_new_token_cap": empirical + headroom,
+            "completion_guaranteed": False,
+            "allocations": allocations,
+            "required_preflight": parent_budget["required_preflight"],
+        },
+        "historical_accounting": {
+            "source": "parent freeze; never charge logical reuse twice",
+            "out_of_scope_sealed_unknown": source["sealed_unknown"],
+            "cost_complete": False,
+        },
+        "preparation_model_calls": 0,
+        "remaining_work": [
+            "issue15 budget approval",
+            "approved MuSiQue execution-plan and guarded runner integration with offline tests",
+            "execute only missing cases",
+            "strict terminal audit and common evaluator; retain all errors",
+            "per-case metrics and safe summary for downstream tasks12/14",
+        ],
+    }
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("prepare", "verify"))
+    parser.add_argument(
+        "action", choices=("prepare", "verify", "prepare-musique", "verify-musique")
+    )
     for root in ("artifact", "data", "index"):
         parser.add_argument("--" + root + "-root", required=True, type=Path)
     parser.add_argument("--manifest", type=Path, default=ROOT / PUBLIC)
+    parser.add_argument(
+        "--dataset-plan",
+        type=Path,
+        default=ROOT / "results/summary/e2-musique-s500-plan.json",
+    )
     args = parser.parse_args(argv)
     value = freeze(args.artifact_root, args.data_root, args.index_root)
+    if args.action in ("prepare-musique", "verify-musique"):
+        require(value == dense.read_json(args.manifest), "full_manifest_changed")
+        require(
+            value["counts"].get("incompatible", 0) == 0,
+            "incompatible_artifacts_no_execution",
+        )
+        worklist = musique_worklist(value)
+        if args.action == "prepare-musique":
+            args.dataset_plan.write_text(
+                json.dumps(
+                    worklist, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+        else:
+            require(
+                worklist == dense.read_json(args.dataset_plan),
+                "musique_worklist_changed",
+            )
+        print(
+            json.dumps(
+                {
+                    "counts": worklist["counts"],
+                    "budget": worklist["budget_proposal"],
+                    "HTTP": 0,
+                },
+                ensure_ascii=False,
+            )
+        )
+        return
     if args.action == "prepare":
         args.manifest.write_text(
             json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))

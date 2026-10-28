@@ -472,3 +472,77 @@ def test_existing_transport_refuses_insufficient_budget_before_post():
             token_limit=150 + reserve - 1,
         )
     session.post.assert_not_called()
+
+
+def test_musique_worklist_complete_partition_and_pending_budget():
+    source = dense.read_json(full.ROOT / full.PUBLIC)
+    value = full.musique_worklist(source)
+    assert value["counts"] == {
+        "expected_cases": 1500,
+        "inherited_completed": 600,
+        "not_attempted": 900,
+        "terminal_failures": 0,
+    }
+    budget = value["budget_proposal"]
+    assert budget["proposed_new_token_cap"] == 5990220
+    assert budget["new_posts_upper"] == {
+        "reader": 900,
+        "filter": 300,
+        "query_embedding": 900,
+    }
+    assert budget["new_posts_total_upper"] == 2100
+    assert (
+        not value["executable"]
+        and not value["http_authorized"]
+        and not value["execution_complete"]
+    )
+    assert not budget["authorized"] and not budget["completion_guaranteed"]
+    assert (
+        value["historical_accounting"]["out_of_scope_sealed_unknown"]
+        == source["sealed_unknown"]
+    )
+    assert all(
+        len(m["inherited_results"]) == 200 and len(m["new_question_ids"]) == 300
+        for m in value["methods"]
+    )
+    changed = copy.deepcopy(source)
+    changed["configurations"][0]["cases"][0]["status"] = "terminal_failure"
+    with pytest.raises(ValueError, match="not_completed"):
+        full.musique_worklist(changed)
+    changed = copy.deepcopy(source)
+    changed["datasets"]["musique"]["ordered_ids"].reverse()
+    with pytest.raises(ValueError, match="ID_pin"):
+        full.musique_worklist(changed)
+
+
+def test_musique_cli_stages_and_verifies_without_transport(tmp_path, monkeypatch):
+    source = dense.read_json(full.ROOT / full.PUBLIC)
+    monkeypatch.setattr(full, "freeze", lambda *args: copy.deepcopy(source))
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("model_transport_forbidden")
+
+    monkeypatch.setattr(requests.sessions.Session, "request", forbidden)
+    output = tmp_path / "musique.json"
+    args = [
+        "--artifact-root",
+        str(tmp_path),
+        "--data-root",
+        str(tmp_path),
+        "--index-root",
+        str(tmp_path),
+        "--dataset-plan",
+        str(output),
+    ]
+    full.main(["prepare-musique", *args])
+    original = output.read_bytes()
+    full.main(["verify-musique", *args])
+    full.main(["prepare-musique", *args])
+    assert output.read_bytes() == original
+    with pytest.raises(SystemExit):
+        full.main(["prepare-musique", *args, "--execute"])
+    value = dense.read_json(output)
+    value["counts"]["not_attempted"] = 0
+    dense.write_json_atomic(output, value)
+    with pytest.raises(ValueError, match="worklist_changed"):
+        full.main(["verify-musique", *args])

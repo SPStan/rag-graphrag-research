@@ -784,3 +784,42 @@ unknown reserve22545, расходы E1 и development не входят в но
 не освобождаются и не суммируются повторно. До согласования этого бюджета
 критерий3 issue15 не выполнен; PR37 содержит **Refs #15**, остаётся Draft.
 Утверждение бюджета само по себе не разрешает запуск в этой offline-задаче.
+
+
+## Issue16: начало MuSiQue S500
+
+[Рабочий список](../results/summary/e2-musique-s500-plan.json) — первый
+подготовительный результат, **не executable execution-plan и не отчёт запуска**.
+Он фиксирует1500case identities:600готовых pilot ответов и900not attempted,
+по200reuse+300missing для каждого из трёх методов. Чужой HotpotQA sealed failure
+остаётся в historical accounting родителя, не запрашивается повторно и не
+объявляется MuSiQue failure. Новых run IDs/ответов/метрик пока нет.
+
+Список строится тем же offline planner после полного existing artifact gate:
+
+```powershell
+./.venv-check/Scripts/python.exe -m scripts.full_experiment prepare-musique `
+  --artifact-root $Artifacts --data-root $Data --index-root $Indexes
+./.venv-check/Scripts/python.exe -m scripts.full_experiment verify-musique `
+  --artifact-root $Artifacts --data-root $Data --index-root $Indexes
+```
+
+Вход — существующий full-experiment.json из PR37; canonical SHA связывает его
+с worklist. Модельный транспорт запрещён. CLI не имеет execute-режима. Даже
+после согласования бюджета этот список нельзя передавать как готовый approved
+plan в shared runner: следующий блок той же issue16 должен реализовать и
+offline проверить существующий runner для missing-only S500, сохранив exact
+source compatibility, budget reservations, claims и ошибки.
+
+Mu-only proposal:5990220new combined tokens/≤2100POST =5921100(allocation по
+максимальной полной pilot операции каждого вида/конфигурации) +69120(admission).
+Это не новое согласование и не дополнительный бюджет поверх всего PR37.
+При общем cap10903320 headroom общий: future allocation HotpotQA должна учитывать
+реальный остаток, а не прибавлять второй headroom автоматически. Новых вызовов
+в этом подготовительном блоке нет. До решения issue15 бюджетный критерий
+открыт, issue16 остаётся Draft с Refs #16 и неполным покрытием выполнения.
+
+Дальше в том же PR: approved plan и transport guard tests, затем только900
+missing pairs; общий evaluator и полный audit500IDs/method с сохранением всех
+ошибок и пофазных расходов; безопасная сводка и private per-case artifacts для
+следующих задач. Reader/retrieval/model/cap/index/split не меняются.
