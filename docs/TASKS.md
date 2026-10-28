@@ -2,18 +2,23 @@
 
 **E1 status:** 6/6 indexes completed under the structural protocol; physical known tokens=32601955; cost_complete=False; unknown reserve61588 preserved. Final audit/verify completed; monitoring paused.
 
-## Итоговые PR — консолидация26октября
+## Текущая очередь — issue #15: полный протокол и reuse
 
-- Issue13 → Draft PR33; исправления34 уже сохранены и развиты, карта в E1_INDEXING.
-- Issue14 → Draft PR36, включая весь PR35; временная база codex/e1-indexing.
-  Закрытие34/35 после проверки сохранности/CI, без merge и удаления веток.
-- Diff36 объединяет реализацию и pilot одной issue, превышение20файлов раскрыто.
-  После отдельно разрешённого merge33 проверить master/merge-base/diff36, особенно
-  при squash, и лишь затем перевести36 на master; не предполагать чистый diff.
-- O/N/R/H неизменны, submit уже отправлен; ждём куратора, повтор не нужен.
-  Refs13/14; без Ready/merge/новых экспериментов. Runtime/артефакты неизменны.
+- Следующий этап после интеграции E1/E2 — issue15: фиксация полного протокола,
+  pinned versions/ID/лимитов и проверяемого reuse. Сам этап15 в этой задаче
+  не запускается; новых LLM/embedding calls, S500, holdout и индексации нет.
+- Научные O/N/R/H PR33/issue13 и PR36/issue14 подтверждены куратором по
+  текущему сообщению пользователя. Ссылка/дата решения не выдумываются;
+  публичного GitHub review/одобрения бота не заявляем. Карточки неизменны.
+- Ready и последовательный обычный merge33→36 разрешены после актуальных
+  проверок, без обхода защиты/checks/reviews. PR36 переводится на master
+  после интеграции33 и проверки полного E2 diff; результаты/runtime не меняются.
+- Прежние согласования mixed extractor, продолжений и sealed unknown сохранены.
+  Semantic_verified=false и cost_complete=false остаются ограничениями.
+  После merge проверяются CLOSED issues13/14 и Done их существующих Project cards.
+- PR34/35 уже закрыты как заменённые; ветки и артефакты сохранены.
 
-## Текущая очередь — 26 октября: pilot200 завершён,1199ответов+1transport failure
+## Сохранённый результат pilot200 — 1199ответов+1transport failure
 
 - Все1200unique method/dataset/question cases учтены:1199completed,
   1infrastructure attempted_failed,0not_attempted. [Единая таблица](../results/summary/e2-pilot200.md)
@@ -55,11 +60,12 @@
   по фиксированным outcome strata6вопросов/18случаев сверены с top5/source.
   Показаны missing evidence, неверное событие/организация, paraphrase/краткость
   и reference ambiguity. Это иллюстрации, не частоты причин; labels/метрики/JSON
-  неизменны, HTTP0. Следующий шаг — научное ревью выбора и ограничений;
-  текущие O/N/R/H ещё не подтверждены, issue14 не закрывать.
-- Код и результаты сохранены в Draft PR36(20files), Refs14; Ready/merge/issueclosure
-  не выполняются. Следующий шаг — научное ревью таблицы/ограничений перед отдельно
-  разрешаемым этапом. S500/check/holdout/7B/newmodels/rebuild не запускать.
+  неизменны, HTTP0. Научные формулировки подтверждены по сообщению пользователя;
+  это не опубликованное одобрение бота или GitHub review.
+- Реализация и результаты issue14 собраны в PR36; фактический diff относительно
+  master проверяется после merge33. При успешном CI разрешены Ready/merge36 и
+  закрытие issue14/Done существующей карточки. Следующая очередь — issue15,
+  только протокол/reuse в отдельном блоке; новых экспериментов здесь нет.
 
 ## Предыдущая transport-остановка (история)
 
