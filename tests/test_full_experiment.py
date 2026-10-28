@@ -48,8 +48,9 @@ def saved_case(pilot_scenario, monkeypatch):
     run_method(s, "dense", monkeypatch)
     result = next(
         dense.read_json(p)
-        for p in s.output.glob("question-*.json")
+        for p in sorted(s.output.glob("question-*.json"))
         if dense.read_json(p)["status"] == "completed"
+        and any(not op.get("reused") for op in dense.read_json(p)["operations"])
     )
     path = s.output / (
         "question-"
