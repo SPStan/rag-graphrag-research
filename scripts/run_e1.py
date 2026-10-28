@@ -1,0 +1,6599 @@
+"""Bounded full-corpus E1 indexing; private checkpoints, public cost summaries."""
+
+import argparse
+import copy
+import hashlib
+from contextlib import contextmanager
+import json
+import os
+from pathlib import Path
+import re
+import subprocess
+import time
+import uuid
+
+import numpy as np
+import requests
+from dotenv import dotenv_values
+
+from scripts import run_dense as dense
+from scripts import run_dense_target as target
+from scripts.token_accounting import (
+    Journal,
+    extract_usage,
+    read_records,
+    verified_reference,
+)
+
+ROOT = Path(__file__).resolve().parents[1]
+METHODS = ("dense", "hipporag2", "raptor")
+DATASETS = ("musique", "hotpotqa")
+# Independent, disjoint allocations: no caller can spend another row's allowance.
+LIMITS = {"dense": 2_000_000, "hipporag2": 20_000_000, "raptor": 12_000_000}
+RAPTOR_CLUSTERING_POLICY = "pinned_gmm_umap_singletons_n_le_4_v1"
+PARAMETERS = {
+    "seed": 42,
+    "temperature": 0,
+    "embedding_batch_size": 32,
+    "embedding_dimension": 1024,
+    "truncate": False,
+    "ner_max_tokens": 1024,
+    "triple_max_tokens": 3072,
+    "summary_max_tokens": 4096,
+    "num_layers": 2,
+    "max_cluster_tokens": 3000,
+    "reduction_dimension": 5,
+    "threshold": 0.1,
+    "timeout_seconds": [5, 300],
+    "retry": 0,
+    "redirects": False,
+    "target_context": 262144,
+    "thinking": False,
+    "embedding_pacing_seconds_per_text": 0.1,
+    "target_connection_close": True,
+}
+CYCLE_REPAIR = {
+    "version": "unique-triples-v1",
+    "max_per_dataset": 20,
+    "instruction": 'Return only the JSON object with the "triples" field. Extract each supported triple exactly once. Do not repeat any triple. Do not output named_entities. When no more distinct supported facts remain, close the JSON array and object immediately.',
+}
+RAPTOR_EMBEDDING_OPTIONS = {"num_ctx": 4096, "num_batch": 4096}
+
+TRIPLES_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "triples": {
+            "type": "array",
+            "uniqueItems": True,
+            "items": {
+                "type": "array",
+                "minItems": 3,
+                "maxItems": 3,
+                "items": {"type": "string", "minLength": 1},
+            },
+        }
+    },
+    "required": ["triples"],
+    "additionalProperties": False,
+}
+
+
+def schema_probe_payload(original, *, compatible=False):
+    """Change only response format; this does not establish server enforcement."""
+    if original.get("max_tokens") != 3072 or original.get("response_format") != {
+        "type": "json_object"
+    }:
+        raise ValueError("schema_probe_requires_original_triples_payload")
+    payload = copy.deepcopy(original)
+    payload["response_format"] = {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "openie_triples_unique_v1",
+            "strict": True,
+            "schema": copy.deepcopy(TRIPLES_SCHEMA),
+        },
+    }
+    if compatible:
+        schema = payload["response_format"]["json_schema"]
+        schema["name"] = "openie_triples_shape_v2"
+        del schema["schema"]["properties"]["triples"]["uniqueItems"]
+    reserve = len(json.dumps(payload, ensure_ascii=False).encode("utf-8")) + 2048 + 3072
+    if reserve > PARAMETERS["target_context"]:
+        raise ValueError("schema_probe_context_reservation_exceeded")
+    return payload, reserve
+
+
+def validate_schema_probe_response(body, *, allow_literal_duplicates=False):
+    """Strict local acceptance; semantic support and server enforcement are separate."""
+    choice = body["choices"][0]
+    if choice["finish_reason"] != "stop":
+        raise ValueError("schema_probe_generation_not_complete")
+    usage = extract_usage(body, "llm", "target_api")
+    if usage["llm_input_tokens"] is None or usage["llm_output_tokens"] is None:
+        raise ValueError("schema_probe_unknown_usage")
+    if (
+        usage["llm_output_tokens"] > 3072
+        or usage["llm_input_tokens"] + usage["llm_output_tokens"]
+        > PARAMETERS["target_context"]
+    ):
+        raise ValueError("schema_probe_usage_exceeds_cap")
+
+    def unique_fields(pairs):
+        if len(dict(pairs)) != len(pairs):
+            raise ValueError("schema_probe_duplicate_json_field")
+        return dict(pairs)
+
+    parsed = json.loads(choice["message"]["content"], object_pairs_hook=unique_fields)
+    if not isinstance(parsed, dict) or set(parsed) != {"triples"}:
+        raise ValueError("schema_probe_invalid_object")
+    values = parsed["triples"]
+    if not isinstance(values, list) or any(
+        not isinstance(x, list)
+        or len(x) != 3
+        or not all(isinstance(v, str) and v.strip() for v in x)
+        for x in values
+    ):
+        raise ValueError("schema_probe_invalid_triples")
+    if not allow_literal_duplicates and len({tuple(x) for x in values}) != len(values):
+        raise ValueError("schema_probe_duplicate_triples")
+    return values
+
+
+HIPPO_SCHEMA_POLICY = {
+    "version": "native_graph_set_schema_v1",
+    "timeout_seconds": [30, 300],
+    "max_new_posts_per_dataset": 40000,
+    "corrective_attempts": 0,
+    "retry": 0,
+    "partial_json": False,
+    "literal_duplicates": "pinned_sdk_ordered_unique",
+}
+
+
+def schema_adoption(probe_plan_path, prior_path, source):
+    """Offline acceptance for graph-set semantics, separate from the failed probe."""
+    from scripts.hipporag_repair_executor import make_pinned_openie_parser
+
+    prepared = dense.read_json(probe_plan_path)
+    reconstructed = prepare_schema_probe(prior_path, source, compatible=True)
+    reconstructed["code_commit"] = prepared["code_commit"]
+    if reconstructed != prepared:
+        raise ValueError("schema_adoption_inputs_changed")
+    plan = dense.read_json(prior_path)
+    row = next(
+        r
+        for r in plan["rows"]
+        if (r["method"], r["dataset"]) == ("hipporag2", "musique")
+    )
+    mp = ROOT / row["output"]
+    mp = mp.parent / "musique-schema-shape-probe1/manifest.json"
+    manifest = dense.read_json(mp)
+    ref = verified_reference(manifest, mp)
+    if (
+        manifest["status"] != "failed"
+        or ref["status"] != "verified"
+        or manifest["approved_plan_sha256"] != dense.sha256_file(probe_plan_path)
+        or manifest["parent_manifest_sha256"] != prepared["failed_manifest_sha256"]
+        or manifest["schema_variant"] != "shape_local_unique_v2"
+        or manifest["unknown_reserved_upper_bound"] != 0
+    ):
+        raise ValueError("schema_adoption_producer_not_verified")
+    for name, sha in manifest["artifacts"].items():
+        if dense.sha256_file(mp.parent / name) != sha:
+            raise ValueError("schema_adoption_artifact_changed")
+    records = read_records(ref["path"])
+    starts = [r for r in records if r["event"] == "started"]
+    finishes = {r["attempt_id"]: r for r in records if r["event"] == "finished"}
+    expected = {c["request_sha256"]: c for c in prepared["cases"]}
+    if (
+        len(starts) != 2
+        or len(finishes) != 2
+        or {r["object_id"] for r in starts} != set(expected)
+    ):
+        raise ValueError("schema_adoption_attempts_changed")
+    parse = make_pinned_openie_parser()
+    cases, cache = [], {}
+    for start in starts:
+        key = start["object_id"]
+        case, terminal = expected[key], finishes[start["attempt_id"]]
+        if (
+            terminal["status"] != "success"
+            or terminal["usage_status"] != "complete"
+            or terminal.get("cache_hit")
+            or start["run_id"] != manifest["run_id"]
+            or any(
+                start[k] != v
+                for k, v in {
+                    "operation": "openie_triples",
+                    "kind": "llm",
+                    "provider": "target_api",
+                    "model": plan["model"],
+                    "method": "hipporag2",
+                    "dataset": "musique",
+                }.items()
+            )
+        ):
+            raise ValueError("schema_adoption_attempt_not_successful")
+        path = mp.parent / "requests" / f"{key}.response.json"
+        body = dense.read_json(path)
+        usage = extract_usage(body, "llm", "target_api")
+        if any(terminal[k] != v for k, v in usage.items()):
+            raise ValueError("schema_adoption_usage_changed")
+        raw = validate_schema_probe_response(body, allow_literal_duplicates=True)
+        unique = parse(
+            "openie_triples",
+            body["choices"][0]["message"]["content"],
+            recover_partial=False,
+        )
+        expected_unique = [list(t) for t in dict.fromkeys(tuple(t) for t in raw)]
+        if not raw or unique != expected_unique:
+            raise ValueError("schema_adoption_native_parser_mismatch")
+        cases.append(
+            {
+                "source_id": case["source_id"],
+                "original_request_sha256": case["original_request_sha256"],
+                "schema_request_sha256": key,
+                "response_sha256": dense.sha256_file(path),
+                "raw_triples": len(raw),
+                "unique_triples": len(unique),
+                "ner_response_sha256": case["ner_response_sha256"],
+            }
+        )
+        cache[key] = {
+            "path": path,
+            "sha256": dense.sha256_file(path),
+            "run_id": manifest["run_id"],
+            "operation": "openie_triples",
+            "kind": "llm",
+            "provider": "target_api",
+            "model": plan["model"],
+            "producer_complete": ref["summary"]["complete"]
+            and ref["summary"]["historical_cache_cost_complete"],
+        }
+    return {
+        "policy": HIPPO_SCHEMA_POLICY,
+        "status": "accepted_for_native_graph_set_only",
+        "probe_status": "failed",
+        "probe_plan_sha256": dense.sha256_file(probe_plan_path),
+        "producer_manifest_sha256": dense.sha256_file(mp),
+        "producer_run_id": manifest["run_id"],
+        "physical_known_tokens": sum(ref["summary"]["known_subtotal"].values()),
+        "semantic_support": "not_established; temporal/count qualifiers and modality may be lost",
+        "new_http_calls": 0,
+        "cases": cases,
+    }, cache
+
+
+def verify_schema_recovery(plan, row):
+    """Verify every adoption input before replay or any uncached request."""
+    if plan.get("hippo_schema_policy") != HIPPO_SCHEMA_POLICY:
+        raise ValueError("hippo_schema_policy_changed")
+    inputs = plan["hippo_schema_inputs"]
+    for name, entry in inputs.items():
+        if name == "source":
+            continue
+        if dense.sha256_file(Path(entry["path"])) != entry["sha256"]:
+            raise ValueError("hippo_schema_input_changed")
+    record, cache = schema_adoption(
+        Path(inputs["probe"]["path"]),
+        Path(inputs["prior"]["path"]),
+        Path(inputs["source"]["path"]),
+    )
+    adoption = row["schema_adoption"]
+    if (
+        dense.sha256_file(ROOT / adoption["path"]) != adoption["sha256"]
+        or dense.read_json(ROOT / adoption["path"]) != record
+    ):
+        raise ValueError("hippo_schema_adoption_changed")
+    return record, cache
+
+
+def schema_resume_history(prior_row, prepared):
+    """Count each physical run once; diagnostics are history, not new spending."""
+    history = copy.deepcopy(prior_row.get("history_runs", []))
+    if prior_row["dataset"] == "hotpotqa":
+        return [], []
+    current = ROOT / prior_row["output"] / "manifest.json"
+    paths = [
+        current,
+        current.parent.parent / "musique-schema-probe1/manifest.json",
+        current.parent.parent / "musique-schema-shape-probe1/manifest.json",
+    ]
+    for path in paths:
+        manifest = dense.read_json(path)
+        ref = verified_reference(manifest, path)
+        reserve = current_unknown_reservation(path.parent)
+        if path == paths[1]:
+            reserve = prepared["prior_unknown_reservation"]
+        if ref["status"] != "verified" or type(reserve) is not int or reserve < 0:
+            raise ValueError("schema_resume_history_not_verified")
+        for name, sha in manifest["artifacts"].items():
+            if dense.sha256_file(path.parent / name) != sha:
+                raise ValueError("schema_resume_history_artifact_changed")
+        history.append(
+            {
+                "output": path.parent.relative_to(ROOT).as_posix(),
+                "run_id": manifest["run_id"],
+                "manifest_sha256": dense.sha256_file(path),
+                "summary": ref["summary"],
+                "unknown_reserved_upper_bound": reserve,
+            }
+        )
+    if len({h["run_id"] for h in history}) != len(history) or len(
+        {h["output"] for h in history}
+    ) != len(history):
+        raise ValueError("schema_resume_duplicate_history")
+    for h in history:
+        path = ROOT / h["output"] / "manifest.json"
+        if (
+            dense.sha256_file(path) != h["manifest_sha256"]
+            or verified_reference(dense.read_json(path), path)["summary"]
+            != h["summary"]
+        ):
+            raise ValueError("schema_resume_prior_history_changed")
+        # Historical reserves remain charged even if usage cannot be recovered.
+        actual = current_unknown_reservation(path.parent)
+        if path != paths[1] and actual != h["unknown_reserved_upper_bound"]:
+            raise ValueError("schema_resume_prior_reserve_changed")
+    sources = [
+        *prior_row["resume_sources"],
+        {"output": prior_row["output"], "manifest_sha256": dense.sha256_file(current)},
+    ]
+    cache = {}
+    for h in sources:
+        cache, _, _ = verified_checkpoints(
+            ROOT / h["output"] / "manifest.json", inherited=cache, allow_length=True
+        )
+    return history, sources
+
+
+def schema_preflight_history(pin):
+    path = ROOT / pin["output"] / "manifest.json"
+    if (
+        dense.sha256_file(path) != pin["manifest_sha256"]
+        or (path.parent / "running.lock").exists()
+    ):
+        raise ValueError("schema_preflight_parent_changed")
+    manifest = dense.read_json(path)
+    ref = verified_reference(manifest, path)
+    summary = ref["summary"]
+    if (
+        manifest["status"] != "failed"
+        or ref["status"] != "verified"
+        or summary["attempts"] != 0
+        or not summary["complete"]
+        or any(summary["known_subtotal"].values())
+        or current_unknown_reservation(path.parent) != 0
+    ):
+        raise ValueError("schema_preflight_requires_zero_physical_attempts")
+    for name, sha in manifest["artifacts"].items():
+        if dense.sha256_file(path.parent / name) != sha:
+            raise ValueError("schema_preflight_artifact_changed")
+    return {
+        **pin,
+        "run_id": manifest["run_id"],
+        "summary": summary,
+        "unknown_reserved_upper_bound": 0,
+    }
+
+
+def prepare_schema_preflight_continuation(prior_path):
+    """One local pre-HTTP repair; original plan, failure and budget stay immutable."""
+    original = dense.read_json(prior_path)
+    if (
+        code_dirty()
+        or original.get("hippo_schema_policy") != HIPPO_SCHEMA_POLICY
+        or original.get("schema_preflight_parent")
+        or original["workspace"] != str(ROOT.resolve())
+    ):
+        raise ValueError("schema_preflight_requires_clean_first_schema_plan")
+    mu = next(
+        r
+        for r in original["rows"]
+        if (r["method"], r["dataset"]) == ("hipporag2", "musique")
+    )
+    verify_native_schema_plan(original, mu)
+    verify_schema_recovery(original, mu)
+    path = ROOT / mu["output"] / "manifest.json"
+    pin = {"output": mu["output"], "manifest_sha256": dense.sha256_file(path)}
+    history = schema_preflight_history(pin)
+    parent = {
+        "path": str(prior_path.resolve()),
+        "sha256": dense.sha256_file(prior_path),
+        "digest": target.digest(original),
+    }
+    plan = copy.deepcopy(original)
+    plan.update(
+        parent_plan=parent,
+        lineage=[parent, *original.get("lineage", [])],
+        schema_preflight_parent=pin,
+    )
+    for row in plan["rows"]:
+        if row["method"] != "hipporag2":
+            continue
+        if row["dataset"] == "hotpotqa" and (ROOT / row["output"]).exists():
+            raise ValueError("schema_preflight_requires_untouched_HotpotQA")
+        if row["dataset"] == "musique":
+            row["history_runs"].append(history)
+        row.update(
+            output=f"indexes/e1/{plan['batch_id']}/hipporag2/{row['dataset']}-schema-preflight1",
+            run_id=str(uuid.uuid4()),
+            code_commit=git("rev-parse", "HEAD"),
+        )
+        if (ROOT / row["output"]).exists():
+            raise ValueError("schema_preflight_output_must_be_new")
+    with (path.parent / "preflight-resume-once.claim.json").open(
+        "x", encoding="utf-8"
+    ) as stream:
+        json.dump(schema_claim(plan), stream)
+        stream.flush()
+        os.fsync(stream.fileno())
+    return plan
+
+
+def schema_claim(plan):
+    return {
+        "parent_plan_sha256": plan["hippo_schema_inputs"]["prior"]["sha256"],
+        **(
+            {"preflight_parent": plan["schema_preflight_parent"]}
+            if plan.get("schema_preflight_parent")
+            else {}
+        ),
+        "adoption_sha256": next(
+            r["schema_adoption"]["sha256"]
+            for r in plan["rows"]
+            if r["method"] == "hipporag2"
+        ),
+        "children": {
+            r["dataset"]: r["run_id"]
+            for r in plan["rows"]
+            if r["method"] == "hipporag2"
+        },
+    }
+
+
+def verify_native_schema_plan(plan, row):
+    inputs = plan["hippo_schema_inputs"]
+    if (
+        plan["hippo_schema_policy"] != HIPPO_SCHEMA_POLICY
+        or row["method"] != "hipporag2"
+        or row.get("max_new_posts") != HIPPO_SCHEMA_POLICY["max_new_posts_per_dataset"]
+        or any(
+            row.get(k) for k in ("cycle_probe_source_id", "cycle_repair_request_key")
+        )
+    ):
+        raise ValueError("schema_resume_scope_changed")
+    prior = dense.read_json(Path(inputs["prior"]["path"]))
+    if dense.sha256_file(Path(inputs["prior"]["path"])) != inputs["prior"]["sha256"]:
+        raise ValueError("schema_resume_prior_plan_changed")
+    old = next(
+        r
+        for r in prior["rows"]
+        if (r["method"], r["dataset"]) == ("hipporag2", row["dataset"])
+    )
+    history, sources = schema_resume_history(
+        old, dense.read_json(Path(inputs["probe"]["path"]))
+    )
+    if plan.get("schema_preflight_parent") and row["dataset"] == "musique":
+        history.append(schema_preflight_history(plan["schema_preflight_parent"]))
+    charge = sum(
+        sum(h["summary"]["known_subtotal"].values()) + h["unknown_reserved_upper_bound"]
+        for h in history
+    )
+    if (
+        row.get("history_runs") != history
+        or row.get("resume_sources") != sources
+        or row["prior_budget_charge"] != charge
+        or row["token_limit"] != LIMITS["hipporag2"] - charge
+        or row.get("diagnostics_in_history") is not True
+    ):
+        raise ValueError("schema_resume_budget_or_sources_changed")
+    mu = next(
+        r
+        for r in prior["rows"]
+        if (r["method"], r["dataset"]) == ("hipporag2", "musique")
+    )
+    claim_path = (
+        ROOT
+        / plan["schema_preflight_parent"]["output"]
+        / "preflight-resume-once.claim.json"
+        if plan.get("schema_preflight_parent")
+        else ROOT / mu["output"] / "schema-resume-once.claim.json"
+    )
+    if dense.read_json(claim_path) != schema_claim(plan):
+        raise ValueError("schema_resume_claim_changed")
+    if row["dataset"] == "hotpotqa":
+        first = next(
+            r
+            for r in plan["rows"]
+            if (r["method"], r["dataset"]) == ("hipporag2", "musique")
+        )
+        path = ROOT / first["output"] / "manifest.json"
+        result = dense.read_json(path)
+        if (
+            result["status"] != "completed"
+            or verified_reference(result, path)["status"] != "verified"
+        ):
+            raise ValueError("schema_resume_requires_completed_MuSiQue")
+        for name, sha in result["artifacts"].items():
+            if dense.sha256_file(path.parent / name) != sha:
+                raise ValueError("schema_resume_MuSiQue_artifact_changed")
+
+
+def prepare_native_schema_continuation(prior_path, probe_path, adoption_path, source):
+    """Reserve a single new pair of outputs, offline; do not start either index."""
+    original = dense.read_json(prior_path)
+    if original.get("hippo_schema_policy"):
+        return prepare_schema_preflight_continuation(prior_path)
+    if (
+        code_dirty()
+        or original["workspace"] != str(ROOT.resolve())
+        or original.get("hippo_schema_policy")
+    ):
+        raise ValueError("schema_resume_requires_clean_live_prior")
+    record, _ = schema_adoption(probe_path, prior_path, source)
+    if dense.read_json(adoption_path) != record:
+        raise ValueError("schema_resume_adoption_changed")
+    parent = {
+        "path": str(prior_path.resolve()),
+        "sha256": dense.sha256_file(prior_path),
+        "digest": target.digest(original),
+    }
+    plan = copy.deepcopy(original)
+    plan.update(
+        parent_plan=parent,
+        lineage=[parent, *original.get("lineage", [])],
+        hippo_schema_policy=HIPPO_SCHEMA_POLICY,
+        hippo_schema_inputs={
+            "prior": parent,
+            "probe": {
+                "path": str(probe_path.resolve()),
+                "sha256": dense.sha256_file(probe_path),
+            },
+            "source": {"path": str(source.resolve())},
+        },
+    )
+    for pin in plan["lineage"]:
+        if dense.sha256_file(Path(pin["path"])) != pin["sha256"]:
+            raise ValueError("lineage_plan_changed")
+    prepared = dense.read_json(probe_path)
+    old_mu = next(
+        r
+        for r in original["rows"]
+        if (r["method"], r["dataset"]) == ("hipporag2", "musique")
+    )
+    claim_path = ROOT / old_mu["output"] / "schema-resume-once.claim.json"
+    for row in plan["rows"]:
+        path = ROOT / row["output"] / "manifest.json"
+        if (path.parent / "running.lock").exists():
+            raise ValueError("schema_resume_requires_stopped_workers")
+        if row["method"] != "hipporag2":
+            manifest = dense.read_json(path)
+            if (
+                manifest["status"] != "completed"
+                or verified_reference(manifest, path)["status"] != "verified"
+            ):
+                raise ValueError("schema_resume_requires_four_completed_indexes")
+            for name, sha in manifest["artifacts"].items():
+                if dense.sha256_file(path.parent / name) != sha:
+                    raise ValueError("schema_resume_completed_artifact_changed")
+            continue
+        if row["dataset"] == "hotpotqa" and path.parent.exists():
+            raise ValueError("schema_resume_requires_untouched_HotpotQA")
+        history, sources = schema_resume_history(row, prepared)
+        charge = sum(
+            sum(h["summary"]["known_subtotal"].values())
+            + h["unknown_reserved_upper_bound"]
+            for h in history
+        )
+        if charge >= LIMITS["hipporag2"]:
+            raise ValueError("schema_resume_budget_exhausted")
+        for k in (
+            "cycle_probe_source_id",
+            "cycle_repair_request_key",
+            "cycle_diagnostic",
+            "verified_response_cache_count",
+            "prior_run",
+            "resume_from",
+        ):
+            row.pop(k, None)
+        row.update(
+            output=f"indexes/e1/{plan['batch_id']}/hipporag2/{row['dataset']}-schema1",
+            run_id=str(uuid.uuid4()),
+            code_commit=git("rev-parse", "HEAD"),
+            resume_kind="native_schema",
+            history_runs=history,
+            resume_sources=sources,
+            diagnostics_in_history=True,
+            prior_budget_charge=charge,
+            token_limit=LIMITS["hipporag2"] - charge,
+            max_new_posts=HIPPO_SCHEMA_POLICY["max_new_posts_per_dataset"],
+            schema_adoption={
+                "path": adoption_path.relative_to(ROOT).as_posix(),
+                "sha256": dense.sha256_file(adoption_path),
+            },
+        )
+        if (ROOT / row["output"]).exists():
+            raise ValueError("schema_resume_output_must_be_new")
+    plan["combined_token_limit"] = sum(r["token_limit"] for r in plan["rows"])
+    with claim_path.open("x", encoding="utf-8") as stream:
+        json.dump(schema_claim(plan), stream)
+        stream.flush()
+        os.fsync(stream.fileno())
+    return plan
+
+
+def triple_cycle(text):
+    """Diagnostic only: count complete tuples inside an unfinished response."""
+    decoder, triples = json.JSONDecoder(), []
+    for match in re.finditer(r'\[\s*"', text):
+        try:
+            value, _ = decoder.raw_decode(text[match.start() :])
+        except ValueError:
+            continue
+        if (
+            isinstance(value, list)
+            and len(value) == 3
+            and all(isinstance(x, str) for x in value)
+        ):
+            triples.append(tuple(value))
+    unique = len(set(triples))
+    return {
+        "complete_tuples": len(triples),
+        "unique_tuples": unique,
+        "cycle": len(triples) >= 12 and unique * 4 <= len(triples),
+    }
+
+
+def git(*args):
+    return subprocess.check_output(
+        ["git", "-c", f"safe.directory={ROOT.as_posix()}", "-C", str(ROOT), *args],
+        text=True,
+    ).strip()
+
+
+def code_dirty():
+    allowed = {"results/summary/e1-indexing.json", "results/summary/e1-indexing.md"}
+    # Strip individual lines only after retaining porcelain's three prefix columns.
+    output = subprocess.check_output(
+        [
+            "git",
+            "-c",
+            f"safe.directory={ROOT.as_posix()}",
+            "-C",
+            str(ROOT),
+            "status",
+            "--porcelain",
+            "--untracked-files=all",
+        ],
+        text=True,
+    )
+    return any(line[3:] not in allowed for line in output.splitlines())
+
+
+def load_corpus(data_root, dataset):
+    directory = Path(data_root) / "data/processed" / dataset
+    corpus = dense.read_json(directory / "corpus.json")
+    provenance = dense.validate_processed_data(
+        dataset, directory, dense.read_json(directory / "queries.json"), corpus
+    )
+    if len(corpus) != 5500 or len({r["id"] for r in corpus}) != 5500:
+        raise ValueError("E1_requires_5500_distinct_passages")
+    return corpus, provenance
+
+
+def make_plan(data_root, config, embedding_digest):
+    rows = []
+    batch_id = str(uuid.uuid4())
+    code = git("rev-parse", "HEAD")
+    if code_dirty():
+        raise ValueError("commit_E1_code_before_preparing_plan")
+    for method in METHODS:
+        for dataset in DATASETS:
+            corpus, provenance = load_corpus(data_root, dataset)
+            rows.append(
+                {
+                    "run_id": str(uuid.uuid4()),
+                    "method": method,
+                    "dataset": dataset,
+                    "passages": len(corpus),
+                    "corpus": provenance,
+                    "corpus_fingerprint": dense.corpus_fingerprint(corpus),
+                    "code_commit": code,
+                    "token_limit": LIMITS[method],
+                    "output": f"indexes/e1/{batch_id}/{method}/{dataset}",
+                }
+            )
+    return {
+        "schema_version": 1,
+        "kind": "E1_full_corpus_indexing",
+        "batch_id": batch_id,
+        "workspace": str(ROOT.resolve()),
+        "data_root": str(Path(data_root).resolve()),
+        "model": config["TARGET_API_MODEL"],
+        "endpoint": config["TARGET_API_BASE_URL"].rstrip("/"),
+        "embedding_model": "bge-m3:latest",
+        "embedding_digest": embedding_digest,
+        "parameters": PARAMETERS,
+        "upstream_commits": {
+            "hipporag2": "1438aba3fc44ff10573e5a5e1e7cc3c7f9794aff",
+            "raptor": "7da1d48a7e1d7dec61a63c9d9aae84e2dfaa5767",
+        },
+        "deployed_revision_and_quantization": "not reported; endpoint alias and backend contract only",
+        "combined_token_limit": sum(r["token_limit"] for r in rows),
+        "rows": rows,
+        "historical_cost": "Previous smoke/failed runs excluded from NEW E1 cost; historical unknown remains unknown.",
+    }
+
+
+def verify_plan(plan, row, config):
+    if (
+        plan.get("independent_raptor")
+        and not plan.get("hippo_schema_policy")
+        and row["method"] != "raptor"
+    ):
+        raise ValueError("independent_plan_allows_only_raptor")
+    for item in plan.get("lineage", []):
+        if dense.sha256_file(Path(item["path"])) != item["sha256"]:
+            raise ValueError("lineage_plan_changed")
+    if (
+        plan.get("parent_plan")
+        and dense.sha256_file(Path(plan["parent_plan"]["path"]))
+        != plan["parent_plan"]["sha256"]
+    ):
+        raise ValueError("parent_plan_changed")
+    combinations = [(r["method"], r["dataset"]) for r in plan["rows"]]
+    if (
+        plan["kind"] != "E1_full_corpus_indexing"
+        or plan["parameters"] != PARAMETERS
+        or plan["workspace"] != str(ROOT.resolve())
+        or row["method"] not in METHODS
+        or row["dataset"] not in DATASETS
+        or row["token_limit"]
+        != LIMITS[row["method"]] - row.get("prior_budget_charge", 0)
+        or plan["combined_token_limit"] != sum(r["token_limit"] for r in plan["rows"])
+        or row["code_commit"] != git("rev-parse", "HEAD")
+        or code_dirty()
+        or (plan.get("cycle_repair") and plan["cycle_repair"] != CYCLE_REPAIR)
+        or plan["model"] != config["TARGET_API_MODEL"]
+        or plan["endpoint"] != config["TARGET_API_BASE_URL"].rstrip("/")
+        or sorted(combinations) != sorted((m, d) for m in METHODS for d in DATASETS)
+        or row["output"]
+        != f"indexes/e1/{plan['batch_id']}/{row['method']}/{row['dataset']}"
+        + (
+            f"-mixed-local{plan['hotpot_local_socket_recovery'].get('recovery_number', 1)}"
+            if plan.get("hotpot_local_socket_recovery") and row["dataset"] == "hotpotqa"
+            else "-mixed-completion1"
+            if plan.get("hotpot_fallback_completion") and row["dataset"] == "hotpotqa"
+            else "-mixed-adopt1"
+            if plan.get("hotpot_json_adoption") and row["dataset"] == "hotpotqa"
+            else "-mixed-embed1"
+            if plan.get("mixed_embedding_recovery")
+            and row.get("resume_kind") == "mixed_native"
+            else "-mixed-counter1"
+            if plan.get("mixed_counter_recovery")
+            and row.get("resume_kind") == "mixed_native"
+            else "-mixed1"
+            if row.get("resume_kind") == "mixed_native"
+            else "-schema-preflight1"
+            if row.get("resume_kind") == "native_schema"
+            and plan.get("schema_preflight_parent")
+            else "-schema1"
+            if row.get("resume_kind") == "native_schema"
+            else "-summary-network1"
+            if plan.get("raptor_summary_network_resume")
+            and row.get("resume_kind") == "summary_native"
+            else "-summary1"
+            if row.get("resume_kind") == "summary_native"
+            else "-cluster1"
+            if row.get("resume_kind") == "clustering"
+            else "-batch1"
+            if row.get("resume_kind") == "embedding_batch"
+            else "-cycle1"
+            if row.get("resume_kind") == "cycle"
+            else "-network1"
+            if row.get("resume_from")
+            else "-continuation1"
+            if row.get("prior_run")
+            else ""
+        )
+    ):
+        raise ValueError("E1_plan_or_code_mismatch")
+    if (
+        plan.get("cycle_repair")
+        and not plan.get("hippo_schema_policy")
+        and (row["method"], row["dataset"])
+        == (
+            "hipporag2",
+            "hotpotqa",
+        )
+    ):
+        pilot = next(
+            r
+            for r in plan["rows"]
+            if (r["method"], r["dataset"]) == ("hipporag2", "musique")
+        )
+        path = ROOT / pilot["output"] / "manifest.json"
+        prior = dense.read_json(path)
+        probe = path.parent / "cycle-probe.json"
+        if (
+            prior["status"] != "completed"
+            or prior["artifacts"].get("cycle-probe.json") != dense.sha256_file(probe)
+            or dense.read_json(probe)["status"] != "passed"
+        ):
+            raise ValueError("cycle_repair_requires_successful_MuSiQue_probe_and_index")
+    if row.get("resume_kind") == "native_schema":
+        verify_native_schema_plan(plan, row)
+    if row.get("resume_kind") == "mixed_native":
+        verify_mixed_plan(plan, row)
+    response = requests.get("http://localhost:11434/api/tags", timeout=10)
+    response.raise_for_status()
+    actual = next(
+        m["digest"]
+        for m in response.json()["models"]
+        if m["name"] == plan["embedding_model"]
+    )
+    if actual != plan["embedding_digest"]:
+        raise ValueError("embedding_model_changed")
+    corpus, provenance = load_corpus(plan["data_root"], row["dataset"])
+    if row["corpus"] != provenance or row[
+        "corpus_fingerprint"
+    ] != dense.corpus_fingerprint(corpus):
+        raise ValueError("E1_input_changed")
+    return corpus
+
+
+@contextmanager
+def exclusive(directory):
+    """A canonical output lock; a crash deliberately needs operator inspection."""
+    path = directory / "running.lock"
+    with path.open("x", encoding="utf-8") as stream:
+        stream.write(str(os.getpid()))
+        stream.flush()
+        os.fsync(stream.fileno())
+    try:
+        yield
+    finally:
+        path.unlink()
+
+
+MIXED_EXTRACTOR = {
+    "version": "hipporag2_qwen_primary_gptoss_length_fallback_source_v1",
+    "fallback_model": "iairlab/gpt-oss-120b",
+    "fallback_limit": 20,
+    "source_policy": "source_faithfulness_v1",
+    "audit_seed": 42,
+    "audit_per_model": 8,
+    "max_new_posts": 40000,
+    "max_llm_posts": {"musique": 4814, "hotpotqa": 11020},
+}
+
+
+MIXED_EMBEDDING_RECOVERY = {
+    "version": "hippo_local_socket_resume_v1",
+    "batch_size": 8,
+    "seconds_per_text": 0.25,
+    "minimum_pause_after_response": 2.0,
+    "canonical_uncached_order": True,
+    "save_embedding_inputs": True,
+}
+
+
+def mixed_payload(primary):
+    payload, _ = gpt_extractor_payload(primary)
+    systems = [m for m in payload["messages"] if m["role"] == "system"]
+    if len(systems) != 1 or "source_faithfulness_v1" in systems[0]["content"]:
+        raise ValueError("mixed_requires_single_original_system")
+    systems[0]["content"] += "\n\n" + SOURCE_FAITHFULNESS_POLICY
+    return gpt_extractor_payload(payload)[0]
+
+
+def mixed_audit_selection(dataset, producers, warnings, calibration):
+    """Source-only audit IDs; no questions, labels, scores or accuracy cutoff."""
+    selected = set(warnings)
+    strata = {}
+    for model in sorted(set(producers.values())):
+        pool = [
+            pid for pid, m in producers.items() if m == model and pid not in calibration
+        ]
+        ranked = sorted(
+            pool,
+            key=lambda pid: hashlib.sha256(
+                f"e1-source-audit-v1|42|{dataset}|{model}|{pid}".encode()
+            ).hexdigest(),
+        )
+        strata[model] = ranked[:8]
+        selected.update(strata[model])
+    if not set(warnings) <= set(producers):
+        raise ValueError("mixed_audit_unknown_warning_source")
+    return {
+        "version": "e1-source-audit-v1",
+        "dataset": dataset,
+        "seed": 42,
+        "strata": strata,
+        "eligible_by_model": {
+            m: sum(
+                model == m and pid not in calibration
+                for pid, model in producers.items()
+            )
+            for m in strata
+        },
+        "warning_ids": sorted(warnings),
+        "selected_ids": sorted(selected),
+        "calibration_ids": sorted(calibration),
+        "accuracy_threshold": None,
+    }
+
+
+def verify_mixed_approval(plan):
+    if plan.get("mixed_extractor") != MIXED_EXTRACTOR:
+        raise ValueError("mixed_policy_changed")
+    pin = plan["mixed_approval"]
+    path = Path(pin["path"])
+    if dense.sha256_file(path) != pin["sha256"]:
+        raise ValueError("mixed_approval_changed")
+    record = dense.read_json(path)
+    if (
+        record.get("protocol") != MIXED_EXTRACTOR
+        or record.get("curator_approval_source") != "reported_by_user"
+        or not record.get("user_statement")
+    ):
+        raise ValueError("mixed_reported_approval_scope_missing")
+
+
+def verify_mixed_adoption(plan):
+    pin = plan["mixed_adoption"]
+    mp, pp = Path(pin["manifest"]), Path(pin["plan"])
+    if (
+        dense.sha256_file(mp) != pin["manifest_sha256"]
+        or dense.sha256_file(pp) != pin["plan_sha256"]
+    ):
+        raise ValueError("mixed_adoption_changed")
+    manifest, prepared = dense.read_json(mp), dense.read_json(pp)
+    review = Path(pin["source_review"])
+    negative = dense.read_json(review)
+    if negative["producer_manifest_sha256"] != dense.sha256_file(mp) or negative[
+        "approved_plan_sha256"
+    ] != dense.sha256_file(pp):
+        raise ValueError("mixed_negative_review_producer_changed")
+    if (
+        pin.get("acceptance") != "structural_with_observed_errors"
+        or dense.sha256_file(review) != pin["source_review_sha256"]
+        or dense.read_json(review)["semantic_status"] != "not_accepted_for_continuation"
+    ):
+        raise ValueError("mixed_structural_adoption_or_negative_review_changed")
+    ref = verified_reference(manifest, mp)
+    if (
+        manifest["approved_plan_sha256"] != dense.sha256_file(pp)
+        or prepared["kind"] != EXTRACTOR_POLICY_PROBE
+        or prepared.get("parent_index_plan_sha256") != plan["parent_plan"]["sha256"]
+        or prepared.get("policy") != SOURCE_FAITHFULNESS_POLICY
+        or prepared.get("policy_version") != MIXED_EXTRACTOR["source_policy"]
+        or ref["status"] != "verified"
+        or not ref["summary"]["complete"]
+    ):
+        raise ValueError("mixed_adoption_producer_not_verified")
+    for name, sha in manifest["artifacts"].items():
+        if dense.sha256_file(mp.parent / name) != sha:
+            raise ValueError("mixed_adoption_artifact_changed")
+    records = read_records(Path(ref["path"]))
+    starts = [r for r in records if r["event"] == "started"]
+    if (
+        len(starts) != 5
+        or {r["object_id"] for r in starts}
+        != {c["request_sha256"] for c in prepared["cases"]}
+        or any(r["model"] != MIXED_EXTRACTOR["fallback_model"] for r in starts)
+    ):
+        raise ValueError("mixed_adoption_attempts_changed")
+    cache = {}
+    for case in prepared["cases"]:
+        payload = case["payload"]
+        key = target.digest(
+            {"payload": payload, "kind": "llm", "operation": "openie_triples"}
+        )
+        response = mp.parent / "requests" / f"{key}.response.json"
+        if (
+            key != case["request_sha256"]
+            or payload["model"] != MIXED_EXTRACTOR["fallback_model"]
+            or payload["max_tokens"] != 3072
+        ):
+            raise ValueError("mixed_adoption_payload_changed")
+        body = dense.read_json(response)
+        if not validate_schema_probe_response(body, allow_literal_duplicates=True):
+            raise ValueError("mixed_adoption_empty")
+        cache[key] = {
+            "path": response,
+            "sha256": dense.sha256_file(response),
+            "run_id": manifest["run_id"],
+            "operation": "openie_triples",
+            "kind": "llm",
+            "provider": "target_api",
+            "model": payload["model"],
+            "producer_complete": True,
+        }
+    return cache
+
+
+def mixed_history(prior, dataset):
+    row = next(
+        r
+        for r in prior["rows"]
+        if (r["method"], r["dataset"]) == ("hipporag2", dataset)
+    )
+    history = copy.deepcopy(row.get("history_runs", []))
+    sources = copy.deepcopy(row.get("resume_sources", []))
+    mp = ROOT / row["output"] / "manifest.json"
+    if dataset == "musique":
+        paths = [
+            mp,
+            mp.parent.parent / "musique-gpt-oss-probe1/manifest.json",
+            mp.parent.parent / "musique-gpt-oss-policy-probe1/manifest.json",
+        ]
+        for path in paths:
+            manifest = dense.read_json(path)
+            ref = verified_reference(manifest, path)
+            if ref["status"] != "verified" or not ref["summary"]["complete"]:
+                raise ValueError("mixed_current_history_unknown_or_corrupt")
+            for name, sha in manifest["artifacts"].items():
+                if dense.sha256_file(path.parent / name) != sha:
+                    raise ValueError("mixed_history_artifact_changed")
+            history.append(
+                {
+                    "output": path.parent.relative_to(ROOT).as_posix(),
+                    "run_id": manifest["run_id"],
+                    "manifest_sha256": dense.sha256_file(path),
+                    "summary": ref["summary"],
+                    "unknown_reserved_upper_bound": 0,
+                }
+            )
+        sources.append(
+            {"output": row["output"], "manifest_sha256": dense.sha256_file(mp)}
+        )
+    if len({h["run_id"] for h in history}) != len(history):
+        raise ValueError("mixed_duplicate_history")
+    for entry in history:
+        path = ROOT / entry["output"] / "manifest.json"
+        if (
+            dense.sha256_file(path) != entry["manifest_sha256"]
+            or verified_reference(dense.read_json(path), path)["summary"]
+            != entry["summary"]
+        ):
+            raise ValueError("mixed_historical_pin_changed")
+    return history, sources
+
+
+def mixed_plan_claim(plan):
+    pin = (
+        plan.get("hotpot_local_socket_recovery")
+        or plan.get("hotpot_fallback_completion")
+        or plan.get("hotpot_json_adoption")
+        or plan.get("mixed_embedding_recovery")
+        or plan.get("mixed_counter_recovery", {})
+    )
+    return {
+        "parent_plan_sha256": pin.get(
+            "prior_plan_sha256", pin.get("plan_sha256", plan["parent_plan"]["sha256"])
+        ),
+        "children": {
+            r["dataset"]: r["run_id"]
+            for r in plan["rows"]
+            if r.get("resume_kind") == "mixed_native"
+        },
+    }
+
+
+def prepare_mixed_continuation(prior_path, approval_path, probe_plan):
+    prior = dense.read_json(prior_path)
+    if prior["workspace"] != str(ROOT.resolve()) or prior.get("mixed_extractor"):
+        raise ValueError("mixed_requires_original_workspace_and_parent")
+    plan = copy.deepcopy(prior)
+    plan.pop("cycle_repair", None)
+    pin = {
+        "path": str(prior_path.resolve()),
+        "sha256": dense.sha256_file(prior_path),
+        "digest": target.digest(prior),
+    }
+    plan["lineage"] = list(
+        {
+            p["sha256"]: p
+            for p in [
+                *prior.get("lineage", []),
+                *([prior["parent_plan"]] if prior.get("parent_plan") else []),
+            ]
+        }.values()
+    )
+    plan["parent_plan"] = pin
+    plan["mixed_extractor"] = MIXED_EXTRACTOR
+    plan["mixed_approval"] = {
+        "path": str(approval_path.resolve()),
+        "sha256": dense.sha256_file(approval_path),
+    }
+    verify_mixed_approval(plan)
+    mu = next(
+        r
+        for r in prior["rows"]
+        if (r["method"], r["dataset"]) == ("hipporag2", "musique")
+    )
+    old = ROOT / mu["output"]
+    plan["mixed_claim_root"] = str((old / "mixed-continuation-claims").resolve())
+    mp = old.parent / "musique-gpt-oss-policy-probe1/manifest.json"
+    review = mp.parent / "source-review.json"
+    plan["mixed_adoption"] = {
+        "manifest": str(mp.resolve()),
+        "manifest_sha256": dense.sha256_file(mp),
+        "plan": str(probe_plan.resolve()),
+        "plan_sha256": dense.sha256_file(probe_plan),
+        "source_review": str(review.resolve()),
+        "source_review_sha256": dense.sha256_file(review),
+        "acceptance": "structural_with_observed_errors",
+    }
+    verify_mixed_adoption(plan)
+    old_probe_plan = dense.read_json(probe_plan)
+    plan["audit_calibration_ids"] = [c["source_id"] for c in old_probe_plan["cases"]]
+    for row in plan["rows"]:
+        if row["method"] != "hipporag2":
+            continue
+        history, sources = mixed_history(prior, row["dataset"])
+        charge = sum(
+            sum(h["summary"]["known_subtotal"].values())
+            + h["unknown_reserved_upper_bound"]
+            for h in history
+        )
+        row.update(
+            run_id=str(uuid.uuid4()),
+            code_commit=git("rev-parse", "HEAD"),
+            resume_kind="mixed_native",
+            output=f"indexes/e1/{plan['batch_id']}/hipporag2/{row['dataset']}-mixed1",
+            history_runs=history,
+            resume_sources=sources,
+            prior_budget_charge=charge,
+            token_limit=LIMITS["hipporag2"] - charge,
+            max_new_posts=40000,
+            max_llm_posts=MIXED_EXTRACTOR["max_llm_posts"][row["dataset"]],
+            diagnostics_in_history=True,
+            extractor_configuration=MIXED_EXTRACTOR,
+        )
+        if row["token_limit"] <= 0 or (ROOT / row["output"]).exists():
+            raise ValueError("mixed_output_or_budget_unavailable")
+    plan["combined_token_limit"] = sum(r["token_limit"] for r in plan["rows"])
+    if (Path(plan["mixed_claim_root"]) / "plan.claim.json").exists():
+        raise ValueError("mixed_continuation_already_claimed")
+    return plan
+
+
+def mixed_counter_state(pin):
+    """Reconcile one local-counter failure; retain the original protocol root."""
+    pp, mp, log = (Path(pin[k]) for k in ("plan", "manifest", "stderr"))
+    for path, key in (
+        (pp, "plan_sha256"),
+        (mp, "manifest_sha256"),
+        (log, "stderr_sha256"),
+    ):
+        if dense.sha256_file(path) != pin[key]:
+            raise ValueError("mixed_counter_recovery_pin_changed")
+    prior = dense.read_json(pp)
+    if "mixed_counter_recovery" in prior:
+        raise ValueError("mixed_counter_recovery_only_once")
+    mu = next(
+        r
+        for r in prior["rows"]
+        if (r["method"], r["dataset"]) == ("hipporag2", "musique")
+    )
+    verify_mixed_plan(prior, mu)
+    if mp.resolve() != (ROOT / mu["output"] / "manifest.json").resolve():
+        raise ValueError("mixed_counter_wrong_producer")
+    manifest = dense.read_json(mp)
+    ref = verified_reference(manifest, mp)
+    text = log.read_text(encoding="utf-8")
+    if (
+        manifest.get("status") != "failed"
+        or manifest.get("error_type") != "ValueError"
+        or manifest.get("plan_sha256") != target.digest(prior)
+        or ref["status"] != "verified"
+        or not ref["summary"]["complete"]
+        or any(x["errors"] or x["unfinished"] for x in ref["summary"]["phases"])
+        or "mixed_llm_request_limit" not in text
+        or "unresolved_ner_stop" not in text
+        or (mp.parent / "running.lock").exists()
+    ):
+        raise ValueError("mixed_counter_requires_stopped_known_local_failure")
+    for name, sha in manifest["artifacts"].items():
+        if dense.sha256_file(mp.parent / name) != sha:
+            raise ValueError("mixed_counter_artifact_changed")
+    records = read_records(Path(ref["path"]))
+    physical = [
+        r for r in records if r["event"] == "finished" and not r.get("cache_hit")
+    ]
+    llm = sum(r["kind"] == "llm" for r in physical)
+    logical = sum(r["event"] == "started" and r["kind"] == "llm" for r in records)
+    if logical < mu["max_llm_posts"] or llm >= mu["max_llm_posts"]:
+        raise ValueError("mixed_counter_failure_not_reproduced")
+    routes = dense.read_json(mp.parent / "mixed-routes.json")
+    claims = {}
+    for key, route in routes.items():
+        if not route["fallback"]:
+            continue
+        rp = Path(route["response_path"])
+        cp = Path(prior["mixed_claim_root"]) / "musique" / f"{key}.claim.json"
+        record = dense.read_json(cp)
+        if (
+            record
+            != {
+                "status": "complete",
+                "primary_sha256": key,
+                "fallback_sha256": route["actual_request_sha256"],
+            }
+            or dense.sha256_file(rp) != route["response_sha256"]
+            or route["model"] != MIXED_EXTRACTOR["fallback_model"]
+        ):
+            raise ValueError("mixed_counter_completed_fallback_changed")
+        validate_schema_probe_response(
+            dense.read_json(rp), allow_literal_duplicates=True
+        )
+        claims[cp.name] = dense.sha256_file(cp)
+    # Every non-complete physical response must be the primary of a saved full fallback.
+    for end in physical:
+        key = end["object_id"]
+        saved = dense.read_json(mp.parent / "requests" / f"{key}.json")
+        if saved["status"] == "complete":
+            continue
+        rp = mp.parent / "requests" / f"{key}.response.json"
+        choice = dense.read_json(rp)["choices"][0]
+        route = routes.get(key, {})
+        if (
+            end["operation"] != "openie_triples"
+            or end["usage_status"] != "complete"
+            or choice["finish_reason"] != "length"
+            or not triple_cycle(choice["message"]["content"])["cycle"]
+            or not route.get("fallback")
+            or route["primary_failure"]["response_sha256"] != dense.sha256_file(rp)
+        ):
+            raise ValueError("mixed_counter_unresolved_model_failure")
+    if claims != pin["completed_claims"]:
+        raise ValueError("mixed_counter_prior_claims_changed")
+    states = {}
+    for r in prior["rows"]:
+        if r["method"] != "hipporag2":
+            continue
+        history, sources = (
+            copy.deepcopy(r["history_runs"]),
+            copy.deepcopy(r["resume_sources"]),
+        )
+        posts, used_llm = 0, 0
+        if r["dataset"] == "musique":
+            history.append(
+                {
+                    "output": r["output"],
+                    "run_id": manifest["run_id"],
+                    "manifest_sha256": dense.sha256_file(mp),
+                    "summary": ref["summary"],
+                    "unknown_reserved_upper_bound": 0,
+                }
+            )
+            sources.append(
+                {"output": r["output"], "manifest_sha256": dense.sha256_file(mp)}
+            )
+            posts, used_llm = len(physical), llm
+        elif (ROOT / r["output"]).exists():
+            raise ValueError("mixed_counter_hotpot_already_started")
+        if len({h["run_id"] for h in history}) != len(history):
+            raise ValueError("mixed_counter_duplicate_history")
+        charge = sum(
+            sum(h["summary"]["known_subtotal"].values())
+            + h["unknown_reserved_upper_bound"]
+            for h in history
+        )
+        states[r["dataset"]] = {
+            "history_runs": history,
+            "resume_sources": sources,
+            "prior_budget_charge": charge,
+            "token_limit": LIMITS["hipporag2"] - charge,
+            "max_llm_posts": r["max_llm_posts"] - used_llm,
+            "max_new_posts": r["max_new_posts"] - posts,
+        }
+    return prior, states
+
+
+def prepare_mixed_counter_recovery(prior_path, stderr_path):
+    prior = dense.read_json(prior_path)
+    mu = next(
+        r
+        for r in prior["rows"]
+        if (r["method"], r["dataset"]) == ("hipporag2", "musique")
+    )
+    mp = ROOT / mu["output"] / "manifest.json"
+    routes = dense.read_json(mp.parent / "mixed-routes.json")
+    root = Path(prior["mixed_claim_root"])
+    claims = {
+        f"{k}.claim.json": dense.sha256_file(root / "musique" / f"{k}.claim.json")
+        for k, v in routes.items()
+        if v["fallback"]
+    }
+    if set(claims) != {p.name for p in (root / "musique").glob("*.claim.json")}:
+        raise ValueError("mixed_counter_unresolved_claims")
+    pin = {
+        "plan": str(prior_path.resolve()),
+        "plan_sha256": dense.sha256_file(prior_path),
+        "manifest": str(mp.resolve()),
+        "manifest_sha256": dense.sha256_file(mp),
+        "stderr": str(stderr_path.resolve()),
+        "stderr_sha256": dense.sha256_file(stderr_path),
+        "completed_claims": claims,
+    }
+    prior, states = mixed_counter_state(pin)
+    plan = copy.deepcopy(prior)
+    plan["mixed_counter_recovery"] = pin
+    plan["lineage"].append(
+        {
+            "path": pin["plan"],
+            "sha256": pin["plan_sha256"],
+            "digest": target.digest(prior),
+        }
+    )
+    for r in plan["rows"]:
+        if r["method"] != "hipporag2":
+            continue
+        r.update(
+            states[r["dataset"]],
+            run_id=str(uuid.uuid4()),
+            code_commit=git("rev-parse", "HEAD"),
+            output=f"indexes/e1/{plan['batch_id']}/hipporag2/{r['dataset']}-mixed-counter1",
+        )
+        if (ROOT / r["output"]).exists() or r["token_limit"] <= 0:
+            raise ValueError("mixed_counter_output_or_budget_unavailable")
+    plan["combined_token_limit"] = sum(r["token_limit"] for r in plan["rows"])
+    if (root / "counter-recovery.claim.json").exists():
+        raise ValueError("mixed_counter_recovery_already_claimed")
+    return plan
+
+
+def mixed_embedding_state(pin):
+    pp, mp = Path(pin["plan"]), Path(pin["manifest"])
+    if (
+        dense.sha256_file(pp) != pin["plan_sha256"]
+        or dense.sha256_file(mp) != pin["manifest_sha256"]
+    ):
+        raise ValueError("mixed_embedding_recovery_pin_changed")
+    prior = dense.read_json(pp)
+    if "mixed_embedding_recovery" in prior or not prior.get("mixed_counter_recovery"):
+        raise ValueError("mixed_embedding_recovery_requires_counter_parent_once")
+    mu = next(
+        r
+        for r in prior["rows"]
+        if (r["method"], r["dataset"]) == ("hipporag2", "musique")
+    )
+    verify_mixed_plan(prior, mu)
+    if mp.resolve() != (ROOT / mu["output"] / "manifest.json").resolve():
+        raise ValueError("mixed_embedding_wrong_producer")
+    m = dense.read_json(mp)
+    ref = verified_reference(m, mp)
+    if (
+        m.get("status") != "failed"
+        or m.get("error_type") != "HTTPError"
+        or m["plan_sha256"] != target.digest(prior)
+        or ref["status"] != "verified"
+        or any(x["unfinished"] for x in ref["summary"]["phases"])
+        or (mp.parent / "running.lock").exists()
+    ):
+        raise ValueError("mixed_embedding_requires_stopped_socket_failure")
+    for name, sha in m["artifacts"].items():
+        if dense.sha256_file(mp.parent / name) != sha:
+            raise ValueError("mixed_embedding_artifact_changed")
+    rows = read_records(Path(ref["path"]))
+    physical = [r for r in rows if r["event"] == "finished" and not r.get("cache_hit")]
+    bad = [
+        r
+        for r in physical
+        if r["status"] != "success" or r["usage_status"] != "complete"
+    ]
+    if (
+        len(bad) != 1
+        or bad[0]["kind"] != "embedding"
+        or bad[0].get("error_code") != "HTTPError"
+        or bad[0]["operation"] != "index_embedding"
+        or bad[0]["provider"] != "local_ollama"
+    ):
+        raise ValueError("mixed_embedding_requires_one_local_failure")
+    failed = bad[0]
+    response = dense.read_json(
+        mp.parent / "requests" / f"{failed['object_id']}.response.json"
+    )
+    error = response.get("error", "")
+    if "/tokenize" not in error or not any(
+        x in error for x in ("buffer space", "queue was full")
+    ):
+        raise ValueError("mixed_embedding_socket_error_not_verified")
+    reserve = current_unknown_reservation(mp.parent)
+    if reserve <= 0 or reserve != pin["unknown_reserved_upper_bound"]:
+        raise ValueError("mixed_embedding_unknown_reserve_changed")
+    outcomes = dense.read_json(mp.parent / "openie-validation.json")
+    if len(outcomes) != 5500:
+        raise ValueError("mixed_embedding_requires_finished_extraction")
+    routes = dense.read_json(mp.parent / "mixed-routes.json")
+    root = Path(prior["mixed_claim_root"]) / "musique"
+    claims = {
+        f"{k}.claim.json": dense.sha256_file(root / f"{k}.claim.json")
+        for k, v in routes.items()
+        if v["fallback"]
+    }
+    if claims != pin["completed_claims"]:
+        raise ValueError("mixed_embedding_claims_changed")
+    for k, route in routes.items():
+        if route["fallback"]:
+            cp = dense.read_json(root / f"{k}.claim.json")
+            if cp != {
+                "status": "complete",
+                "primary_sha256": k,
+                "fallback_sha256": route["actual_request_sha256"],
+            }:
+                raise ValueError("mixed_embedding_unresolved_fallback")
+    states = {}
+    for r in prior["rows"]:
+        if r["method"] != "hipporag2":
+            continue
+        history, sources = (
+            copy.deepcopy(r["history_runs"]),
+            copy.deepcopy(r["resume_sources"]),
+        )
+        posts = 0
+        if r["dataset"] == "musique":
+            history.append(
+                {
+                    "output": r["output"],
+                    "run_id": m["run_id"],
+                    "manifest_sha256": dense.sha256_file(mp),
+                    "summary": ref["summary"],
+                    "unknown_reserved_upper_bound": reserve,
+                }
+            )
+            sources.append(
+                {"output": r["output"], "manifest_sha256": dense.sha256_file(mp)}
+            )
+            posts = len(physical)
+        elif (ROOT / r["output"]).exists():
+            raise ValueError("mixed_embedding_hotpot_already_started")
+        if len({h["run_id"] for h in history}) != len(history):
+            raise ValueError("mixed_embedding_duplicate_history")
+        charge = sum(
+            sum(h["summary"]["known_subtotal"].values())
+            + h["unknown_reserved_upper_bound"]
+            for h in history
+        )
+        states[r["dataset"]] = {
+            "history_runs": history,
+            "resume_sources": sources,
+            "prior_budget_charge": charge,
+            "token_limit": LIMITS["hipporag2"] - charge,
+            "max_new_posts": r["max_new_posts"] - posts,
+            "max_llm_posts": 0 if r["dataset"] == "musique" else r["max_llm_posts"],
+        }
+    return prior, states
+
+
+def prepare_mixed_embedding_recovery(prior_path):
+    prior = dense.read_json(prior_path)
+    mu = next(
+        r
+        for r in prior["rows"]
+        if (r["method"], r["dataset"]) == ("hipporag2", "musique")
+    )
+    mp = ROOT / mu["output"] / "manifest.json"
+    routes = dense.read_json(mp.parent / "mixed-routes.json")
+    root = Path(prior["mixed_claim_root"])
+    claims = {
+        f"{k}.claim.json": dense.sha256_file(root / "musique" / f"{k}.claim.json")
+        for k, v in routes.items()
+        if v["fallback"]
+    }
+    if set(claims) != {p.name for p in (root / "musique").glob("*.claim.json")}:
+        raise ValueError("mixed_embedding_unresolved_claims")
+    pin = {
+        "plan": str(prior_path.resolve()),
+        "plan_sha256": dense.sha256_file(prior_path),
+        "manifest": str(mp.resolve()),
+        "manifest_sha256": dense.sha256_file(mp),
+        "unknown_reserved_upper_bound": current_unknown_reservation(mp.parent),
+        "completed_claims": claims,
+    }
+    prior, states = mixed_embedding_state(pin)
+    plan = copy.deepcopy(prior)
+    plan["mixed_embedding_recovery"] = pin
+    plan["embedding_recovery_policy"] = MIXED_EMBEDDING_RECOVERY
+    plan["lineage"].append(
+        {
+            "path": pin["plan"],
+            "sha256": pin["plan_sha256"],
+            "digest": target.digest(prior),
+        }
+    )
+    for r in plan["rows"]:
+        if r["method"] == "hipporag2":
+            r.update(
+                states[r["dataset"]],
+                run_id=str(uuid.uuid4()),
+                code_commit=git("rev-parse", "HEAD"),
+                output=f"indexes/e1/{plan['batch_id']}/hipporag2/{r['dataset']}-mixed-embed1",
+            )
+            if (
+                (ROOT / r["output"]).exists()
+                or r["token_limit"] <= 0
+                or r["max_new_posts"] <= 0
+            ):
+                raise ValueError("mixed_embedding_output_or_budget_unavailable")
+    plan["combined_token_limit"] = sum(r["token_limit"] for r in plan["rows"])
+    if (root / "embedding-recovery.claim.json").exists():
+        raise ValueError("mixed_embedding_recovery_already_claimed")
+    return plan
+
+
+def hotpot_adoption_state(pin):
+    """Verify immutable producer evidence and derive bounds, never request a model."""
+    for name in (
+        "prior_plan",
+        "candidate",
+        "review",
+        "manifest",
+        "probe_manifest",
+        "musique_manifest",
+    ):
+        if dense.sha256_file(Path(pin[name])) != pin[f"{name}_sha256"]:
+            raise ValueError("hotpot_adoption_evidence_changed")
+    prior = dense.read_json(Path(pin["prior_plan"]))
+    old = next(
+        r
+        for r in prior["rows"]
+        if (r["method"], r["dataset"]) == ("hipporag2", "hotpotqa")
+    )
+    verify_mixed_approval(prior)
+    mu_row = next(
+        r
+        for r in prior["rows"]
+        if (r["method"], r["dataset"]) == ("hipporag2", "musique")
+    )
+    mu_path = Path(pin["musique_manifest"])
+    mu = dense.read_json(mu_path)
+    if (
+        mu_path.resolve() != (ROOT / mu_row["output"] / "manifest.json").resolve()
+        or mu["status"] != "completed"
+        or mu["plan_sha256"] != target.digest(prior)
+        or verified_reference(mu, mu_path)["status"] != "verified"
+        or mu["validation"]["source_audit"]["status"]
+        != "structurally_verified_with_observed_extraction_errors"
+    ):
+        raise ValueError("hotpot_adoption_requires_verified_completed_musique")
+    # The completed Mu index/audit is the gate. Historical failed Mu extraction
+    # is not replayed, nor used as a Hotpot cache producer.
+    for name, sha in mu["artifacts"].items():
+        if (
+            not name.startswith("requests/")
+            and dense.sha256_file(mu_path.parent / name) != sha
+        ):
+            raise ValueError("hotpot_adoption_musique_index_or_audit_changed")
+    mp, pp = Path(pin["manifest"]), Path(pin["probe_manifest"])
+    parent, probe = dense.read_json(mp), dense.read_json(pp)
+    candidate = dense.read_json(Path(pin["candidate"]))
+    review = dense.read_json(Path(pin["review"]))
+    if (
+        mp.resolve() != (ROOT / old["output"] / "manifest.json").resolve()
+        or parent["status"] != "failed"
+        or old["history_runs"]
+        or candidate["parent_plan_sha256"] != pin["prior_plan_sha256"]
+        or candidate["failed_manifest_sha256"] != pin["manifest_sha256"]
+        or probe["approved_plan_sha256"] != pin["candidate_sha256"]
+        or probe["status"] != "awaiting_source_review"
+        or probe["parent_manifest_sha256"] != pin["manifest_sha256"]
+        or review["producer_manifest_sha256"] != pin["probe_manifest_sha256"]
+        or review["approved_candidate_sha256"] != pin["candidate_sha256"]
+        or review["source_sha256"] != candidate["source_sha256"]
+        or review["status"] != "diagnostic_complete_with_observed_extraction_errors"
+        or review["semantic_verified"] is not False
+    ):
+        raise ValueError("hotpot_adoption_scope_or_review_changed")
+    payload_path = ROOT / candidate["payload_file"]
+    payload = dense.read_json(payload_path)
+    key = target.digest(
+        {"payload": payload, "kind": "llm", "operation": "openie_triples"}
+    )
+    qwen_schema, _ = schema_probe_payload(payload, compatible=True)
+    qwen_schema["model"] = prior["model"]
+    qwen_schema.pop("reasoning_effort", None)
+    qwen_schema["chat_template_kwargs"] = {"enable_thinking": False}
+    systems = [m for m in qwen_schema["messages"] if m["role"] == "system"]
+    suffix = "\n\n" + SOURCE_FAITHFULNESS_POLICY
+    if len(systems) != 1 or not systems[0]["content"].endswith(suffix):
+        raise ValueError("hotpot_adoption_original_prompt_changed")
+    systems[0]["content"] = systems[0]["content"][: -len(suffix)]
+    primary_key = target.digest(
+        {"payload": qwen_schema, "kind": "llm", "operation": "openie_triples"}
+    )
+    response = pp.parent / "requests" / f"{key}.response.json"
+    body = dense.read_json(response)
+    triples = validate_extractor_diagnostic(body)
+    if (
+        dense.sha256_file(payload_path) != candidate["payload_file_sha256"]
+        or key != candidate["request_sha256"]
+        or dense.sha256_file(response) != review["response_sha256"]
+        or [c["triple"] for c in review["cases"]] != triples
+        or review["raw_triples"] != len(triples)
+    ):
+        raise ValueError("hotpot_adoption_payload_or_review_triples_changed")
+    cache, failures, reference = verified_checkpoints(mp, allow_length=True)
+    for path, manifest in ((mp, parent), (pp, probe)):
+        if (
+            verified_reference(manifest, path)["status"] != "verified"
+            or current_unknown_reservation(path.parent) != 0
+        ):
+            raise ValueError("hotpot_adoption_unknown_or_corrupt")
+        for name, sha in manifest["artifacts"].items():
+            if dense.sha256_file(path.parent / name) != sha:
+                raise ValueError("hotpot_adoption_artifact_changed")
+    root = Path(prior["mixed_claim_root"]) / "hotpotqa"
+    for name, sha in pin["original_claims"].items():
+        if dense.sha256_file(root / name) != sha:
+            raise ValueError("hotpot_adoption_old_claim_changed")
+    old_claim = dense.read_json(root / f"{primary_key}.claim.json")
+    if old_claim != {
+        "status": "started",
+        "primary_sha256": primary_key,
+        "fallback_sha256": candidate["previous_request_sha256"],
+    }:
+        raise ValueError("hotpot_adoption_requires_preserved_failed_claim")
+    if primary_key not in {a[0]["object_id"] for a in failures}:
+        raise ValueError("hotpot_adoption_original_failure_missing")
+    history = []
+    physical = []
+    for path, manifest in ((mp, parent), (pp, probe)):
+        ref = verified_reference(manifest, path)
+        records = read_records(path.parent / "usage.jsonl")
+        finished = {r["attempt_id"]: r for r in records if r["event"] == "finished"}
+        physical.extend(
+            r
+            for r in records
+            if r["event"] == "started"
+            and not finished.get(r["attempt_id"], {}).get("cache_hit")
+        )
+        history.append(
+            {
+                "output": path.parent.relative_to(ROOT).as_posix(),
+                "run_id": manifest["run_id"],
+                "manifest_sha256": dense.sha256_file(path),
+                "summary": ref["summary"],
+                "unknown_reserved_upper_bound": 0,
+            }
+        )
+    if probe["token_accounting"]["summary"]["attempts"] != 1:
+        raise ValueError("hotpot_adoption_probe_attempt_count")
+    charge = sum(sum(h["summary"]["known_subtotal"].values()) for h in history)
+    states = {
+        "history_runs": history,
+        "resume_sources": [
+            {"output": old["output"], "manifest_sha256": pin["manifest_sha256"]}
+        ],
+        "prior_budget_charge": charge,
+        "token_limit": old["token_limit"] - charge,
+        "max_new_posts": old["max_new_posts"] - len(physical),
+        "max_llm_posts": old["max_llm_posts"]
+        - sum(r["kind"] == "llm" for r in physical),
+        "fallback_extra_consumed": 1,
+    }
+    return (
+        prior,
+        states,
+        payload,
+        primary_key,
+        {
+            "path": response,
+            "sha256": dense.sha256_file(response),
+            "run_id": probe["run_id"],
+            "operation": "openie_triples",
+            "kind": "llm",
+            "provider": "target_api",
+            "model": payload["model"],
+            "producer_complete": True,
+        },
+    )
+
+
+def prepare_hotpot_adoption(prior_path, candidate_path, review_path):
+    prior = dense.read_json(prior_path)
+    old = next(
+        r
+        for r in prior["rows"]
+        if (r["method"], r["dataset"]) == ("hipporag2", "hotpotqa")
+    )
+    parent = ROOT / old["output"]
+    probe = parent.parent / "hotpotqa-gpt-json-mode-probe1"
+    pin = {
+        "prior_plan": str(prior_path.resolve()),
+        "candidate": str(candidate_path.resolve()),
+        "review": str(review_path.resolve()),
+        "manifest": str(parent / "manifest.json"),
+        "probe_manifest": str(probe / "manifest.json"),
+        "musique_manifest": str(
+            ROOT
+            / next(
+                r
+                for r in prior["rows"]
+                if (r["method"], r["dataset"]) == ("hipporag2", "musique")
+            )["output"]
+            / "manifest.json"
+        ),
+    }
+    pin.update(
+        {f"{k}_sha256": dense.sha256_file(Path(v)) for k, v in list(pin.items())}
+    )
+    root = Path(prior["mixed_claim_root"])
+    pin["original_claims"] = {
+        p.name: dense.sha256_file(p) for p in (root / "hotpotqa").glob("*.claim.json")
+    }
+    prior, states, _, _, _ = hotpot_adoption_state(pin)
+    plan = copy.deepcopy(prior)
+    plan["hotpot_json_adoption"] = pin
+    plan["hotpot_adoption_approval_file"] = str(
+        (ROOT / ".cache/e1-hotpot-adoption-execution-approval.json").resolve()
+    )
+    plan["lineage"].append(
+        {
+            "path": str(prior_path.resolve()),
+            "sha256": dense.sha256_file(prior_path),
+            "digest": target.digest(prior),
+        }
+    )
+    row = next(
+        r
+        for r in plan["rows"]
+        if (r["method"], r["dataset"]) == ("hipporag2", "hotpotqa")
+    )
+    row.update(
+        states,
+        run_id=str(uuid.uuid4()),
+        code_commit=git("rev-parse", "HEAD"),
+        output=f"indexes/e1/{plan['batch_id']}/hipporag2/hotpotqa-mixed-adopt1",
+    )
+    if (ROOT / row["output"]).exists() or min(
+        row[k] for k in ("token_limit", "max_new_posts", "max_llm_posts")
+    ) <= 0:
+        raise ValueError("hotpot_adoption_output_or_budget_unavailable")
+    plan["combined_token_limit"] = sum(r["token_limit"] for r in plan["rows"])
+    if (root / "hotpot-adoption-plan.claim.json").exists():
+        raise ValueError("hotpot_adoption_plan_already_claimed")
+    return plan
+
+
+def hotpot_completion_state(pin):
+    """One continuation after the attempt-count stop, not a generation retry."""
+    for name in ("plan", "manifest", "stderr"):
+        if dense.sha256_file(Path(pin[name])) != pin[f"{name}_sha256"]:
+            raise ValueError("hotpot_completion_pin_changed")
+    prior = dense.read_json(Path(pin["plan"]))
+    old = next(
+        r
+        for r in prior["rows"]
+        if (r["method"], r["dataset"]) == ("hipporag2", "hotpotqa")
+    )
+    verify_hotpot_adoption(prior, old)
+    mp = Path(pin["manifest"])
+    m = dense.read_json(mp)
+    if (
+        prior.get("hotpot_fallback_completion")
+        or mp.resolve() != (ROOT / old["output"] / "manifest.json").resolve()
+        or m["status"] != "failed"
+        or m["error_type"] != "ValueError"
+        or m["plan_sha256"] != target.digest(prior)
+        or "mixed_fallback_limit" not in Path(pin["stderr"]).read_text(encoding="utf-8")
+        or pin["fallback_attempt_limit"] != (5500 + 99) // 100
+    ):
+        raise ValueError("hotpot_completion_requires_attempt_limit_stop")
+    _, _, adopted_payload, _, adopted_item = hotpot_adoption_state(
+        prior["hotpot_json_adoption"]
+    )
+    adopted_key = target.digest(
+        {"payload": adopted_payload, "kind": "llm", "operation": "openie_triples"}
+    )
+    cache = {adopted_key: adopted_item}
+    for source in old["resume_sources"]:
+        sp = ROOT / source["output"] / "manifest.json"
+        if dense.sha256_file(sp) != source["manifest_sha256"]:
+            raise ValueError("hotpot_completion_cache_parent_changed")
+        cache, _, _ = verified_checkpoints(sp, inherited=cache, allow_length=True)
+    cache, failures, ref = verified_checkpoints(mp, inherited=cache, allow_length=True)
+    diagnostic = failure_diagnostic(mp.parent)
+    if (
+        current_unknown_reservation(mp.parent) != 0
+        or not ref["summary"]["complete"]
+        or diagnostic.get("finish_reason") != "length"
+        or not diagnostic.get("repetition", {}).get("cycle")
+    ):
+        raise ValueError("hotpot_completion_unknown_or_wrong_failure")
+    records = read_records(mp.parent / "usage.jsonl")
+    physical = [
+        r for r in records if r["event"] == "finished" and not r.get("cache_hit")
+    ]
+    if any(
+        r["status"] != "success" or r["usage_status"] != "complete" for r in physical
+    ):
+        raise ValueError("hotpot_completion_physical_error")
+    root = Path(prior["mixed_claim_root"]) / "hotpotqa"
+    for name, sha in pin["original_claims"].items():
+        if dense.sha256_file(root / name) != sha:
+            raise ValueError("hotpot_completion_old_claim_changed")
+    spent = len(pin["original_claims"]) + old["fallback_extra_consumed"]
+    if (
+        spent != 20
+        or len(list(root.glob("*.claim.json")))
+        > pin["fallback_attempt_limit"] - old["fallback_extra_consumed"]
+    ):
+        raise ValueError("hotpot_completion_claim_count_changed")
+    if diagnostic["request_sha256"] not in {r[0]["object_id"] for r in failures}:
+        raise ValueError("hotpot_completion_failure_not_preserved")
+    history = copy.deepcopy(old["history_runs"])
+    history.append(
+        {
+            "output": old["output"],
+            "run_id": m["run_id"],
+            "manifest_sha256": pin["manifest_sha256"],
+            "summary": ref["summary"],
+            "unknown_reserved_upper_bound": 0,
+        }
+    )
+    if len({h["run_id"] for h in history}) != len(history):
+        raise ValueError("hotpot_completion_duplicate_history")
+    charge = sum(
+        sum(h["summary"]["known_subtotal"].values()) + h["unknown_reserved_upper_bound"]
+        for h in history
+    )
+    additional_slots = pin["fallback_attempt_limit"] - spent
+    states = {
+        "history_runs": history,
+        "resume_sources": old["resume_sources"]
+        + [{"output": old["output"], "manifest_sha256": pin["manifest_sha256"]}],
+        "prior_budget_charge": charge,
+        "token_limit": LIMITS["hipporag2"] - charge,
+        "max_new_posts": old["max_new_posts"] - len(physical),
+        "max_llm_posts": old["max_llm_posts"]
+        - sum(r["kind"] == "llm" for r in physical)
+        + additional_slots,
+        "fallback_attempt_limit": pin["fallback_attempt_limit"],
+    }
+    return prior, states
+
+
+def prepare_hotpot_completion(prior_path, stderr_path):
+    prior = dense.read_json(prior_path)
+    old = next(
+        r
+        for r in prior["rows"]
+        if (r["method"], r["dataset"]) == ("hipporag2", "hotpotqa")
+    )
+    mp = ROOT / old["output"] / "manifest.json"
+    root = Path(prior["mixed_claim_root"])
+    pin = {
+        "plan": str(prior_path.resolve()),
+        "plan_sha256": dense.sha256_file(prior_path),
+        "manifest": str(mp),
+        "manifest_sha256": dense.sha256_file(mp),
+        "stderr": str(stderr_path.resolve()),
+        "stderr_sha256": dense.sha256_file(stderr_path),
+        "fallback_attempt_limit": (old["passages"] + 99) // 100,
+        "original_claims": {
+            p.name: dense.sha256_file(p)
+            for p in (root / "hotpotqa").glob("*.claim.json")
+        },
+    }
+    prior, states = hotpot_completion_state(pin)
+    plan = copy.deepcopy(prior)
+    plan["hotpot_fallback_completion"] = pin
+    plan["hotpot_completion_approval_file"] = str(
+        (ROOT / ".cache/e1-hotpot-completion-execution-approval.json").resolve()
+    )
+    plan["lineage"].append(
+        {
+            "path": str(prior_path.resolve()),
+            "sha256": dense.sha256_file(prior_path),
+            "digest": target.digest(prior),
+        }
+    )
+    row = next(
+        r
+        for r in plan["rows"]
+        if (r["method"], r["dataset"]) == ("hipporag2", "hotpotqa")
+    )
+    row.update(
+        states,
+        run_id=str(uuid.uuid4()),
+        code_commit=git("rev-parse", "HEAD"),
+        output=f"indexes/e1/{plan['batch_id']}/hipporag2/hotpotqa-mixed-completion1",
+    )
+    plan["combined_token_limit"] = sum(r["token_limit"] for r in plan["rows"])
+    if min(row[k] for k in ("token_limit", "max_new_posts", "max_llm_posts")) <= 0:
+        raise ValueError("hotpot_completion_budget_unavailable")
+    if (ROOT / row["output"]).exists() or (
+        root / "hotpot-completion-plan.claim.json"
+    ).exists():
+        raise ValueError("hotpot_completion_already_prepared")
+    return plan
+
+
+def shared_snapshot_bytes(path):
+    """Take one bounded snapshot; release the shared handle before JSON parsing."""
+    if os.name != "nt":
+        with Path(path).open("rb") as stream:
+            return stream.read(os.fstat(stream.fileno()).st_size)
+    import ctypes
+    from ctypes import wintypes
+    import msvcrt
+
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    create = kernel.CreateFileW
+    create.argtypes = [
+        wintypes.LPCWSTR,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        wintypes.LPVOID,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        wintypes.HANDLE,
+    ]
+    create.restype = wintypes.HANDLE
+    handle = create(
+        str(Path(path).resolve()), 0x80000000, 1 | 2 | 4, None, 3, 0x80, None
+    )  # READ; share READ/WRITE/DELETE; OPEN_EXISTING
+    if handle == wintypes.HANDLE(-1).value:
+        raise ctypes.WinError(ctypes.get_last_error())
+    try:
+        fd = msvcrt.open_osfhandle(handle, os.O_RDONLY | os.O_BINARY)
+    except BaseException:
+        close = kernel.CloseHandle
+        close.argtypes = [wintypes.HANDLE]
+        close(handle)
+        raise
+    with os.fdopen(fd, "rb") as stream:
+        return stream.read(os.fstat(fd).st_size)
+
+
+def journal_snapshot(path):
+    data = shared_snapshot_bytes(path)
+    boundary = data.rfind(b"\n") + 1
+    # A live writer may have emitted only part of its final row. Complete rows
+    # must always decode; a terminal audit uses verified_reference, not this rule.
+    records = [
+        json.loads(line) for line in data[:boundary].splitlines() if line.strip()
+    ]
+    return records, len(data) - boundary
+
+
+def monitor_snapshot(plan, row):
+    from scripts.token_accounting import summarize
+
+    directory = ROOT / row["output"]
+    mp = directory / "manifest.json"
+    manifest = dense.read_json(mp) if mp.exists() else {"status": "preflight"}
+    journal = directory / "usage.jsonl"
+    records, deferred = journal_snapshot(journal) if journal.exists() else ([], 0)
+    terminal = manifest["status"] in ("failed", "completed", "indexed_pending_audit")
+    if terminal:
+        reference = verified_reference(manifest, mp)
+        if deferred or reference["status"] != "verified":
+            raise ValueError("terminal_monitor_journal_not_intact")
+    summary = summarize(records)
+    finished = [r for r in records if r["event"] == "finished"]
+    return {
+        "run_id": row["run_id"],
+        "status": manifest["status"],
+        "physical_attempts": summary["attempts"],
+        "physical_finished": sum(not r.get("cache_hit") for r in finished),
+        "cache_hits": sum(bool(r.get("cache_hit")) for r in finished),
+        "unfinished": sum(p["unfinished"] for p in summary["phases"]),
+        "errors": sum(p["errors"] for p in summary["phases"]),
+        "known_tokens": summary["known_subtotal"],
+        "usage_complete": summary["complete"],
+        "last_event_at": (
+            records[-1].get("finished_at") or records[-1].get("started_at")
+        )
+        if records
+        else None,
+        "deferred_tail_bytes": deferred,
+        "remaining_tokens": row["token_limit"]
+        - sum(summary["known_subtotal"].values()),
+        "remaining_posts": row["max_new_posts"] - summary["attempts"],
+        "error_type": manifest.get("error_type"),
+        "error_message": manifest.get("error_message"),
+        "validation": manifest.get("validation"),
+    }
+
+
+def require_stopped_processes(pids):
+    if not pids or any(type(pid) is not int or pid <= 0 for pid in pids):
+        raise ValueError("recovery_process_evidence_missing")
+    if os.name == "nt":
+        import ctypes
+        from ctypes import wintypes
+
+        kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+        kernel.OpenProcess.restype = wintypes.HANDLE
+        kernel.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+        kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+        for pid in pids:
+            handle = kernel.OpenProcess(0x00100000, False, pid)  # SYNCHRONIZE
+            if not handle:
+                if ctypes.get_last_error() != 87:  # no such PID, otherwise fail closed
+                    raise ctypes.WinError(ctypes.get_last_error())
+                continue
+            try:
+                if kernel.WaitForSingleObject(handle, 0) != 0:
+                    raise ValueError("recovery_worker_still_active")
+            finally:
+                kernel.CloseHandle(handle)
+    else:
+        for pid in pids:
+            try:
+                os.kill(pid, 0)
+            except ProcessLookupError:
+                continue
+            raise ValueError("recovery_worker_still_active")
+
+
+def zero_post_io_recovery_state(pin, prior):
+    """One final child after a journal-write failure, never a general retry."""
+    previous = prior.get("hotpot_local_socket_recovery", {})
+    authorization = dense.read_json(Path(pin["authorization"]))
+    if previous.get("recovery_number", 1) != 1 or not previous:
+        raise ValueError("recovery_limit_or_parent_changed")
+    for name in ("stderr", "launch", "recovery_history"):
+        if dense.sha256_file(Path(pin[name])) != pin[f"{name}_sha256"]:
+            raise ValueError("zero_post_io_evidence_changed")
+    launch = dense.read_json(Path(pin["launch"]))
+    registry = dense.read_json(Path(pin["recovery_history"]))
+    if (
+        authorization.get("recovery_number") != 2
+        or authorization.get("maximum_automatic_recoveries") != 2
+        or authorization.get("parent_plan_sha256") != pin["plan_sha256"]
+        or authorization.get("allow_hotpot_local_embedding_recovery") is not True
+        or authorization.get("new_remote_llm_posts") != 0
+        or authorization.get("stop_on_repeated_cause") is not True
+        or authorization.get("original_token_post_fallback_caps_unchanged") is not True
+        or registry["recoveries_total"] != 1
+        or len(registry["attempts"]) != 1
+        or registry["attempts"][0]["run_id"] != launch["run_id"]
+        or launch["pid"] not in authorization["process_ids"]
+        or launch["plan_sha256"] != pin["plan_sha256"]
+    ):
+        raise ValueError("zero_post_io_authorization_changed")
+    require_stopped_processes(authorization["process_ids"])
+    old = next(
+        r
+        for r in prior["rows"]
+        if (r["method"], r["dataset"]) == ("hipporag2", "hotpotqa")
+    )
+    verify_hotpot_local_recovery(prior, old)
+    mp = Path(pin["manifest"])
+    manifest = dense.read_json(mp)
+    if (
+        mp.resolve() != (ROOT / old["output"] / "manifest.json").resolve()
+        or manifest["status"] != "failed"
+        or manifest["run_id"] != launch["run_id"]
+        or manifest["plan_sha256"] != target.digest(prior)
+        or manifest["error_type"] != "ValueError"
+        or (mp.parent / "running.lock").exists()
+    ):
+        raise ValueError("zero_post_io_parent_not_terminal")
+    stderr = Path(pin["stderr"]).read_text(encoding="utf-8")
+    journal_path = str(mp.parent / "usage.jsonl")
+    if (
+        "Permission denied" not in stderr
+        or "unresolved_ner_stop" not in stderr
+        or journal_path not in stderr.replace(chr(92) * 2, chr(92))
+    ):
+        raise ValueError("zero_post_io_wrong_cause")
+    reference = verified_reference(manifest, mp)
+    if reference["status"] != "verified":
+        raise ValueError("zero_post_io_journal_not_intact")
+    for name, sha in manifest["artifacts"].items():
+        if dense.sha256_file(mp.parent / name) != sha:
+            raise ValueError("zero_post_io_artifact_changed")
+    records = read_records(mp.parent / "usage.jsonl")
+    finished = {r["attempt_id"]: r for r in records if r["event"] == "finished"}
+    if (
+        records.corrupt_tail
+        or not records
+        or any(
+            not r.get("cache_hit") or r["status"] != "cache_hit"
+            for r in finished.values()
+        )
+        or {r["attempt_id"] for r in records if r["event"] == "started"}
+        != set(finished)
+        or any(
+            r["attempt_id"] not in finished
+            or not finished[r["attempt_id"]].get("cache_hit")
+            or finished[r["attempt_id"]]["status"] != "cache_hit"
+            for r in records
+            if r["event"] == "started"
+        )
+        or reference["summary"]["attempts"] != 0
+        or any(reference["summary"]["known_subtotal"].values())
+        or current_unknown_reservation(mp.parent) != 0
+        or pin["unknown_reserved_upper_bound"] != 0
+        or any((mp.parent / "requests").glob("*.json"))
+    ):
+        raise ValueError("zero_post_io_requires_zero_physical_attempts")
+    history = copy.deepcopy(old["history_runs"])
+    history.append(
+        {
+            "output": old["output"],
+            "run_id": old["run_id"],
+            "manifest_sha256": pin["manifest_sha256"],
+            "summary": reference["summary"],
+            "unknown_reserved_upper_bound": 0,
+        }
+    )
+    if len({r["run_id"] for r in history}) != len(history):
+        raise ValueError("zero_post_io_duplicate_history")
+    charge = sum(
+        sum(r["summary"]["known_subtotal"].values()) + r["unknown_reserved_upper_bound"]
+        for r in history
+    )
+    if charge != old["prior_budget_charge"] or old["max_llm_posts"] != 0:
+        raise ValueError("zero_post_io_budget_changed")
+    return prior, {
+        "history_runs": history,
+        "resume_sources": old["resume_sources"]
+        + [{"output": old["output"], "manifest_sha256": pin["manifest_sha256"]}],
+        "prior_budget_charge": charge,
+        "token_limit": LIMITS["hipporag2"] - charge,
+        "max_new_posts": old["max_new_posts"],
+        "max_llm_posts": 0,
+        "embedding_post_pause_seconds": 4.0,
+        "local_socket_request_sha256": old["local_socket_request_sha256"],
+    }
+
+
+def local_recovery_claim_name(plan):
+    number = plan["hotpot_local_socket_recovery"].get("recovery_number", 1)
+    return (
+        "hotpot-local-recovery-plan.claim.json"
+        if number == 1
+        else "hotpot-local-recovery2-plan.claim.json"
+    )
+
+
+def hotpot_local_recovery_state(pin):
+    for name in ("plan", "manifest", "authorization"):
+        if dense.sha256_file(Path(pin[name])) != pin[f"{name}_sha256"]:
+            raise ValueError("hotpot_local_recovery_pin_changed")
+    prior = dense.read_json(Path(pin["plan"]))
+    if pin.get("recovery_number") == 2:
+        return zero_post_io_recovery_state(pin, prior)
+    if prior.get("hotpot_local_socket_recovery"):
+        raise ValueError("hotpot_local_socket_cause_cannot_repeat")
+    old = next(
+        r
+        for r in prior["rows"]
+        if (r["method"], r["dataset"]) == ("hipporag2", "hotpotqa")
+    )
+    verify_hotpot_completion(prior, old)
+    mp = Path(pin["manifest"])
+    m = dense.read_json(mp)
+    authorization = dense.read_json(Path(pin["authorization"]))
+    if (
+        mp.resolve() != (ROOT / old["output"] / "manifest.json").resolve()
+        or m["status"] != "failed"
+        or m["error_type"] != "HTTPError"
+        or m["plan_sha256"] != target.digest(prior)
+        or authorization["parent_plan_sha256"] != pin["plan_sha256"]
+        or authorization["maximum_automatic_recoveries"] != 2
+        or authorization["stop_on_repeated_cause"] is not True
+        or authorization.get("allow_hotpot_local_embedding_recovery") is not True
+        or authorization.get("new_remote_llm_posts") != 0
+        or authorization.get("recovery_number") != 1
+        or authorization.get("original_token_post_fallback_caps_unchanged") is not True
+    ):
+        raise ValueError("hotpot_local_recovery_scope_changed")
+    _, _, payload, _, item = hotpot_adoption_state(prior["hotpot_json_adoption"])
+    key = target.digest(
+        {"payload": payload, "kind": "llm", "operation": "openie_triples"}
+    )
+    cache = {key: item}
+    for source in old["resume_sources"]:
+        sp = ROOT / source["output"] / "manifest.json"
+        if dense.sha256_file(sp) != source["manifest_sha256"]:
+            raise ValueError("hotpot_local_recovery_cache_changed")
+        cache, _, _ = verified_checkpoints(sp, inherited=cache, allow_length=True)
+    cache, failures, ref = verified_checkpoints(mp, inherited=cache, allow_length=True)
+    records = read_records(mp.parent / "usage.jsonl")
+    physical = [
+        r for r in records if r["event"] == "finished" and not r.get("cache_hit")
+    ]
+    bad = [
+        r
+        for r in physical
+        if r["status"] != "success" or r["usage_status"] != "complete"
+    ]
+    if (
+        len(bad) != 1
+        or bad[0]["provider"] != "local_ollama"
+        or bad[0]["kind"] != "embedding"
+        or bad[0]["error_code"] != "HTTPError"
+        or any(p["unfinished"] for p in ref["summary"]["phases"])
+    ):
+        raise ValueError("hotpot_local_recovery_requires_one_local_failure")
+    failed = bad[0]["object_id"]
+    response = dense.read_json(mp.parent / "requests" / f"{failed}.response.json")
+    error = response.get("error", "")
+    if "/tokenize" not in error or "Only one usage of each socket address" not in error:
+        raise ValueError("hotpot_local_recovery_wrong_socket_error")
+    reserve = current_unknown_reservation(mp.parent)
+    if reserve != pin["unknown_reserved_upper_bound"] or not reserve:
+        raise ValueError("hotpot_local_recovery_unknown_reserve_changed")
+    checkpoints = mp.parent / "requests"
+    # Exact saved inputs bind partial vectors to strings; never guess parquet/set order.
+    for key, entry in cache.items():
+        if entry["run_id"] != m["run_id"] or entry["kind"] != "embedding":
+            continue
+        payload = dense.read_json(checkpoints / f"{key}.input.json")
+        if target.digest(
+            {"payload": payload, "kind": "embedding", "operation": "index_embedding"}
+        ) != key or len(dense.read_json(entry["path"])["embeddings"]) != len(
+            payload["input"]
+        ):
+            raise ValueError("hotpot_local_recovery_embedding_mapping_changed")
+    failed_payload = dense.read_json(checkpoints / f"{failed}.input.json")
+    if (
+        target.digest(
+            {
+                "payload": failed_payload,
+                "kind": "embedding",
+                "operation": "index_embedding",
+            }
+        )
+        != failed
+    ):
+        raise ValueError("hotpot_local_recovery_failed_input_changed")
+    validation = dense.read_json(mp.parent / "openie-validation.json")
+    if len(validation) != 5500 or any(
+        v.get("triples") not in ("valid_empty", "valid_nonempty")
+        for v in validation.values()
+    ):
+        raise ValueError("hotpot_local_recovery_extraction_incomplete")
+    claims = Path(prior["mixed_claim_root"]) / "hotpotqa"
+    if pin["original_claims"] != {
+        p.name: dense.sha256_file(p) for p in claims.glob("*.claim.json")
+    }:
+        raise ValueError("hotpot_local_recovery_claims_changed")
+    history = copy.deepcopy(old["history_runs"])
+    history.append(
+        {
+            "output": old["output"],
+            "run_id": m["run_id"],
+            "manifest_sha256": pin["manifest_sha256"],
+            "summary": ref["summary"],
+            "unknown_reserved_upper_bound": reserve,
+        }
+    )
+    if len({h["run_id"] for h in history}) != len(history):
+        raise ValueError("hotpot_local_recovery_duplicate_history")
+    charge = sum(
+        sum(h["summary"]["known_subtotal"].values()) + h["unknown_reserved_upper_bound"]
+        for h in history
+    )
+    return prior, {
+        "history_runs": history,
+        "resume_sources": old["resume_sources"]
+        + [{"output": old["output"], "manifest_sha256": pin["manifest_sha256"]}],
+        "prior_budget_charge": charge,
+        "token_limit": LIMITS["hipporag2"] - charge,
+        "max_new_posts": old["max_new_posts"] - len(physical),
+        "max_llm_posts": 0,
+        "embedding_post_pause_seconds": 4.0,
+        "local_socket_request_sha256": failed,
+    }
+
+
+def prepare_hotpot_local_recovery(prior_path, authorization_path):
+    prior = dense.read_json(prior_path)
+    old = next(
+        r
+        for r in prior["rows"]
+        if (r["method"], r["dataset"]) == ("hipporag2", "hotpotqa")
+    )
+    mp = ROOT / old["output"] / "manifest.json"
+    root = Path(prior["mixed_claim_root"])
+    pin = {
+        "plan": str(prior_path.resolve()),
+        "plan_sha256": dense.sha256_file(prior_path),
+        "manifest": str(mp),
+        "manifest_sha256": dense.sha256_file(mp),
+        "authorization": str(authorization_path.resolve()),
+        "authorization_sha256": dense.sha256_file(authorization_path),
+        "unknown_reserved_upper_bound": current_unknown_reservation(mp.parent),
+        "original_claims": {
+            p.name: dense.sha256_file(p)
+            for p in (root / "hotpotqa").glob("*.claim.json")
+        },
+    }
+    number = 2 if prior.get("hotpot_local_socket_recovery") else 1
+    if number == 2:
+        evidence = dense.read_json(authorization_path)
+        pin["recovery_number"] = 2
+        for name in ("stderr", "launch", "recovery_history"):
+            path = Path(evidence[name])
+            pin[name] = str(path.resolve())
+            pin[f"{name}_sha256"] = dense.sha256_file(path)
+    prior, states = hotpot_local_recovery_state(pin)
+    plan = copy.deepcopy(prior)
+    plan["hotpot_local_socket_recovery"] = pin
+    plan["lineage"].append(
+        {
+            "path": str(prior_path.resolve()),
+            "sha256": dense.sha256_file(prior_path),
+            "digest": target.digest(prior),
+        }
+    )
+    row = next(
+        r
+        for r in plan["rows"]
+        if (r["method"], r["dataset"]) == ("hipporag2", "hotpotqa")
+    )
+    row.update(
+        states,
+        run_id=str(uuid.uuid4()),
+        code_commit=git("rev-parse", "HEAD"),
+        output=f"indexes/e1/{plan['batch_id']}/hipporag2/hotpotqa-mixed-local{number}",
+    )
+    plan["combined_token_limit"] = sum(r["token_limit"] for r in plan["rows"])
+    if (
+        (ROOT / row["output"]).exists()
+        or (root / local_recovery_claim_name(plan)).exists()
+        or min(row[k] for k in ("token_limit", "max_new_posts")) <= 0
+    ):
+        raise ValueError("hotpot_local_recovery_already_used_or_no_budget")
+    return plan
+
+
+def verify_hotpot_local_recovery(plan, row):
+    prior, expected = hotpot_local_recovery_state(plan["hotpot_local_socket_recovery"])
+    original = next(
+        r
+        for r in prior["rows"]
+        if (r["method"], r["dataset"]) == ("hipporag2", "hotpotqa")
+    )
+    fields = {*expected, "run_id", "code_commit", "output"}
+    top = {"rows", "lineage", "combined_token_limit", "hotpot_local_socket_recovery"}
+    if (
+        any(row.get(k) != v for k, v in expected.items())
+        or {k: v for k, v in row.items() if k not in fields}
+        != {k: v for k, v in original.items() if k not in fields}
+        or [r for r in plan["rows"] if r is not row]
+        != [r for r in prior["rows"] if r != original]
+        or {k: v for k, v in plan.items() if k not in top}
+        != {k: v for k, v in prior.items() if k not in top}
+        or dense.read_json(
+            Path(plan["mixed_claim_root"]) / local_recovery_claim_name(plan)
+        )
+        != mixed_plan_claim(plan)
+    ):
+        raise ValueError("hotpot_local_recovery_bounds_changed")
+
+
+def verify_hotpot_completion(plan, row):
+    if plan.get("hotpot_local_socket_recovery"):
+        verify_hotpot_local_recovery(plan, row)
+        return
+    prior, expected = hotpot_completion_state(plan["hotpot_fallback_completion"])
+    original = next(
+        r
+        for r in prior["rows"]
+        if (r["method"], r["dataset"]) == ("hipporag2", "hotpotqa")
+    )
+    allowed = {*expected, "run_id", "code_commit", "output"}
+    top = {
+        "rows",
+        "lineage",
+        "combined_token_limit",
+        "hotpot_fallback_completion",
+        "hotpot_completion_approval_file",
+    }
+    if (
+        any(row.get(k) != v for k, v in expected.items())
+        or {k: v for k, v in row.items() if k not in allowed}
+        != {k: v for k, v in original.items() if k not in allowed}
+        or [r for r in plan["rows"] if r is not row]
+        != [r for r in prior["rows"] if r != original]
+        or {k: v for k, v in plan.items() if k not in top}
+        != {k: v for k, v in prior.items() if k not in top}
+        or plan["hotpot_completion_approval_file"]
+        != str((ROOT / ".cache/e1-hotpot-completion-execution-approval.json").resolve())
+        or dense.read_json(
+            Path(plan["mixed_claim_root"]) / "hotpot-completion-plan.claim.json"
+        )
+        != mixed_plan_claim(plan)
+    ):
+        raise ValueError("hotpot_completion_bounds_or_claim_changed")
+    receipt = dense.read_json(Path(plan["hotpot_completion_approval_file"]))
+    if (
+        receipt.get("approved_plan_digest") != target.digest(plan)
+        or receipt.get("accept_55_total_fallback_attempts_and_11055_total_llm_posts")
+        is not True
+        or receipt.get("authorize_hotpot_continuation_only") is not True
+    ):
+        raise ValueError("hotpot_completion_requires_scoped_approval")
+
+
+def verify_hotpot_adoption(plan, row):
+    if plan.get("hotpot_fallback_completion"):
+        verify_hotpot_completion(plan, row)
+        return
+    pin = plan["hotpot_json_adoption"]
+    prior, expected, _, _, _ = hotpot_adoption_state(pin)
+    original = next(
+        r
+        for r in prior["rows"]
+        if (r["method"], r["dataset"]) == ("hipporag2", "hotpotqa")
+    )
+    allowed = {*expected, "run_id", "code_commit", "output"}
+    if (
+        row["dataset"] != "hotpotqa"
+        or row["method"] != "hipporag2"
+        or any(row.get(k) != v for k, v in expected.items())
+        or {k: v for k, v in row.items() if k not in allowed}
+        != {k: v for k, v in original.items() if k not in allowed}
+        or [r for r in plan["rows"] if r is not row]
+        != [r for r in prior["rows"] if r != original]
+        or plan["mixed_claim_root"] != prior["mixed_claim_root"]
+        or plan["mixed_extractor"] != prior["mixed_extractor"]
+        or plan["embedding_recovery_policy"] != prior["embedding_recovery_policy"]
+        or {
+            k: v
+            for k, v in plan.items()
+            if k
+            not in {
+                "rows",
+                "lineage",
+                "combined_token_limit",
+                "hotpot_json_adoption",
+                "hotpot_adoption_approval_file",
+            }
+        }
+        != {
+            k: v
+            for k, v in prior.items()
+            if k not in {"rows", "lineage", "combined_token_limit"}
+        }
+        or plan["hotpot_adoption_approval_file"]
+        != str((ROOT / ".cache/e1-hotpot-adoption-execution-approval.json").resolve())
+    ):
+        raise ValueError("hotpot_adoption_bounds_or_unchanged_rows_changed")
+    root = Path(plan["mixed_claim_root"])
+    if dense.read_json(root / "hotpot-adoption-plan.claim.json") != mixed_plan_claim(
+        plan
+    ):
+        raise ValueError("hotpot_adoption_plan_claim_changed")
+    receipt = dense.read_json(Path(plan["hotpot_adoption_approval_file"]))
+    if (
+        receipt.get("approved_plan_digest") != target.digest(plan)
+        or receipt.get("accept_observed_errors_and_single_cached_json_exception")
+        is not True
+        or receipt.get("authorize_hotpot_continuation_only") is not True
+    ):
+        raise ValueError("hotpot_adoption_requires_scoped_protocol_and_spend_approval")
+
+
+def verify_mixed_plan(plan, row):
+    verify_mixed_approval(plan)
+    if plan.get("hotpot_json_adoption"):
+        verify_hotpot_adoption(plan, row)
+        return
+    parent = dense.read_json(Path(plan["parent_plan"]["path"]))
+    embedding_recovery = plan.get("mixed_embedding_recovery")
+    recovery = embedding_recovery or plan.get("mixed_counter_recovery")
+    if recovery:
+        if (
+            embedding_recovery
+            and plan.get("embedding_recovery_policy") != MIXED_EMBEDDING_RECOVERY
+        ):
+            raise ValueError("mixed_embedding_policy_changed")
+        original, states = (
+            mixed_embedding_state(recovery)
+            if embedding_recovery
+            else mixed_counter_state(recovery)
+        )
+        expected = states[row["dataset"]]
+        history, sources = expected["history_runs"], expected["resume_sources"]
+        parent = dense.read_json(Path(original["parent_plan"]["path"]))
+        if (
+            plan["parent_plan"] != original["parent_plan"]
+            or plan["mixed_claim_root"] != original["mixed_claim_root"]
+            or plan["mixed_adoption"] != original["mixed_adoption"]
+            or any(row[k] != v for k, v in expected.items())
+        ):
+            raise ValueError("mixed_counter_recovery_bounds_changed")
+    else:
+        history, sources = mixed_history(parent, row["dataset"])
+    mu = next(
+        r
+        for r in parent["rows"]
+        if (r["method"], r["dataset"]) == ("hipporag2", "musique")
+    )
+    root = (ROOT / mu["output"] / "mixed-continuation-claims").resolve()
+    if Path(plan["mixed_claim_root"]).resolve() != root or dense.read_json(
+        root
+        / (
+            "embedding-recovery.claim.json"
+            if embedding_recovery
+            else "counter-recovery.claim.json"
+            if recovery
+            else "plan.claim.json"
+        )
+    ) != mixed_plan_claim(plan):
+        raise ValueError("mixed_canonical_plan_claim_changed")
+    charge = sum(
+        sum(h["summary"]["known_subtotal"].values()) + h["unknown_reserved_upper_bound"]
+        for h in history
+    )
+    if (
+        row["history_runs"] != history
+        or row["resume_sources"] != sources
+        or row["prior_budget_charge"] != charge
+        or (
+            not recovery
+            and row["max_llm_posts"] != MIXED_EXTRACTOR["max_llm_posts"][row["dataset"]]
+        )
+        or (not recovery and row["max_new_posts"] != 40000)
+    ):
+        raise ValueError("mixed_history_or_request_bounds_changed")
+    verify_mixed_adoption(plan)
+    if row["dataset"] == "hotpotqa":
+        first = next(
+            r
+            for r in plan["rows"]
+            if (r["method"], r["dataset"]) == ("hipporag2", "musique")
+        )
+        first_path = ROOT / first["output"] / "manifest.json"
+        result = dense.read_json(first_path)
+        if result["status"] != "completed":
+            raise ValueError("mixed_hotpot_requires_completed_musique_audit")
+        if (
+            result["plan_sha256"] != target.digest(plan)
+            or verified_reference(result, first_path)["status"] != "verified"
+            or result["validation"]["source_audit"]["status"]
+            != "structurally_verified_with_observed_extraction_errors"
+        ):
+            raise ValueError("mixed_hotpot_musique_audit_not_verified")
+        for name, sha in result["artifacts"].items():
+            if dense.sha256_file(first_path.parent / name) != sha:
+                raise ValueError("mixed_hotpot_musique_artifact_changed")
+
+
+def prepare_mixed_audit(plan, row):
+    directory = ROOT / row["output"]
+    mp = directory / "manifest.json"
+    manifest = dense.read_json(mp)
+    reference = verified_reference(manifest, mp)
+    if (
+        manifest.get("plan_sha256") != target.digest(plan)
+        or not reference["summary"]["complete"]
+        or any(p["errors"] or p["unfinished"] for p in reference["summary"]["phases"])
+        or manifest["status"] != "indexed_pending_audit"
+        or verified_reference(manifest, mp)["status"] != "verified"
+    ):
+        raise ValueError("mixed_audit_requires_finished_index")
+    for name, sha in manifest["artifacts"].items():
+        if dense.sha256_file(directory / name) != sha:
+            raise ValueError("mixed_audit_index_changed")
+    corpus = dense.read_json(
+        Path(plan["data_root"]) / f"data/processed/{row['dataset']}/corpus.json"
+    )
+    if dense.corpus_fingerprint(corpus) != row["corpus_fingerprint"]:
+        raise ValueError("mixed_audit_corpus_changed")
+    source_map = dense.read_json(directory / "source-map.json")
+    outcomes = dense.read_json(directory / "openie-validation.json")
+    routes = dense.read_json(directory / "mixed-routes.json")
+    lookup = {r["actual_request_sha256"]: r for r in routes.values()}
+    if set(source_map) != {p["id"] for p in corpus} or set(source_map.values()) != set(
+        outcomes
+    ):
+        raise ValueError("mixed_audit_source_coverage_changed")
+    producers = {
+        pid: outcomes[chunk]["extractor_model"] for pid, chunk in source_map.items()
+    }
+    warnings = [pid for pid, chunk in source_map.items() if outcomes[chunk]["warning"]]
+    calibration = plan["audit_calibration_ids"] if row["dataset"] == "musique" else []
+    selection = mixed_audit_selection(row["dataset"], producers, warnings, calibration)
+    by_id = {p["id"]: p for p in corpus}
+    cases = []
+    for pid in selection["selected_ids"]:
+        state = outcomes[source_map[pid]]
+        route = lookup[state["triples_request_sha256"]]
+        path = Path(route["response_path"])
+        if (
+            dense.sha256_file(path) != route["response_sha256"]
+            or route["model"] != state["extractor_model"]
+        ):
+            raise ValueError("mixed_audit_response_changed")
+        body = dense.read_json(path)
+        triples = json.loads(body["choices"][0]["message"]["content"])["triples"]
+        doc = by_id[pid]
+        cases.append(
+            {
+                "id": pid,
+                "source_text": f"{doc['title']}\n{doc['text']}",
+                "model": route["model"],
+                "request_sha256": route["actual_request_sha256"],
+                "response_path": str(path),
+                "response_sha256": route["response_sha256"],
+                "triples": triples,
+                "structural_warning": state["warning"],
+            }
+        )
+    snapshot = directory / "index-build-manifest.json"
+    if snapshot.exists():
+        if snapshot.read_bytes() != mp.read_bytes():
+            raise ValueError("mixed_audit_snapshot_changed")
+    else:
+        with snapshot.open("xb") as stream:
+            stream.write(mp.read_bytes())
+    return {
+        **selection,
+        "index_manifest_sha256": dense.sha256_file(snapshot),
+        "journal_sha256": manifest["token_accounting"]["journal_sha256"],
+        "calibration_review_sha256": plan["mixed_adoption"]["source_review_sha256"],
+        "cases": cases,
+        "review_status": "requires_manual_source_review",
+        "new_model_calls": 0,
+    }
+
+
+def finalize_mixed_audit(plan, row, review_path):
+    directory = ROOT / row["output"]
+    with exclusive(directory):
+        mp = directory / "manifest.json"
+        manifest = dense.read_json(mp)
+        audit_path = directory / "source-audit.json"
+        audit = dense.read_json(audit_path)
+        rebuilt = prepare_mixed_audit(plan, row)
+        review = dense.read_json(review_path)
+        if audit != rebuilt or review.get("audit_sha256") != dense.sha256_file(
+            audit_path
+        ):
+            raise ValueError("mixed_audit_or_review_binding_changed")
+        if not review.get("reviewer"):
+            raise ValueError("mixed_audit_reviewer_required")
+        rows = {r["id"]: r for r in review["reviews"]}
+        if len(rows) != len(review["reviews"]) or set(rows) != set(
+            audit["selected_ids"]
+        ):
+            raise ValueError("mixed_audit_all_selected_sources_required")
+        for case in audit["cases"]:
+            r = rows[case["id"]]
+            if (
+                r.get("status") not in ("supported", "observed_error", "needs_review")
+                or r.get("all_triples_reviewed") is not True
+                or not r.get("comment")
+                or not r.get("source_evidence")
+                or r["source_evidence"] not in case["source_text"]
+            ):
+                raise ValueError("mixed_audit_manual_evidence_missing")
+            categories = r.get("categories", [])
+            allowed = {
+                "unsupported_relation",
+                "attachment",
+                "attribution",
+                "negation",
+                "uncertainty",
+                "dates_counts",
+                "omission",
+            }
+            if (
+                not isinstance(categories, list)
+                or any(not isinstance(c, str) or c not in allowed for c in categories)
+                or (r["status"] == "observed_error" and not categories)
+            ):
+                raise ValueError("mixed_audit_error_categories_required")
+            if (
+                case["structural_warning"]
+                and r.get("structural_warning_resolved") is not True
+            ):
+                raise ValueError("mixed_audit_unresolved_structural_warning")
+        copied = directory / "source-audit-review.json"
+        if copied.resolve() != review_path.resolve():
+            with copied.open("xb") as stream:
+                stream.write(review_path.read_bytes())
+        manifest["status"] = "completed"
+        manifest["validation"]["source_audit"] = {
+            "audit_sha256": dense.sha256_file(audit_path),
+            "review_sha256": dense.sha256_file(copied),
+            "selected_sources": len(rows),
+            "declared_reviewer": review["reviewer"],
+            "warning_sources": len(audit["warning_ids"]),
+            "strata_sizes": {m: len(ids) for m, ids in audit["strata"].items()},
+            "eligible_by_model": audit["eligible_by_model"],
+            "observed_error_categories": {
+                c: sum(c in r.get("categories", []) for r in rows.values())
+                for c in sorted(
+                    {c for r in rows.values() for c in r.get("categories", [])}
+                )
+            },
+            "observed_error_sources": sum(
+                r["status"] == "observed_error" for r in rows.values()
+            ),
+            "needs_review_sources": sum(
+                r["status"] == "needs_review" for r in rows.values()
+            ),
+            "calibration_review_sha256": audit["calibration_review_sha256"],
+            "status": "structurally_verified_with_observed_extraction_errors",
+            "semantic_verified": False,
+        }
+        manifest["artifacts"] = {
+            p.relative_to(directory).as_posix(): dense.sha256_file(p)
+            for p in directory.rglob("*")
+            if p.is_file() and p.name not in ("manifest.json", "running.lock")
+        }
+        dense.write_json_atomic(mp, manifest)
+    return manifest
+
+
+class Transport:
+    def __init__(self, plan, row, config, directory, journal, session=None):
+        self.plan, self.row, self.config = plan, row, config
+        self.directory, self.journal = directory, journal
+        self.session = session or requests.Session()
+        if any(adapter.max_retries.total for adapter in self.session.adapters.values()):
+            raise ValueError("transport_retry_must_be_zero")
+        self.calls = directory / "requests"
+        self.calls.mkdir(exist_ok=True)
+        self.logical_calls = 0
+        self.last_embedding_started = 0.0
+        self.last_embedding_finished = 0.0
+        self.last_cache_hit = False
+        self.parent_cache = {}
+        self.mixed_failures = {}
+        self.blocked_failures = set()
+        self.mixed_routes_path = directory / "mixed-routes.json"
+        self.mixed_routes = (
+            dense.read_json(self.mixed_routes_path)
+            if self.mixed_routes_path.exists()
+            else {}
+        )
+        if plan.get("mixed_counter_recovery") and row["dataset"] == "musique":
+            pin = plan.get("mixed_embedding_recovery") or plan["mixed_counter_recovery"]
+            mp = Path(pin["manifest"])
+            if dense.sha256_file(mp) != pin["manifest_sha256"]:
+                raise ValueError("mixed_counter_recovery_pin_changed")
+            routes_path = mp.parent / "mixed-routes.json"
+            if (
+                dense.sha256_file(routes_path)
+                != dense.read_json(mp)["artifacts"]["mixed-routes.json"]
+            ):
+                raise ValueError("mixed_counter_routes_changed")
+            self.mixed_routes = {**dense.read_json(routes_path), **self.mixed_routes}
+        self.json_adoption = None
+        if plan.get("hotpot_json_adoption") and row["dataset"] == "hotpotqa":
+            pin = plan["hotpot_json_adoption"]
+            _, _, payload, primary, item = hotpot_adoption_state(pin)
+            key = target.digest(
+                {"payload": payload, "kind": "llm", "operation": "openie_triples"}
+            )
+            self.parent_cache[key] = item
+            self.json_adoption = (primary, payload, key)
+            route_pin = (
+                plan.get("hotpot_local_socket_recovery")
+                or plan.get("hotpot_fallback_completion")
+                or pin
+            )
+            if route_pin.get("recovery_number") == 2:
+                route_pin = dense.read_json(Path(route_pin["plan"]))[
+                    "hotpot_local_socket_recovery"
+                ]
+            routes = dense.read_json(
+                Path(route_pin["manifest"]).parent / "mixed-routes.json"
+            )
+            self.mixed_routes = {**routes, **self.mixed_routes}
+        self.replayed_count = 0
+        self.require_cache = False
+        self.require_repair_key = False
+        self.repairs_path = directory / "cycle-repairs.json"
+        self.repairs = (
+            dense.read_json(self.repairs_path) if self.repairs_path.exists() else {}
+        )
+        sources = row.get(
+            "resume_sources", [row["resume_from"]] if row.get("resume_from") else []
+        )
+        leaf_producer = (
+            verified_raptor_leaf_scope(plan, row)
+            if sources and row["method"] == "raptor"
+            else None
+        )
+        if row.get("resume_kind") in ("native_schema", "mixed_native"):
+            self.schema_adoption_verified = (
+                ({"cases": []}, {})
+                if plan.get("hotpot_json_adoption") and row["dataset"] == "hotpotqa"
+                else verify_schema_recovery(plan, row)
+            )
+            if row.get("resume_kind") == "mixed_native" and row["dataset"] == "musique":
+                self.parent_cache.update(self.schema_adoption_verified[1])
+                self.parent_cache.update(verify_mixed_adoption(plan))
+        if row.get("summary_adoption"):
+            from scripts import e1_summary_recovery as recovery
+
+            if plan.get("summary_fallback_policy") != recovery.POLICY:
+                raise ValueError("summary_fallback_policy_mismatch")
+            entry = row["summary_adoption"]
+            adoption = ROOT / entry["path"]
+            if dense.sha256_file(adoption) != entry["sha256"]:
+                raise ValueError("fallback_adoption_changed")
+            self.summary_adoption_verified = recovery.verify_adoption(
+                plan, row, adoption
+            )
+            if (
+                entry["original_request_sha256"]
+                != self.summary_adoption_verified[0]["original_request_sha256"]
+                or row.get("max_new_posts")
+                != recovery.POLICY["max_new_posts"]
+                - row.get("network_prior_attempts", 0)
+                or row.get("resume_kind") != "summary_native"
+            ):
+                raise ValueError("fallback_association_or_attempt_limit_changed")
+        for source in sources:
+            parent = ROOT / source["output"] / "manifest.json"
+            if dense.sha256_file(parent) != source["manifest_sha256"]:
+                raise ValueError("resume_manifest_changed")
+            self.parent_cache, source_failures, source_reference = verified_checkpoints(
+                parent,
+                inherited=self.parent_cache,
+                allow_length=row.get("resume_kind")
+                in ("cycle", "native_schema", "mixed_native"),
+                allow_summary_length=row.get("resume_kind") == "summary_native",
+                leaf_producer=leaf_producer,
+            )
+
+            if row.get("resume_kind") == "mixed_native":
+                for started, terminal, _ in source_failures:
+                    key = started["object_id"]
+                    self.blocked_failures.add(key)
+                    response = parent.parent / "requests" / f"{key}.response.json"
+                    if (
+                        started["operation"] == "openie_triples"
+                        and terminal["usage_status"] == "complete"
+                        and response.exists()
+                    ):
+                        body = dense.read_json(response)
+                        choice = body.get("choices", [{}])[0]
+                        if (
+                            choice.get("finish_reason") == "length"
+                            and triple_cycle(
+                                choice.get("message", {}).get("content") or ""
+                            )["cycle"]
+                        ):
+                            self.mixed_failures[key] = {
+                                "response_path": str(response),
+                                "response_sha256": dense.sha256_file(response),
+                            }
+
+        if row.get("resume_kind") in ("native_schema", "mixed_native"):
+            record, adopted_cache = self.schema_adoption_verified
+            if row["dataset"] == "musique":
+                if (
+                    set(adopted_cache) & set(self.parent_cache)
+                    and row.get("resume_kind") != "mixed_native"
+                ):
+                    raise ValueError("duplicate_schema_physical_source")
+                if row.get("resume_kind") == "mixed_native" and any(
+                    self.parent_cache[k]["sha256"] != v["sha256"]
+                    or self.parent_cache[k]["run_id"] != v["run_id"]
+                    for k, v in adopted_cache.items()
+                ):
+                    raise ValueError("mixed_schema_producer_changed")
+                self.parent_cache.update(adopted_cache)
+            self.schema_aliases = {
+                c["original_request_sha256"]: c["schema_request_sha256"]
+                for c in record["cases"]
+            }
+
+        if row.get("resume_kind") == "mixed_native":
+            verify_mixed_approval(plan)
+            if row["dataset"] == "musique":
+                self.parent_cache.update(verify_mixed_adoption(plan))
+
+        if (
+            plan.get("raptor_summary_network_resume")
+            and row.get("resume_kind") == "summary_native"
+        ):
+            if plan.get("network_policy") != recovery.TLS_POLICY or (
+                row["method"],
+                row["dataset"],
+            ) != ("raptor", "hotpotqa"):
+                raise ValueError("summary_network_policy_changed")
+            if type(row.get("network_prior_attempts")) is not int or not row.get(
+                "network_first_request_key"
+            ):
+                raise ValueError("summary_network_failure_binding_missing")
+            recovery.validate_network_failure(row, source_failures, source_reference)
+            audit = plan["network_audit"]
+            if dense.sha256_file(Path(audit["path"])) != audit["sha256"]:
+                raise ValueError("summary_network_audit_changed")
+        if row.get("summary_adoption"):
+            config = plan["native_tokenizer"]
+            self.native_bge = recovery.NativeBGE(
+                config["gguf_path"], config["library_dir"]
+            )
+            record, item = self.summary_adoption_verified
+            text = dense.read_json(item["path"])["choices"][0]["message"]["content"]
+            if self.native_bge.count(text) != record["native_tokens_with_special"]:
+                self.native_bge.close()
+                raise ValueError("fallback_native_count_changed")
+
+    def close(self):
+        if hasattr(self, "native_bge"):
+            self.native_bge.close()
+        self.session.close()
+
+    def call(self, payload, *, kind, operation):
+        if getattr(self, "schema_failed", False):
+            raise ValueError("schema_failure_cannot_continue")
+        key = target.digest({"payload": payload, "kind": kind, "operation": operation})
+        checkpoint = self.calls / f"{key}.json"
+        response = self.calls / f"{key}.response.json"
+        if (
+            self.require_cache
+            and key not in self.parent_cache
+            and not checkpoint.exists()
+        ):
+            raise ValueError("probe_requires_verified_cached_NER")
+        summary = self.journal.summary()
+        if not summary["complete"] or any(p["errors"] for p in summary["phases"]):
+            raise ValueError("incomplete_or_failed_journal_cannot_continue")
+        if key in self.parent_cache and not checkpoint.exists():
+            item = self.parent_cache[key]
+            if item["operation"] != operation or item["kind"] != kind:
+                raise ValueError("parent_checkpoint_kind_mismatch")
+            if dense.sha256_file(item["path"]) != item["sha256"]:
+                raise ValueError("parent_response_changed")
+            self.journal.cache_hit(
+                phase="index",
+                operation=operation,
+                provider=item["provider"],
+                model=item["model"],
+                kind=kind,
+                object_id=key,
+                producer_run_id=item["run_id"],
+                producer_usage_complete=item["producer_complete"],
+            )
+            self.last_cache_hit = True
+            self.replayed_count += 1
+            if self.replayed_count % 250 == 0:
+                print(
+                    f"Verified response replay: {self.replayed_count}/{len(self.parent_cache)}",
+                    flush=True,
+                )
+            return dense.read_json(item["path"])
+        if checkpoint.exists():
+            saved = dense.read_json(checkpoint)
+            records = read_records(self.journal.path)
+            physical = {
+                r["attempt_id"]
+                for r in records
+                if r["event"] == "finished" and not r.get("cache_hit")
+            }
+            starts = {
+                r["attempt_id"]
+                for r in records
+                if r["event"] == "started"
+                and r["object_id"] == key
+                and r["attempt_id"] in physical
+            }
+            finishes = [
+                r
+                for r in records
+                if r["event"] == "finished" and r["attempt_id"] in starts
+            ]
+            if (
+                saved["status"] != "complete"
+                or saved["request_sha256"] != key
+                or saved["response_sha256"] != dense.sha256_file(response)
+                or len(starts) != 1
+                or len(finishes) != 1
+            ):
+                raise ValueError("unresolved_or_changed_checkpoint")
+            self.journal.cache_hit(
+                phase="index",
+                operation=operation,
+                provider="target_api" if kind == "llm" else "local_ollama",
+                model=payload["model"]
+                if kind == "llm"
+                else self.plan["embedding_model"],
+                kind=kind,
+                object_id=key,
+                producer_run_id=self.row.get("run_id", self.journal.run_id),
+                producer_usage_complete=summary["complete"]
+                and summary["historical_cache_cost_complete"],
+            )
+            self.last_cache_hit = True
+            return dense.read_json(response)
+        if (
+            self.row.get("network_first_request_key")
+            and self.journal.summary()["attempts"] == 0
+            and key != self.row["network_first_request_key"]
+        ):
+            raise ValueError("summary_network_first_uncached_request_changed")
+        if self.row.get("resume_kind") == "mixed_native":
+            if key in self.blocked_failures and not (
+                kind == "embedding"
+                and self.plan.get("hotpot_local_socket_recovery")
+                and key == self.row.get("local_socket_request_sha256")
+            ):
+                raise ValueError("mixed_prior_failed_request_cannot_repeat")
+            if kind == "llm":
+                records = read_records(self.journal.path)
+                cached = {
+                    r["attempt_id"]
+                    for r in records
+                    if r["event"] == "finished" and r.get("cache_hit")
+                }
+                attempts = sum(
+                    r["event"] == "started"
+                    and r["kind"] == "llm"
+                    and r["attempt_id"] not in cached
+                    for r in records
+                )
+                if attempts >= self.row["max_llm_posts"]:
+                    raise ValueError("mixed_llm_request_limit")
+        # UTF-8 byte upper bound plus framing and output reservation, before HTTP.
+        input_bound = len(json.dumps(payload, ensure_ascii=False).encode()) + 2048
+        if (
+            kind == "llm"
+            and input_bound + payload["max_tokens"] > PARAMETERS["target_context"]
+        ):
+            raise ValueError("context_reservation_exceeded")
+        if self.journal.summary()["attempts"] >= self.row.get("max_new_posts", 40000):
+            raise ValueError("request_limit_exceeded")
+        saved = {"request_sha256": key, "status": "started", "operation": operation}
+        saved["reserved_tokens"] = input_bound + payload.get("max_tokens", 0)
+        dense.write_json_atomic(checkpoint, saved)
+        remote = kind == "llm"
+        self.last_cache_hit = False
+        socket_policy = self.plan.get("embedding_recovery_policy")
+        if socket_policy and socket_policy != MIXED_EMBEDDING_RECOVERY:
+            raise ValueError("mixed_embedding_policy_changed")
+        if not remote and socket_policy:
+            dense.write_json_atomic(self.calls / f"{key}.input.json", payload)
+            pause = max(
+                2.0,
+                self.row.get("embedding_post_pause_seconds", 2.0),
+                len(payload["input"]) * 0.25,
+            )
+            delay = pause - (time.monotonic() - self.last_embedding_finished)
+            if delay > 0:
+                time.sleep(delay)
+        elif not remote:
+            delay = len(payload["input"]) * PARAMETERS[
+                "embedding_pacing_seconds_per_text"
+            ] - (time.monotonic() - self.last_embedding_started)
+            if delay > 0:
+                time.sleep(delay)
+            self.last_embedding_started = time.monotonic()
+        body = target.checked_post(
+            self.session,
+            self.plan["endpoint"] + "/chat/completions"
+            if remote
+            else "http://localhost:11434/api/embed",
+            payload,
+            self.journal,
+            phase="index",
+            operation=operation,
+            provider="target_api" if remote else "local_ollama",
+            model=payload["model"] if remote else self.plan["embedding_model"],
+            kind=kind,
+            object_id=key,
+            headers={
+                "Authorization": f"Bearer {self.config['LITELLM_API_KEY']}",
+                "Connection": "close",
+            }
+            if remote
+            else None,
+            response_path=response,
+            token_limit=self.row["token_limit"],
+            timeout=tuple(self.plan["network_policy"]["timeout_seconds"])
+            if remote and self.plan.get("raptor_summary_network_resume")
+            else (30, 300)
+            if remote
+            and self.row.get("resume_kind") in ("native_schema", "mixed_native")
+            else (5, 300),
+        )
+        if not remote:
+            self.last_embedding_finished = time.monotonic()
+        # Invalid content is not a usable checkpoint, even with known usage.
+        if remote:
+            choice = body["choices"][0]
+            if (
+                choice["finish_reason"] != "stop"
+                or not choice["message"]["content"].strip()
+            ):
+                raise ValueError("generation_not_complete")
+        else:
+            vectors = dense.normalize_rows(body["embeddings"])
+            if vectors.shape != (len(payload["input"]), 1024):
+                raise ValueError("embedding_shape_mismatch")
+        saved.update(status="complete", response_sha256=dense.sha256_file(response))
+        dense.write_json_atomic(checkpoint, saved)
+        self.logical_calls += 1
+        if self.logical_calls % 20 == 0:
+            print(
+                f"{self.row['method']}/{self.row['dataset']}: {self.journal.summary()['attempts']} POST",
+                flush=True,
+            )
+        return body
+
+    def embed(self, texts):
+        if self.plan.get("embedding_recovery_policy"):
+            return self.embed_socket_recovery(texts)
+        options = self.row.get("embedding_options")
+        if options is not None and (
+            self.row["method"] != "raptor" or options != RAPTOR_EMBEDDING_OPTIONS
+        ):
+            raise ValueError("unsupported_RAPTOR_embedding_options")
+        vectors = []
+        for offset in range(0, len(texts), 32):
+            payload = {
+                "model": self.plan["embedding_model"],
+                "input": texts[offset : offset + 32],
+                "truncate": False,
+            }
+            old_key = target.digest(
+                {
+                    "payload": payload,
+                    "kind": "embedding",
+                    "operation": "index_embedding",
+                }
+            )
+            # Reuse only an exact, verified old physical response. New options
+            # affect uncached calls, never relabel or repay old embeddings.
+            if options is not None and old_key not in self.parent_cache:
+                payload["options"] = dict(options)
+            if self.row.get("resume_kind") == "summary_native":
+                from scripts.e1_summary_recovery import check_embedding_fit
+
+                check_embedding_fit(self, payload)
+            body = self.call(
+                payload,
+                kind="embedding",
+                operation="index_embedding",
+            )
+            vectors.extend(body["embeddings"])
+        return dense.normalize_rows(vectors)
+
+    def embed_socket_recovery(self, texts):
+        if self.plan["embedding_recovery_policy"] != MIXED_EMBEDDING_RECOVERY:
+            raise ValueError("mixed_embedding_policy_changed")
+        legacy = [
+            {
+                "model": self.plan["embedding_model"],
+                "input": texts[i : i + 32],
+                "truncate": False,
+            }
+            for i in range(0, len(texts), 32)
+        ]
+        keys = [
+            target.digest(
+                {"payload": p, "kind": "embedding", "operation": "index_embedding"}
+            )
+            for p in legacy
+        ]
+        if all(k in self.parent_cache for k in keys):
+            vectors = []
+            for payload in legacy:
+                body = self.call(payload, kind="embedding", operation="index_embedding")
+                if len(body["embeddings"]) != len(payload["input"]):
+                    raise ValueError("embedding_replay_shape_changed")
+                vectors.extend(body["embeddings"])
+            return dense.normalize_rows(vectors)
+        # Partial unordered historical fact batches cannot define a stable mapping.
+        # Use the whole canonical sequence so future restarts recover identical batches.
+        result = [None] * len(texts)
+        indices = sorted(range(len(texts)), key=lambda i: (texts[i], i))
+        for start in range(0, len(indices), 8):
+            group = indices[start : start + 8]
+            payload = {
+                "model": self.plan["embedding_model"],
+                "input": [texts[i] for i in group],
+                "truncate": False,
+            }
+            body = self.call(payload, kind="embedding", operation="index_embedding")
+            for i, vector in zip(group, body["embeddings"]):
+                result[i] = vector
+        return dense.normalize_rows(result)
+
+    def generate(self, messages, max_tokens, operation, response_format=None):
+        if self.row.get("resume_kind") == "mixed_native" and (
+            operation not in ("openie_ner", "openie_triples")
+            or max_tokens != (1024 if operation == "openie_ner" else 3072)
+            or response_format != {"type": "json_object"}
+        ):
+            raise ValueError("mixed_index_operation_or_cap_changed")
+        payload = {
+            **target.OPTIONS,
+            "model": self.plan["model"],
+            "messages": messages,
+            "max_tokens": max_tokens,
+        }
+        if response_format is not None:
+            payload["response_format"] = response_format
+        key = target.digest({"payload": payload, "kind": "llm", "operation": operation})
+        if operation == "summary" and self.row.get("summary_adoption"):
+            from scripts.e1_summary_recovery import reuse_fallback
+
+            fallback = reuse_fallback(self, key)
+            if fallback is not None:
+                return fallback["choices"][0]["message"]["content"], {
+                    **fallback["usage"],
+                    "finish_reason": "stop",
+                    "cache_hit": True,
+                }
+        if (
+            operation == "openie_triples"
+            and self.row.get("resume_kind") == "mixed_native"
+        ):
+            return self.generate_mixed(payload)
+        if (
+            operation == "openie_triples"
+            and self.row.get("resume_kind") == "native_schema"
+        ):
+            # Old successful json_object responses remain exact cache hits. The two
+            # adopted answers name the actual paid schema payload, never the old key.
+            if key not in self.parent_cache:
+                payload, _ = schema_probe_payload(payload, compatible=True)
+                actual = target.digest(
+                    {"payload": payload, "kind": "llm", "operation": operation}
+                )
+                if key in self.schema_aliases and actual != self.schema_aliases[key]:
+                    raise ValueError("schema_replay_association_changed")
+            try:
+                body = self.call(payload, kind="llm", operation=operation)
+                if payload.get("response_format", {}).get("type") == "json_schema":
+                    validate_schema_probe_response(body, allow_literal_duplicates=True)
+            except BaseException:
+                self.schema_failed = True
+                raise
+            return body["choices"][0]["message"]["content"], {
+                **body["usage"],
+                "finish_reason": "stop",
+                "cache_hit": self.last_cache_hit,
+            }
+        if self.require_repair_key and key != self.row.get("cycle_repair_request_key"):
+            raise ValueError("probe_request_does_not_match_truncated_request")
+        policy = self.plan.get("cycle_repair")
+        if policy and policy != CYCLE_REPAIR:
+            raise ValueError("cycle_repair_policy_mismatch")
+        if policy and (
+            key in self.repairs or key == self.row.get("cycle_repair_request_key")
+        ):
+            body = self.repair_cycle(payload, key, operation)
+        else:
+            try:
+                body = self.call(payload, kind="llm", operation=operation)
+            except ValueError as exc:
+                if (
+                    str(exc) != "generation_not_complete"
+                    or not policy
+                    or operation != "openie_triples"
+                ):
+                    raise
+                old = dense.read_json(self.calls / f"{key}.response.json")
+                choice = old["choices"][0]
+                if (
+                    choice["finish_reason"] != "length"
+                    or not triple_cycle(choice["message"]["content"])["cycle"]
+                ):
+                    raise
+                body = self.repair_cycle(payload, key, operation)
+        return body["choices"][0]["message"]["content"], {
+            **body["usage"],
+            "finish_reason": body["choices"][0]["finish_reason"],
+            "cache_hit": self.last_cache_hit,
+        }
+
+    def generate_mixed(self, original):
+        primary = copy.deepcopy(original)
+        original_key = target.digest(
+            {"payload": primary, "kind": "llm", "operation": "openie_triples"}
+        )
+        if original_key not in self.parent_cache:
+            primary, _ = schema_probe_payload(primary, compatible=True)
+        key = target.digest(
+            {"payload": primary, "kind": "llm", "operation": "openie_triples"}
+        )
+        try:
+            if key in self.mixed_failures and key not in self.parent_cache:
+                failure = self.mixed_failures[key]
+                if (
+                    dense.sha256_file(Path(failure["response_path"]))
+                    != failure["response_sha256"]
+                ):
+                    raise ValueError("mixed_primary_failure_changed")
+                body = None
+            else:
+                try:
+                    body = self.call(primary, kind="llm", operation="openie_triples")
+                except ValueError as exc:
+                    if str(exc) != "generation_not_complete":
+                        raise
+                    rp = self.calls / f"{key}.response.json"
+                    failed = dense.read_json(rp)
+                    choice = failed["choices"][0]
+                    if (
+                        choice["finish_reason"] != "length"
+                        or not triple_cycle(choice["message"]["content"])["cycle"]
+                    ):
+                        raise
+                    self.mixed_failures[key] = {
+                        "response_path": str(rp),
+                        "response_sha256": dense.sha256_file(rp),
+                    }
+                    body = None
+            actual, model = key, primary["model"]
+            if body is None:
+                adopting = self.json_adoption and key == self.json_adoption[0]
+                fallback = self.json_adoption[1] if adopting else mixed_payload(primary)
+                actual = target.digest(
+                    {"payload": fallback, "kind": "llm", "operation": "openie_triples"}
+                )
+                model = fallback["model"]
+                claims = Path(self.plan["mixed_claim_root"]) / self.row["dataset"]
+                claims.mkdir(parents=True, exist_ok=True)
+                claim = claims / f"{key}.claim.json"
+                with exclusive(claims):
+                    if adopting:
+                        if (
+                            actual not in self.parent_cache
+                            or actual != self.json_adoption[2]
+                        ):
+                            raise ValueError("hotpot_adoption_paid_response_missing")
+                    elif claim.exists():
+                        saved = dense.read_json(claim)
+                        if (
+                            saved.get("status") != "complete"
+                            or saved.get("fallback_sha256") != actual
+                            or key not in self.mixed_routes
+                            or (
+                                actual not in self.parent_cache
+                                and not (self.calls / f"{actual}.json").exists()
+                            )
+                        ):
+                            raise ValueError("mixed_unresolved_fallback_claim")
+                    else:
+                        if len(list(claims.glob("*.claim.json"))) + self.row.get(
+                            "fallback_extra_consumed", 0
+                        ) >= self.row.get("fallback_attempt_limit", 20):
+                            raise ValueError("mixed_fallback_limit")
+                        with claim.open("x", encoding="utf-8") as stream:
+                            json.dump(
+                                {
+                                    "status": "started",
+                                    "primary_sha256": key,
+                                    "fallback_sha256": actual,
+                                },
+                                stream,
+                            )
+                            stream.flush()
+                            os.fsync(stream.fileno())
+                body = self.call(fallback, kind="llm", operation="openie_triples")
+                if not validate_schema_probe_response(
+                    body, allow_literal_duplicates=True
+                ):
+                    raise ValueError("mixed_fallback_empty")
+                if not adopting:
+                    dense.write_json_atomic(
+                        claim,
+                        {
+                            "status": "complete",
+                            "primary_sha256": key,
+                            "fallback_sha256": actual,
+                        },
+                    )
+            elif primary.get("response_format", {}).get("type") == "json_schema":
+                validate_schema_probe_response(body, allow_literal_duplicates=True)
+            item = self.parent_cache.get(actual)
+            rp = item["path"] if item else self.calls / f"{actual}.response.json"
+            self.mixed_routes[key] = {
+                "primary_request_sha256": key,
+                "actual_request_sha256": actual,
+                "model": model,
+                "response_path": str(rp),
+                "response_sha256": dense.sha256_file(rp),
+                "fallback": model == MIXED_EXTRACTOR["fallback_model"],
+                "primary_failure": self.mixed_failures.get(key),
+                **(
+                    {
+                        "response_format": "json_object",
+                        "cached_only_exception": True,
+                        "source_review_sha256": self.plan["hotpot_json_adoption"][
+                            "review_sha256"
+                        ],
+                    }
+                    if self.json_adoption and actual == self.json_adoption[2]
+                    else {}
+                ),
+            }
+            dense.write_json_atomic(self.mixed_routes_path, self.mixed_routes)
+            return body["choices"][0]["message"]["content"], {
+                **body["usage"],
+                "finish_reason": "stop",
+                "cache_hit": self.last_cache_hit,
+                "extractor_model": model,
+                "triples_request_sha256": actual,
+            }
+        except BaseException:
+            self.schema_failed = True
+            raise
+
+    def repair_cycle(self, payload, key, operation):
+        if operation != "openie_triples":
+            raise ValueError("cycle_repair_only_for_triples")
+        revised = {
+            **payload,
+            "messages": [
+                *payload["messages"],
+                {"role": "user", "content": CYCLE_REPAIR["instruction"]},
+            ],
+        }
+        revised_key = target.digest(
+            {"payload": revised, "kind": "llm", "operation": operation}
+        )
+        if key not in self.repairs:
+            if len(self.repairs) >= CYCLE_REPAIR["max_per_dataset"]:
+                raise ValueError("cycle_repair_limit_exceeded")
+            self.repairs[key] = {
+                "revised_request_sha256": revised_key,
+                "status": "started",
+            }
+            dense.write_json_atomic(self.repairs_path, self.repairs)
+        elif (
+            self.repairs[key]["status"] != "complete"
+            or self.repairs[key]["revised_request_sha256"] != revised_key
+        ):
+            raise ValueError("unresolved_cycle_repair_cannot_repeat")
+        body = self.call(revised, kind="llm", operation=operation)
+        parsed = json.loads(body["choices"][0]["message"]["content"])
+        values = parsed.get("triples")
+        if not isinstance(values, list) or any(
+            not isinstance(x, list)
+            or len(x) != 3
+            or not all(isinstance(v, str) and v.strip() for v in x)
+            for x in values
+        ):
+            raise ValueError("invalid_cycle_repair_triples")
+        if len({tuple(x) for x in values}) != len(values):
+            raise ValueError("cycle_repair_still_repeats")
+        self.repairs[key]["status"] = "complete"
+        dense.write_json_atomic(self.repairs_path, self.repairs)
+        return body
+
+
+def verified_raptor_leaf_scope(plan, row):
+    from scripts.e1_indexers import verified_dense_leaves
+
+    corpus, provenance = load_corpus(plan["data_root"], row["dataset"])
+    if (
+        provenance != row["corpus"]
+        or dense.corpus_fingerprint(corpus) != row["corpus_fingerprint"]
+    ):
+        raise ValueError("raptor_leaf_source_changed")
+    _, manifest, leaves = verified_dense_leaves(corpus, plan, row["dataset"], ROOT)
+    return {
+        "run_id": manifest["run_id"],
+        "keys": {target.digest(text) for text in leaves},
+        "dataset": row["dataset"],
+        "model": plan["embedding_model"],
+    }
+
+
+def verified_checkpoints(
+    manifest_path,
+    *,
+    inherited=None,
+    allow_length=False,
+    allow_summary_length=False,
+    leaf_producer=None,
+):
+    """Verify successful physical responses individually; never reuse a failed one."""
+    manifest = dense.read_json(manifest_path)
+    reference = verified_reference(manifest, manifest_path)
+    if reference["status"] != "verified":
+        raise ValueError("resume_journal_not_intact")
+    for name, sha in manifest["artifacts"].items():
+        if dense.sha256_file(manifest_path.parent / name) != sha:
+            raise ValueError("resume_artifact_changed")
+    records = read_records(reference["path"])
+    finished = {r["attempt_id"]: r for r in records if r["event"] == "finished"}
+    cache, failures = dict(inherited or {}), []
+    for row in (r for r in records if r["event"] == "started"):
+        terminal = finished.get(row["attempt_id"])
+        if terminal is None:
+            raise ValueError("resume_requires_terminal_physical_attempts")
+        key = row["object_id"]
+        if terminal.get("cache_hit"):
+            if leaf_producer and key in leaf_producer["keys"]:
+                if (
+                    terminal["producer_run_id"] != leaf_producer["run_id"]
+                    or terminal.get("producer_usage_complete") is not True
+                    or (
+                        row["method"],
+                        row["dataset"],
+                        row["phase"],
+                        row["operation"],
+                        row["provider"],
+                        row["model"],
+                        row["kind"],
+                    )
+                    != (
+                        "raptor",
+                        leaf_producer["dataset"],
+                        "index",
+                        "index_embedding",
+                        "local_ollama",
+                        leaf_producer["model"],
+                        "embedding",
+                    )
+                ):
+                    raise ValueError("unverified_dense_leaf_cache_hit")
+                continue
+            item = cache.get(key)
+            if (
+                not item
+                or terminal["producer_run_id"] != item["run_id"]
+                or any(
+                    row[k] != item[k]
+                    for k in ("operation", "kind", "provider", "model")
+                )
+            ):
+                raise ValueError("unverified_inherited_cache_hit")
+            continue
+        checkpoint = manifest_path.parent / "requests" / f"{key}.json"
+        saved = dense.read_json(checkpoint)
+        if saved["request_sha256"] != key or saved["operation"] != row["operation"]:
+            raise ValueError("resume_checkpoint_identity_mismatch")
+        if terminal["status"] != "success":
+            failures.append((row, terminal, saved))
+            continue
+        response = checkpoint.with_name(f"{key}.response.json")
+        if terminal["usage_status"] != "complete":
+            raise ValueError("resume_success_checkpoint_invalid")
+        body = dense.read_json(response)
+        usage = extract_usage(body, row["kind"], row["provider"])
+        if any(terminal[field] != value for field, value in usage.items()):
+            raise ValueError("resume_response_usage_mismatch")
+        if saved["status"] != "complete":
+            if (
+                (allow_length and row["operation"] == "openie_triples")
+                or (allow_summary_length and row["operation"] == "summary")
+            ) and body["choices"][0]["finish_reason"] == "length":
+                failures.append((row, terminal, saved))
+                continue
+            raise ValueError("resume_success_checkpoint_invalid")
+        if dense.sha256_file(response) != saved["response_sha256"]:
+            raise ValueError("resume_success_checkpoint_invalid")
+        if key in cache:
+            raise ValueError("duplicate_resume_physical_request")
+        cache[key] = {
+            "path": response,
+            "sha256": saved["response_sha256"],
+            "run_id": row["run_id"],
+            "operation": row["operation"],
+            "kind": row["kind"],
+            "provider": row["provider"],
+            "model": row["model"],
+            # The response has complete usage, but the producing RUN has one unknown.
+            "producer_complete": reference["summary"]["complete"]
+            and reference["summary"]["historical_cache_cost_complete"],
+        }
+    return cache, failures, reference
+
+
+def dense_index(corpus, transport, directory):
+    path = directory / "vectors.npz"
+    matrix = transport.embed([f"{r['title']}\n{r['text']}" for r in corpus])
+    with path.open("wb") as stream:
+        np.savez_compressed(
+            stream, ids=np.asarray([r["id"] for r in corpus]), vectors=matrix
+        )
+    with np.load(path, allow_pickle=False) as saved:
+        if saved["ids"].tolist() != [r["id"] for r in corpus] or not np.array_equal(
+            saved["vectors"], matrix
+        ):
+            raise ValueError("dense_reload_mismatch")
+        dense.normalize_rows(saved["vectors"])
+    return {"passages": len(corpus), "dimension": 1024, "reload_model_calls": 0}
+
+
+def row_usage(row):
+    return row.get(
+        "cumulative_accounting", row.get("token_accounting", {}).get("summary", {})
+    )
+
+
+def attribute_costs(rows):
+    """Keep physical spending separate from standalone construction attribution."""
+    for row in rows:
+        usage = row_usage(row)
+        row["cost_semantics"] = "Physical new cost; replay is not charged twice."
+        row["standalone_cost_complete"] = bool(usage.get("complete", False)) and bool(
+            usage.get("historical_cache_cost_complete", False)
+        )
+        row["standalone_known_subtotal"] = dict(usage.get("known_subtotal", {}))
+        row["measured_run_seconds"] = row.get("seconds")
+        row["attributed_construction_seconds"] = row.get(
+            "cumulative_seconds", row.get("seconds")
+        )
+        if row["method"] != "raptor":
+            continue
+        producer_id = row.get("validation", {}).get("leaf_producer_run_id")
+        if not producer_id:
+            row["standalone_cost_complete"] = False
+            continue
+        producer = next(r for r in rows if r["run_id"] == producer_id)
+        producer_usage = row_usage(producer)
+        reused = producer_usage.get("known_subtotal", {})
+        row["reused_leaf_build_cost"] = dict(reused)
+        row["reused_leaf_cost_complete"] = bool(
+            producer_usage.get("complete", False)
+        ) and bool(producer_usage.get("historical_cache_cost_complete", False))
+        row["standalone_cost_complete"] &= row["reused_leaf_cost_complete"]
+        for key, value in reused.items():
+            row["standalone_known_subtotal"][key] = (
+                row["standalone_known_subtotal"].get(key, 0) + value
+            )
+        producer_seconds = producer.get("cumulative_seconds", producer.get("seconds"))
+        own_seconds = row["attributed_construction_seconds"]
+        row["attributed_construction_seconds"] = (
+            own_seconds + producer_seconds
+            if own_seconds is not None and producer_seconds is not None
+            else None
+        )
+        row["cost_semantics"] += (
+            " Standalone attribution includes Dense producer history, including failed "
+            "attempts and unknowns; exclude reused cost from batch physical total. "
+            "Attributed seconds are a sum of measured histories, not a measured fresh run."
+        )
+
+
+def failure_diagnostic(directory):
+    """Publish response metadata, never private source text or generated facts."""
+    journal = directory / "usage.jsonl"
+    if not journal.exists():
+        return {}
+    finished = [r for r in read_records(journal) if r["event"] == "finished"]
+    if not finished:
+        return {}
+    last = finished[-1]
+    key = last.get("object_id")
+    result = {
+        "operation": last["operation"],
+        "request_sha256": key,
+        "usage_status": last["usage_status"],
+    }
+    response = directory / "requests" / f"{key}.response.json"
+    if response.exists() and last["kind"] == "llm":
+        body = dense.read_json(response)
+        if body.get("choices"):
+            choice = body["choices"][0]
+            result["finish_reason"] = choice.get("finish_reason")
+            result["repetition"] = triple_cycle(choice["message"].get("content") or "")
+    repairs = directory / "cycle-repairs.json"
+    if repairs.exists():
+        result["corrective_request"] = any(
+            r["revised_request_sha256"] == key
+            for r in dense.read_json(repairs).values()
+        )
+    return result
+
+
+def current_unknown_reservation(directory):
+    """A saved pre-HTTP bound is a reserve, never measured usage."""
+    journal = directory / "usage.jsonl"
+    if not journal.exists():
+        return 0
+    records = read_records(journal)
+    finished = {r["attempt_id"]: r for r in records if r["event"] == "finished"}
+    total = 0
+    for row in records:
+        if row["event"] != "started":
+            continue
+        end = finished.get(row["attempt_id"], {})
+        if end.get("cache_hit") or end.get("usage_status") == "complete":
+            continue
+        checkpoint = directory / "requests" / f"{row['object_id']}.json"
+        bound = (
+            dense.read_json(checkpoint).get("reserved_tokens")
+            if checkpoint.exists()
+            else None
+        )
+        if type(bound) is not int or bound < 0:
+            return None
+        total += bound
+    return total
+
+
+def export(plan, plan_path):
+    rows = []
+    for row in plan["rows"]:
+        manifest = ROOT / row["output"] / "manifest.json"
+        result = (
+            dense.read_json(manifest) if manifest.exists() else {"status": "pending"}
+        )
+        public = {key: value for key, value in result.items() if key != "artifacts"}
+        public["current_unknown_reserved_upper_bound"] = current_unknown_reservation(
+            manifest.parent
+        )
+        if result["status"] == "failed":
+            public["failure_diagnostic"] = failure_diagnostic(manifest.parent)
+        if result["status"] == "running" and (manifest.parent / "usage.jsonl").exists():
+            from scripts.token_accounting import summarize
+
+            live = manifest.parent / "usage.jsonl"
+            public["token_accounting"] = {
+                "journal_sha256": dense.sha256_file(live),
+                "summary": summarize(read_records(live)),
+            }
+        history = row.get(
+            "history_runs", [row["prior_run"]] if row.get("prior_run") else []
+        )
+        if history:
+            from scripts.token_accounting import summarize
+
+            records, seconds = [], 0
+            for prior_row in history:
+                prior = ROOT / prior_row["output"] / "manifest.json"
+                if dense.sha256_file(prior) != prior_row["manifest_sha256"]:
+                    raise ValueError("prior_failed_manifest_changed")
+                records.extend(read_records(prior.parent / "usage.jsonl"))
+                seconds += dense.read_json(prior)["seconds"]
+            current = manifest.parent / "usage.jsonl"
+            if current.exists():
+                records.extend(read_records(current))
+            public["cumulative_accounting"] = summarize(records)
+            public["cumulative_seconds"] = seconds + result.get("seconds", 0)
+        probe_kind = (
+            "summary"
+            if (row["method"], row["dataset"]) == ("raptor", "hotpotqa")
+            else {"hipporag2": "schema", "raptor": "embedding"}.get(row["method"])
+        )
+        diagnostic_records = []
+        probe_kinds = (
+            [probe_kind, "schema_shape", "gpt_oss", "gpt_oss_policy"]
+            if (row["method"], row["dataset"]) == ("hipporag2", "musique")
+            else ["gpt_json_mode"]
+            if (row["method"], row["dataset"]) == ("hipporag2", "hotpotqa")
+            else [probe_kind]
+        )
+        for probe_kind in probe_kinds:
+            if (
+                probe_kind
+                and (
+                    row["dataset"] == "musique"
+                    or probe_kind in ("summary", "gpt_json_mode")
+                )
+                and (
+                    probe_kind in ("gpt_oss", "gpt_oss_policy", "gpt_json_mode")
+                    or not row.get("diagnostics_in_history")
+                )
+            ):
+                probe_path = (
+                    manifest.parent.parent
+                    / f"{row['dataset']}-{probe_kind.replace('_', '-')}-probe1/manifest.json"
+                )
+                if probe_path.exists():
+                    probe = dense.read_json(probe_path)
+                    if probe["run_id"] in {h["run_id"] for h in history}:
+                        continue
+                    if probe["parent_manifest_sha256"] != dense.sha256_file(manifest):
+                        raise ValueError(f"{probe_kind}_probe_parent_manifest_changed")
+                    if verified_reference(probe, probe_path)["status"] != "verified":
+                        raise ValueError(f"{probe_kind}_probe_journal_not_intact")
+                    for name, sha in probe["artifacts"].items():
+                        if dense.sha256_file(probe_path.parent / name) != sha:
+                            raise ValueError(f"{probe_kind}_probe_artifact_changed")
+                    from scripts.token_accounting import summarize
+
+                    records = []
+                    for prior_row in history:
+                        records.extend(
+                            read_records(ROOT / prior_row["output"] / "usage.jsonl")
+                        )
+                    if (manifest.parent / "usage.jsonl").exists():
+                        records.extend(read_records(manifest.parent / "usage.jsonl"))
+                    diagnostic_records.extend(
+                        read_records(probe_path.parent / "usage.jsonl")
+                    )
+                    records.extend(diagnostic_records)
+                    public["cumulative_accounting"] = summarize(records)
+                    public["cumulative_seconds"] = (
+                        public.get("cumulative_seconds", result.get("seconds", 0))
+                        + probe["seconds"]
+                    )
+                    public[f"{probe_kind}_probe"] = {
+                        k: probe[k]
+                        for k in (
+                            "status",
+                            "run_id",
+                            "unknown_reserved_upper_bound",
+                            "full_index_authorized",
+                            "cases",
+                        )
+                    }
+                    public[f"{probe_kind}_probe"].update(
+                        {
+                            k: probe[k]
+                            for k in (
+                                "schema_variant",
+                                "model",
+                                "code_commit",
+                                "timeout_seconds",
+                            )
+                            if k in probe
+                        }
+                    )
+                    if probe_kind == "gpt_oss_policy":
+                        parent = probe_path.parent.parent / "musique-gpt-oss-probe1"
+                        if probe["parent_probe_manifest_sha256"] != dense.sha256_file(
+                            parent / "manifest.json"
+                        ) or probe["source_review_sha256"] != dense.sha256_file(
+                            parent / "source-review.json"
+                        ):
+                            raise ValueError(
+                                "source_policy_probe_parent_or_review_changed"
+                            )
+                        public["gpt_oss_policy_probe"].update(
+                            {
+                                k: probe[k]
+                                for k in (
+                                    "parent_probe_manifest_sha256",
+                                    "source_review_sha256",
+                                    "policy_version",
+                                )
+                            }
+                        )
+                    if probe["status"] == "failed":
+                        public[f"{probe_kind}_probe"]["failure_diagnostic"] = (
+                            failure_diagnostic(probe_path.parent)
+                        )
+                    if probe_kind == "schema_shape" and probe.get(
+                        "prior_failed_schema_manifest_sha256"
+                    ) != dense.sha256_file(
+                        manifest.parent.parent / "musique-schema-probe1/manifest.json"
+                    ):
+                        raise ValueError("compatible_schema_prior_manifest_changed")
+                    if probe_kind == "embedding":
+                        public["embedding_probe"].update(
+                            {
+                                k: probe[k]
+                                for k in (
+                                    "embedding_options",
+                                    "producer_response_sha256",
+                                    "native_tokens_with_special",
+                                    "native_tokens_without_special",
+                                    "code_commit",
+                                    "operator_sha256",
+                                )
+                                if k in probe
+                            }
+                        )
+        if manifest.exists():
+            public["artifact_manifest_sha256"] = dense.sha256_file(manifest)
+        if row.get("resume_kind") == "mixed_native":
+            from scripts.token_accounting import summarize
+
+            model_records = list(diagnostic_records)
+            for h in history:
+                model_records.extend(read_records(ROOT / h["output"] / "usage.jsonl"))
+            if (manifest.parent / "usage.jsonl").exists():
+                model_records.extend(read_records(manifest.parent / "usage.jsonl"))
+            models = sorted({r["model"] for r in model_records if r["kind"] == "llm"})
+            public["llm_by_model"] = {
+                m: summarize(
+                    [r for r in model_records if r["kind"] == "llm" and r["model"] == m]
+                )
+                for m in models
+            }
+            public["extractor_configuration"] = {
+                **MIXED_EXTRACTOR,
+                "fallback_limit": row.get("fallback_attempt_limit", 20),
+            }
+        exported_row = {**row, **public}
+        if "cycle_repair_request_key" in exported_row:
+            exported_row["cycle_repair_request_sha256"] = exported_row.pop(
+                "cycle_repair_request_key"
+            )
+        if "network_first_request_key" in exported_row:
+            exported_row["network_first_request_sha256"] = exported_row.pop(
+                "network_first_request_key"
+            )
+        rows.append(exported_row)
+    report = {
+        "batch_id": plan["batch_id"],
+        "plan_sha256": dense.sha256_file(plan_path),
+        "models": {
+            key: plan[key] for key in ("model", "embedding_model", "embedding_digest")
+        },
+        "parameters": plan["parameters"],
+        "raptor_clustering_policy": plan.get(
+            "raptor_clustering_policy", "pinned_upstream"
+        ),
+        "rows": rows,
+        "combined_token_limit": plan["combined_token_limit"],
+        "complete": all(r["status"] == "completed" for r in rows),
+        "limitations": "E1 measures indexing cost/coverage, not retrieval or answer quality. Historical smoke unknowns are preserved outside these new runs.",
+    }
+    if plan.get("hotpot_local_socket_recovery"):
+        report["hotpot_local_socket_recovery"] = {
+            "parent_plan_sha256": plan["hotpot_local_socket_recovery"]["plan_sha256"],
+            "failed_manifest_sha256": plan["hotpot_local_socket_recovery"][
+                "manifest_sha256"
+            ],
+            "unknown_reserved_upper_bound": plan["hotpot_local_socket_recovery"][
+                "unknown_reserved_upper_bound"
+            ],
+            "fresh_llm_posts_limit": 0,
+            "embedding_post_pause_seconds": 4.0,
+            "authorization": f"user_scoped_night_recovery_{plan['hotpot_local_socket_recovery'].get('recovery_number', 1)}_of_at_most_2; repeated_socket_cause_stops",
+        }
+    if plan.get("hotpot_fallback_completion"):
+        report["fallback_attempt_budget_policy"] = {
+            "version": "one_percent_passage_count_attempt_budget_v1",
+            "hotpot_total_attempt_limit": 55,
+            "original_total_attempt_limit": 20,
+            "failed_and_probe_included": True,
+        }
+    if plan.get("hotpot_json_adoption"):
+        report["hotpot_json_adoption"] = {
+            k: v
+            for k, v in plan["hotpot_json_adoption"].items()
+            if k.endswith("_sha256") or k == "original_claims"
+        }
+    if plan.get("mixed_embedding_recovery"):
+        pin = plan["mixed_embedding_recovery"]
+        report["embedding_recovery"] = {
+            "policy": plan["embedding_recovery_policy"],
+            "prior_plan_sha256": pin["plan_sha256"],
+            "failed_manifest_sha256": pin["manifest_sha256"],
+            "unknown_reserved_upper_bound": pin["unknown_reserved_upper_bound"],
+            "partial_unordered_historical_batches": "not_reused",
+            "fresh_musique_llm_posts": 0,
+        }
+    if plan.get("mixed_extractor"):
+        report["mixed_extractor"] = MIXED_EXTRACTOR
+        report["protocol_approval_source"] = (
+            "reported_by_user; individual bot status not independently checked"
+        )
+    report["physical_known_tokens"] = sum(
+        sum(row_usage(r).get("known_subtotal", {}).values()) for r in rows
+    )
+    report["physical_usage_complete"] = all(
+        row_usage(r).get("complete", False) for r in rows
+    )
+    attribute_costs(rows)
+    report["cost_complete"] = all(r["standalone_cost_complete"] for r in rows)
+    report["budget_charge_upper_bound"] = (
+        report["physical_known_tokens"]
+        + sum(
+            sum(
+                p.get("unknown_reserved_upper_bound", 0)
+                for p in r.get(
+                    "history_runs", [r["prior_run"]] if r.get("prior_run") else []
+                )
+            )
+            for r in rows
+        )
+        + sum(
+            r.get(f"{kind}_probe", {}).get("unknown_reserved_upper_bound", 0)
+            for r in rows
+            for kind in (
+                "schema",
+                "schema_shape",
+                "gpt_oss",
+                "gpt_oss_policy",
+                "gpt_json_mode",
+                "embedding",
+                "summary",
+            )
+        )
+        + sum(r.get("current_unknown_reserved_upper_bound") or 0 for r in rows)
+    )
+    report["budget_reservation_complete"] = all(
+        r["current_unknown_reserved_upper_bound"] is not None for r in rows
+    )
+    if not report["budget_reservation_complete"]:
+        report["budget_charge_upper_bound"] = None
+    report["original_combined_token_limit"] = plan.get(
+        "original_combined_token_limit", plan["combined_token_limit"]
+    )
+    dense.write_json_atomic(ROOT / "results/summary/e1-indexing.json", report)
+    lines = [
+        "# E1: индексация",
+        "",
+        "| Метод | Датасет | Статус | LLM in/out | Embed | POST | Секунды | Полнота | Run ID / index |",
+        "|---|---|---|---:|---:|---:|---:|---|---|",
+    ]
+    for row in rows:
+        usage = row_usage(row)
+        known = usage.get("known_subtotal", {})
+        completeness = row["standalone_cost_complete"]
+        lines.append(
+            f"| {row['method']} | {row['dataset']} | {row['status']} | {known.get('llm_input_tokens', '—')}/{known.get('llm_output_tokens', '—')} | {known.get('embedding_input_tokens', '—')} (+cache {row.get('reused_leaf_build_cost', {}).get('embedding_input_tokens', 0)}) | {usage.get('attempts', '—')} | {row.get('cumulative_seconds', row.get('seconds', '—'))} | {completeness} | {row['run_id']} / `{row['output']}` |"
+        )
+    (ROOT / "results/summary/e1-indexing.md").write_text(
+        "\n".join(lines) + "\n", encoding="utf-8"
+    )
+    return report
+
+
+def continuation_plan(prior_path):
+    """One inspected local socket-failure continuation, within the original allocation.
+
+    Original plan/failed directory stay immutable. Unknown cost is NOT measured;
+    its conservative request reservation is charged against the remaining budget.
+    """
+    original = dense.read_json(prior_path)
+    if original.get("parent_plan"):
+        raise ValueError("only_one_E1_continuation_per_original_plan")
+    plan = copy.deepcopy(original)
+    if code_dirty():
+        raise ValueError("commit_continuation_before_preparing_plan")
+    candidates = []
+    for row in plan["rows"]:
+        path = ROOT / row["output"] / "manifest.json"
+        manifest = dense.read_json(path) if path.exists() else {}
+        if manifest.get("status") == "completed":
+            continue
+        row["code_commit"] = git("rev-parse", "HEAD")
+        if manifest.get("status") == "failed":
+            if row["method"] != "dense" or row["dataset"] != "hotpotqa":
+                raise ValueError("continuation_scope_is_local_Dense_Hotpot_only")
+            from scripts.token_accounting import verified_reference
+
+            reference = verified_reference(manifest, path)
+            if reference["status"] != "verified":
+                raise ValueError("prior_journal_not_intact")
+            for name, sha in manifest["artifacts"].items():
+                if dense.sha256_file(path.parent / name) != sha:
+                    raise ValueError("prior_artifact_changed")
+            summary = reference["summary"]
+            if sum(p["errors"] for p in summary["phases"]) != 1 or any(
+                p["unfinished"] or p["provider"] != "local_ollama"
+                for p in summary["phases"]
+            ):
+                raise ValueError("unexpected_prior_error_scope")
+            corpus, _ = load_corpus(plan["data_root"], row["dataset"])
+            unresolved = [
+                dense.read_json(p)
+                for p in path.parent.joinpath("requests").glob("*.json")
+                if not p.name.endswith(".response.json")
+                and dense.read_json(p)["status"] != "complete"
+            ]
+            if len(unresolved) != 1:
+                raise ValueError("expected_exactly_one_socket_failure")
+            saved = unresolved[0]
+            response = dense.read_json(
+                path.parent / "requests" / f"{saved['request_sha256']}.response.json"
+            )
+            error = response.get("error", "")
+            if (
+                "/tokenize" not in error
+                or "Only one usage of each socket address" not in error
+            ):
+                raise ValueError("failure_is_not_inspected_local_socket_exhaustion")
+            bound = None
+            texts = [f"{r['title']}\n{r['text']}" for r in corpus]
+            for offset in range(0, len(texts), 32):
+                payload = {
+                    "model": original["embedding_model"],
+                    "input": texts[offset : offset + 32],
+                    "truncate": False,
+                }
+                key = target.digest(
+                    {
+                        "payload": payload,
+                        "kind": "embedding",
+                        "operation": "index_embedding",
+                    }
+                )
+                if key == saved["request_sha256"]:
+                    bound = len(json.dumps(payload, ensure_ascii=False).encode()) + 2048
+            if bound is None:
+                raise ValueError("unknown_request_cannot_be_reconstructed")
+            known = sum(reference["summary"]["known_subtotal"].values())
+            row["prior_run"] = {
+                "run_id": row["run_id"],
+                "output": row["output"],
+                "manifest_sha256": dense.sha256_file(path),
+                "summary": reference["summary"],
+                "unknown_reserved_upper_bound": bound,
+                "reason": "Local Ollama internal /tokenize socket exhaustion; endpoint allocations recovered during inspection. Add per-text pacing, one fresh attempt, preserve unknown.",
+            }
+            row["prior_budget_charge"] = known + bound
+            row["token_limit"] -= known + bound
+            row["run_id"] = str(uuid.uuid4())
+            row["output"] += "-continuation1"
+            candidates.append(path.parent)
+    if len(candidates) != 1:
+        raise ValueError("expected_one_failed_Dense_row")
+    with (candidates[0] / "continuation-once.claim.json").open(
+        "x", encoding="utf-8"
+    ) as stream:
+        json.dump(
+            {
+                "parent_plan_sha256": dense.sha256_file(prior_path),
+                "new_run_id": next(
+                    r["run_id"] for r in plan["rows"] if r.get("prior_run")
+                ),
+            },
+            stream,
+        )
+        stream.flush()
+        os.fsync(stream.fileno())
+    plan["parent_plan"] = {
+        "path": str(prior_path.resolve()),
+        "sha256": dense.sha256_file(prior_path),
+        "digest": target.digest(original),
+    }
+    plan["parameters"] = PARAMETERS
+    plan["combined_token_limit"] = sum(r["token_limit"] for r in plan["rows"])
+    plan["original_combined_token_limit"] = original["combined_token_limit"]
+    return plan
+
+
+def network_resume_plan(prior_path):
+    """One explicitly initiated continuation after a recorded remote disconnect."""
+    original = dense.read_json(prior_path)
+    if original.get("network_resume") or code_dirty():
+        raise ValueError("network_resume_requires_clean_original_stage")
+    plan = copy.deepcopy(original)
+    lineage, cursor, cursor_path = [], original, Path(prior_path)
+    while True:
+        descriptor = {
+            "path": str(cursor_path.resolve()),
+            "sha256": dense.sha256_file(cursor_path),
+            "digest": target.digest(cursor),
+        }
+        if descriptor["path"] in {p["path"] for p in lineage}:
+            raise ValueError("plan_lineage_cycle")
+        lineage.append(descriptor)
+        for key in ("model", "endpoint", "embedding_model", "embedding_digest"):
+            if cursor[key] != original[key]:
+                raise ValueError("lineage_model_changed")
+        if not cursor.get("parent_plan"):
+            break
+        parent = cursor["parent_plan"]
+        cursor_path = Path(parent["path"])
+        if dense.sha256_file(cursor_path) != parent["sha256"]:
+            raise ValueError("lineage_plan_changed")
+        cursor = dense.read_json(cursor_path)
+        if target.digest(cursor) != parent["digest"]:
+            raise ValueError("lineage_plan_digest_mismatch")
+    failed = []
+    for row in plan["rows"]:
+        manifest_path = ROOT / row["output"] / "manifest.json"
+        manifest = dense.read_json(manifest_path) if manifest_path.exists() else {}
+        if manifest.get("status") == "completed":
+            continue
+        if manifest.get("status") not in (None, "failed"):
+            raise ValueError("stage_must_be_stopped_before_network_resume")
+        row["code_commit"] = git("rev-parse", "HEAD")
+        if manifest.get("status") != "failed":
+            continue
+        if (row["method"], row["dataset"]) != ("hipporag2", "musique") or row.get(
+            "prior_run"
+        ):
+            raise ValueError("network_resume_scope_is_first_Hippo_MuSiQue_failure")
+        cache, errors, reference = verified_checkpoints(manifest_path)
+        if len(errors) != 1:
+            raise ValueError("network_resume_requires_one_error")
+        started, finished, checkpoint = errors[0]
+        if (
+            started["kind"] != "llm"
+            or started["provider"] != "target_api"
+            or finished["error_code"] != "ConnectionError"
+            or finished["usage_status"] != "unknown"
+        ):
+            raise ValueError("network_resume_requires_recorded_connection_error")
+        bound = checkpoint.get("reserved_tokens")
+        if type(bound) is not int or not 0 < bound <= PARAMETERS["target_context"]:
+            raise ValueError("unknown_request_reservation_missing")
+        known = sum(reference["summary"]["known_subtotal"].values())
+        if known + bound >= row["token_limit"]:
+            raise ValueError("no_remaining_network_resume_budget")
+        row["prior_run"] = {
+            "run_id": row["run_id"],
+            "output": row["output"],
+            "manifest_sha256": dense.sha256_file(manifest_path),
+            "summary": reference["summary"],
+            "unknown_reserved_upper_bound": bound,
+            "reason": "Remote disconnected without response; preserve unknown, reuse verified successful responses, one bounded continuation with fresh target connections.",
+        }
+        row["resume_from"] = {
+            key: row["prior_run"][key] for key in ("output", "manifest_sha256")
+        }
+        row["prior_budget_charge"] = known + bound
+        row["token_limit"] -= known + bound
+        row["run_id"] = str(uuid.uuid4())
+        row["output"] += "-network1"
+        row["verified_response_cache_count"] = len(cache)
+        failed.append((manifest_path, row["run_id"]))
+    if len(failed) != 1:
+        raise ValueError("expected_one_failed_network_stage")
+    manifest_path, child_id = failed[0]
+    with (manifest_path.parent / "network-resume-once.claim.json").open(
+        "x", encoding="utf-8"
+    ) as stream:
+        json.dump(
+            {
+                "parent_plan_sha256": dense.sha256_file(prior_path),
+                "child_run_id": child_id,
+            },
+            stream,
+        )
+        stream.flush()
+        os.fsync(stream.fileno())
+    plan.update(
+        parent_plan=lineage[0],
+        lineage=lineage,
+        network_resume=True,
+        parameters=PARAMETERS,
+        combined_token_limit=sum(r["token_limit"] for r in plan["rows"]),
+        original_combined_token_limit=original.get(
+            "original_combined_token_limit", original["combined_token_limit"]
+        ),
+    )
+    return plan
+
+
+def cycle_resume_plan(prior_path, passage_id):
+    """Keep known cost and every ancestor; probe a single bounded cycle repair."""
+    original = dense.read_json(prior_path)
+    if (
+        original.get("cycle_repair")
+        or not original.get("network_resume")
+        or code_dirty()
+    ):
+        raise ValueError("cycle_resume_requires_clean_network_stage")
+    plan = copy.deepcopy(original)
+    lineage = [
+        {
+            "path": str(prior_path.resolve()),
+            "sha256": dense.sha256_file(prior_path),
+            "digest": target.digest(original),
+        },
+        *original["lineage"],
+    ]
+    for ancestor in lineage:
+        if dense.sha256_file(Path(ancestor["path"])) != ancestor["sha256"]:
+            raise ValueError("cycle_ancestor_plan_changed")
+    failed = []
+    for row in plan["rows"]:
+        path = ROOT / row["output"] / "manifest.json"
+        manifest = dense.read_json(path) if path.exists() else {}
+        if manifest.get("status") == "completed":
+            continue
+        if manifest.get("status") not in (None, "failed"):
+            raise ValueError("cycle_stage_is_not_stopped")
+        row["code_commit"] = git("rev-parse", "HEAD")
+        if manifest.get("status") != "failed":
+            continue
+        if (row["method"], row["dataset"]) != ("hipporag2", "musique") or not row.get(
+            "resume_from"
+        ):
+            raise ValueError("cycle_resume_scope_is_Hippo_MuSiQue")
+        sources = [row["resume_from"]]
+        cache = {}
+        for source in sources:
+            parent = ROOT / source["output"] / "manifest.json"
+            if dense.sha256_file(parent) != source["manifest_sha256"]:
+                raise ValueError("cycle_source_manifest_changed")
+            cache, _, _ = verified_checkpoints(parent, inherited=cache)
+        cache, unusable, reference = verified_checkpoints(
+            path, inherited=cache, allow_length=True
+        )
+        if len(unusable) != 1:
+            raise ValueError("cycle_resume_requires_one_incomplete_response")
+        started, terminal, _ = unusable[0]
+        body = dense.read_json(
+            path.parent / "requests" / f"{started['object_id']}.response.json"
+        )
+        diagnostic = triple_cycle(body["choices"][0]["message"]["content"])
+        if (
+            started["operation"] != "openie_triples"
+            or terminal["usage_status"] != "complete"
+            or not diagnostic["cycle"]
+        ):
+            raise ValueError("cycle_resume_requires_known_usage_repeated_triples")
+        corpus, _ = load_corpus(plan["data_root"], row["dataset"])
+        if passage_id not in {r["id"] for r in corpus}:
+            raise ValueError("cycle_probe_source_missing")
+        known = sum(reference["summary"]["known_subtotal"].values())
+        if known >= row["token_limit"]:
+            raise ValueError("cycle_budget_exhausted")
+        latest = {
+            "run_id": row["run_id"],
+            "output": row["output"],
+            "manifest_sha256": dense.sha256_file(path),
+            "summary": reference["summary"],
+            "unknown_reserved_upper_bound": 0,
+            "reason": "Known-cost length response repeats three triples; no partial acceptance.",
+        }
+        row["history_runs"] = [row["prior_run"], latest]
+        row["prior_run"] = latest
+        row["resume_from"] = {key: latest[key] for key in ("output", "manifest_sha256")}
+        row["resume_sources"] = [*sources, row["resume_from"]]
+        row["prior_budget_charge"] += known
+        row["token_limit"] -= known
+        row["run_id"] = str(uuid.uuid4())
+        row["output"] = f"indexes/e1/{plan['batch_id']}/hipporag2/musique-cycle1"
+        row.update(
+            resume_kind="cycle",
+            cycle_repair_request_key=started["object_id"],
+            cycle_probe_source_id=passage_id,
+            cycle_diagnostic=diagnostic,
+            verified_response_cache_count=len(cache),
+        )
+        failed.append((path, row["run_id"]))
+    if len(failed) != 1:
+        raise ValueError("cycle_requires_one_failed_stage")
+    path, child = failed[0]
+    with (path.parent / "cycle-resume-once.claim.json").open(
+        "x", encoding="utf-8"
+    ) as stream:
+        json.dump(
+            {
+                "parent_plan_sha256": dense.sha256_file(prior_path),
+                "child_run_id": child,
+            },
+            stream,
+        )
+        stream.flush()
+        os.fsync(stream.fileno())
+    plan.update(
+        parent_plan=lineage[0],
+        lineage=lineage,
+        cycle_repair=CYCLE_REPAIR,
+        parameters=PARAMETERS,
+        combined_token_limit=sum(r["token_limit"] for r in plan["rows"]),
+    )
+    return plan
+
+
+def prepare_schema_probe(prior_path, source, *, compatible=False):
+    """Reconstruct the two historical requests offline; never send or authorize HTTP."""
+    from scripts.preflight_hipporag_repair_prompts import (
+        verify_target_prompt_installation,
+    )
+
+    plan = dense.read_json(prior_path)
+    workspace = Path(plan["workspace"])
+    for item in plan.get("lineage", []):
+        if dense.sha256_file(Path(item["path"])) != item["sha256"]:
+            raise ValueError("lineage_plan_changed")
+    row = next(
+        r
+        for r in plan["rows"]
+        if (r["method"], r["dataset"]) == ("hipporag2", "musique")
+    )
+    directory = workspace / row["output"]
+    manifest_path = directory / "manifest.json"
+    manifest = dense.read_json(manifest_path)
+    if manifest["status"] != "failed" or (directory / "running.lock").exists():
+        raise ValueError("schema_probe_requires_stopped_cycle_run")
+    cache, failures = {}, {}
+    sources = [
+        *row["resume_sources"],
+        {"output": row["output"], "manifest_sha256": dense.sha256_file(manifest_path)},
+    ]
+    for entry in sources:
+        path = workspace / entry["output"] / "manifest.json"
+        if dense.sha256_file(path) != entry["manifest_sha256"]:
+            raise ValueError("schema_probe_source_manifest_changed")
+        cache, rejected, reference = verified_checkpoints(
+            path, inherited=cache, allow_length=True
+        )
+        failures.update({r[0]["object_id"]: (path, *r) for r in rejected})
+    repairs = dense.read_json(directory / "cycle-repairs.json")
+    if len(repairs) != 2:
+        raise ValueError("schema_probe_requires_exactly_two_cases")
+    manager_type, verified_files = verify_target_prompt_installation(source)
+    manager = manager_type(
+        role_mapping={"system": "system", "user": "user", "assistant": "assistant"}
+    )
+    corpus, provenance = load_corpus(plan["data_root"], row["dataset"])
+    if (
+        provenance != row["corpus"]
+        or dense.corpus_fingerprint(corpus) != row["corpus_fingerprint"]
+    ):
+        raise ValueError("schema_probe_corpus_changed")
+    cases = {}
+    for document in corpus:
+        passage = f"{document['title']}\n{document['text']}"
+        ner_payload = {
+            **target.OPTIONS,
+            "model": plan["model"],
+            "messages": manager.render(name="ner", passage=passage),
+            "max_tokens": 1024,
+            "response_format": {"type": "json_object"},
+        }
+        ner_key = target.digest(
+            {"payload": ner_payload, "kind": "llm", "operation": "openie_ner"}
+        )
+        if ner_key not in cache:
+            continue
+        ner_body = dense.read_json(cache[ner_key]["path"])
+        entities = json.loads(ner_body["choices"][0]["message"]["content"])[
+            "named_entities"
+        ]
+        if not isinstance(entities, list) or not all(
+            isinstance(x, str) and x.strip() for x in entities
+        ):
+            raise ValueError("schema_probe_invalid_verified_ner")
+        original = {
+            **target.OPTIONS,
+            "model": plan["model"],
+            "messages": manager.render(
+                name="triple_extraction",
+                passage=passage,
+                named_entity_json=json.dumps({"named_entities": entities}),
+            ),
+            "max_tokens": 3072,
+            "response_format": {"type": "json_object"},
+        }
+        key = target.digest(
+            {"payload": original, "kind": "llm", "operation": "openie_triples"}
+        )
+        if key not in repairs:
+            continue
+        if key in cases or key not in failures:
+            raise ValueError("schema_probe_ambiguous_original_request")
+        path, started, terminal, _ = failures[key]
+        old_body = dense.read_json(path.parent / "requests" / f"{key}.response.json")
+        if (
+            terminal["usage_status"] != "complete"
+            or old_body["choices"][0]["finish_reason"] != "length"
+            or not triple_cycle(old_body["choices"][0]["message"]["content"])["cycle"]
+        ):
+            raise ValueError("schema_probe_requires_verified_known_cycle")
+        try:
+            json.loads(old_body["choices"][0]["message"]["content"])
+            full_json_parseable = True
+        except json.JSONDecodeError:
+            full_json_parseable = False
+        payload, reserve = schema_probe_payload(original, compatible=compatible)
+        cases[key] = {
+            "historical_response_audit": {
+                "finish_reason": old_body["choices"][0]["finish_reason"],
+                "accepted": False,
+                "full_json_parseable": full_json_parseable,
+                "cycle_diagnostic": triple_cycle(
+                    old_body["choices"][0]["message"]["content"]
+                ),
+            },
+            "source_id": document["id"],
+            "original_request_sha256": started["object_id"],
+            "ner_response_sha256": cache[ner_key]["sha256"],
+            "ner_producer_run_id": cache[ner_key]["run_id"],
+            "payload": payload,
+            "request_sha256": target.digest(
+                {"payload": payload, "kind": "llm", "operation": "openie_triples"}
+            ),
+            "reserved_tokens_upper_bound": reserve,
+        }
+    if set(cases) != set(repairs):
+        raise ValueError("schema_probe_original_payload_sha_not_reconstructed")
+    if not compatible:
+        for case in cases.values():
+            case.pop("historical_response_audit")
+    own_known = sum(reference["summary"]["known_subtotal"].values())
+    remaining = row["token_limit"] - own_known
+    previous = {}
+    if compatible:
+        previous_path = directory.parent / "musique-schema-probe1" / "manifest.json"
+        previous_manifest = dense.read_json(previous_path)
+        previous_ref = verified_reference(previous_manifest, previous_path)
+        # This historical diagnostic predates per-request .json reservations.
+        # Reconstruct its exact legacy payloads, then match unknown journal IDs.
+        legacy_bounds = {}
+        for case in cases.values():
+            original_payload = {
+                **case["payload"],
+                "response_format": {"type": "json_object"},
+            }
+            legacy_payload, bound = schema_probe_payload(original_payload)
+            legacy_key = target.digest(
+                {
+                    "payload": legacy_payload,
+                    "kind": "llm",
+                    "operation": "openie_triples",
+                }
+            )
+            legacy_bounds[legacy_key] = bound
+        previous_records = read_records(previous_path.parent / "usage.jsonl")
+        finishes = {
+            r["attempt_id"]: r for r in previous_records if r["event"] == "finished"
+        }
+        unknown_keys = [
+            r["object_id"]
+            for r in previous_records
+            if r["event"] == "started"
+            and finishes.get(r["attempt_id"], {}).get("usage_status") != "complete"
+        ]
+        if any(key not in legacy_bounds for key in unknown_keys):
+            raise ValueError("compatible_schema_prior_reservation_not_reconstructed")
+        previous_reserve = sum(legacy_bounds[key] for key in unknown_keys)
+        if previous_reserve != previous_manifest.get("unknown_reserved_upper_bound"):
+            raise ValueError("compatible_schema_prior_reserve_changed")
+        if (
+            previous_manifest["status"] != "failed"
+            or previous_ref["status"] != "verified"
+            or type(previous_reserve) is not int
+            or previous_manifest["parent_manifest_sha256"]
+            != dense.sha256_file(manifest_path)
+        ):
+            raise ValueError("compatible_schema_requires_verified_failed_prior")
+        for name, sha in previous_manifest.get("artifacts", {}).items():
+            if dense.sha256_file(previous_path.parent / name) != sha:
+                raise ValueError("compatible_schema_prior_artifact_changed")
+        remaining -= (
+            sum(previous_ref["summary"]["known_subtotal"].values()) + previous_reserve
+        )
+        previous = {
+            "variant": "shape_local_unique_v2",
+            "code_commit": git("rev-parse", "HEAD"),
+            "timeout_seconds": [30, 300],
+            "execution_authorized": False,
+            "prior_failed_schema_manifest_sha256": dense.sha256_file(previous_path),
+            "prior_unknown_reservation": previous_reserve,
+            "local_duplicate_rejection": True,
+            "cycle_fix_proven": False,
+        }
+    reserve = sum(c["reserved_tokens_upper_bound"] for c in cases.values())
+    if reserve > remaining:
+        raise ValueError("schema_probe_budget_reservation_exceeded")
+    return {
+        "status": "prepared_offline_requires_approval",
+        "max_new_posts": 2,
+        "retry": 0,
+        "stop_on_first_failure": True,
+        "ner_posts": 0,
+        "output_cap": 3072,
+        "parent_plan_sha256": dense.sha256_file(prior_path),
+        "failed_manifest_sha256": dense.sha256_file(manifest_path),
+        "verified_sdk_files": verified_files,
+        "remaining_hippo_budget_before_probe": remaining,
+        "reserved_tokens_upper_bound": reserve,
+        "server_usage_known": False,
+        "unique_items_server_enforcement": "unverified",
+        **previous,
+        "cases": list(cases.values()),
+    }
+
+
+EXTRACTOR_DIAGNOSTIC = {
+    "kind": "hippo_extractor_model_diagnostic_v1",
+    "model": "iairlab/gpt-oss-120b",
+    "reasoning_effort": "low",
+    "context_guard_tokens": 131000,
+    "output_cap": 3072,
+    "max_new_posts": 5,
+    "retry": 0,
+    "timeout_seconds": [30, 300],
+    "contract_source": "curator_report_131k_json_schema_reasoning; deployment_unmeasured",
+}
+
+
+def gpt_extractor_payload(qwen_payload):
+    payload = copy.deepcopy(qwen_payload)
+    payload["model"] = EXTRACTOR_DIAGNOSTIC["model"]
+    payload.pop("chat_template_kwargs", None)
+    payload["reasoning_effort"] = "low"
+    reserve = len(json.dumps(payload, ensure_ascii=False).encode("utf-8")) + 2048 + 3072
+    if (
+        payload["max_tokens"] != 3072
+        or reserve > EXTRACTOR_DIAGNOSTIC["context_guard_tokens"]
+    ):
+        raise ValueError("extractor_diagnostic_context_or_cap_changed")
+    return payload, reserve
+
+
+def validate_extractor_diagnostic(body):
+    triples = validate_schema_probe_response(body, allow_literal_duplicates=True)
+    if not triples:
+        raise ValueError("diagnostic_empty_extraction")
+    longest = run = 1
+    for before, after in zip(triples, triples[1:]):
+        run = run + 1 if before == after else 1
+        longest = max(longest, run)
+    # Flag, not a claim that every repetition is unsupported: source review remains mandatory.
+    if longest >= 12:
+        raise ValueError("diagnostic_repetition_requires_source_review_stop")
+    usage = extract_usage(body, "llm", "target_api")
+    if usage["llm_input_tokens"] + usage["llm_output_tokens"] > 131000:
+        raise ValueError("diagnostic_reported_context_exceeded")
+    return triples
+
+
+def prepare_extractor_diagnostic(prior_path, source):
+    """Five frozen source-only cases: three prior failures plus two cached controls."""
+    from scripts.preflight_hipporag_repair_prompts import (
+        verify_target_prompt_installation,
+    )
+    from scripts.hipporag_repair_executor import make_pinned_openie_parser
+
+    plan = dense.read_json(prior_path)
+    if plan["workspace"] != str(ROOT.resolve()):
+        raise ValueError("diagnostic_workspace_changed")
+    row = next(
+        r
+        for r in plan["rows"]
+        if (r["method"], r["dataset"]) == ("hipporag2", "musique")
+    )
+    mp = ROOT / row["output"] / "manifest.json"
+    if (
+        dense.read_json(mp)["status"] != "failed"
+        or (mp.parent / "running.lock").exists()
+    ):
+        raise ValueError("diagnostic_requires_stopped_failed_parent")
+    cache, rejected = {}, {}
+    for entry in row["resume_sources"]:
+        path = ROOT / entry["output"] / "manifest.json"
+        if dense.sha256_file(path) != entry["manifest_sha256"]:
+            raise ValueError("diagnostic_source_manifest_changed")
+        cache, failures, _ = verified_checkpoints(
+            path, inherited=cache, allow_length=True
+        )
+        rejected.update({f[0]["object_id"]: (path, f) for f in failures})
+    adoption, accepted = verify_schema_recovery(plan, row)
+    cache.update(accepted)
+    cache, failures, reference = verified_checkpoints(
+        mp, inherited=cache, allow_length=True
+    )
+    if len(failures) != 1 or failures[0][1]["usage_status"] != "complete":
+        raise ValueError("diagnostic_requires_one_known_failure")
+    rejected.update({f[0]["object_id"]: (mp, f) for f in failures})
+    latest = failures[0][0]["object_id"]
+    old_cases = {c["source_id"]: c for c in adoption["cases"]}
+    manager_type, verified_files = verify_target_prompt_installation(source)
+    manager = manager_type(
+        role_mapping={"system": "system", "user": "user", "assistant": "assistant"}
+    )
+    parse = make_pinned_openie_parser()
+    # Read only the corpus: do not inspect questions, labels or holdout answers.
+    corpus_path = Path(plan["data_root"]) / "data/processed/musique/corpus.json"
+    if dense.sha256_file(corpus_path) != row["corpus"]["output_sha256"]["corpus.json"]:
+        raise ValueError("diagnostic_corpus_changed")
+    corpus = dense.read_json(corpus_path)
+    if dense.corpus_fingerprint(corpus) != row["corpus_fingerprint"]:
+        raise ValueError("diagnostic_corpus_fingerprint_changed")
+    failed_cases, controls = [], []
+    for doc in sorted(corpus, key=lambda d: d["id"]):
+        text = f"{doc['title']}\n{doc['text']}"
+        ner = {
+            **target.OPTIONS,
+            "model": plan["model"],
+            "messages": manager.render(name="ner", passage=text),
+            "max_tokens": 1024,
+            "response_format": {"type": "json_object"},
+        }
+        nk = target.digest({"payload": ner, "kind": "llm", "operation": "openie_ner"})
+        if nk not in cache:
+            continue
+        entities = parse(
+            "openie_ner",
+            dense.read_json(cache[nk]["path"])["choices"][0]["message"]["content"],
+            recover_partial=False,
+        )
+        original = {
+            **target.OPTIONS,
+            "model": plan["model"],
+            "messages": manager.render(
+                name="triple_extraction",
+                passage=text,
+                named_entity_json=json.dumps({"named_entities": entities}),
+            ),
+            "max_tokens": 3072,
+            "response_format": {"type": "json_object"},
+        }
+        ok = target.digest(
+            {"payload": original, "kind": "llm", "operation": "openie_triples"}
+        )
+        qwen, _ = schema_probe_payload(original, compatible=True)
+        sk = target.digest(
+            {"payload": qwen, "kind": "llm", "operation": "openie_triples"}
+        )
+        failed_key = old_cases.get(doc["id"], {}).get("original_request_sha256")
+        if sk == latest:
+            failed_key = latest
+        if failed_key:
+            path, failure = rejected[failed_key]
+            baseline = path.parent / "requests" / f"{failed_key}.response.json"
+            baseline_payload = original if failed_key == ok else qwen
+            if (
+                target.digest(
+                    {
+                        "payload": baseline_payload,
+                        "kind": "llm",
+                        "operation": "openie_triples",
+                    }
+                )
+                != failed_key
+            ):
+                raise ValueError("diagnostic_saved_payload_not_reconstructed")
+            role = "latest_failed" if sk == latest else "historical_failed"
+        else:
+            item = cache.get(ok) or cache.get(sk)
+            if not item or len(controls) >= 2:
+                continue
+            baseline = item["path"]
+            failed_key = ok if ok in cache else sk
+            role = "fixed_success_control"
+        body = dense.read_json(baseline)
+        if (
+            role != "fixed_success_control"
+            and body["choices"][0]["finish_reason"] != "length"
+        ):
+            raise ValueError("diagnostic_failure_not_length")
+        payload, reserve = gpt_extractor_payload(qwen)
+        case = {
+            "source_id": doc["id"],
+            "role": role,
+            "source_text": text,
+            "source_text_sha256": hashlib.sha256(text.encode()).hexdigest(),
+            "ner_response_sha256": cache[nk]["sha256"],
+            "baseline_request_sha256": failed_key,
+            "baseline_response_sha256": dense.sha256_file(baseline),
+            "baseline_finish_reason": body["choices"][0]["finish_reason"],
+            "baseline_format": "json_object" if failed_key == ok else "json_schema",
+            "payload": payload,
+            "request_sha256": target.digest(
+                {"payload": payload, "kind": "llm", "operation": "openie_triples"}
+            ),
+            "reserved_tokens_upper_bound": reserve,
+        }
+        (controls if role == "fixed_success_control" else failed_cases).append(case)
+    if len(failed_cases) != 3 or len(controls) != 2:
+        raise ValueError("diagnostic_requires_three_failures_two_fixed_controls")
+    failed_cases.sort(key=lambda c: (c["role"] != "latest_failed", c["source_id"]))
+    cases = [controls[0], *failed_cases, controls[1]]
+    remaining = row["token_limit"] - sum(
+        reference["summary"]["known_subtotal"].values()
+    )
+    reserve = sum(c["reserved_tokens_upper_bound"] for c in cases)
+    if reserve > remaining or current_unknown_reservation(mp.parent) != 0:
+        raise ValueError("diagnostic_budget_or_current_unknown_changed")
+    return {
+        **EXTRACTOR_DIAGNOSTIC,
+        "code_commit": git("rev-parse", "HEAD"),
+        "parent_plan_sha256": dense.sha256_file(prior_path),
+        "failed_manifest_sha256": dense.sha256_file(mp),
+        "verified_sdk_files": verified_files,
+        "remaining_hippo_budget_before_probe": remaining,
+        "reserved_tokens_upper_bound": reserve,
+        "cases": cases,
+        "selection": "3 existing length failures; first 2 compatible successes sorted by source_id excluding failures; control/latest/history/history/control",
+        "full_index_authorized": False,
+        "execution_authorized": False,
+        "semantic_acceptance": "Manual source review of all 5: support, qualifiers, salient omissions, nondegenerate extraction; no exact-triples match; no gold",
+    }
+
+
+SOURCE_FAITHFULNESS_POLICY = """Source fidelity rules (source_faithfulness_v1):
+- Preserve attribution: distinguish fiction, predictions, beliefs and reported claims
+  from actual events. Encode essential scope in the relation or entity strings.
+- Preserve uncertainty, negation and quantifiers such as supposedly, may, some,
+  most and only. Do not turn qualified statements into unconditional facts.
+- Preserve exact dates and disjoint intervals; never fill gaps or extend ranges.
+- Attach locations and dates to the entity, event or restriction actually modified
+  in the source. An end date of a restriction is not an end date of its subject.
+- Use only source-supported relations. If attachment is ambiguous, omit that
+  relation rather than invent certainty. Do not repair contradictions with outside
+  knowledge. Preserve other supported information; do not return an empty shortcut.
+Return the same triples JSON shape. These rules override lossy shortcuts in examples.
+"""
+
+
+def verify_extractor_rejection(probe_plan, directory):
+    """Verify evidence provenance, not the truth of an arbitrary semantic verdict."""
+    plan = dense.read_json(probe_plan)
+    mp = directory / "manifest.json"
+    manifest = dense.read_json(mp)
+    review_path = directory / "source-review.json"
+    review = dense.read_json(review_path)
+    if (
+        plan.get("kind") != EXTRACTOR_DIAGNOSTIC["kind"]
+        or len(plan["cases"]) != 5
+        or manifest["approved_plan_sha256"] != dense.sha256_file(probe_plan)
+        or manifest["model"] != plan["model"]
+        or manifest["status"] != "awaiting_source_review"
+        or verified_reference(manifest, mp)["status"] != "verified"
+        or not manifest["token_accounting"]["summary"]["complete"]
+        or manifest["unknown_reserved_upper_bound"] != 0
+        or review["producer_manifest_sha256"] != dense.sha256_file(mp)
+        or review["approved_plan_sha256"] != dense.sha256_file(probe_plan)
+        or review["producer_run_id"] != manifest["run_id"]
+        or review["semantic_status"] != "not_accepted_for_continuation"
+        or review["full_index_authorized"] is not False
+    ):
+        raise ValueError("source_review_provenance_or_rejection_changed")
+    for name, sha in manifest["artifacts"].items():
+        if dense.sha256_file(directory / name) != sha:
+            raise ValueError("source_review_artifact_changed")
+    cases = {c["request_sha256"]: c for c in plan["cases"]}
+    reviews = {c["request_sha256"]: c for c in review["cases"]}
+    completed = {c["request_sha256"] for c in manifest["cases"]}
+    starts = [
+        r for r in read_records(directory / "usage.jsonl") if r["event"] == "started"
+    ]
+    if (
+        len(starts) != 5
+        or {r["object_id"] for r in starts} != set(cases)
+        or any(
+            r["model"] != plan["model"] or r["operation"] != "openie_triples"
+            for r in starts
+        )
+    ):
+        raise ValueError("source_review_requires_five_actual_triples_attempts")
+    if (
+        len(cases) != 5
+        or len(manifest["cases"]) != 5
+        or len(review["cases"]) != 5
+        or set(reviews) != set(cases)
+        or completed != set(cases)
+    ):
+        raise ValueError("source_review_requires_all_five_cases")
+    for key, case in cases.items():
+        r = reviews[key]
+        response = directory / "requests" / f"{key}.response.json"
+        if (
+            r["source_id"] != case["source_id"]
+            or r["source_text_sha256"] != case["source_text_sha256"]
+            or hashlib.sha256(case["source_text"].encode()).hexdigest()
+            != case["source_text_sha256"]
+            or r["response_sha256"] != dense.sha256_file(response)
+            or manifest["artifacts"].get(f"requests/{key}.response.json")
+            != r["response_sha256"]
+            or target.digest(
+                {
+                    "payload": case["payload"],
+                    "kind": "llm",
+                    "operation": "openie_triples",
+                }
+            )
+            != key
+            or r["status"] != "not_accepted"
+            or not r["source_evidence"]
+            or r["source_evidence"] not in case["source_text"]
+            or r["response_evidence"]
+            not in validate_extractor_diagnostic(dense.read_json(response))
+        ):
+            raise ValueError("source_review_case_or_literal_evidence_changed")
+    return plan, manifest, review_path
+
+
+def prepare_extractor_policy(probe_plan, directory):
+    """Freeze one source-fidelity prompt proposal; deliberately not executable."""
+    plan, manifest, review_path = verify_extractor_rejection(probe_plan, directory)
+    cases = []
+    for original in plan["cases"]:
+        case = copy.deepcopy(original)
+        payload = case["payload"]
+        systems = [m for m in payload["messages"] if m["role"] == "system"]
+        if len(systems) != 1 or "source_faithfulness_v1" in systems[0]["content"]:
+            raise ValueError("source_policy_requires_one_unmodified_system_message")
+        systems[0]["content"] += "\n\n" + SOURCE_FAITHFULNESS_POLICY
+        payload, reserve = gpt_extractor_payload(payload)
+        case.update(
+            payload=payload,
+            reserved_tokens_upper_bound=reserve,
+            previous_probe_request_sha256=original["request_sha256"],
+            request_sha256=target.digest(
+                {"payload": payload, "kind": "llm", "operation": "openie_triples"}
+            ),
+        )
+        cases.append(case)
+    known = sum(manifest["token_accounting"]["summary"]["known_subtotal"].values())
+    remaining = plan["remaining_hippo_budget_before_probe"] - known
+    reserve = sum(c["reserved_tokens_upper_bound"] for c in cases)
+    if reserve > remaining:
+        raise ValueError("source_policy_snapshot_budget_exceeded")
+    return {
+        **EXTRACTOR_DIAGNOSTIC,
+        "kind": "hippo_extractor_policy_candidate_v1",
+        "status": "offline_proposal_not_executable",
+        "code_commit": git("rev-parse", "HEAD"),
+        "policy_version": "source_faithfulness_v1",
+        "policy": SOURCE_FAITHFULNESS_POLICY,
+        "parent_probe_plan_sha256": dense.sha256_file(probe_plan),
+        "parent_probe_manifest_sha256": dense.sha256_file(directory / "manifest.json"),
+        "source_review_sha256": dense.sha256_file(review_path),
+        "remaining_hippo_budget_snapshot": remaining,
+        "reserved_tokens_upper_bound": reserve,
+        "cases": cases,
+        "new_http_calls": 0,
+        "execution_authorized": False,
+        "full_index_authorized": False,
+        "semantic_acceptance": plan["semantic_acceptance"],
+        "limitation": "Rules and provenance checked offline; generated compliance unmeasured. Requires separate execution design and approval; no cache promotion.",
+    }
+
+
+EXTRACTOR_POLICY_PROBE = "hippo_extractor_policy_probe_v1"
+
+
+def prepare_extractor_policy_probe(probe_plan, directory, prior_path):
+    """One follow-up of the rejected producer, within the same remaining budget."""
+    prior = dense.read_json(prior_path)
+    parent = dense.read_json(probe_plan)
+    row = next(
+        r
+        for r in prior["rows"]
+        if (r["method"], r["dataset"]) == ("hipporag2", "musique")
+    )
+    stopped = ROOT / row["output"] / "manifest.json"
+    expected = stopped.parent.parent / "musique-gpt-oss-probe1"
+    if (
+        prior["workspace"] != str(ROOT.resolve())
+        or directory.resolve() != expected.resolve()
+        or parent["parent_plan_sha256"] != dense.sha256_file(prior_path)
+        or parent["failed_manifest_sha256"] != dense.sha256_file(stopped)
+        or dense.read_json(stopped)["status"] != "failed"
+        or (stopped.parent / "running.lock").exists()
+    ):
+        raise ValueError("source_policy_parent_index_or_canonical_probe_changed")
+    if (directory / "source-policy-probe-once.claim.json").exists() or (
+        directory.parent / "musique-gpt-oss-policy-probe1"
+    ).exists():
+        raise ValueError("source_policy_followup_already_claimed")
+    prepared = prepare_extractor_policy(probe_plan, directory)
+    reference = verified_reference(dense.read_json(stopped), stopped)
+    if reference["status"] != "verified" or current_unknown_reservation(stopped.parent):
+        raise ValueError("source_policy_current_parent_unknown_or_corrupt")
+    remaining = row["token_limit"] - sum(
+        reference["summary"]["known_subtotal"].values()
+    )
+    if remaining != parent["remaining_hippo_budget_before_probe"]:
+        raise ValueError("source_policy_parent_budget_changed")
+    return {
+        **prepared,
+        "kind": EXTRACTOR_POLICY_PROBE,
+        "status": "prepared_requires_separate_execution_approval",
+        "failed_manifest_sha256": parent["failed_manifest_sha256"],
+        "parent_index_plan_sha256": dense.sha256_file(prior_path),
+        "parent_probe_plan": {
+            "path": str(probe_plan.resolve()),
+            "sha256": dense.sha256_file(probe_plan),
+        },
+        "parent_probe_output": directory.resolve()
+        .relative_to(ROOT.resolve())
+        .as_posix(),
+        "limitation": "One source-fidelity follow-up only; all 5 need source review. No full indexing, cache promotion or further prompt retries.",
+    }
+
+
+def execute_json_mode_probe(candidate_path, prior_path, config, approved_sha256):
+    """One response-format diagnostic; no cache promotion or index continuation."""
+    if dense.sha256_file(candidate_path) != approved_sha256 or code_dirty():
+        raise ValueError("json_mode_requires_approved_candidate_and_clean_code")
+    candidate = dense.read_json(candidate_path)
+    plan = dense.read_json(prior_path)
+    if dense.sha256_file(prior_path) != candidate["parent_plan_sha256"]:
+        raise ValueError("json_mode_parent_plan_changed")
+    row = next(
+        r
+        for r in plan["rows"]
+        if (r["method"], r["dataset"]) == ("hipporag2", "hotpotqa")
+    )
+    parent = ROOT / row["output"]
+    manifest_path = parent / "manifest.json"
+    manifest = dense.read_json(manifest_path)
+    for item in plan["rows"]:
+        folder = ROOT / item["output"]
+        mp = folder / "manifest.json"
+        if (folder / "running.lock").exists() or (
+            mp.exists() and dense.read_json(mp)["status"] == "running"
+        ):
+            raise ValueError("json_mode_wait_for_workers")
+    if (
+        Path(plan["workspace"]).resolve() != ROOT.resolve()
+        or manifest["status"] != "failed"
+        or row.get("history_runs")
+        or dense.sha256_file(manifest_path) != candidate["failed_manifest_sha256"]
+        or verified_reference(manifest, manifest_path)["status"] != "verified"
+        or current_unknown_reservation(parent) != 0
+    ):
+        raise ValueError("json_mode_failed_parent_changed_or_unknown")
+    payload_path = ROOT / candidate["payload_file"]
+    payload = dense.read_json(payload_path)
+    key = target.digest(
+        {"payload": payload, "kind": "llm", "operation": "openie_triples"}
+    )
+    old_payload, _ = schema_probe_payload(payload, compatible=True)
+    old_key = target.digest(
+        {"payload": old_payload, "kind": "llm", "operation": "openie_triples"}
+    )
+    reserve = len(json.dumps(payload, ensure_ascii=False).encode()) + 2048 + 3072
+    remaining = row["token_limit"] - sum(
+        manifest["token_accounting"]["summary"]["known_subtotal"].values()
+    )
+    if (
+        candidate["kind"] != "offline_json_mode_candidate_not_executable"
+        or candidate["max_new_posts"] != 1
+        or dense.sha256_file(payload_path) != candidate["payload_file_sha256"]
+        or key != candidate["request_sha256"]
+        or old_key != candidate["previous_request_sha256"]
+        or payload["model"] != "iairlab/gpt-oss-120b"
+        or payload.get("reasoning_effort") != "low"
+        or payload.get("temperature") != 0
+        or payload.get("seed") != 42
+        or payload.get("stream") is not False
+        or "chat_template_kwargs" in payload
+        or reserve != candidate["reserved_tokens_upper_bound"]
+        or remaining != candidate["remaining_hotpot_budget_before_probe"]
+        or reserve > remaining
+        or dense.sha256_file(parent / "requests" / f"{old_key}.response.json")
+        != candidate["previous_response_sha256"]
+        or dense.sha256_file(
+            parent / "requests" / f"{candidate['ner_request_sha256']}.response.json"
+        )
+        != candidate["ner_response_sha256"]
+        or config.get("TARGET_API_BASE_URL", "").rstrip("/") != plan["endpoint"]
+        or candidate["endpoint"] != plan["endpoint"]
+        or not config.get("LITELLM_API_KEY")
+    ):
+        raise ValueError("json_mode_payload_budget_or_config_changed")
+    directory = parent.parent / "hotpotqa-gpt-json-mode-probe1"
+    if directory.exists():
+        raise ValueError("json_mode_output_exists")
+    run_id = str(uuid.uuid4())
+    with (parent / "json-mode-probe-once.claim.json").open(
+        "x", encoding="utf-8"
+    ) as stream:
+        json.dump(
+            {
+                "approved_plan_sha256": approved_sha256,
+                "run_id": run_id,
+                "code_commit": git("rev-parse", "HEAD"),
+            },
+            stream,
+        )
+        stream.flush()
+        os.fsync(stream.fileno())
+    (directory / "requests").mkdir(parents=True)
+    dense.write_json_atomic(
+        directory / "requests" / f"{key}.json",
+        {"reserved_tokens": reserve, "request_sha256": key},
+    )
+    journal = Journal(
+        directory / "usage.jsonl", run_id=run_id, method="hipporag2", dataset="hotpotqa"
+    )
+    result = {
+        "status": "running",
+        "run_id": run_id,
+        "model": payload["model"],
+        "parent_manifest_sha256": candidate["failed_manifest_sha256"],
+        "approved_plan_sha256": approved_sha256,
+        "max_new_posts": 1,
+        "reserved_tokens_upper_bound": reserve,
+        "cases": [],
+        "code_commit": git("rev-parse", "HEAD"),
+        "full_index_authorized": False,
+    }
+    dense.write_json_atomic(directory / "manifest.json", result)
+    session = requests.Session()
+    started = time.perf_counter()
+    try:
+        if any(a.max_retries.total for a in session.adapters.values()):
+            raise ValueError("transport_retry_must_be_zero")
+        body = target.checked_post(
+            session,
+            plan["endpoint"] + "/chat/completions",
+            payload,
+            journal,
+            phase="index",
+            operation="openie_triples",
+            provider="target_api",
+            model=payload["model"],
+            kind="llm",
+            object_id=key,
+            headers={
+                "Authorization": f"Bearer {config['LITELLM_API_KEY']}",
+                "Connection": "close",
+            },
+            response_path=directory / "requests" / f"{key}.response.json",
+            token_limit=reserve,
+            timeout=(30, 300),
+        )
+        triples = validate_extractor_diagnostic(body)
+        result["cases"] = [
+            {
+                "source_id": candidate["source_id"],
+                "request_sha256": key,
+                "triples": len(triples),
+                "semantic_support": "not_reviewed",
+            }
+        ]
+        result["status"] = "awaiting_source_review"
+    except BaseException as exc:
+        result.update(status="failed", error_type=type(exc).__name__)
+        raise
+    finally:
+        session.close()
+        result["seconds"] = round(time.perf_counter() - started, 3)
+        result["token_accounting"] = journal.reference()
+        result["unknown_reserved_upper_bound"] = current_unknown_reservation(directory)
+        result["artifacts"] = {
+            p.relative_to(directory).as_posix(): dense.sha256_file(p)
+            for p in directory.rglob("*")
+            if p.is_file() and p.name != "manifest.json"
+        }
+        dense.write_json_atomic(directory / "manifest.json", result)
+    return directory
+
+
+def execute_schema_probe(
+    probe_path, prior_path, source, config, approved_sha256, *, compatible=False
+):
+    """Execute the pinned two/five-case plan; the canonical claim survives crashes."""
+    if dense.sha256_file(probe_path) != approved_sha256 or code_dirty():
+        raise ValueError("schema_probe_requires_approved_sha_and_clean_code")
+    if dense.read_json(probe_path).get("kind") == "hippo_extractor_policy_candidate_v1":
+        raise ValueError("offline_policy_candidate_not_executable")
+    plan = dense.read_json(prior_path)
+    if Path(plan["workspace"]).resolve() != ROOT.resolve():
+        raise ValueError("schema_probe_requires_integrated_live_checkout")
+    for row in plan["rows"]:
+        directory = ROOT / row["output"]
+        manifest = directory / "manifest.json"
+        if (directory / "running.lock").exists() or (
+            manifest.exists() and dense.read_json(manifest)["status"] == "running"
+        ):
+            raise ValueError("schema_probe_wait_for_index_workers")
+    if (
+        config.get("TARGET_API_MODEL") != plan["model"]
+        or config.get("TARGET_API_BASE_URL", "").rstrip("/") != plan["endpoint"]
+        or not config.get("LITELLM_API_KEY")
+    ):
+        raise ValueError("schema_probe_target_config_mismatch")
+    prepared = dense.read_json(probe_path)
+    policy_probe = prepared.get("kind") == EXTRACTOR_POLICY_PROBE
+    diagnostic = policy_probe or prepared.get("kind") == EXTRACTOR_DIAGNOSTIC["kind"]
+    expected_cases = 5 if diagnostic else 2
+    if (
+        len(prepared.get("cases", [])) != expected_cases
+        or prepared.get("max_new_posts") != expected_cases
+    ):
+        raise ValueError("schema_probe_requires_two_cases")
+    if (compatible or diagnostic) and prepared.get("code_commit") != git(
+        "rev-parse", "HEAD"
+    ):
+        raise ValueError("compatible_schema_requires_pinned_code")
+    rebuilt = (
+        prepare_extractor_policy_probe(
+            Path(prepared["parent_probe_plan"]["path"]),
+            ROOT / prepared["parent_probe_output"],
+            prior_path,
+        )
+        if policy_probe
+        else prepare_extractor_diagnostic(prior_path, source)
+        if diagnostic
+        else prepare_schema_probe(prior_path, source, compatible=compatible)
+    )
+    if prepared != rebuilt:
+        raise ValueError("schema_probe_prepared_inputs_changed")
+    row = next(
+        r
+        for r in plan["rows"]
+        if (r["method"], r["dataset"]) == ("hipporag2", "musique")
+    )
+    prior = ROOT / row["output"]
+    directory = prior.parent / (
+        "musique-gpt-oss-policy-probe1"
+        if policy_probe
+        else "musique-gpt-oss-probe1"
+        if diagnostic
+        else "musique-schema-shape-probe1"
+        if compatible
+        else "musique-schema-probe1"
+    )
+    if directory.exists():
+        raise ValueError("schema_probe_output_already_exists")
+    run_id = str(uuid.uuid4())
+    claim_name = (
+        "source-policy-probe-once.claim.json"
+        if policy_probe
+        else "gpt-oss-probe-once.claim.json"
+        if diagnostic
+        else "schema-shape-probe-once.claim.json"
+        if compatible
+        else "schema-probe-once.claim.json"
+    )
+    claim_parent = ROOT / prepared["parent_probe_output"] if policy_probe else prior
+    with (claim_parent / claim_name).open("x", encoding="utf-8") as stream:
+        json.dump(
+            {
+                "approved_plan_sha256": approved_sha256,
+                "run_id": run_id,
+                "code_commit": git("rev-parse", "HEAD"),
+            },
+            stream,
+        )
+        stream.flush()
+        os.fsync(stream.fileno())
+    directory.mkdir()
+    requests_dir = directory / "requests"
+    requests_dir.mkdir()
+    journal = Journal(
+        directory / "usage.jsonl", run_id=run_id, method="hipporag2", dataset="musique"
+    )
+    result = {
+        "status": "running",
+        "run_id": run_id,
+        "approved_plan_sha256": approved_sha256,
+        "parent_manifest_sha256": prepared["failed_manifest_sha256"],
+        "max_new_posts": expected_cases,
+        "model": prepared["model"] if diagnostic else plan["model"],
+        "reserved_tokens_upper_bound": prepared["reserved_tokens_upper_bound"],
+        "cases": [],
+        **(
+            {
+                "parent_probe_manifest_sha256": prepared[
+                    "parent_probe_manifest_sha256"
+                ],
+                "source_review_sha256": prepared["source_review_sha256"],
+                "policy_version": prepared["policy_version"],
+            }
+            if policy_probe
+            else {}
+        ),
+        "schema_variant": "gpt_oss_source_faithfulness_v1"
+        if policy_probe
+        else "gpt_oss_diagnostic_v1"
+        if diagnostic
+        else "shape_local_unique_v2"
+        if compatible
+        else "legacy_unique_v1",
+        "code_commit": git("rev-parse", "HEAD"),
+        "timeout_seconds": [30, 300] if compatible or diagnostic else [5, 300],
+        **(
+            {
+                "prior_failed_schema_manifest_sha256": prepared[
+                    "prior_failed_schema_manifest_sha256"
+                ]
+            }
+            if compatible and not diagnostic
+            else {}
+        ),
+        "unique_items_server_enforcement": "local_only"
+        if compatible or diagnostic
+        else "unverified",
+        "full_index_authorized": False,
+    }
+    dense.write_json_atomic(directory / "manifest.json", result)
+    started = time.perf_counter()
+    session = requests.Session()
+    try:
+        if any(a.max_retries.total for a in session.adapters.values()):
+            raise ValueError("transport_retry_must_be_zero")
+        for case in prepared["cases"]:
+            body = target.checked_post(
+                session,
+                plan["endpoint"] + "/chat/completions",
+                case["payload"],
+                journal,
+                phase="index",
+                operation="openie_triples",
+                provider="target_api",
+                model=prepared["model"] if diagnostic else plan["model"],
+                kind="llm",
+                object_id=case["request_sha256"],
+                headers={
+                    "Authorization": f"Bearer {config['LITELLM_API_KEY']}",
+                    "Connection": "close",
+                },
+                response_path=requests_dir / f"{case['request_sha256']}.response.json",
+                token_limit=prepared["reserved_tokens_upper_bound"],
+                timeout=(30, 300) if compatible or diagnostic else (5, 300),
+            )
+            triples = (
+                validate_extractor_diagnostic(body)
+                if diagnostic
+                else validate_schema_probe_response(body)
+            )
+            result["cases"].append(
+                {
+                    "source_id": case["source_id"],
+                    "request_sha256": case["request_sha256"],
+                    "triples": len(triples),
+                    "format_status": "passed",
+                    "semantic_support": "not_reviewed",
+                }
+            )
+        result["status"] = "awaiting_source_review" if diagnostic else "completed"
+    except BaseException as exc:
+        result.update(status="failed", error_type=type(exc).__name__)
+        raise
+    finally:
+        result["seconds"] = round(time.perf_counter() - started, 3)
+        result["token_accounting"] = journal.reference()
+        records = read_records(journal.path)
+        finished = {r["attempt_id"]: r for r in records if r["event"] == "finished"}
+        reserves = {
+            c["request_sha256"]: c["reserved_tokens_upper_bound"]
+            for c in prepared["cases"]
+        }
+        result["unknown_reserved_upper_bound"] = sum(
+            reserves[r["object_id"]]
+            for r in records
+            if r["event"] == "started"
+            and finished.get(r["attempt_id"], {}).get("usage_status") != "complete"
+        )
+        result["artifacts"] = {
+            p.relative_to(directory).as_posix(): dense.sha256_file(p)
+            for p in directory.rglob("*")
+            if p.is_file() and p.name != "manifest.json"
+        }
+        dense.write_json_atomic(directory / "manifest.json", result)
+        session.close()
+    return directory
+
+
+def raptor_batch_plan(prior_path):
+    """Reserve one inspected continuation and the untouched second RAPTOR row."""
+    original = dense.read_json(prior_path)
+    if (
+        code_dirty()
+        or not original.get("independent_raptor")
+        or original.get("raptor_batch_resume")
+        or original.get("workspace") != str(ROOT.resolve())
+    ):
+        raise ValueError("raptor_batch_requires_clean_independent_prior")
+    parent = {
+        "path": str(prior_path.resolve()),
+        "sha256": dense.sha256_file(prior_path),
+        "digest": target.digest(original),
+    }
+    plan = copy.deepcopy(original)
+    plan.update(
+        parent_plan=parent,
+        lineage=[parent, *original.get("lineage", [])],
+        raptor_batch_resume=True,
+    )
+    for item in plan["lineage"]:
+        if dense.sha256_file(Path(item["path"])) != item["sha256"]:
+            raise ValueError("lineage_plan_changed")
+    inspected = []
+    for row in plan["rows"]:
+        directory = ROOT / row["output"]
+        path = directory / "manifest.json"
+        if (directory / "running.lock").exists() or (
+            path.exists() and dense.read_json(path)["status"] == "running"
+        ):
+            raise ValueError("raptor_batch_requires_stopped_workers")
+        if row["method"] != "raptor":
+            continue
+        # Validate the exact Dense vectors used for all leaf cache hits.
+        leaf_scope = verified_raptor_leaf_scope(plan, row)
+        row["code_commit"] = git("rev-parse", "HEAD")
+        row["embedding_options"] = dict(RAPTOR_EMBEDDING_OPTIONS)
+        if row["dataset"] == "hotpotqa":
+            if directory.exists() and any(directory.iterdir()):
+                raise ValueError("raptor_hotpot_must_be_untouched")
+            continue
+        manifest = dense.read_json(path)
+        if manifest["status"] != "failed" or row.get("history_runs"):
+            raise ValueError("raptor_batch_requires_original_failed_run")
+        cache, failures, reference = verified_checkpoints(
+            path, leaf_producer=leaf_scope
+        )
+        if (
+            len(failures) != 1
+            or failures[0][0]["kind"] != "embedding"
+            or failures[0][1]["usage_status"] != "unknown"
+        ):
+            raise ValueError("raptor_batch_requires_one_unknown_embedding")
+        bound = current_unknown_reservation(directory)
+        if type(bound) is not int or bound <= 0:
+            raise ValueError("raptor_batch_requires_saved_unknown_reserve")
+        probe_path = directory.parent / "musique-embedding-probe1/manifest.json"
+        probe = dense.read_json(probe_path)
+        if (
+            probe["status"] != "completed"
+            or probe["parent_manifest_sha256"] != dense.sha256_file(path)
+            or probe.get("embedding_options") != RAPTOR_EMBEDDING_OPTIONS
+            or probe.get("full_index_authorized") is not False
+        ):
+            raise ValueError("raptor_batch_requires_successful_exact_probe")
+        cache, probe_errors, probe_reference = verified_checkpoints(
+            probe_path, inherited=cache, leaf_producer=leaf_scope
+        )
+        if (
+            probe_errors
+            or not probe_reference["summary"]["complete"]
+            or probe_reference["summary"]["attempts"] != 1
+        ):
+            raise ValueError("raptor_batch_probe_cost_not_complete")
+        repaired = []
+        for item in cache.values():
+            if item["operation"] != "summary" or item["kind"] != "llm":
+                continue
+            text = dense.read_json(item["path"])["choices"][0]["message"]["content"]
+            payload = {
+                "model": plan["embedding_model"],
+                "input": [text],
+                "truncate": False,
+            }
+            old_key = target.digest(
+                {
+                    "payload": payload,
+                    "kind": "embedding",
+                    "operation": "index_embedding",
+                }
+            )
+            if old_key != failures[0][0]["object_id"]:
+                continue
+            payload["options"] = dict(RAPTOR_EMBEDDING_OPTIONS)
+            new_key = target.digest(
+                {
+                    "payload": payload,
+                    "kind": "embedding",
+                    "operation": "index_embedding",
+                }
+            )
+            if new_key not in cache or cache[new_key]["run_id"] != probe["run_id"]:
+                raise ValueError("raptor_batch_probe_does_not_repair_failed_input")
+            repaired.append(new_key)
+        if len(repaired) != 1:
+            raise ValueError("raptor_batch_failed_input_not_reconstructed")
+        history = []
+        for source_path, source_manifest, ref, reserved in [
+            (path, manifest, reference, bound),
+            (probe_path, probe, probe_reference, 0),
+        ]:
+            history.append(
+                {
+                    "output": source_path.parent.relative_to(ROOT).as_posix(),
+                    "run_id": source_manifest["run_id"],
+                    "manifest_sha256": dense.sha256_file(source_path),
+                    "summary": ref["summary"],
+                    "unknown_reserved_upper_bound": reserved,
+                }
+            )
+        charge = sum(
+            sum(h["summary"]["known_subtotal"].values())
+            + h["unknown_reserved_upper_bound"]
+            for h in history
+        )
+        if charge >= row["token_limit"]:
+            raise ValueError("raptor_batch_budget_exhausted")
+        row.update(
+            history_runs=history,
+            prior_run=history[-1],
+            resume_sources=[
+                {k: h[k] for k in ("output", "manifest_sha256")} for h in history
+            ],
+            diagnostics_in_history=True,
+            resume_kind="embedding_batch",
+            prior_budget_charge=charge,
+            token_limit=row["token_limit"] - charge,
+            run_id=str(uuid.uuid4()),
+            output=row["output"] + "-batch1",
+            verified_response_cache_count=len(cache),
+        )
+        row["resume_from"] = row["resume_sources"][-1]
+        if (ROOT / row["output"]).exists():
+            raise ValueError("raptor_batch_output_must_be_new")
+        inspected.append((directory, row["run_id"]))
+    if len(inspected) != 1:
+        raise ValueError("raptor_batch_requires_one_failed_stage")
+    directory, child = inspected[0]
+    with (directory / "embedding-resume-once.claim.json").open(
+        "x", encoding="utf-8"
+    ) as stream:
+        json.dump(
+            {"parent_plan_sha256": parent["sha256"], "child_run_id": child}, stream
+        )
+        stream.flush()
+        os.fsync(stream.fileno())
+    plan["combined_token_limit"] = sum(r["token_limit"] for r in plan["rows"])
+    return plan
+
+
+SUMMARY_PROBE_POLICY = {
+    "version": "raptor_summary_300_words_v1",
+    "max_words": 300,
+    "max_output_tokens": 1536,
+    "max_utf8_bytes": 4000,
+}
+
+
+def summary_probe_payload(original):
+    """Keep the original context intact; constrain only the diagnostic summary."""
+    messages = original.get("messages", [])
+    if (
+        len(messages) != 2
+        or messages[0] != {"role": "system", "content": "You are a helpful assistant."}
+        or messages[1].get("role") != "user"
+        or not isinstance(messages[1].get("content"), str)
+        or not messages[1]["content"].startswith("Write a summary of the following,")
+        or original
+        != {
+            **target.OPTIONS,
+            "model": original.get("model"),
+            "messages": messages,
+            "max_tokens": PARAMETERS["summary_max_tokens"],
+        }
+    ):
+        raise ValueError("summary_probe_original_payload_invalid")
+    payload = copy.deepcopy(original)
+    payload["max_tokens"] = SUMMARY_PROBE_POLICY["max_output_tokens"]
+    payload["messages"][0]["content"] += (
+        " Summarize in at most 300 words of compact prose. Preserve the key entities"
+        " and relationships supported by the supplied text. Do not expand into"
+        " catalogs, repeat facts, or add facts. End the summary within this limit."
+    )
+    return payload
+
+
+def validate_summary_probe(body):
+    choice = body["choices"][0]
+    text = choice["message"]["content"]
+    usage = extract_usage(body, "llm", "target_api")
+    if (
+        choice["finish_reason"] != "stop"
+        or type(usage["llm_input_tokens"]) is not int
+        or type(usage["llm_output_tokens"]) is not int
+        or not 0
+        <= usage["llm_output_tokens"]
+        <= SUMMARY_PROBE_POLICY["max_output_tokens"]
+        or not isinstance(text, str)
+        or not text.strip()
+        or len(text.split()) > SUMMARY_PROBE_POLICY["max_words"]
+        or len(text.encode("utf-8")) > SUMMARY_PROBE_POLICY["max_utf8_bytes"]
+    ):
+        raise ValueError("summary_probe_output_not_compact_complete_text")
+    return {
+        "words": len(text.split()),
+        "utf8_bytes": len(text.encode("utf-8")),
+        "semantic_support": "not_reviewed",
+    }
+
+
+def prepare_summary_probe(prior_path, recovered_path):
+    """Verify one length failure and prepare one POST; never reuse partial text."""
+    plan = dense.read_json(prior_path)
+    if code_dirty() or plan.get("workspace") != str(ROOT.resolve()):
+        raise ValueError("summary_probe_requires_clean_live_checkout")
+    for item in plan["rows"]:
+        folder = ROOT / item["output"]
+        mp = folder / "manifest.json"
+        if (folder / "running.lock").exists() or (
+            mp.exists() and dense.read_json(mp)["status"] == "running"
+        ):
+            raise ValueError("summary_probe_requires_stopped_workers")
+    row = next(
+        r for r in plan["rows"] if (r["method"], r["dataset"]) == ("raptor", "hotpotqa")
+    )
+    folder = ROOT / row["output"]
+    mp = folder / "manifest.json"
+    manifest = dense.read_json(mp)
+    if manifest["status"] != "failed" or row.get("history_runs"):
+        raise ValueError("summary_probe_requires_first_failed_hotpot_run")
+    _, failures, reference = verified_checkpoints(
+        mp,
+        allow_summary_length=True,
+        leaf_producer=verified_raptor_leaf_scope(plan, row),
+    )
+    if len(failures) != 1 or not reference["summary"]["complete"]:
+        raise ValueError("summary_probe_requires_one_length_and_complete_usage")
+    failed, terminal, _ = failures[0]
+    original = dense.read_json(recovered_path)
+    if (
+        failed["operation"] != "summary"
+        or terminal["status"] != "success"
+        or original.get("model") != plan["model"]
+        or target.digest({"payload": original, "kind": "llm", "operation": "summary"})
+        != failed["object_id"]
+    ):
+        raise ValueError("summary_probe_recovered_payload_mismatch")
+    payload = summary_probe_payload(original)
+    reserve = (
+        len(json.dumps(payload, ensure_ascii=False).encode())
+        + 2048
+        + payload["max_tokens"]
+    )
+    known = sum(reference["summary"]["known_subtotal"].values())
+    if (
+        type(row["token_limit"]) is not int
+        or not 0 < row["token_limit"] <= LIMITS["raptor"]
+    ):
+        raise ValueError("summary_probe_invalid_prior_budget")
+    remaining = row["token_limit"] - known
+    if reserve > remaining or reserve > PARAMETERS["target_context"]:
+        raise ValueError("summary_probe_budget_or_context_exceeded")
+    return {
+        "kind": "E1_raptor_summary_diagnostic",
+        "workspace": str(ROOT.resolve()),
+        "code_commit": git("rev-parse", "HEAD"),
+        "policy": SUMMARY_PROBE_POLICY,
+        "prior_plan": {
+            "path": str(prior_path.resolve()),
+            "sha256": dense.sha256_file(prior_path),
+        },
+        "recovered_payload": {
+            "path": str(recovered_path.resolve()),
+            "sha256": dense.sha256_file(recovered_path),
+        },
+        "parent_manifest_sha256": dense.sha256_file(mp),
+        "original_request_sha256": failed["object_id"],
+        "payload": payload,
+        "request_sha256": target.digest(
+            {"payload": payload, "kind": "llm", "operation": "summary"}
+        ),
+        "remaining_before_probe": remaining,
+        "reserved_tokens_upper_bound": reserve,
+        "max_new_posts": 1,
+        "full_index_authorized": False,
+    }
+
+
+def execute_summary_probe(probe_path, config, approved_sha256):
+    if dense.sha256_file(probe_path) != approved_sha256:
+        raise ValueError("summary_probe_requires_exact_approved_sha")
+    prepared = dense.read_json(probe_path)
+    prior_path = Path(prepared["prior_plan"]["path"])
+    recovered = Path(prepared["recovered_payload"]["path"])
+    if prepared != prepare_summary_probe(prior_path, recovered):
+        raise ValueError("summary_probe_prepared_inputs_changed")
+    plan = dense.read_json(prior_path)
+    if (
+        config.get("TARGET_API_MODEL") != plan["model"]
+        or config.get("TARGET_API_BASE_URL", "").rstrip("/") != plan["endpoint"]
+        or not config.get("LITELLM_API_KEY")
+    ):
+        raise ValueError("summary_probe_target_config_mismatch")
+    parent_row = next(
+        r for r in plan["rows"] if (r["method"], r["dataset"]) == ("raptor", "hotpotqa")
+    )
+    parent = ROOT / parent_row["output"]
+    directory = parent.parent / "hotpotqa-summary-probe1"
+    if directory.exists():
+        raise ValueError("summary_probe_output_exists")
+    run_id = str(uuid.uuid4())
+    with (parent / "summary-probe-once.claim.json").open(
+        "x", encoding="utf-8"
+    ) as stream:
+        json.dump({"approved_plan_sha256": approved_sha256, "run_id": run_id}, stream)
+        stream.flush()
+        os.fsync(stream.fileno())
+    directory.mkdir()
+    journal = Journal(
+        directory / "usage.jsonl", run_id=run_id, method="raptor", dataset="hotpotqa"
+    )
+    row = {
+        "method": "raptor",
+        "dataset": "hotpotqa",
+        "run_id": run_id,
+        "token_limit": prepared["reserved_tokens_upper_bound"],
+    }
+    runner = Transport(plan, row, config, directory, journal)
+    result = {
+        "status": "running",
+        "run_id": run_id,
+        "code_commit": prepared["code_commit"],
+        "parent_manifest_sha256": prepared["parent_manifest_sha256"],
+        "approved_plan_sha256": approved_sha256,
+        "max_new_posts": 1,
+        "reserved_tokens_upper_bound": prepared["reserved_tokens_upper_bound"],
+        "policy": SUMMARY_PROBE_POLICY,
+        "full_index_authorized": False,
+        "cases": [],
+    }
+    started = time.perf_counter()
+    dense.write_json_atomic(directory / "manifest.json", result)
+    try:
+        body = runner.call(prepared["payload"], kind="llm", operation="summary")
+        stats = validate_summary_probe(body)
+        result["cases"] = [{"request_sha256": prepared["request_sha256"], **stats}]
+        result["status"] = "completed"
+    except BaseException as exc:
+        result.update(status="failed", error_type=type(exc).__name__)
+        raise
+    finally:
+        result["seconds"] = round(time.perf_counter() - started, 3)
+        result["token_accounting"] = journal.reference()
+        result["unknown_reserved_upper_bound"] = (
+            0
+            if journal.summary()["complete"]
+            else prepared["reserved_tokens_upper_bound"]
+        )
+        result["artifacts"] = {
+            p.relative_to(directory).as_posix(): dense.sha256_file(p)
+            for p in directory.rglob("*")
+            if p.is_file() and p.name != "manifest.json"
+        }
+        dense.write_json_atomic(directory / "manifest.json", result)
+        runner.close()
+        export(plan, prior_path)
+    return directory
+
+
+def raptor_clustering_plan(prior_path):
+    """One new RAPTOR continuation after a fully accounted local clustering failure."""
+    original = dense.read_json(prior_path)
+    if (
+        code_dirty()
+        or not original.get("raptor_batch_resume")
+        or original.get("raptor_clustering_resume")
+        or original.get("workspace") != str(ROOT.resolve())
+    ):
+        raise ValueError("clustering_resume_requires_clean_batch_prior")
+    parent = {
+        "path": str(prior_path.resolve()),
+        "sha256": dense.sha256_file(prior_path),
+        "digest": target.digest(original),
+    }
+    plan = copy.deepcopy(original)
+    plan.update(
+        parent_plan=parent,
+        lineage=[parent, *original.get("lineage", [])],
+        raptor_clustering_resume=True,
+        raptor_clustering_policy=RAPTOR_CLUSTERING_POLICY,
+    )
+    for item in plan["lineage"]:
+        if dense.sha256_file(Path(item["path"])) != item["sha256"]:
+            raise ValueError("lineage_plan_changed")
+    inspected = []
+    for row in plan["rows"]:
+        directory = ROOT / row["output"]
+        path = directory / "manifest.json"
+        if (directory / "running.lock").exists() or (
+            path.exists() and dense.read_json(path)["status"] == "running"
+        ):
+            raise ValueError("clustering_resume_requires_stopped_workers")
+        if row["method"] != "raptor":
+            continue
+        leaf_scope = verified_raptor_leaf_scope(plan, row)
+        row["code_commit"] = git("rev-parse", "HEAD")
+        if row.get("embedding_options") != RAPTOR_EMBEDDING_OPTIONS:
+            raise ValueError("clustering_resume_embedding_options_changed")
+        if row["dataset"] == "hotpotqa":
+            if directory.exists() and any(directory.iterdir()):
+                raise ValueError("raptor_hotpot_must_be_untouched")
+            continue
+        manifest = dense.read_json(path)
+        if (
+            row.get("resume_kind") != "embedding_batch"
+            or manifest["status"] != "failed"
+            or manifest.get("error_type") != "ValueError"
+            or (directory / "tree.json").exists()
+        ):
+            raise ValueError("clustering_resume_requires_failed_batch")
+        cache = {}
+        for source in row["resume_sources"]:
+            source_path = ROOT / source["output"] / "manifest.json"
+            if dense.sha256_file(source_path) != source["manifest_sha256"]:
+                raise ValueError("resume_manifest_changed")
+            cache, _, _ = verified_checkpoints(
+                source_path, inherited=cache, leaf_producer=leaf_scope
+            )
+        cache, failures, ref = verified_checkpoints(
+            path, inherited=cache, leaf_producer=leaf_scope
+        )
+        if failures or not ref["summary"]["complete"]:
+            raise ValueError("clustering_resume_requires_complete_current_usage")
+        current = {
+            "output": row["output"],
+            "run_id": manifest["run_id"],
+            "manifest_sha256": dense.sha256_file(path),
+            "summary": ref["summary"],
+            "unknown_reserved_upper_bound": 0,
+        }
+        history = [*row["history_runs"], current]
+        # Reverify all historical manifests and their saved reservations too.
+        for h in history:
+            hp = ROOT / h["output"] / "manifest.json"
+            if dense.sha256_file(hp) != h["manifest_sha256"]:
+                raise ValueError("clustering_history_manifest_changed")
+            actual = verified_reference(dense.read_json(hp), hp)
+            reserved = current_unknown_reservation(hp.parent)
+            if (
+                actual["status"] != "verified"
+                or actual["summary"] != h["summary"]
+                or type(reserved) is not int
+                or reserved != h["unknown_reserved_upper_bound"]
+            ):
+                raise ValueError("clustering_history_cost_changed")
+        charge = sum(
+            sum(h["summary"]["known_subtotal"].values())
+            + h["unknown_reserved_upper_bound"]
+            for h in history
+        )
+        if charge >= LIMITS["raptor"]:
+            raise ValueError("clustering_resume_budget_exhausted")
+        row.update(
+            history_runs=history,
+            prior_run=current,
+            resume_sources=[
+                *row["resume_sources"],
+                {k: current[k] for k in ("output", "manifest_sha256")},
+            ],
+            resume_from={k: current[k] for k in ("output", "manifest_sha256")},
+            resume_kind="clustering",
+            prior_budget_charge=charge,
+            token_limit=LIMITS["raptor"] - charge,
+            run_id=str(uuid.uuid4()),
+            output=f"indexes/e1/{plan['batch_id']}/raptor/musique-cluster1",
+            verified_response_cache_count=len(cache),
+        )
+        if (ROOT / row["output"]).exists():
+            raise ValueError("clustering_resume_output_must_be_new")
+        inspected.append((directory, row["run_id"]))
+    if len(inspected) != 1:
+        raise ValueError("clustering_resume_requires_one_failed_stage")
+    directory, child = inspected[0]
+    with (directory / "clustering-resume-once.claim.json").open(
+        "x", encoding="utf-8"
+    ) as stream:
+        json.dump(
+            {"parent_plan_sha256": parent["sha256"], "child_run_id": child}, stream
+        )
+        stream.flush()
+        os.fsync(stream.fileno())
+    plan["combined_token_limit"] = sum(r["token_limit"] for r in plan["rows"])
+    return plan
+
+
+def independent_raptor_plan(prior_path):
+    """Freeze stopped HippoRAG; bind only untouched RAPTOR rows to new code."""
+    if code_dirty():
+        raise ValueError("independent_raptor_requires_clean_code")
+    original = dense.read_json(prior_path)
+    plan = copy.deepcopy(original)
+    parent = {
+        "path": str(prior_path.resolve()),
+        "sha256": dense.sha256_file(prior_path),
+        "digest": target.digest(original),
+    }
+    lineage = [parent, *original.get("lineage", [])]
+    for item in lineage:
+        if dense.sha256_file(Path(item["path"])) != item["sha256"]:
+            raise ValueError("lineage_plan_changed")
+    stopped, pending = False, 0
+    for row in plan["rows"]:
+        directory = ROOT / row["output"]
+        path = directory / "manifest.json"
+        if (directory / "running.lock").exists():
+            raise ValueError("independent_raptor_requires_stopped_workers")
+        if path.exists():
+            manifest = dense.read_json(path)
+            if manifest["status"] not in ("completed", "failed"):
+                raise ValueError("independent_raptor_requires_terminal_runs")
+            if verified_reference(manifest, path)["status"] != "verified":
+                raise ValueError("prior_journal_not_intact")
+            for name, sha in manifest["artifacts"].items():
+                if dense.sha256_file(directory / name) != sha:
+                    raise ValueError("saved_E1_artifact_changed")
+            stopped |= row["method"] == "hipporag2" and manifest["status"] == "failed"
+        if row["method"] != "raptor":
+            continue
+        if directory.exists() and any(directory.iterdir()):
+            raise ValueError("independent_raptor_requires_untouched_output")
+        producer = next(
+            r
+            for r in plan["rows"]
+            if r["method"] == "dense" and r["dataset"] == row["dataset"]
+        )
+        if (
+            dense.read_json(ROOT / producer["output"] / "manifest.json")["status"]
+            != "completed"
+        ):
+            raise ValueError("raptor_requires_completed_dense")
+        row["code_commit"] = git("rev-parse", "HEAD")
+        pending += 1
+    if not stopped or pending != 2:
+        raise ValueError(
+            "independent_raptor_requires_failed_hippo_and_two_pending_rows"
+        )
+    # Shared canonical prior: two worktrees cannot independently reserve this block.
+    with prior_path.with_suffix(".raptor-once.claim.json").open(
+        "x", encoding="utf-8"
+    ) as stream:
+        json.dump(
+            {
+                "parent_plan_sha256": parent["sha256"],
+                "code_commit": git("rev-parse", "HEAD"),
+            },
+            stream,
+        )
+        stream.flush()
+        os.fsync(stream.fileno())
+    plan.update(parent_plan=parent, lineage=lineage, independent_raptor=True)
+    return plan
+
+
+def seal_unstarted_plan(path):
+    """Rebind a rejected preflight to clean code before any new HTTP."""
+    plan = dense.read_json(path)
+    if not plan.get("parent_plan") or code_dirty():
+        raise ValueError("only_clean_unstarted_continuation_can_be_sealed")
+    original = dense.read_json(Path(plan["parent_plan"]["path"]))
+    for row in plan["rows"]:
+        directory = ROOT / row["output"]
+        manifest = directory / "manifest.json"
+        original_row = next(
+            r
+            for r in original["rows"]
+            if (r["method"], r["dataset"]) == (row["method"], row["dataset"])
+        )
+        if (
+            row["code_commit"] == original_row["code_commit"]
+            and manifest.exists()
+            and dense.read_json(manifest)["status"] == "completed"
+        ):
+            continue
+        if (directory / "usage.jsonl").exists() or (
+            directory / "running.lock"
+        ).exists():
+            raise ValueError("cannot_change_started_plan")
+        row["code_commit"] = git("rev-parse", "HEAD")
+    old_sha = dense.sha256_file(path)
+    backup = path.with_name(f"{path.stem}.preflight-{old_sha[:12]}.json")
+    with backup.open("xb") as stream:
+        stream.write(path.read_bytes())
+    plan.setdefault("preflight_revisions", []).append(
+        {
+            "sha256": old_sha,
+            "file": backup.name,
+            "reason": "Rejected before new HTTP; fix Path type in parent-plan verification.",
+        }
+    )
+    dense.write_json_atomic(path, plan)
+    return plan
+
+
+def execute(plan, row, config, source=None):
+    corpus = verify_plan(plan, row, config)
+    directory = ROOT / row["output"]
+    directory.mkdir(parents=True, exist_ok=True)
+    with exclusive(directory):
+        path = directory / "manifest.json"
+        manifest = (
+            dense.read_json(path)
+            if path.exists()
+            else {"status": "pending", "seconds": 0}
+        )
+        if path.exists():
+            for name, sha in manifest.get("artifacts", {}).items():
+                if dense.sha256_file(directory / name) != sha:
+                    raise ValueError("saved_E1_artifact_changed")
+        if manifest["status"] in ("failed", "completed", "indexed_pending_audit"):
+            raise ValueError("terminal_run_cannot_repeat")
+        journal_path = directory / "usage.jsonl"
+        resume = journal_path.exists() and bool(journal_path.stat().st_size)
+        if journal_path.exists() and not resume:
+            journal_path.unlink()  # Empty journal means no request was started.
+        journal = Journal(
+            journal_path,
+            run_id=row["run_id"],
+            method=row["method"],
+            dataset=row["dataset"],
+            resume=resume,
+        )
+        transport = None
+        started = time.perf_counter()
+        manifest.update(
+            status="running", run_id=row["run_id"], plan_sha256=target.digest(plan)
+        )
+        dense.write_json_atomic(path, manifest)
+        try:
+            transport = Transport(plan, row, config, directory, journal)
+            if row["method"] == "dense":
+                validation = dense_index(corpus, transport, directory)
+            else:
+                from scripts.e1_indexers import hipporag_index, raptor_index
+
+                builder = (
+                    hipporag_index if row["method"] == "hipporag2" else raptor_index
+                )
+                validation = builder(corpus, transport, directory, source)
+            manifest.update(
+                status="indexed_pending_audit"
+                if row.get("resume_kind") == "mixed_native"
+                else "completed",
+                validation=validation,
+            )
+        except BaseException as exc:
+            manifest.update(
+                status="failed", error_type=type(exc).__name__, error_message=str(exc)
+            )
+            raise
+        finally:
+            manifest["seconds"] += round(time.perf_counter() - started, 3)
+            manifest["token_accounting"] = journal.reference()
+            operations = {}
+            records = read_records(journal.path)
+            for started_row in (r for r in records if r["event"] == "started"):
+                operation = started_row["operation"]
+                operations.setdefault(operation, set()).add(started_row["attempt_id"])
+            from scripts.token_accounting import summarize
+
+            manifest["operations"] = {
+                operation: summarize([r for r in records if r["attempt_id"] in ids])
+                for operation, ids in operations.items()
+            }
+            manifest["artifacts"] = {
+                p.relative_to(directory).as_posix(): dense.sha256_file(p)
+                for p in directory.rglob("*")
+                if p.is_file() and p.name not in ("manifest.json", "running.lock")
+            }
+            dense.write_json_atomic(path, manifest)
+            if transport is not None:
+                transport.close()
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "command",
+        choices=(
+            "prepare",
+            "prepare-mixed",
+            "prepare-mixed-counter-recovery",
+            "prepare-mixed-embedding-recovery",
+            "prepare-hotpot-adoption",
+            "prepare-hotpot-completion",
+            "prepare-hotpot-local-recovery",
+            "monitor",
+            "prepare-mixed-audit",
+            "finalize-mixed-audit",
+            "continue",
+            "network-resume",
+            "cycle-resume",
+            "independent-raptor",
+            "raptor-batch-resume",
+            "raptor-clustering-resume",
+            "raptor-summary-resume",
+            "raptor-summary-network-resume",
+            "prepare-summary-probe",
+            "run-summary-probe",
+            "prepare-schema-probe",
+            "prepare-compatible-schema-probe",
+            "prepare-extractor-diagnostic",
+            "prepare-extractor-policy",
+            "prepare-extractor-policy-probe",
+            "adopt-schema-responses",
+            "prepare-native-schema-continuation",
+            "run-schema-probe",
+            "run-compatible-schema-probe",
+            "run-json-mode-probe",
+            "seal",
+            "run",
+            "report",
+            "verify",
+            "offline-ready",
+        ),
+    )
+    parser.add_argument("--plan", type=Path, required=True)
+    parser.add_argument("--data-root", type=Path)
+    parser.add_argument("--env-file", type=Path)
+    parser.add_argument("--method", choices=METHODS)
+    parser.add_argument("--dataset", choices=DATASETS)
+    parser.add_argument("--source", type=Path)
+    parser.add_argument("--prior-plan", type=Path)
+    parser.add_argument("--passage-id")
+    parser.add_argument("--approved-probe-sha256")
+    parser.add_argument("--recovered-payload", type=Path)
+    parser.add_argument("--summary-adoption", type=Path)
+    parser.add_argument("--schema-adoption", type=Path)
+    parser.add_argument("--probe-plan", type=Path)
+    parser.add_argument("--network-audit", type=Path)
+    parser.add_argument("--native-gguf", type=Path)
+    parser.add_argument("--native-library-dir", type=Path)
+    parser.add_argument("--protocol-approval", type=Path)
+    parser.add_argument("--approved-plan-sha256")
+    parser.add_argument("--audit-review", type=Path)
+    parser.add_argument("--counter-stderr", type=Path)
+    args = parser.parse_args()
+    config = dotenv_values(args.env_file) if args.env_file else {}
+    if args.command == "monitor":
+        plan = dense.read_json(args.plan)
+        row = next(
+            r
+            for r in plan["rows"]
+            if (r["method"], r["dataset"]) == (args.method, args.dataset)
+        )
+        print(json.dumps(monitor_snapshot(plan, row)))
+        return
+    if args.command == "prepare-hotpot-local-recovery":
+        prior = dense.read_json(args.prior_plan)
+        suffix = "2" if prior.get("hotpot_local_socket_recovery") else ""
+        canonical = ROOT / f".cache/e1-hotpot-local-recovery{suffix}-plan.json"
+        if (
+            args.plan.resolve() != canonical.resolve()
+            or args.plan.exists()
+            or code_dirty()
+        ):
+            raise ValueError(
+                "hotpot_local_recovery_requires_unused_plan_and_clean_code"
+            )
+        plan = prepare_hotpot_local_recovery(args.prior_plan, args.protocol_approval)
+        with (Path(plan["mixed_claim_root"]) / local_recovery_claim_name(plan)).open(
+            "x", encoding="utf-8"
+        ) as stream:
+            json.dump(mixed_plan_claim(plan), stream)
+            stream.flush()
+            os.fsync(stream.fileno())
+        with args.plan.open("x", encoding="utf-8") as stream:
+            json.dump(plan, stream, ensure_ascii=False, indent=2)
+        print(
+            json.dumps(
+                {
+                    "status": "derived_from_scoped_automatic_recovery_authorization",
+                    "http_calls": 0,
+                }
+            )
+        )
+        return
+    if args.command == "prepare-hotpot-completion":
+        canonical = ROOT / ".cache/e1-hotpot-completion-plan.json"
+        if (
+            args.plan.resolve() != canonical.resolve()
+            or args.plan.exists()
+            or code_dirty()
+        ):
+            raise ValueError(
+                "hotpot_completion_requires_unused_canonical_plan_and_clean_code"
+            )
+        plan = prepare_hotpot_completion(args.prior_plan, args.counter_stderr)
+        root = Path(plan["mixed_claim_root"])
+        with (root / "hotpot-completion-plan.claim.json").open(
+            "x", encoding="utf-8"
+        ) as stream:
+            json.dump(mixed_plan_claim(plan), stream)
+            stream.flush()
+            os.fsync(stream.fileno())
+        with args.plan.open("x", encoding="utf-8") as stream:
+            json.dump(plan, stream, ensure_ascii=False, indent=2)
+        print(
+            json.dumps(
+                {
+                    "status": "prepared_requires_protocol_and_spend_approval",
+                    "http_calls": 0,
+                }
+            )
+        )
+        return
+    if args.command == "prepare-hotpot-adoption":
+        canonical = ROOT / ".cache/e1-hotpot-adoption-plan.json"
+        if (
+            args.plan.resolve() != canonical.resolve()
+            or args.plan.exists()
+            or code_dirty()
+        ):
+            raise ValueError(
+                "hotpot_adoption_requires_unused_canonical_plan_and_clean_code"
+            )
+        plan = prepare_hotpot_adoption(
+            args.prior_plan, args.probe_plan, args.audit_review
+        )
+        root = Path(plan["mixed_claim_root"])
+        with (root / "hotpot-adoption-plan.claim.json").open(
+            "x", encoding="utf-8"
+        ) as stream:
+            json.dump(mixed_plan_claim(plan), stream)
+            stream.flush()
+            os.fsync(stream.fileno())
+        with args.plan.open("x", encoding="utf-8") as stream:
+            json.dump(plan, stream, ensure_ascii=False, indent=2)
+        print(
+            json.dumps(
+                {
+                    "status": "prepared_requires_protocol_and_spend_approval",
+                    "http_calls": 0,
+                }
+            )
+        )
+        return
+    if args.command in (
+        "prepare-mixed",
+        "prepare-mixed-counter-recovery",
+        "prepare-mixed-embedding-recovery",
+    ):
+        is_embedding = args.command == "prepare-mixed-embedding-recovery"
+        is_recovery = args.command == "prepare-mixed-counter-recovery"
+        canonical = (
+            ".cache/e1-mixed-embedding-plan.json"
+            if is_embedding
+            else ".cache/e1-mixed-counter-plan.json"
+            if is_recovery
+            else ".cache/e1-mixed-plan.json"
+        )
+        if (
+            args.plan.resolve() != (ROOT / canonical).resolve()
+            or args.plan.exists()
+            or code_dirty()
+        ):
+            raise ValueError("mixed_requires_unused_canonical_plan_and_clean_code")
+        plan = (
+            prepare_mixed_embedding_recovery(args.prior_plan)
+            if is_embedding
+            else prepare_mixed_counter_recovery(args.prior_plan, args.counter_stderr)
+            if is_recovery
+            else prepare_mixed_continuation(
+                args.prior_plan, args.protocol_approval, args.probe_plan
+            )
+        )
+        root = Path(plan["mixed_claim_root"])
+        root.mkdir(parents=True, exist_ok=True)
+        claim_name = (
+            "embedding-recovery.claim.json"
+            if is_embedding
+            else "counter-recovery.claim.json"
+            if is_recovery
+            else "plan.claim.json"
+        )
+        with (root / claim_name).open("x", encoding="utf-8") as stream:
+            json.dump(mixed_plan_claim(plan), stream)
+            stream.flush()
+            os.fsync(stream.fileno())
+        with args.plan.open("x", encoding="utf-8") as stream:
+            json.dump(plan, stream, ensure_ascii=False, indent=2)
+        print(
+            json.dumps(
+                {
+                    "status": "prepared_requires_execution_approval",
+                    "http_calls": 0,
+                    "plan_sha256": dense.sha256_file(args.plan),
+                    "rows": [
+                        {k: r[k] for k in ("dataset", "token_limit", "max_llm_posts")}
+                        for r in plan["rows"]
+                        if r.get("resume_kind") == "mixed_native"
+                    ],
+                }
+            )
+        )
+        return
+    elif args.command in ("prepare-mixed-audit", "finalize-mixed-audit"):
+        plan = dense.read_json(args.plan)
+        verify_mixed_approval(plan)
+        row = next(
+            r
+            for r in plan["rows"]
+            if (r["method"], r["dataset"]) == ("hipporag2", args.dataset)
+        )
+        if args.command == "prepare-mixed-audit":
+            audit = prepare_mixed_audit(plan, row)
+            with (ROOT / row["output"] / "source-audit.json").open(
+                "x", encoding="utf-8"
+            ) as stream:
+                json.dump(audit, stream, ensure_ascii=False, indent=2)
+            print(
+                json.dumps(
+                    {"selected_sources": len(audit["cases"]), "new_model_calls": 0}
+                )
+            )
+        else:
+            finalize_mixed_audit(plan, row, args.audit_review)
+            export(plan, args.plan)
+            print(
+                json.dumps(
+                    {
+                        "status": "completed_structural_and_audit",
+                        "semantic_verified": False,
+                        "new_model_calls": 0,
+                    }
+                )
+            )
+        return
+    elif args.command == "prepare":
+        canonical = args.data_root.resolve() / "indexes/e1/issue13-plan.json"
+        if args.plan.resolve() != canonical:
+            raise ValueError("prepare_requires_canonical_data_root_plan")
+        response = requests.get("http://localhost:11434/api/tags", timeout=10)
+        response.raise_for_status()
+        model = next(
+            m for m in response.json()["models"] if m["name"] == "bge-m3:latest"
+        )
+        plan = make_plan(args.data_root, config, model["digest"])
+        args.plan.parent.mkdir(parents=True, exist_ok=True)
+        with args.plan.open("x", encoding="utf-8") as stream:
+            json.dump(plan, stream, ensure_ascii=False, indent=2)
+    elif args.command == "continue":
+        canonical = (
+            Path(dense.read_json(args.prior_plan)["data_root"])
+            / "indexes/e1/issue13-continuation-plan.json"
+        )
+        if args.plan.resolve() != canonical.resolve() or args.plan.exists():
+            raise ValueError("continuation_requires_unused_canonical_plan")
+        plan = continuation_plan(args.prior_plan)
+        with args.plan.open("x", encoding="utf-8") as stream:
+            json.dump(plan, stream, ensure_ascii=False, indent=2)
+    elif args.command == "network-resume":
+        canonical = (
+            Path(dense.read_json(args.prior_plan)["data_root"])
+            / "indexes/e1/issue13-network-plan.json"
+        )
+        if args.plan.resolve() != canonical.resolve() or args.plan.exists():
+            raise ValueError("network_resume_requires_unused_canonical_plan")
+        plan = network_resume_plan(args.prior_plan)
+        with args.plan.open("x", encoding="utf-8") as stream:
+            json.dump(plan, stream, ensure_ascii=False, indent=2)
+    elif args.command == "cycle-resume":
+        canonical = (
+            Path(dense.read_json(args.prior_plan)["data_root"])
+            / "indexes/e1/issue13-cycle-plan.json"
+        )
+        if args.plan.resolve() != canonical.resolve() or args.plan.exists():
+            raise ValueError("cycle_resume_requires_unused_canonical_plan")
+        plan = cycle_resume_plan(args.prior_plan, args.passage_id)
+        with args.plan.open("x", encoding="utf-8") as stream:
+            json.dump(plan, stream, ensure_ascii=False, indent=2)
+    elif args.command == "independent-raptor":
+        canonical = (
+            Path(dense.read_json(args.prior_plan)["data_root"])
+            / "indexes/e1/issue13-raptor-plan.json"
+        )
+        if args.plan.resolve() != canonical.resolve() or args.plan.exists():
+            raise ValueError("independent_raptor_requires_unused_canonical_plan")
+        plan = independent_raptor_plan(args.prior_plan)
+        with args.plan.open("x", encoding="utf-8") as stream:
+            json.dump(plan, stream, ensure_ascii=False, indent=2)
+    elif args.command == "raptor-batch-resume":
+        canonical = (
+            Path(dense.read_json(args.prior_plan)["data_root"])
+            / "indexes/e1/issue13-raptor-batch-plan.json"
+        )
+        if args.plan.resolve() != canonical.resolve() or args.plan.exists():
+            raise ValueError("raptor_batch_requires_unused_canonical_plan")
+        plan = raptor_batch_plan(args.prior_plan)
+        with args.plan.open("x", encoding="utf-8") as stream:
+            json.dump(plan, stream, ensure_ascii=False, indent=2)
+    elif args.command == "raptor-clustering-resume":
+        canonical = (
+            Path(dense.read_json(args.prior_plan)["data_root"])
+            / "indexes/e1/issue13-raptor-clustering-plan.json"
+        )
+        if args.plan.resolve() != canonical.resolve() or args.plan.exists():
+            raise ValueError("clustering_resume_requires_unused_canonical_plan")
+        plan = raptor_clustering_plan(args.prior_plan)
+        with args.plan.open("x", encoding="utf-8") as stream:
+            json.dump(plan, stream, ensure_ascii=False, indent=2)
+    elif args.command == "raptor-summary-network-resume":
+        from scripts.e1_summary_recovery import prepare_network_continuation
+
+        canonical = (
+            Path(dense.read_json(args.prior_plan)["data_root"])
+            / "indexes/e1/issue13-raptor-summary-network-plan.json"
+        )
+        if args.plan.resolve() != canonical.resolve() or args.plan.exists():
+            raise ValueError("summary_network_requires_unused_canonical_plan")
+        plan = prepare_network_continuation(args.prior_plan, args.network_audit)
+        with args.plan.open("x", encoding="utf-8") as stream:
+            json.dump(plan, stream, ensure_ascii=False, indent=2)
+        print(json.dumps({"prepared_only": True, "http_calls": 0}))
+        return
+    elif args.command == "raptor-summary-resume":
+        from scripts.e1_summary_recovery import prepare_continuation
+
+        canonical = (
+            Path(dense.read_json(args.prior_plan)["data_root"])
+            / "indexes/e1/issue13-raptor-summary-plan.json"
+        )
+        if args.plan.resolve() != canonical.resolve() or args.plan.exists():
+            raise ValueError("summary_resume_requires_unused_canonical_plan")
+        plan = prepare_continuation(
+            args.prior_plan,
+            args.summary_adoption.resolve(),
+            {
+                "gguf_path": str(args.native_gguf.resolve()),
+                "library_dir": str(args.native_library_dir.resolve()),
+            },
+        )
+        with args.plan.open("x", encoding="utf-8") as stream:
+            json.dump(plan, stream, ensure_ascii=False, indent=2)
+        print(
+            json.dumps(
+                {
+                    "prepared_only": True,
+                    "max_new_posts": plan["rows"][5]["max_new_posts"],
+                    "http_calls": 0,
+                }
+            )
+        )
+        return
+    elif args.command == "prepare-summary-probe":
+        prepared = prepare_summary_probe(args.prior_plan, args.recovered_payload)
+        args.plan.parent.mkdir(parents=True, exist_ok=True)
+        with args.plan.open("x", encoding="utf-8") as stream:
+            json.dump(prepared, stream, ensure_ascii=False, indent=2)
+        print(
+            json.dumps(
+                {
+                    k: prepared[k]
+                    for k in (
+                        "max_new_posts",
+                        "remaining_before_probe",
+                        "reserved_tokens_upper_bound",
+                    )
+                }
+            )
+        )
+        return
+    elif args.command == "run-summary-probe":
+        directory = execute_summary_probe(args.plan, config, args.approved_probe_sha256)
+        print(
+            json.dumps(
+                {"status": dense.read_json(directory / "manifest.json")["status"]}
+            )
+        )
+        return
+    elif args.command == "adopt-schema-responses":
+        if args.plan.exists():
+            raise ValueError("adoption_output_must_be_new")
+        record, _ = schema_adoption(args.probe_plan, args.prior_plan, args.source)
+        with args.plan.open("x", encoding="utf-8") as stream:
+            json.dump(record, stream, ensure_ascii=False, indent=2)
+            stream.write("\n")
+        print(json.dumps({"status": record["status"], "http_calls": 0}))
+        return
+    elif args.command == "prepare-native-schema-continuation":
+        canonical = Path(dense.read_json(args.prior_plan)["data_root"]) / (
+            "indexes/e1/issue13-hippo-schema-preflight-plan.json"
+            if dense.read_json(args.prior_plan).get("hippo_schema_policy")
+            else "indexes/e1/issue13-hippo-schema-plan.json"
+        )
+        if args.plan.resolve() != canonical.resolve() or args.plan.exists():
+            raise ValueError("schema_resume_requires_unused_canonical_plan")
+        plan = prepare_native_schema_continuation(
+            args.prior_plan, args.probe_plan, args.schema_adoption, args.source
+        )
+        with args.plan.open("x", encoding="utf-8") as stream:
+            json.dump(plan, stream, ensure_ascii=False, indent=2)
+        print(
+            json.dumps(
+                {
+                    "status": "prepared_requires_separate_execution_approval",
+                    "http_calls": 0,
+                }
+            )
+        )
+        return
+    elif args.command in (
+        "prepare-schema-probe",
+        "prepare-compatible-schema-probe",
+        "prepare-extractor-diagnostic",
+        "prepare-extractor-policy",
+        "prepare-extractor-policy-probe",
+    ):
+        if args.plan.exists():
+            raise ValueError("schema_probe_prepare_requires_unused_output")
+        probe = (
+            prepare_extractor_policy_probe(
+                args.probe_plan, args.source, args.prior_plan
+            )
+            if args.command == "prepare-extractor-policy-probe"
+            else prepare_extractor_policy(args.prior_plan, args.source)
+            if args.command == "prepare-extractor-policy"
+            else prepare_extractor_diagnostic(args.prior_plan, args.source)
+            if args.command == "prepare-extractor-diagnostic"
+            else prepare_schema_probe(
+                args.prior_plan,
+                args.source,
+                compatible=args.command == "prepare-compatible-schema-probe",
+            )
+        )
+        args.plan.parent.mkdir(parents=True, exist_ok=True)
+        with args.plan.open("x", encoding="utf-8") as stream:
+            json.dump(probe, stream, ensure_ascii=False, indent=2)
+        print(json.dumps({k: v for k, v in probe.items() if k != "cases"}))
+        return
+    elif args.command == "run-json-mode-probe":
+        try:
+            directory = execute_json_mode_probe(
+                args.plan, args.prior_plan, config, args.approved_probe_sha256
+            )
+        finally:
+            export(dense.read_json(args.prior_plan), args.prior_plan)
+        print(json.dumps({"output": str(directory), "full_index_authorized": False}))
+        return
+    elif args.command in ("run-schema-probe", "run-compatible-schema-probe"):
+        try:
+            directory = execute_schema_probe(
+                args.plan,
+                args.prior_plan,
+                args.source,
+                config,
+                args.approved_probe_sha256,
+                compatible=args.command == "run-compatible-schema-probe",
+            )
+        finally:
+            if dense.read_json(args.plan).get("kind") in (
+                EXTRACTOR_DIAGNOSTIC["kind"],
+                EXTRACTOR_POLICY_PROBE,
+            ):
+                export(dense.read_json(args.prior_plan), args.prior_plan)
+        print(
+            json.dumps(
+                {
+                    "probe_status": dense.read_json(directory / "manifest.json")[
+                        "status"
+                    ],
+                    "full_index_authorized": False,
+                }
+            )
+        )
+        return
+    elif args.command == "offline-ready":
+        from scripts.e1_indexers import load_ready_e1
+
+        plan = dense.read_json(args.plan)
+        results = []
+        for row in plan["rows"]:
+            path = ROOT / row["output"] / "manifest.json"
+            if not path.exists() or dense.read_json(path)["status"] != "completed":
+                results.append(
+                    {
+                        "method": row["method"],
+                        "dataset": row["dataset"],
+                        "load_status": "not_ready",
+                    }
+                )
+                continue
+            corpus = dense.read_json(
+                Path(plan["data_root"]) / f"data/processed/{row['dataset']}/corpus.json"
+            )
+            loaded = load_ready_e1(plan, row, corpus)
+            results.append(
+                {
+                    "method": row["method"],
+                    "dataset": row["dataset"],
+                    "load_status": "verified_offline",
+                    "passages": len(corpus),
+                    "kind": loaded["kind"],
+                }
+            )
+        print(
+            json.dumps(
+                {"mode": "offline_preparation_only", "http_calls": 0, "rows": results}
+            )
+        )
+        return
+    elif args.command == "seal":
+        plan = seal_unstarted_plan(args.plan)
+    else:
+        plan = dense.read_json(args.plan)
+        if args.command == "verify":
+            from scripts.token_accounting import verified_reference
+
+            for row in plan["rows"]:
+                path = ROOT / row["output"] / "manifest.json"
+                manifest = dense.read_json(path)
+                if (
+                    manifest["status"] != "completed"
+                    or verified_reference(manifest, path)["status"] != "verified"
+                ):
+                    raise ValueError("index_not_completed_or_journal_invalid")
+                for name, sha in manifest["artifacts"].items():
+                    if dense.sha256_file(path.parent / name) != sha:
+                        raise ValueError("index_artifact_changed")
+        if args.command == "run":
+            if plan.get(
+                "mixed_extractor"
+            ) and args.approved_plan_sha256 != dense.sha256_file(args.plan):
+                raise ValueError("mixed_requires_approved_plan_sha256")
+            row = next(
+                r
+                for r in plan["rows"]
+                if (r["method"], r["dataset"]) == (args.method, args.dataset)
+            )
+            try:
+                execute(plan, row, config, args.source)
+            finally:
+                export(plan, args.plan)
+    report = export(plan, args.plan)
+    print(json.dumps({"batch_id": plan["batch_id"], "complete": report["complete"]}))
+
+
+if __name__ == "__main__":
+    main()

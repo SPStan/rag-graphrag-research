@@ -7,3 +7,39 @@ d2ae33e5ec1a5a5a39b788824d64424ee494d978:results/summary/openie-target-context-c
 # Exact false positive: public SHA256 of the journal, verified against token_accounting.
 # The redundant tokens.jsonl-to-hash artifact entry is removed; journal_sha256 remains.
 496e87a5552ff1fdd4b0d0f8cdce54751212fb53:results/summary/raptor-continuation.json:generic-api-key:578
+
+# SHA256 of an OpenIE request payload (matches journal object_id), not an API key.
+# Export now calls this field cycle_repair_request_sha256; historical finding only.
+a994322b2bd386d3735415bc9517a18699a4aefd:results/summary/e1-indexing.json:generic-api-key:597
+
+# Exact false positive: SHA256 of failed RAPTOR summary request, verified against journal object_id.
+# Public export now names this network_first_request_sha256; historical finding only.
+7ca58e487fc717df841adc80e003cab259b1118b:results/summary/e1-indexing.json:generic-api-key:1793
+
+# 26 Oct 2026: exact CI history false positives, each independently verified.
+# Nine scripts/token_accounting.py SHA256s match the corresponding Git blob
+# (LF/Windows CRLF); six tokenizer digests match pinned HF files/provenance
+# in docs/OPENIE_TARGET_CHECK.md and e2-pilot200-input-bound.json.
+# Two case_key values equal SHA256([dataset,method,published pilot question ID]).
+# Two documentation matches are child+parent usage arithmetic, verified against
+# that commit's e2-smoke10-continuation.json. None are authentication material.
+# Exact commit:path:rule:line only; no whole-path, regex or rule suppression.
+0c0e4c27f462f28afccbd851c63bb02296e8c5f1:results/summary/e2-smoke10.json:generic-api-key:15
+167137f5bd8a01cc1350a7c7e8e0e30ae41d39c2:results/summary/e2-pilot200.json:generic-api-key:96
+3914d70a17554fd6f466026b0aa5f60a02cde715:results/summary/e2-pilot200-continuation-plan.json:generic-api-key:512
+3914d70a17554fd6f466026b0aa5f60a02cde715:results/summary/e2-pilot200-continuation-plan.json:generic-api-key:962
+3914d70a17554fd6f466026b0aa5f60a02cde715:results/summary/e2-pilot200-continuation-plan.json:generic-api-key:963
+3914d70a17554fd6f466026b0aa5f60a02cde715:results/summary/e2-pilot200-input-bound.json:generic-api-key:57
+3914d70a17554fd6f466026b0aa5f60a02cde715:results/summary/e2-pilot200-input-bound.json:generic-api-key:58
+41ee909c14ffca5dff552fa65d46f33f39d9ed8d:results/summary/e2-pilot200-plan.json:generic-api-key:512
+4bd1d25fa9e8e545044652171a6047dbe95cb503:results/summary/e2-pilot200-unattempted-plan.json:generic-api-key:16676
+4bd1d25fa9e8e545044652171a6047dbe95cb503:results/summary/e2-pilot200-unattempted-plan.json:generic-api-key:512
+4bd1d25fa9e8e545044652171a6047dbe95cb503:results/summary/e2-pilot200-unattempted-plan.json:generic-api-key:962
+4bd1d25fa9e8e545044652171a6047dbe95cb503:results/summary/e2-pilot200-unattempted-plan.json:generic-api-key:963
+537fa023b7fd1c76cb6f82c96bebf32de143d122:results/summary/e2-smoke10-continuation-plan.json:generic-api-key:131
+5dea658aec9e8f5c4a7dd1bc441bb690608a1294:results/summary/e2-smoke10-plan.json:generic-api-key:131
+85a61b8b76f7636277f2cfa27e29ff08f5602d98:results/summary/e2-pilot200.json:generic-api-key:16
+9460b0eec6b38a59ccfe5824d601932b0cc57402:docs/HANDOFF.md:generic-api-key:14
+9460b0eec6b38a59ccfe5824d601932b0cc57402:docs/TASKS.md:generic-api-key:14
+9460b0eec6b38a59ccfe5824d601932b0cc57402:results/summary/e2-smoke10-continuation.json:generic-api-key:15
+e19010a34334409f5ad0e58861dd5fe1aa71ec0a:results/summary/e2-pilot200-incomplete.json:generic-api-key:16

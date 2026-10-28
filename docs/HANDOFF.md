@@ -1,5 +1,99 @@
 # Передача контекста Sol / Luna
 
+**E1 status:** 6/6 indexes completed under the structural protocol; physical known tokens=32601955; cost_complete=False; unknown reserve61588 preserved. Final audit/verify completed; monitoring paused.
+
+## Текущая очередь — последовательная интеграция E1/E2
+
+- Научные O/N/R/H PR33/issue13 и PR36/issue14 подтверждены куратором по
+  текущему сообщению пользователя. Публичное одобрение бота/GitHub review
+  не заявляется; научные формулировки не меняются.
+- Пользователь разрешил Ready и последовательный обычный merge33, затем36
+  только после актуальных проверок, без обхода защиты/checks/reviews.
+  База36 переводится на master после merge33 и проверки сохранности diff.
+- Сохранённые допуски mixed extractor, bounded continuations/recovery и unknown
+  остаются применимыми. Structural6/6 не превращается в semantic_verified;
+  E1cost_complete=false/reserve61588 сохраняются. Новых model calls нет.
+- После интеграции итоговых PR следующая задача — issue15: фиксация полного
+  протокола и проверяемого reuse. Сам этап15 здесь не запускается, новых моделей,
+  индексации, S500, signal-check и holdout нет.
+
+## Сохранённый результат E1 — 6/6 структурно проверенных индексов
+
+- Dense×2, RAPTOR×2 и HippoRAG2×2 имеют completed; строгая штатная
+  offline verify проверила все6 manifest/journal/artifact SHA без HTTP.
+- Hotpot run822bed2d:5500passages,50711entities,75021facts,
+  graph56211nodes/183473edges. Save/reload0modelcalls; граф независимо
+  перечитан,5500source IDs присутствуют, parquet5500/50711/75021rows.
+- Последний child:5798local embeddingPOST,1094840known tokens, freshLLM0,
+  ошибок/unfinished/новых unknown0;21607cache hits. Ни один готовый индекс
+  или завершённый extraction повторно не вычислялся.
+- Source audit:54источника, все38warnings +8на каждый extractor stratum;
+  проверены769raw triples с точными multiplicities.8supported/40observed_error/
+  6needs_review. Это warning-enriched выборка, не оценка error rate/эффективности.
+  Review выполнен Codex offline, не независимым человеком/куратором.
+- Оба Hippo имеют structurally_verified_with_observed_extraction_errors,
+  semantic_verified=false. Ошибки (включая unsupported facts, reversed relation,
+  meta-output и пропуски/потерю оговорок) раскрыты; graph/triples не исправлялись.
+- E1 physical known32601955; reserve61588; budget upper32663543;
+  cost_complete=false. Hotpot known10674027 +unknown2567 =charge10676594,
+  POST27437. Исторические failed/claims/расходы сохранены, двойного учёта нет.
+- Recovery counter2/2; worker завершён, e1-hotpotqa PAUSED; новых restart нет.
+  Terminal proof: .cache/e1-six-index-final-verification.json; current plan
+  .cache/e1-hotpot-local-recovery2-plan.json SHA dafe33064f78…fb61f37.
+- Таблица и безопасная JSON: results/summary/e1-indexing.md и .json.
+  Критерии структурного E1 и явного неполного учёта представлены в PR33.
+  Научные формулировки подтверждены по сообщению пользователя; Ready/merge
+  разрешены только после технических проверок. E2 уже представлен PR36;
+  следующий этап после интеграции — issue15, без новых запусков в этом блоке.
+
+## История — не текущие инструкции запуска
+
+
+**E1 status:** 2/6 indexes completed; physical known tokens=6403763; cost_complete=False. Last stage=raptor/musique. Raw/indexes remain local. PR Draft; E2 requires all six verified indexes.
+
+**21октября: Hippo Mu остановлен на2329/5500.** Исходный и corrective ответы
+снова повторяют4 triples до length3072; обе попытки известны (8273 tokens).
+Третьего запроса нет. Планируется независимый RAPTOR ×2 с прежними Dense/cache,
+лимитами и immutable lineage; Hippo failed/unknown сохраняются. [Протокол](E1_INDEXING.md).
+Gitleaks: точный false positive SHA payload; экспорт переименован, точный fingerprint.
+E1 пока2/6; #13/PR #33 открыты, Draft, E2 не запускать.
+
+**E1 status:** 2/6 indexes completed; physical known tokens=5386821; cost_complete=False. Last stage=hipporag2/musique. Raw/indexes remain local. PR Draft; E2 requires all six verified indexes.
+
+**20октября: cycle repair E1.** Network child остановлен на length3072:
+3 уникальных triples повторены56раз. Кап не повышается. Новый cycle plan:
+probe того же payload с запретом дубликатов, затем≤20 условных коррекций/dataset,
+по1 на циклический request. Кэш обоих предыдущих run, сохранение всей стоимости,
+остаток17023464, старый unknown7922 не снят. [Протокол](E1_INDEXING.md).
+Готовых индексов пока2/6; #13/PR #33 открыты, Draft. E2/merge не запускать.
+
+**E1 status:** 2/6 indexes completed; physical known tokens=4429311; cost_complete=False. Last stage=hipporag2/musique. Raw/indexes remain local. PR Draft; E2 requires all six verified indexes.
+
+**20октября: ограниченное продолжение HippoRAG MuSiQue после RemoteDisconnected.**
+Первый run failed,1560 passages/3293 verified responses сохранены. Новая папка,
+replay по SHA и физическому usage; unknown7922 reserved, known2841297, остаток
+17150781 из прежних20M. Connection:close/retry0, один canonical claim; при новой
+ошибке стоп. [Протокол/команда](E1_INDEXING.md#продолжение-после-remotedisconnected).
+Готовые Dense не повторять; после Hippo Mu идут оставшиеся3конфигурации. Пока
+реальных шести готовых индексов нет — #13 открыта, PR #33 Draft, E2 блокирован.
+
+**E1 status:** 2/6 indexes completed; physical known tokens=4301994; cost_complete=False. Last stage=hipporag2/musique. Raw/indexes remain local. PR Draft; E2 requires all six verified indexes.
+
+**20 октября: активна #13, E1 на полном корпусе.** #31 слит eab5606, #12
+закрыта; полного независимого технического ревью перед merge не было из-за
+недоступного diff шлюза. Новый блок: [протокол E1](E1_INDEXING.md), шесть
+индексов5500, только индексация. Новый предел68M; результаты smoke не переносятся
+в качество метода, historical unknown сохраняется. До фактических шести индексов
+#13 открыта/PR Draft. Более ранние запреты автоматического full run описывают
+состояние до прямого поручения выполнить #13.
+
+E1 batch edff74df-c567-49de-a834-f9f1fc6f7f74 на aa1e4f4: Dense MuSiQue
+готов5500/172POST/684560embedding/113.705s. Dense HotpotQA failed на третьем
+batch: известны9333, ещё один usage unknown, HTTP400 внутреннего /tokenize
+из-за Windows socket allocation. Проверены TIME_WAIT/port range, после паузы
+сокеты освободились. Протокол однократного продолжения/пейсинга и резервирования
+unknown в E1_INDEXING; старые папки не менять. Полного E1 пока нет, E2 блокирован.
+
 **Текущее состояние после интеграции master:** #12 smoke завершён, ниже результат.
 PR #30/#11 слиты/закрыты; обзор #32 также в master. Старые статусы ниже — история.
 Полные выборки/новые расходы/merge #31 автоматически не запускать.
