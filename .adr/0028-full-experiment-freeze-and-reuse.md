@@ -45,12 +45,17 @@ Known reader length/empty/parser failures завершают конкретны�
 
 ## Бюджет и вход
 
-Forecast: средний logical **known** usage операции в соответствующей pilot
-конфигурации × missing cases; reader input/output, filter и BGE отдельно.
-Unknown исключён из знаменателя известных операций, не превращён в ноль.
-Это прогноз, а не гарантированный расход. Верх POST: один reader и один BGE
-на missing case, дополнительно до одного filter для Hippo. Межметодный reuse
-query embeddings не предполагается без нового проверенного механизма.
+Forecast: средний usage только **полностью измеренных** logical операций
+в соответствующей pilot конфигурации × missing cases. Для input/output reader,
+filter и BGE суммы и знаменатель берутся из одной complete-подвыборки.
+Отдельный `known_subtotal` сохраняет все известные токены partial operations;
+`partial_operations`, `fully_unknown_operations` и `unknown_fields` сохраняют
+неполноту. Например100input/10output и50input/unknown дают150known input в
+учёте, но forecast100input/10output при знаменателе1. Fully unknown и отсутствие
+complete observations дают null forecast и не позволяют вывести operational cap.
+Это complete-case прогноз, не утверждение, что missing usage случаен.
+Верх POST: один reader и один BGE на missing case, дополнительно до одного
+filter для Hippo. Межметодный reuse query embeddings не предполагается.
 
 Reader bound строится существующим `input_size_bounds`: самый длинный из
 500 вопросов и пять крупнейших escaped title/text из корпуса или всех RAPTOR
@@ -71,8 +76,9 @@ filter 65536 + те же allowances; BGE exact serialized question payload + 204
 Development включает source cost, E1 отдельно. E1 reserve61588 и E2 reserve22545
 не actual usage; cost_complete=false. Снятие административного90M не отменяет
 research caps: E1 indexing68M и старый pilot57189854/2708POST были scoped.
-Pilot POST исчерпаны. Новый рассчитанный предел — **предложение**, требующее
-отдельного execution-plan/разрешения в следующих issues; manifest не executable.
+Pilot POST исчерпаны. Static worst-case не является операционным бюджетом.
+Выбранный ниже empirical operating cap — **предложение**, требующее отдельного
+execution-plan/разрешения; manifest не executable.
 
 ## Разбиение, альтернативы и проверка
 
@@ -104,3 +110,43 @@ case ID — с SHA256([dataset,method,published tuning ID]). В `.gitleaksignore
 протоколе репозитория. Текущие pins представлены парами file/sha256, sealed ID
 назван `case_id_sha256`; значения не менялись. История не переписывается,
 новые commits/values продолжают сканироваться, secret checks остаются обязательны.
+
+
+## Операционный бюджет — предложение, бюджетный критерий ещё открыт
+
+Один вариант: для каждой пары configuration/operation взять максимальный
+**полный** расход пилотной операции и умножить на число новых вызовов; сложить
+все allocations и добавить один максимальный admission reserve запроса.
+Так запас получается из наблюдаемого диапазона расходов и требований admission,
+а не из округления до удобного числа. Это отдельный empirical operating cap;
+сумма всех статических worst-case reservations114669441 остаётся отдельно.
+Операционные allocations — основание одного общего лимита, не новые настройки
+методов или раздельные возможности повторного запроса.
+
+Перед каждым POST будущий отдельно approved execution-plan должен требовать:
+`new_known + new_unknown_reserves + in_flight_reserves + candidate_reserve <= cap`,
+а также остаток total/per-operation POST. Один последовательный worker, reserve
+до транспорта; `candidate_reserve` по реальному serialized payload UTF8 bytes
++2048+max_tokens для LLM. Mean и pilot maximum не заменяют admission guard.
+Существующий checked_post проверяется offline-тестом на ноль POST при нехватке
+лимита; интеграция полного S500 execution-plan всё ещё не выполнена/не разрешена.
+Usage сохраняется до проверки ответа, partial/unknown/transport/pin/budget error
+останавливает очередь; не освобождать unknown reserve и не продолжать автоматически.
+Гарантия pre-admission относится к принятой conservative reservation policy;
+она не доказывает фактическое окно/скрытые расходы backend. Нарушение этого
+контракта надо сохранить и остановить, а не скрыть потерей known usage.
+
+Этот operating cap **не гарантирует** завершение1800cases: новые запросы могут
+оказаться дороже пилотного максимума или следующий reserve уже не поместится.
+Тогда stop до следующего POST, отчёт о недовыполненном наборе и новое решение.
+Исторические known/E1/development расходы и reserve22545 не входят в новую
+allocation и не учитываются повторно; старый unknown остаётся отдельным.
+До согласования operating cap критерий бюджета issue15 не выполнен, в PR
+используется Refs #15. Согласование бюджета само по себе не запускает модели.
+
+
+Реальная пересборка: partial0/fully unknown1; forecast5841708.693 не изменился.
+Операционное предложение10903320=10834200(sum missing×pilot max complete cost)
++69120(single largest admission reserve), ≤4200POST. Запас над mean forecast
+5061611.307. Static worst-case114669441 — отдельная величина. Согласования
+операционного cap пока нет; бюджетный критерий issue15 открыт.

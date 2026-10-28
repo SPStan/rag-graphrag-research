@@ -718,7 +718,10 @@ runner перед `scripts.run_dense_target --shared-plan <approved-plan> --exec
 Текущий freeze не подменяет такой plan; не передавать его напрямую в runner.
 Ни эта команда-шаблон, ни неизрасходованные tokens старого run не разрешают HTTP.
 
-Forecast рассчитан по logical pilot operation means без просмотра EM/F1.
+Forecast использует только fully measured logical pilot operations: отдельные
+complete subtotal и count; все известные partial tokens остаются в отчётном
+known_subtotal. Partial/fully unknown и неизвестные поля считаются отдельно.
+При отсутствии complete observations forecast=null, а не0. EM/F1 не используются.
 Filter ≤1/case Hippo, BGE ≤1/case каждого метода: межметодное сокращение не
 выдумывается. Reader input bound строится по всем500 queries и готовым индексам,
 cap65536/no truncation неизменен. Filter reserve использует admission upper,
@@ -739,13 +742,45 @@ backend token window. Filter size остаётся admission upper.
 | Query BGE |1800|46345.5 /—|4051941|
 | Всего |4200|5841708.693 combined|114669441|
 
-Forecast — средние tuning logical operations, не actual usage будущих запросов.
+Forecast — средние complete tuning logical operations, не actual usage будущих запросов.
 E2 pilot physical: LLM3737778input/32093output, BGE29442=3799313known,
 2708POST. Development237340/152POST включает source91871; E2 total4036653known/
 2860POST. Historical unknown1/reserve22545 сохраняется. E1known32601955,
 reserve61588 отдельно; обе стоимости неполны. Полный исторический расход
 проекта (включая ранние локальные пробы) здесь не объявляется сверенным.
-Новый114669441 — предлагаемый conservative cap, превышающий старую
-административную90M величину; она снята. Старый E1cap68M относится только к
+114669441 — сумма статических worst-case reservations, не операционный budget.
+Она превышает старую административную90M величину; эта граница снята. Старый E1cap68M относится только к
 индексации, старые pilot caps не дают4200новыхPOST. Перед execution нужен
 отдельный допуск research budget, а не молчаливое расширение старого run.
+
+
+### Решение о бюджете issue15 ещё требуется
+
+После исправления partial usage манифест пересобран той же offline-командой.
+В текущем пилоте partial operations=0, fully unknown=1. Forecast до/после одинаков:
+5841708.693. Known reporting subtotals, physical usage, case decisions и старые
+journals/results не менялись. Полностью unknown response не заменён нулевым usage.
+
+**Один операционный вариант:10903320 новых combined tokens и≤4200POST**
+(1800reader/600filter/1800BGE). Он вычислен как10834200: сумма300новых вызовов
+×максимум полной pilot операции отдельно по6конфигурациям и стадиям; плюс69120 —
+один крупнейший admission reserve. Все maxima, sample counts и allocations —
+в `budget_proposal.operational_budget_proposal`. Это даёт запас5061611.307 над
+mean forecast; число не подбиралось округлением или по качеству ответов.
+Static worst-case114669441 сохраняется отдельной оценкой, не operating cap.
+
+Перед любым POST требуется `new_known + new_unknown_reserves + in_flight_reserves
++ exact_candidate_reserve <= approved_cap` и остаток POST caps. Один serial worker;
+exact reserve из реального payload bytes+2048+max_tokens(LLM), а не из среднего
+forecast. При нехватке места — остановка без POST; unknown/partial/transport/
+budget/pin failure — сохранение данных и stop, без retry/автоповышения.
+Offline-регрессия проверяет существующий checked_post с insufficient budget и0POST.
+Полный future execution-plan обязан реализовать/проверить этот контракт до допуска.
+
+Operating cap не гарантирует завершение всех1800: unseen costs могут превысить
+пилотные maxima, а admission может остановить очередь ещё до исчерпания cap.
+Тогда остаётся неполный набор и требуется отдельное решение. Исторический E2
+unknown reserve22545, расходы E1 и development не входят в новую allocation,
+не освобождаются и не суммируются повторно. До согласования этого бюджета
+критерий3 issue15 не выполнен; PR37 содержит **Refs #15**, остаётся Draft.
+Утверждение бюджета само по себе не разрешает запуск в этой offline-задаче.

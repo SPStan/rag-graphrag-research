@@ -149,15 +149,21 @@ def test_budget_separates_logical_forecast_and_reservations():
         for op in ("reader", "query_embedding") + (
             ("filter",) if m == "hipporag2" else ()
         ):
-            logical["musique/" + m][op] = {
-                "known_operations": 2,
-                "unknown_operations": 1,
-                "known_subtotal": {
-                    "llm_input_tokens": 20,
-                    "llm_output_tokens": 2,
-                    "embedding_input_tokens": 0,
-                },
-            }
+            row = logical["musique/" + m][op] = full.usage_row()
+            for _ in range(2):
+                full.observe_usage(
+                    row,
+                    {
+                        "operation": op,
+                        "logical_usage": {
+                            "llm_input_tokens": 10 if op != "query_embedding" else None,
+                            "llm_output_tokens": 1 if op != "query_embedding" else None,
+                            "embedding_input_tokens": 10
+                            if op == "query_embedding"
+                            else None,
+                        },
+                    },
+                )
     bounds = {
         "musique/" + k: {"synthetic_top5_message_bytes": 1000}
         for k in ("raptor", "dense_or_hippo")
@@ -165,7 +171,7 @@ def test_budget_separates_logical_forecast_and_reservations():
     value = full.budget(config, {"musique": {"q": "Which?"}}, plan, bounds, logical)
     assert value["new_posts_upper"] == {"reader": 3, "filter": 1, "query_embedding": 3}
     assert value["new_posts_total_upper"] == 7
-    assert value["forecast_known_combined_tokens"] == 77
+    assert value["forecast_known_combined_tokens"] == 74
     assert value["conservative_combined_tokens"] == sum(
         value["conservative_reservations_by_operation"].values()
     )
@@ -374,3 +380,95 @@ def test_published_manifest_accounts_for_every_case_and_scope():
                 safe(v)
 
     safe(m)
+
+
+def test_partial_known_reporting_and_complete_only_forecast():
+    row = full.usage_row()
+    for incoming, outgoing in ((100, 10), (50, None), (None, None)):
+        full.observe_usage(
+            row,
+            {
+                "operation": "reader",
+                "logical_usage": {
+                    "llm_input_tokens": incoming,
+                    "llm_output_tokens": outgoing,
+                    "embedding_input_tokens": None,
+                },
+            },
+        )
+    assert row["known_subtotal"]["llm_input_tokens"] == 150
+    assert row["known_subtotal"]["llm_output_tokens"] == 10
+    assert row["forecast_complete"] == {
+        "operations": 1,
+        "subtotal": {
+            "llm_input_tokens": 100,
+            "llm_output_tokens": 10,
+            "embedding_input_tokens": 0,
+        },
+        "maximum_operation_tokens": 110,
+    }
+    assert row["partial_operations"] == row["fully_unknown_operations"] == 1
+    assert row["unknown_operations"] == 2
+    config = [{"dataset": "musique", "method": "dense", "missing_ids": ["q"]}]
+    plan = {
+        "embedding_model": "bge",
+        "message_utf8_bytes_limit": 65536,
+        "query_utf8_bytes_limit": 4096,
+    }
+    embedding = full.usage_row()
+    full.observe_usage(
+        embedding,
+        {
+            "operation": "query_embedding",
+            "logical_usage": {"embedding_input_tokens": 2},
+        },
+    )
+    bounds = {"musique/dense_or_hippo": {"synthetic_top5_message_bytes": 1000}}
+    logical = {"musique/dense": {"reader": row, "query_embedding": embedding}}
+    result = full.budget(config, {"musique": {"q": "Which?"}}, plan, bounds, logical)
+    assert result["forecast_tokens_by_operation"]["reader/llm_input_tokens"] == 100
+    assert result["forecast_known_combined_tokens"] == 112
+    proposal = result["operational_budget_proposal"]
+    assert proposal["pilot_maximum_allocation_tokens"] == 112
+    assert proposal["proposed_new_token_cap"] == 112 + 1000 + 1024 + 2048 + 512
+    assert not proposal["authorized"] and not proposal["completion_guaranteed"]
+    for observation in (full.usage_row(), None):
+        if observation is None:
+            logical["musique/dense"].pop("reader")
+        else:
+            full.observe_usage(
+                observation, {"operation": "reader", "logical_usage": {}}
+            )
+            logical["musique/dense"]["reader"] = observation
+            assert observation["fully_unknown_operations"] == 1
+        result = full.budget(
+            config, {"musique": {"q": "Which?"}}, plan, bounds, logical
+        )
+        assert result["forecast_known_combined_tokens"] is None
+        assert result["forecast_tokens_by_operation"]["reader/llm_input_tokens"] is None
+        assert result["operational_budget_proposal"]["proposed_new_token_cap"] is None
+        assert result["forecast_missing_observations"] == ["musique/dense/reader"]
+
+
+def test_existing_transport_refuses_insufficient_budget_before_post():
+    from unittest.mock import Mock
+
+    session, journal = Mock(), Mock()
+    journal.summary.return_value = {"known_subtotal": {"llm_input_tokens": 150}}
+    payload = {"model": e2.MODEL, "messages": [], "max_tokens": 512}
+    reserve = len(json.dumps(payload, ensure_ascii=False).encode()) + 2048 + 512
+    with pytest.raises(ValueError, match="token_budget_reservation_exceeded"):
+        target.checked_post(
+            session,
+            "http://unused.invalid",
+            payload,
+            journal,
+            phase="reader",
+            operation="reader",
+            provider="target_api",
+            model=e2.MODEL,
+            kind="llm",
+            object_id="blocked",
+            token_limit=150 + reserve - 1,
+        )
+    session.post.assert_not_called()

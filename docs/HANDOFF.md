@@ -2,13 +2,17 @@
 
 **E1 status:** 6/6 indexes completed under the structural protocol; physical known tokens=32601955; cost_complete=False; unknown reserve61588 preserved. Final audit/verify completed; monitoring paused.
 
-## Текущая очередь — issue #15: offline freeze подготовлен к ревью
+## Текущая очередь — issue #15: offline freeze, бюджет ожидает согласования
 
+- Бюджетный критерий issue15 ещё не выполнен: нужен выбор/согласование
+  операционного cap10903320tokens/≤4200POST. PR37 остаётся Draft с Refs #15, без Closes.
 - [Манифест](../results/summary/full-experiment.json):6конфигураций,
   ordered S500×2×3=3000cases. Реальный offline-аудит:1199compatible completed,
   1sealed terminal failure,1800missing,0incompatible. Шесть E1 индексов проверены.
 - Новый прогноз5841708.693tokens; conservative reservation114669441tokens,
   ≤4200POST (1800reader/600filter/1800BGE). Это предложение, **не допуск HTTP**.
+  Операционное предложение10903320=10834200по максимумам пилота+69120admission.
+  Не гарантирует1800cases; stop перед POST, если exact reservation не помещается.
   Старые pilot2708POST исчерпаны; административный90M снят, research caps scoped.
 - E2 physical с development4036653known/2860POST, unknown1/reserve22545;
   source91871 уже внутри development237340. E1known32601955/reserve61588 отдельно,

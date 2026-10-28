@@ -177,67 +177,175 @@ def classify(plan, producer, directory, result, sha, queries, records):
         return "incompatible", type(exc).__name__ + ":" + str(exc)
 
 
-def usage_complete(operation):
-    relevant = (
+def usage_fields(operation):
+    return (
         ("embedding_input_tokens",)
-        if operation["operation"] == "query_embedding"
+        if operation == "query_embedding"
         else ("llm_input_tokens", "llm_output_tokens")
     )
-    return all(operation["logical_usage"].get(key) is not None for key in relevant)
+
+
+def usage_complete(operation):
+    return all(
+        operation["logical_usage"].get(key) is not None
+        for key in usage_fields(operation["operation"])
+    )
 
 
 def usage_add(totals, operation):
-    values = operation["logical_usage"]
     for key in FIELDS:
-        if values.get(key) is not None:
-            totals[key] += values[key]
+        value = operation["logical_usage"].get(key)
+        if value is not None:
+            totals[key] += value
+
+
+def usage_row():
+    return {
+        "known_operations": 0,
+        "unknown_operations": 0,
+        "partial_operations": 0,
+        "fully_unknown_operations": 0,
+        "unknown_fields": dict.fromkeys(FIELDS, 0),
+        "known_subtotal": dict.fromkeys(FIELDS, 0),
+        "forecast_complete": {
+            "operations": 0,
+            "subtotal": dict.fromkeys(FIELDS, 0),
+            "maximum_operation_tokens": None,
+        },
+    }
+
+
+def observe_usage(row, operation):
+    """Preserve every reported token; forecast only fully measured operations."""
+    usage_add(row["known_subtotal"], operation)
+    fields = usage_fields(operation["operation"])
+    values = operation["logical_usage"]
+    complete = usage_complete(operation)
+    row["known_operations" if complete else "unknown_operations"] += 1
+    for key in fields:
+        row["unknown_fields"][key] += values.get(key) is None
+    if not complete:
+        partial = any(values.get(key) is not None for key in fields)
+        row["partial_operations" if partial else "fully_unknown_operations"] += 1
+        return
+    stats = row["forecast_complete"]
+    stats["operations"] += 1
+    for key in fields:
+        stats["subtotal"][key] += values[key]
+    total = sum(values[key] for key in fields)
+    prior = stats["maximum_operation_tokens"]
+    stats["maximum_operation_tokens"] = total if prior is None else max(prior, total)
 
 
 def budget(configurations, queries, plan, bounds, logical):
-    posts = Counter()
-    reserve = Counter()
-    forecast = Counter()
+    posts, reserve, forecast = Counter(), Counter(), {}
+    missing_observations, allocations = [], []
+    headroom = 0
     for config in configurations:
         d, m = config["dataset"], config["method"]
         n = len(config["missing_ids"])
-        posts["reader"] += n
-        posts["filter"] += n if m == "hipporag2" else 0
-        posts["query_embedding"] += n
+        operations = ("reader", "query_embedding") + (
+            ("filter",) if m == "hipporag2" else ()
+        )
+        for operation in operations:
+            posts[operation] += n
         bound = bounds[f"{d}/{'raptor' if m == 'raptor' else 'dense_or_hippo'}"][
             "synthetic_top5_message_bytes"
         ]
         require(bound <= plan["message_utf8_bytes_limit"], "full500_input_overflow")
-        reserve["reader"] += n * (bound + 1024 + 2048 + 512)
+        reader_reserve = bound + 1024 + 2048 + 512
+        reserve["reader"] += n * reader_reserve
         reserve["filter"] += n * (65536 + 1024 + 2048 + 512) if m == "hipporag2" else 0
+        if n:
+            headroom = max(
+                headroom,
+                reader_reserve,
+                65536 + 1024 + 2048 + 512 if m == "hipporag2" else 0,
+            )
         for q in config["missing_ids"]:
             payload = e2.embedding_payload(plan, queries[d][q])
             require(
                 len(queries[d][q].encode()) <= plan["query_utf8_bytes_limit"],
                 "query_overflow",
             )
-            reserve["query_embedding"] += (
-                len(json.dumps(payload, ensure_ascii=False).encode()) + 2048
-            )
-        for operation, row in logical[d + "/" + m].items():
-            # Denominator includes only known operations, not a fabricated unknown zero.
-            require(row["known_operations"] > 0, "forecast_no_known_operations")
-            for key in FIELDS:
-                forecast[operation + "/" + key] += (
-                    n * row["known_subtotal"][key] / row["known_operations"]
+            amount = len(json.dumps(payload, ensure_ascii=False).encode()) + 2048
+            reserve["query_embedding"] += amount
+            headroom = max(headroom, amount)
+        for operation in operations:
+            stats = logical.get(d + "/" + m, {}).get(operation, usage_row())[
+                "forecast_complete"
+            ]
+            samples = stats["operations"]
+            if n and not samples:
+                missing_observations.append(d + "/" + m + "/" + operation)
+            for key in usage_fields(operation):
+                field = operation + "/" + key
+                estimate = (
+                    n * stats["subtotal"][key] / samples
+                    if samples
+                    else 0
+                    if not n
+                    else None
                 )
+                prior = forecast.get(field, 0)
+                forecast[field] = (
+                    None if prior is None or estimate is None else prior + estimate
+                )
+            allocations.append(
+                {
+                    "dataset": d,
+                    "method": m,
+                    "operation": operation,
+                    "new_calls_upper": n,
+                    "complete_pilot_operations": samples,
+                    "pilot_maximum_operation_tokens": stats["maximum_operation_tokens"],
+                    "allocation_tokens": n * stats["maximum_operation_tokens"]
+                    if samples
+                    else 0
+                    if not n
+                    else None,
+                }
+            )
+    complete = not missing_observations
+    total_forecast = round(sum(forecast.values()), 3) if complete else None
+    empirical = sum(a["allocation_tokens"] for a in allocations) if complete else None
     return {
         "new_posts_upper": dict(posts),
         "new_posts_total_upper": sum(posts.values()),
         "forecast_tokens_by_operation": {
-            k: round(v, 3) for k, v in sorted(forecast.items())
+            k: round(v, 3) if v is not None else None
+            for k, v in sorted(forecast.items())
         },
-        "forecast_known_combined_tokens": round(sum(forecast.values()), 3),
+        "forecast_known_combined_tokens": total_forecast,
+        "forecast_complete": complete,
+        "forecast_missing_observations": missing_observations,
         "conservative_reservations_by_operation": dict(reserve),
         "conservative_combined_tokens": sum(reserve.values()),
         "reserve_is_measured_usage": False,
         "authorized": False,
-        "forecast_policy": "per-configuration pilot logical known-operation means; filter upper one/case; no cross-method BGE dedup; unknown excluded from means",
-        "scope": "proposal for missing cases only; old pilot POST allowance exhausted; no administrative90M ceiling does not grant research budget",
+        "forecast_policy": "per-configuration means of fully measured operations only; numerator and denominator use the same complete subset; partial known tokens retained in reporting only; absent observations produce null, not zero",
+        "operational_budget_proposal": {
+            "authorized": False,
+            "completion_guaranteed": False,
+            "basis": "missing calls times maximum fully measured pilot operation tokens per configuration/operation, plus one largest request admission reservation; no quality-based selection or rounded target cap",
+            "allocations": allocations,
+            "pilot_maximum_allocation_tokens": empirical,
+            "admission_headroom_tokens": headroom,
+            "proposed_new_token_cap": empirical + headroom if complete else None,
+            "margin_over_forecast_tokens": round(
+                empirical + headroom - total_forecast, 3
+            )
+            if complete
+            else None,
+            "required_preflight": "single serial worker; before each POST require new_known + new_unknown_reserves + in_flight_reserves + exact_candidate_reservation <= approved_new_cap and operation/total POST caps; reserve before transport; stop without POST if insufficient; reconcile actual usage durably; any new unknown/partial/transport/budget/pin error stops; no retry or automatic continuation",
+            "transport_reservation": "existing checked_post: serialized payload UTF8 bytes + 2048 + max_tokens for LLM; fixed reader cap512 unchanged; admission upper includes1024 envelope",
+            "existing_unknown_reserve_separate": sum(
+                x["reservation_tokens"] for x in plan.get("sealed_unknown", [])
+            ),
+            "scope": "new missing cases only; E1, development, parent known expense and historical unknown remain separate, never charged twice; approved execution-plan integration and verification still required",
+            "insufficient_budget": "stop before next POST; may finish fewer than1800 cases even with no technical error; further budget requires a new decision",
+        },
+        "scope": "proposal for missing cases only; issue15 budget criterion pending approval; old pilot POST allowance exhausted; removed administrative90M ceiling is not research authorization",
     }
 
 
@@ -427,15 +535,7 @@ def build(plan, source, roots):
             print("Verified index " + dataset + "/" + pin["method"], flush=True)
     bounds = pilot.input_size_bounds(full)
     configurations, counts, identities = [], Counter(), set()
-    logical = defaultdict(
-        lambda: defaultdict(
-            lambda: {
-                "known_operations": 0,
-                "unknown_operations": 0,
-                "known_subtotal": dict.fromkeys(FIELDS, 0),
-            }
-        )
-    )
+    logical = defaultdict(lambda: defaultdict(usage_row))
     for dataset, data in datasets.items():
         for method in e2.METHODS:
             cases, missing = [], []
@@ -484,11 +584,7 @@ def build(plan, source, roots):
                     )
                     for op in result["operations"]:
                         row = logical[dataset + "/" + method][op["operation"]]
-                        unknown = not usage_complete(op)
-                        row[
-                            "unknown_operations" if unknown else "known_operations"
-                        ] += 1
-                        usage_add(row["known_subtotal"], op)
+                        observe_usage(row, op)
                 cases.append(case)
             pin = next(
                 x for x in plan["datasets"][dataset]["indexes"] if x["method"] == method

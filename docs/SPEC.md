@@ -103,3 +103,14 @@ S500 не нетронутый test set. Для issue21 tuning300/signal-check10
 Новый forecast/reservation в манифесте не утверждённый research budget; старые
 run caps не продлеваются. До отдельного execution-plan и разрешения новых
 модельных вызовов нет. Команда аудита — в [протоколе E2](E2_EVALUATION.md#offline-freeze-s500--issue-15).
+
+
+Бюджетный критерий issue15 остаётся открытым до согласования операционного
+лимита: forecast и static worst-case сами по себе не бюджетное разрешение.
+Предложен один empirical operating cap: сумма missing calls × максимум полной
+pilot операции для каждой configuration/operation + один максимальный admission
+reserve. Его точное число и allocations воспроизводятся манифестом. До любого
+POST требуется место под actual-payload reservation в общем утверждённом cap;
+при нехватке — stop, без retry/автоповышения. Завершение1800cases не гарантировано.
+Forecast считает complete-only subtotal/count, known partial tokens и unknown
+сохраняются отдельно. При отсутствии наблюдений прогноз null. Refs #15 до решения.
