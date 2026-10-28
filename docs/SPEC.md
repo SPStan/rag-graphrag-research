@@ -1,6 +1,6 @@
 # Спецификация исследования
 
-Статус: целевой benchmark и сравнительные выводы не готовы. Выполнен локальный Dense candidate run на 100 вопросах S500[200:300]; независимая попытка построения HippoRAG остановлена OpenIE acceptance gate до QA, строгая независимая оценка не готова. 26 сентября выполнено отдельное [диагностическое сравнение](COMPARISON_2026-09-26.md) этого графа с Dense на тех же 100 вопросах (F1 29,97% / 18,58%). Основание — [исходное задание](../3_1_student_track_v1.md). Сводка не заменяет его и не утверждает новизну без проверки литературы.
+Статус: E1 завершён структурно6/6 с disclosed extraction errors и semantic_verified=false; целевой E2 pilot200 содержит1199ответов и1sealed transport failure. Полное сравнение S500 ещё не выполнено. Offline freeze issue15 закрепляет конфигурации/reuse/missing-set и бюджетное предложение, но не разрешает запуск. Исторические локальные результаты ниже — development, не независимый benchmark. Основание — [исходное задание](../3_1_student_track_v1.md).
 
 Уточнение от 23 сентября: до целевого benchmark выполняем [локальный MVP](LOCAL_MVP.md) на RTX 3070 и небольшой модели. Это отдельная предварительная конфигурация; пороги и модель основного исследования ниже не заменяются. Решение — [ADR-0001](../.adr/0001-local-mvp-and-agent-artifacts.md).
 
@@ -81,3 +81,25 @@ Langfuse хранит трассы операций и вызовов. MLflow �
 Оперативный план ведётся только в [TASKS](TASKS.md), вход для другой модели — [HANDOFF](HANDOFF.md). Ниже — состояние исследовательских результатов; локальная repair-интеграция ещё не завершена.
 
 Инфраструктура и mock-события: [протокол проверок](VERIFICATION.md). Подготовлены [подвыборки и тесты данных](DATA.md), по 500 вопросов и 5500 пассажей на набор. Dense baseline100 содержит debug10; 7B run — replay тех же retrieval contexts, поэтому прежние результаты не независимы. Проектный HippoRAG runner, общий MuSiQue reader и evaluator проверены на диагностическом debug10. Read-only [OpenIE audit](../results/summary/hipporag2-openie-coverage-rebuilt-debug10.json) показывает покрытие, но не причины пустых извлечений. [ADR-0007](../.adr/0007-openie-extraction-audit-and-independent-evaluation.md) реализован в новых запусках. На замороженном candidate view S500[200:300] Dense 3B завершил 100 вопросов (EM 0,110; F1 0,186; recall@5 0,606); HippoRAG fresh index build первоначально остановился до QA: gate обнаружил 160 unresolved OpenIE outcomes. Итоги и конфигурации доступны в [безопасной сводке](../results/summary/musique-independent-candidate-s500-200-299.json). `holdout100` не встречается в найденных модельных запусках, но один MuSiQue эталон уже раскрыт в DATA; для сигнала используется отдельный диапазон по ADR-0015. Целевой benchmark и сравнительные выводы не готовы.
+
+## Полный S500: замороженная подготовка issue #15
+
+Шесть конфигураций Dense/HippoRAG2/RAPTOR × MuSiQue/HotpotQA закреплены в
+[публичном манифесте](../results/summary/full-experiment.json), решение —
+[ADR-0028](../.adr/0028-full-experiment-freeze-and-reuse.md). На метод/набор
+500 прежних ordered IDs, всего3000 cases; RAPTOR остаётся в полном сравнении.
+
+Reader shared-answer-only-v1/cap512, top5, filter, parser/evaluator и готовые E1
+индексы сохраняются. Reuse определяется payload/параметрами/артефактами/usage,
+а не правильностью ответа и не равенством Git HEAD. Один sealed transport case
+сохраняется failure, не запрашивается повторно. Новые budget/transport/unknown/
+infra/filter errors — stop. Известная ошибка reader — case failure без retry.
+RAPTOR provenance не passage recall@5; mixed Hippo extraction/disclosed errors,
+semantic_verified=false и неполная стоимость E1 остаются ограничениями.
+
+S500 не нетронутый test set. Для issue21 tuning300/signal-check100/reserve100
+не перемешиваются; формула/направление/порог только по tuning до check gold.
+Предварительное вычисление ответов не разрешает анализ check для выбора сигнала.
+Новый forecast/reservation в манифесте не утверждённый research budget; старые
+run caps не продлеваются. До отдельного execution-plan и разрешения новых
+модельных вызовов нет. Команда аудита — в [протоколе E2](E2_EVALUATION.md#offline-freeze-s500--issue-15).

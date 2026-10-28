@@ -682,3 +682,70 @@ embedding observations явно performed_this_run=false, реальных embed
 Reader usage28132/100 подтверждён;8artifact round-trip SHA совпали. EM/F1/recall=null,
 никаких новых model calls экспорт не создал. Source audit7/2/3 раскрыт в артефактах,
 а historical E1 incomplete cost и прежний smoke расход не пересчитаны как новые.
+
+## Offline freeze S500 — issue #15
+
+[Манифест](../results/summary/full-experiment.json) содержит ordered IDs и SHA,
+шесть index/provenance pins, compatibility decisions по каждому пилотному case,
+missing IDs, logical/physical accounting, прогноз и консервативный предел.
+[ADR-0028](../.adr/0028-full-experiment-freeze-and-reuse.md) задаёт политику
+sealed failure и границы будущего запуска. Он имеет `executable=false` и
+`http_authorized=false`; это вход для следующего согласованного execution-plan,
+а не файл для немедленного `--execute`.
+
+Повторить **offline** проверку из чистой ветки с check environment:
+
+```powershell
+# Указать существующие каталоги; roots могут отличаться от исторических путей.
+$Data = '<каталог с data/processed>'
+$Artifacts = '<каталог с results/raw и исходными plans>'
+$Indexes = '<E1 worktree с indexes/e1 и .cache E1 plan>'
+./.venv-check/Scripts/python.exe -m scripts.full_experiment verify `
+  --data-root $Data --artifact-root $Artifacts --index-root $Indexes
+```
+
+`prepare` теми же аргументами строит этот же публичный JSON; `verify` заново
+проверяет источники и сравнивает всё содержимое. Ни один режим не запускает
+модели: HTTP/socket transport заблокирован. Labels только хэшируются, queries
+и corpus доступны для payload/byte bounds; ответы/gold/metrics check/reserve
+не читаются. Отсутствующий/повреждённый candidate исключается как incompatible,
+verify не даёт успешного допуска. Тексты, raw и абсолютные roots в JSON не
+публикуются. Старые manifests/checkpoints/claims не меняются.
+
+Будущий запуск **отдельно**: в issue16/17 потребуется execution-plan для
+missing-set, допуск рассчитанного бюджета и проверка его существующим shared
+runner перед `scripts.run_dense_target --shared-plan <approved-plan> --execute`.
+Текущий freeze не подменяет такой plan; не передавать его напрямую в runner.
+Ни эта команда-шаблон, ни неизрасходованные tokens старого run не разрешают HTTP.
+
+Forecast рассчитан по logical pilot operation means без просмотра EM/F1.
+Filter ≤1/case Hippo, BGE ≤1/case каждого метода: межметодное сокращение не
+выдумывается. Reader input bound строится по всем500 queries и готовым индексам,
+cap65536/no truncation неизменен. Filter reserve использует admission upper,
+не измеренный будущий контекст. Bytes/reservations не называются measured tokens.
+Физические расходы пилота/разработки/индексации и logical reuse раздельны,
+source — часть development, unknown reserve — не actual usage.
+
+Итог freeze: **1199compatible completed +1terminal failure +1800missing,
+0incompatible**. Максимальный S500 reader bound:63955bytes MuSiQue RAPTOR,
+58988bytes HotpotQA RAPTOR,13239/29780bytes corpus top5; прежний cap65536
+достаточен для доказанной статической reader-bound, не утверждает размер
+backend token window. Filter size остаётся admission upper.
+
+| Новые операции | POST upper | Forecast input / output tokens | Conservative reservation |
+|---|---:|---:|---:|
+| Reader |1800|3917901.739 /13721.955|69145500|
+| Hippo filter |600|1827165 /36574.5|41472000|
+| Query BGE |1800|46345.5 /—|4051941|
+| Всего |4200|5841708.693 combined|114669441|
+
+Forecast — средние tuning logical operations, не actual usage будущих запросов.
+E2 pilot physical: LLM3737778input/32093output, BGE29442=3799313known,
+2708POST. Development237340/152POST включает source91871; E2 total4036653known/
+2860POST. Historical unknown1/reserve22545 сохраняется. E1known32601955,
+reserve61588 отдельно; обе стоимости неполны. Полный исторический расход
+проекта (включая ранние локальные пробы) здесь не объявляется сверенным.
+Новый114669441 — предлагаемый conservative cap, превышающий старую
+административную90M величину; она снята. Старый E1cap68M относится только к
+индексации, старые pilot caps не дают4200новыхPOST. Перед execution нужен
+отдельный допуск research budget, а не молчаливое расширение старого run.

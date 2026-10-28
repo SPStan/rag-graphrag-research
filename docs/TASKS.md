@@ -2,21 +2,26 @@
 
 **E1 status:** 6/6 indexes completed under the structural protocol; physical known tokens=32601955; cost_complete=False; unknown reserve61588 preserved. Final audit/verify completed; monitoring paused.
 
-## Текущая очередь — issue #15: полный протокол и reuse
+## Текущая очередь — issue #15: offline freeze подготовлен к ревью
 
-- Следующий этап после интеграции E1/E2 — issue15: фиксация полного протокола,
-  pinned versions/ID/лимитов и проверяемого reuse. Сам этап15 в этой задаче
-  не запускается; новых LLM/embedding calls, S500, holdout и индексации нет.
-- Научные O/N/R/H PR33/issue13 и PR36/issue14 подтверждены куратором по
-  текущему сообщению пользователя. Ссылка/дата решения не выдумываются;
-  публичного GitHub review/одобрения бота не заявляем. Карточки неизменны.
-- Ready и последовательный обычный merge33→36 разрешены после актуальных
-  проверок, без обхода защиты/checks/reviews. PR36 переводится на master
-  после интеграции33 и проверки полного E2 diff; результаты/runtime не меняются.
-- Прежние согласования mixed extractor, продолжений и sealed unknown сохранены.
-  Semantic_verified=false и cost_complete=false остаются ограничениями.
-  После merge проверяются CLOSED issues13/14 и Done их существующих Project cards.
-- PR34/35 уже закрыты как заменённые; ветки и артефакты сохранены.
+- [Манифест](../results/summary/full-experiment.json):6конфигураций,
+  ordered S500×2×3=3000cases. Реальный offline-аудит:1199compatible completed,
+  1sealed terminal failure,1800missing,0incompatible. Шесть E1 индексов проверены.
+- Новый прогноз5841708.693tokens; conservative reservation114669441tokens,
+  ≤4200POST (1800reader/600filter/1800BGE). Это предложение, **не допуск HTTP**.
+  Старые pilot2708POST исчерпаны; административный90M снят, research caps scoped.
+- E2 physical с development4036653known/2860POST, unknown1/reserve22545;
+  source91871 уже внутри development237340. E1known32601955/reserve61588 отдельно,
+  cost_complete=false. Исторические runtime/планы/raw/claims не переписаны.
+- [ADR-0028](../.adr/0028-full-experiment-freeze-and-reuse.md) сохраняет failure
+  без retry; shared-answer-only-v1/cap512/top5/65536bytes и 300/100/100 неизменны.
+  Сигнал issue21 не выбран, check/reserve answers/gold/metrics не читались.
+- Проверка: `scripts.full_experiment verify` с явными roots из
+  [E2](E2_EVALUATION.md#offline-freeze-s500--issue-15), transport заблокирован.
+  Freeze не executable. Следующий шаг — ревью issue15 и отдельное согласование
+  execution-plan/нового бюджета; issues16/17/21 здесь не запускались.
+- PR33/36 слиты, issues13/14 закрыты; PR34/35 закрыты как заменённые.
+  Основной checkout с пользовательскими правками не затронут.
 
 ## Сохранённый результат pilot200 — 1199ответов+1transport failure
 
