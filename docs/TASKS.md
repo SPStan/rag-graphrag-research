@@ -2,20 +2,22 @@
 
 **E1 status:** 6/6 indexes completed under the structural protocol; physical known tokens=32601955; cost_complete=False; unknown reserve61588 preserved. Final audit/verify completed; monitoring paused.
 
-## Текущая очередь — issue15: техническая подготовка, решение HotpotQA отдельно
+## Текущая очередь — issue15: протокол и бюджеты согласованы
 
-- PR37 остаётся Draft/Refs #15. Научные формулировки согласованы по сообщению
-  пользователя; это не опубликованное bot/GitHub review.
-- Frozen full-experiment.json не изменён: шесть конфигураций,3000IDs,
- 1199compatible answers+1sealed failure,1800missing; forecast5841708.693,
- static worst-case114669441 — снимок до исполнения Mu, не актуальный missing-count.
-- MuSiQue имеет отдельные budget/continuation разрешения PR38:
- cap5990220tokens/2100POST, unknown не повторяется. Согласие повторно не нужно.
-- Для HotpotQA нужен отдельный scoped budget/execution-plan, повторный audit,
- exact reservation и stop до превышения; Mu-согласие не переносится.
-- Критерии1/2/4 выполнены; общий бюджетный критерий3 частичен до Hot-решения.
- Запись решения — ADR0028/E2. Манифест/runtime/raw не переписываются.
-- Следующий шаг — ревью PR37, затем зависимого PR38; новых запросов здесь нет.
+- PR37 остаётся Draft, Closes #15: все4критерия выполнены. Научные формулировки
+  согласованы по сообщению пользователя; опубликованное bot/GitHub review не заявляется.
+- Пользователь принял HotpotQA4982220новых tokens/2100POST
+  (900reader/300filter/900localBGE), retry0; только900ранее unattempted cases.
+  Основание4913100по максимумам пилота+69120admission headroom, без переноса Mu остатка.
+- Mu5990220/2100 и continuation199 уже отдельно разрешены; повторное согласие
+  не нужно. Исторические unknown/costs/reserves не освобождаются и не повторяются.
+- Frozen full-experiment.json не изменён: его1800missing — исторический снимок,
+  не текущий список. До Hot запуска нужны новый verified execution-plan,
+  актуальный audit/остатки и отдельная команда запуска. При нехватке cap/новом
+  unknown/transport/pin error — stop без retry. Завершение не гарантируется.
+- Точная запись согласия и условия — ADR0028/E2; reader/model/index/split прежние.
+  В этом блоке только документация, никаких model/API/embedding/tracking вызовов.
+- Следующий шаг — ревью PR37, затем зависимого PR38. Ready/merge не разрешены.
 
 ## Сохранённый результат pilot200 — 1199ответов+1transport failure
 
