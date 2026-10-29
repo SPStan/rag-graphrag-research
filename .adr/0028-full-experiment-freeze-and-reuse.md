@@ -182,3 +182,14 @@ pilot результата выполнен с явно sealed failure; (3) оц
 остаётся неполным до решения HotpotQA; (4)300/100/100 и development-ограничения
 зафиксированы. Поэтому Refs #15, не Closes. Это оставшееся решение не
 обесценивает отдельное разрешение и завершение MuSiQue/issue16.
+
+
+## Full-history secrets CI: разрешённые точные checksum fingerprints
+
+CI сканирует fetched refs, включая исторический PR38 commit061b306.
+Обе находки в его public JSON (строки2162/2205) независимо сверены с existing
+case digest([musique,raptor,публичный tuning question ID]) и immutable Git blob.
+Пользователь явно разрешил перенести две уже существующие в PR38 точечные
+записи в PR37 после отдельного уведомления об отказе automatic approval.
+В .gitleaksignore только commit/path/rule/line; blanket rule/path исключений нет.
+История и raw не меняются; новые значения продолжают сканироваться.
