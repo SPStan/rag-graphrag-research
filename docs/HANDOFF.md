@@ -26,11 +26,17 @@
   checkpoint/journal SHA; fatal case имеет явное strict_success_audit_complete=false.
   Private per-case evaluation.json/manifest/usage.jsonl лежат в
   results/raw/e2-musique-s500-v1. Полного terminal audit1500cases нет.
-- Следующее решение: можно ли завершить только199not_attempted через новый
-  проверяемый missing-only lineage, без повторения неизвестного запроса и в
-  прежнем совокупном cap. Такого S500 continuation сейчас не запущено.
-  Модель/prompt/cap512/top5/retrieval/split/индексы прежние. Ни новых экспериментов,
-  ни Ready/merge/закрытияissue. Refs #16. Ночной монитор прекращается после уведомления.
+- После этого уведомления пользователь ответил «Делай то что нужно»:
+  продолжить только199not_attempted, без повтора unknown и расширения cap.
+  [Запись решения](../results/summary/e2-musique-s500-unattempted-authorization.json).
+  Existing S500 runner расширяется одним sealed-unknown child: новый plan/output,
+  immutable1301parent outcomes, reader199/BGE199/filter0, residual3721696/398.
+  Pipeline failure получает отдельный marker/EM-F1=0, usage=null; это не неверный
+  reader answer. При finish ожидаются1499answers+1failure, не1500ответов.
+- До запуска обязательны offline tests/gate и проверенный child plan; нового
+  inference пока нет. После старта вернуть30минутный тихий монитор на фактический
+  child. Новая unknown/transport/infra/pin ошибка останавливает без retry; второй
+  sealed child запрещён. Draft/Refs #16, без Ready/merge/закрытияissue.
 
 ## Сохранённый результат pilot200 — 1199ответов+1transport failure
 

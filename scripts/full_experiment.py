@@ -812,6 +812,7 @@ def main(argv=None):
             "prepare-musique",
             "verify-musique",
             "prepare-musique-execution",
+            "prepare-musique-unattempted",
             "verify-musique-execution",
         ),
     )
@@ -828,8 +829,25 @@ def main(argv=None):
         type=Path,
         default=ROOT / ".cache/e2-musique-s500-execution-plan.json",
     )
+    parser.add_argument(
+        "--parent-plan",
+        type=Path,
+        default=ROOT / ".cache/e2-musique-s500-execution-plan.json",
+    )
+    parser.add_argument(
+        "--parent-output", type=Path, default=ROOT / "results/raw/e2-musique-s500-v1"
+    )
+    parser.add_argument(
+        "--continuation-authorization",
+        type=Path,
+        default=ROOT / "results/summary/e2-musique-s500-unattempted-authorization.json",
+    )
     args = parser.parse_args(argv)
-    if args.action in ("prepare-musique-execution", "verify-musique-execution"):
+    if args.action in (
+        "prepare-musique-execution",
+        "verify-musique-execution",
+        "prepare-musique-unattempted",
+    ):
         from scripts import e2_s500
 
         original = dense.read_json(ROOT / PLAN)
@@ -840,8 +858,16 @@ def main(argv=None):
             and args.index_root.resolve() == Path(original["e1_workspace"]).resolve(),
             "S500_execution_roots_changed",
         )
-        if args.action == "prepare-musique-execution":
-            plan = e2_s500.prepare(args.dataset_plan)
+        if args.action in ("prepare-musique-execution", "prepare-musique-unattempted"):
+            plan = (
+                e2_s500.prepare_unattempted(
+                    args.parent_plan,
+                    args.parent_output,
+                    args.continuation_authorization,
+                )
+                if args.action == "prepare-musique-unattempted"
+                else e2_s500.prepare(args.dataset_plan)
+            )
             require(
                 not args.execution_plan.exists()
                 or dense.read_json(args.execution_plan) == plan,

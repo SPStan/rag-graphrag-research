@@ -252,3 +252,136 @@ def test_execution_preparation_cli_is_offline_and_refuses_changed_plan(
             ["prepare-musique-execution", *args, "--data-root", str(s.root / "other")]
         )
     assert len(s.state["posts"]) == s.initial_posts
+
+
+@pytest.fixture
+def stopped_raptor(approved, monkeypatch):
+    s = approved
+    for method in ("dense", "hipporag2"):
+        continuation.run_method(s, method, monkeypatch)
+    original_post = runner.requests.Session.post
+    s.state["sealed_test_fault"] = True
+
+    def disconnected(self, *args, **kwargs):
+        response = original_post(self, *args, **kwargs)
+        payload = kwargs.get("json")
+        if s.state["sealed_test_fault"] and "messages" in payload:
+            raise runner.requests.ConnectionError(
+                "RemoteDisconnected: remote end closed connection without response"
+            )
+        return response
+
+    monkeypatch.setattr(runner.requests.Session, "post", disconnected)
+    continuation.run_method(s, "raptor", monkeypatch)
+    assert dense.read_json(s.output / "manifest.json")["status"] == "failed"
+    s.root_plan, s.root_output = s.child_plan, s.output
+    monkeypatch.setattr(s500, "PARENT_PLAN_SHA", dense.sha256_file(s.root_plan))
+    monkeypatch.setattr(s500, "EXPECTED_MISSING", 4)
+    original_root = dense.read_json(s.root_plan)
+    monkeypatch.setattr(s500, "prepare", lambda *args: copy.deepcopy(original_root))
+    monkeypatch.setattr(
+        s500,
+        "verify_transport_runtime",
+        lambda parent: s500.require(
+            parent["code_sha256"] == original_root["code_sha256"], "runtime_changed"
+        ),
+    )
+    auth = dense.read_json(
+        s500.ROOT / "results/summary/e2-musique-s500-unattempted-authorization.json"
+    )
+    auth.update(
+        parent_plan_sha256=dense.sha256_file(s.root_plan), expected_unattempted=4
+    )
+    s.auth = s.root / "unattempted-authorization.json"
+    dense.write_json_atomic(s.auth, auth)
+    s.physical_before = len(s.state["posts"])
+    s.old_bytes = {p: p.read_bytes() for p in s.root_output.rglob("*") if p.is_file()}
+    return s
+
+
+def test_sealed_unknown_child_existing_runner_only_four_unattempted(
+    stopped_raptor, monkeypatch
+):
+    s = stopped_raptor
+    child = s500.prepare_unattempted(s.root_plan, s.root_output, s.auth)
+    assert len(child["parent_run"]["cases"]) == 11
+    assert len(child["remaining_cases"]) == 4
+    assert child["max_posts"] == 8 and child["filter_calls"] == 0
+    sealed = child["sealed_unknown"][0]
+    assert sealed["retry"] == "forbidden" and sealed["reservation_tokens"] > 0
+    records = e2.lineage_records(
+        dense.read_json(s.root_plan),
+        s.root_output,
+        dense.read_json(s.root_output / "manifest.json"),
+    )[0]
+    from scripts.token_accounting import summarize
+
+    assert (
+        child["max_combined_tokens"]
+        + sum(summarize(records)["known_subtotal"].values())
+        + sealed["reservation_tokens"]
+        == s.frozen["max_combined_tokens"]
+    )
+    s.state["sealed_test_fault"] = False
+    s.child_plan, s.output = s.root / "unattempted.json", s.root / "unattempted"
+    dense.write_json_atomic(s.child_plan, child)
+    with pytest.raises(ValueError, match="only_RAPTOR"):
+        continuation.run_method(s, "dense", monkeypatch)
+    continuation.run_method(s, "raptor", monkeypatch)
+    assert len(s.state["posts"]) - s.physical_before == 8
+    continuation.run_method(s, "raptor", monkeypatch)
+    assert len(s.state["posts"]) - s.physical_before == 8
+    manifest = dense.read_json(s.output / "manifest.json")
+    assert manifest["status"] == "completed" and len(manifest["results"]) == 4
+    assert sealed["case_key"] not in manifest["results"]
+    report = s500.write_report(s.child_plan, s.output, s.root / "final-report")
+    assert report["comparison_complete"] and not report["cost_complete"]
+    assert report["total_coverage"] == {
+        "expected": 15,
+        "completed": 14,
+        "attempted_failed": 1,
+        "not_attempted": 0,
+    }
+    assert report["new_POST"] == 8
+    assert report["S500_physical_accounting"]["POST"] == len(records) // 2 + 8
+    assert report["rows"][2]["S500_physical_usage"]["reader"]["unknown_operations"] == 1
+    assert all(p.read_bytes() == body for p, body in s.old_bytes.items())
+    with pytest.raises(ValueError, match="no_second_unknown_child"):
+        s500.prepare_unattempted(s.child_plan, s.output, s.auth)
+
+
+@pytest.mark.parametrize(
+    "change",
+    ["authorization", "active_lock", "claim", "checkpoint", "response", "code_pin"],
+)
+def test_sealed_child_rejects_changed_evidence_before_http(stopped_raptor, change):
+    s = stopped_raptor
+    if change == "authorization":
+        v = dense.read_json(s.auth)
+        v["retry_unknown"] = True
+        dense.write_json_atomic(s.auth, v)
+    elif change == "active_lock":
+        (s.root_output / "running.lock").write_text("active", encoding="utf-8")
+    elif change == "code_pin":
+        v = dense.read_json(s.root_plan)
+        v["code_sha256"]["scripts/run_dense.py"] = "changed"
+        dense.write_json_atomic(s.root_plan, v)
+    elif change == "claim":
+        p = s.root / ".cache" / f"e2-{runner.digest(s.frozen)}.claim.json"
+        dense.write_json_atomic(p, {"directory": "other"})
+    else:
+        m = dense.read_json(s.root_output / "manifest.json")
+        result = next(
+            dense.read_json(s.root_output / f"question-{key}.json")
+            for key in m["results"]
+            if dense.read_json(s.root_output / f"question-{key}.json").get("fatal")
+        )
+        obj = result["operations"][-1]["journal_object_id"]
+        dense.write_json_atomic(
+            s.root_output
+            / (obj + (".response.json" if change == "response" else ".json")),
+            {},
+        )
+    with pytest.raises(ValueError):
+        s500.prepare_unattempted(s.root_plan, s.root_output, s.auth)
+    assert len(s.state["posts"]) == s.physical_before

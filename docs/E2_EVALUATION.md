@@ -869,3 +869,32 @@ usage null, reserve15732 не actual. Новые known2252792/1702POST; cap59902
 не обнаружена. Отдельное решение может касаться лишь199unattempted с новым
 verified immutable lineage и прежним совокупным бюджетом, без повтора unknown.
 Текущий результат не заменяет полный500-ID/method comparison; Refs #16.
+
+
+### Явно разрешённое unattempted-only продолжение
+
+После уведомления об unknown и необходимости решения о199не запущенных cases
+пользователь ответил «Делай то что нужно». Это разрешение завершить только эти
+199случаев, не повторять неизвестный запрос и не расширять исходный cap.
+[Точная запись](../results/summary/e2-musique-s500-unattempted-authorization.json).
+Новый private plan строится existing `scripts.full_experiment prepare-musique-unattempted`
+с `--execution-plan .cache/e2-musique-s500-unattempted-plan.json`; старый root plan
+не переписывается. Сначала strict parent audit/claim/code-runtime/source pins и
+existing `e2_pilot.seal_unknown_reader`, затем ровно199missing RAPTOR IDs.
+Все1301родительских outcomes immutable, включая700new completed,600reuse и1failure.
+
+Остаток пересчитывается из terminal journal:3721696tokens/398POST после
+2252792known и15732reservation; filter0, reader199/local BGE199. Это остаток того
+же5990220/2100, не новый расход сверх cap. Per-POST admission остаётся строгим,
+никакого worst-case promise завершения. New child допускается один раз; новый
+unknown/transport/infra/pin/budget failure снова останавливает очередь без retry.
+Unknown case имеет отдельный infrastructure marker и pipeline EM/F1=0, согласно
+переиспользуемой sealed-failure policy; он не называется неверным ответом reader.
+Usage остаётся null; reservation не actual. При завершении expected1500outcomes
+будут1499answers+1failure, а не1500ответов. Common evaluator не исключает failed ID.
+
+Parent physical и child physical учитываются по одному разу, отдельно от
+pilot/development и E1. S500 latency/usage объединяет обе physical части, исключая
+начальные600reuse; данные child-only также сохранены. Новый runtime фиксируется
+отдельно от parent e144ad9. До terminal audit работа Draft/Refs #16; HotpotQA,
+новые модели/индексы/prompt/cap/retrieval/split и следующие задачи не запускаются.

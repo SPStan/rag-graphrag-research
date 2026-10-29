@@ -3,6 +3,8 @@
 import ast
 import copy
 import json
+import hashlib
+import subprocess
 from pathlib import Path
 
 from scripts import e2_evaluation as e2, run_dense as dense, run_dense_target as target
@@ -10,6 +12,9 @@ from scripts import token_accounting as accounting
 
 VERSION = "e2-musique-s500-v1"
 EXPECTED_IDS = 500
+EXPECTED_MISSING = 199
+PARENT_RUNTIME = "e144ad93cbd07f051090673f9baf8e158ceca126"
+PARENT_PLAN_SHA = "99d5e84615cc09259f2ea39726e035243d40e62005261f0acee33ccc9bb7401e"
 TOKEN_CAP = 5990220
 POST_CAPS = {"reader": 900, "filter": 300, "query_embedding": 900}
 ROOT = Path(__file__).resolve().parents[1]
@@ -184,15 +189,31 @@ def verify(plan):
         and len(plan["datasets"]["musique"]["question_ids"]) == EXPECTED_IDS,
         "S500_only_frozen_MuSiQue500",
     )
-    require(
-        prepare(plan["s500"]["worklist"], plan["s500"]["authorization"]) == plan,
-        "S500_execution_plan_changed",
+    spec = plan["s500"].get("continuation")
+    candidate = (
+        prepare_unattempted(
+            spec["parent_plan"], spec["parent_directory"], spec["authorization"]
+        )
+        if spec
+        else prepare(plan["s500"]["worklist"], plan["s500"]["authorization"])
     )
+    require(candidate == plan, "S500_execution_plan_changed")
     return True
 
 
 def guard(calls, payload, method, dataset, qid, operation):
     plan = calls.plan
+    spec = plan["s500"].get("continuation")
+    if spec:
+        require(
+            method == "raptor" and operation in ("reader", "query_embedding"),
+            "S500_unattempted_RAPTOR_only",
+        )
+        require(
+            dense.sha256_file(Path(spec["authorization"]))
+            == spec["authorization_sha256"],
+            "S500_continuation_authorization_changed",
+        )
     require(
         plan.get("http_authorized") is True
         and set(plan["datasets"]) == {"musique"}
@@ -293,6 +314,28 @@ def enrich_report(plan, report):
         row["limitations"] = (
             "S500 descriptive, includes tuning/pilot; inherited latency is not fresh E2E; mixed Hippo errors retained"
         )
+    spec = plan["s500"].get("continuation")
+    if spec:
+        for row in report["rows"]:
+            fresh = [
+                c
+                for c in report["question_results"]
+                if c["method"] == row["method"]
+                and e2.case_key(c["dataset"], c["method"], c["question_id"])
+                not in spec["initial_reuse_cases"]
+                and c["status"] != "not_attempted"
+            ]
+            row["S500_fresh_e2e_cases"] = len(fresh)
+            row["S500_mean_fresh_e2e_seconds"] = (
+                sum(c["wall_seconds"] for c in fresh) / len(fresh) if fresh else None
+            )
+            buckets = {
+                op: full.usage_row() for op in ("reader", "filter", "query_embedding")
+            }
+            for case in fresh:
+                for op in case["operations"]:
+                    full.observe_usage(buckets[op["operation"]], op)
+            row["S500_physical_usage"] = buckets
     report["historical_source_accounting"] = plan["s500"]["source_global_cost"]
 
 
@@ -402,31 +445,255 @@ def write_report(plan_path, directory, public_prefix):
         "raw_directory": "results/raw/" + directory.name,
         "further_experiments_authorized": False,
     }
+    spec = plan["s500"].get("continuation")
+    safe["cost_complete"] = known["complete"] and not spec
+    if spec:
+        previous = spec["parent_physical"]
+        combined = {
+            k: known["known_subtotal"][k] + previous["known_subtotal"][k]
+            for k in accounting.TOKEN_FIELDS
+        }
+        safe.update(
+            sealed_historical_unknown=plan["sealed_unknown"],
+            S500_physical_accounting={
+                "known_subtotal": combined,
+                "POST": len(starts) + previous["POST"],
+                "unknown_reservation_not_actual": plan["sealed_unknown"][0][
+                    "reservation_tokens"
+                ],
+                "cost_complete": False,
+            },
+            total_coverage={
+                "expected": EXPECTED_IDS * len(e2.METHODS),
+                "completed": sum(r["completed"] for r in report["rows"]),
+                "attempted_failed": sum(r["attempted_failed"] for r in report["rows"]),
+                "not_attempted": sum(r["not_attempted"] for r in report["rows"]),
+            },
+        )
     dense.write_json_atomic(prefix.with_suffix(".json"), safe)
     lines = [
         "# MuSiQue S500: " + manifest["status"],
         "",
         "Descriptive S500 includes development. Source latency is not fresh E2E. RAPTOR provenance is not passage recall@5. Mixed Hippo errors and incomplete E1/source cost retained.",
         "",
-        "| Method | Completed / failed / not attempted | EM | F1 | Passage recall@5 | RAPTOR provenance | Fresh E2E seconds (n) | New reader/filter/BGE known tokens |",
+        "| Method | Completed / failed / not attempted | EM | F1 | Passage recall@5 | RAPTOR provenance | Fresh E2E seconds (n) | S500 reader/filter/BGE known tokens |",
         "|---|---|---:|---:|---:|---:|---|---|",
     ]
     for r in report["rows"]:
-        usage = r["new_physical_usage"]
+        usage = r.get("S500_physical_usage", r["new_physical_usage"])
         tokens = "/".join(
             str(sum(usage[op]["known_subtotal"].values()))
             for op in ("reader", "filter", "query_embedding")
         )
         lines.append(
-            f"| {r['method']} | {r['completed']} / {r['attempted_failed']} / {r['not_attempted']} | {r['em']} | {r['f1']} | {r['passage_recall_at_5']} | {r['provenance_coverage'] if r['method'] == 'raptor' else None} | {r['mean_fresh_e2e_seconds']} ({r['fresh_e2e_cases']}) | {tokens} |"
+            f"| {r['method']} | {r['completed']} / {r['attempted_failed']} / {r['not_attempted']} | {r['em']} | {r['f1']} | {r['passage_recall_at_5']} | {r['provenance_coverage'] if r['method'] == 'raptor' else None} | {r.get('S500_mean_fresh_e2e_seconds', r['mean_fresh_e2e_seconds'])} ({r.get('S500_fresh_e2e_cases', r['fresh_e2e_cases'])}) | {tokens} |"
         )
     lines += [
         "",
         f"New physical known tokens {known['known_subtotal']}; POST {len(starts)}; usage complete={known['complete']}. Historical global expense remains separate; never add logical reuse twice. Refs #16.",
     ]
+    if spec:
+        lines += [
+            "",
+            "Historical Mu reader transport failure is sealed: usage=null, pipeline EM/F1=0, infrastructure failure distinct from a wrong reader answer. Reservation is not actual usage. No unknown was retried.",
+            "",
+            f"S500 cumulative physical: {safe['S500_physical_accounting']}; source/development and E1 remain separate. Fresh latency includes original S500 parent plus child, excludes initial pilot600. Child runtime/code pins are separate from immutable parent runtime.",
+        ]
     prefix.with_suffix(".md").write_text("\n".join(lines) + "\n", encoding="utf-8")
     require(
         dense.sha256_file(manifest_path) == manifest_sha,
         "S500_manifest_modified_during_report",
     )
     return safe
+
+
+def verify_transport_runtime(parent):
+    require(
+        set(parent["code_sha256"]) == set(CODE_FILES), "S500_parent_code_set_changed"
+    )
+    for name, sha in parent["code_sha256"].items():
+        blob = subprocess.check_output(
+            ["git", "-C", str(ROOT), "show", PARENT_RUNTIME + ":" + name]
+        ).replace(b"\r\n", b"\n")
+        require(
+            sha
+            in {
+                hashlib.sha256(blob).hexdigest(),
+                hashlib.sha256(blob.replace(b"\n", b"\r\n")).hexdigest(),
+            },
+            "S500_parent_runtime_changed",
+        )
+
+
+def prepare_unattempted(parent_path, directory, authorization_path):
+    """One explicitly authorized sealed-unknown child of the original S500 run."""
+    from scripts import e2_pilot as pilot
+
+    parent_path, directory, authorization_path = map(
+        lambda p: Path(p).resolve(), (parent_path, directory, authorization_path)
+    )
+    parent, auth = dense.read_json(parent_path), dense.read_json(authorization_path)
+    require(
+        dense.sha256_file(parent_path) == PARENT_PLAN_SHA
+        and not parent["s500"].get("continuation")
+        and not parent.get("sealed_unknown"),
+        "S500_only_original_parent_no_second_unknown_child",
+    )
+    require(
+        auth
+        == {
+            "kind": "musique_unattempted_authorization",
+            "approved": True,
+            "user_quote": "Делай то что нужно",
+            "context": "reply to notification of one unknown reader and request for decision on199unattempted; continue only those cases without retrying unknown",
+            "source": "direct user message in this task, 2026-10-29",
+            "parent_plan_sha256": PARENT_PLAN_SHA,
+            "expected_unattempted": EXPECTED_MISSING,
+            "budget_expansion": False,
+            "retry_unknown": False,
+            "failure_metric_policy": "terminal infrastructure failure; pipeline EM/F1=0, failure disclosed; not a wrong reader answer",
+        },
+        "S500_unattempted_authorization_changed",
+    )
+    verify_transport_runtime(parent)
+    candidate = prepare(parent["s500"]["worklist"], parent["s500"]["authorization"])
+    candidate["code_sha256"] = parent["code_sha256"]
+    require(candidate == parent, "S500_parent_contract_changed")
+    e2.check_parent_pins(parent)
+    mp = directory / "manifest.json"
+    manifest = dense.read_json(mp)
+    reference = accounting.verified_reference(manifest, mp)
+    require(
+        manifest["status"] == "failed"
+        and manifest["plan_sha256"] == target.digest(parent)
+        and not (directory / "running.lock").exists()
+        and reference["status"] == "verified",
+        "S500_parent_not_terminal",
+    )
+    records = accounting.read_records(directory / "usage.jsonl")
+    starts = [r for r in records if r["event"] == "started"]
+    ends = [r for r in records if r["event"] == "finished"]
+    require(
+        not records.corrupt_tail
+        and len(starts) == len(ends)
+        and {r["attempt_id"] for r in starts} == {r["attempt_id"] for r in ends},
+        "S500_unfinished_parent_attempts",
+    )
+    claim = (
+        Path(parent["e1_workspace"])
+        / ".cache"
+        / f"e2-{target.digest(parent)}.claim.json"
+    )
+    parent_claim = (
+        claim.parent
+        / f"e2-continuation-of-{target.digest(parent['parent_run']['files'])}.claim.json"
+    )
+    require(
+        dense.read_json(claim) == {"directory": str(directory)}
+        and dense.read_json(parent_claim)
+        == {"plan_sha256": target.digest(parent), "directory": str(directory)},
+        "S500_parent_claim_changed",
+    )
+    files, cases = (
+        dict(parent["parent_run"]["files"]),
+        copy.deepcopy(parent["parent_run"]["cases"]),
+    )
+    for path in (parent_path, mp, directory / "usage.jsonl", claim, parent_claim):
+        files[str(path)] = dense.sha256_file(path)
+    unknown, seen = [], set()
+    for key, sha in manifest["results"].items():
+        path = directory / f"question-{key}.json"
+        result = dense.read_json(path)
+        require(
+            key not in cases
+            and dense.sha256_file(path) == sha
+            and key
+            == e2.case_key(result["dataset"], result["method"], result["question_id"]),
+            "S500_parent_case_changed",
+        )
+        if result["status"] == "completed":
+            e2.verify_saved_case(parent, directory, result, records)
+        else:
+            unknown.append(
+                pilot.seal_unknown_reader(parent, directory, result, records)
+            )
+        cases[key] = {"path": str(path), "sha256": sha, "status": result["status"]}
+        files[str(path)] = sha
+        for op in result["operations"]:
+            obj = op["journal_object_id"]
+            require(
+                obj not in seen and not op.get("reused"),
+                "S500_duplicate_or_reused_parent_attempt",
+            )
+            seen.add(obj)
+            for suffix in (".json", ".response.json"):
+                artifact = directory / (obj + suffix)
+                if artifact.exists():
+                    files[str(artifact)] = dense.sha256_file(artifact)
+    require(
+        len(unknown) == 1
+        and len(starts) == len(seen)
+        and seen == {r["object_id"] for r in starts},
+        "S500_unknown_or_unbound_parent_attempts",
+    )
+    expected = {
+        e2.case_key(d, m, q): {"dataset": d, "method": m, "question_id": q}
+        for d, data in parent["datasets"].items()
+        for m in e2.METHODS
+        for q in data["question_ids"]
+    }
+    require(set(cases) <= set(expected), "S500_parent_cases_outside_view")
+    remaining = [v for k, v in expected.items() if k not in cases]
+    require(
+        len(remaining) == EXPECTED_MISSING
+        and all(v["method"] == "raptor" for v in remaining),
+        "S500_only_expected_unattempted_RAPTOR",
+    )
+    known = reference["summary"]["known_subtotal"]
+    available = (
+        parent["max_combined_tokens"]
+        - sum(known.values())
+        - unknown[0]["reservation_tokens"]
+    )
+    available_posts = parent["max_posts"] - len(starts)
+    require(
+        available > 0 and 2 * len(remaining) <= available_posts,
+        "S500_no_remaining_budget",
+    )
+    fresh = copy.deepcopy(parent)
+    fresh.update(
+        mode="musique_unattempted_after_explicit_reauthorization",
+        sealed_unknown=unknown,
+        pilot_continuation={
+            "reauthorized_unattempted_only": True,
+            "automatic_recovery": 0,
+        },
+        parent_run={
+            "plan": str(parent_path),
+            "directory": str(directory),
+            "run_id": manifest["run_id"],
+            "files": files,
+            "cases": cases,
+        },
+        remaining_cases=remaining,
+        max_combined_tokens=available,
+        max_posts=2 * len(remaining),
+        max_llm_posts=len(remaining),
+        max_embedding_posts=len(remaining),
+        reader_calls=len(remaining),
+        filter_calls=0,
+        code_sha256={n: dense.sha256_file(ROOT / n) for n in CODE_FILES},
+    )
+    fresh["s500"]["continuation"] = {
+        "parent_plan": str(parent_path),
+        "parent_directory": str(directory),
+        "authorization": str(authorization_path),
+        "authorization_sha256": dense.sha256_file(authorization_path),
+        "parent_physical": {
+            "known_subtotal": known,
+            "POST": len(starts),
+            "unknown_reservation_not_actual": unknown[0]["reservation_tokens"],
+        },
+        "initial_reuse_cases": sorted(parent["parent_run"]["cases"]),
+    }
+    return fresh

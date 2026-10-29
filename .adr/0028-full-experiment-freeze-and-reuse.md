@@ -183,3 +183,26 @@ Run7936654d остановился на remote reader ConnectionError/RemoteDisc
 3721696tokens/398POST после reserve и immutable partial artifacts; сами residual
 лимиты не разрешают новый запуск. Автоматизация прекращает polling после
 уведомления. Полное сравнение1500cases пока не подтверждено.
+
+
+## Принятое решение после уведомления об unknown
+
+Прямой ответ пользователя «Делай то что нужно» на запрос решения о199unattempted
+разрешает один missing-only child исходногоS500run. Текст/контекст/границы записаны
+в e2-musique-s500-unattempted-authorization.json. Альтернатива повторить unknown
+отклонена; остановленный parent сохраняется failed с исходнымnull usage.
+Existing seal_unknown_reader проверяет embedding, exact reader payload/objectID,
+started checkpoint, отсутствие response и ровно один attributed unknown.
+Его infrastructure outcome учитываетсяpipeline0 с marker, не как неверный reader
+answer. Это расширение существующего S500 plan/guard, не снятие failed-run запрета.
+
+Parent plan строго pinned к99d5e846/runtime e144ad9 и повторно строится с теми же
+contract/data/index/source настройками; только child code pins новые. Parent claims
+и все artifact SHA остаются immutable; child использует новый plan/output и durable
+claim родительского snapshot. Вторая такая sealed-unknown child запрещена.
+Root cap5990220/2100 не растёт: child≤3721696tokens/398POST после known2252792 и
+reserve15732. Unknown usagenull сохраняется и не получает вымышленного0.
+Целевые offline tests должны пройти через existing runner и проверить ровноmissing,
+неизменные parent bytes, budget conservation, sealed case no POST, запрет tamper/
+active lock/claim/second child и отсутствие двойного учёта. Per-POST admission и
+остановка на новой transport/unknown сохраняются; окончание не гарантируется.
