@@ -228,3 +228,15 @@ Blanket exception дляtracking отвергнуто. Executioncodea0 зафи�
 postprocessor имеетотдельныйHEAD/sha,старыеplans/runtimeSHA не переписываются.
 Пересмотрнужен приновом API schema илиизменениидругихexport/generationfunctions;
 это не разрешение повторять inference. Source/audit/receipt links вsafeJSON.
+
+
+## Исторические checksum fingerprints итогового отчёта
+
+CI061b306 нашёл2generic-api-key совпадения вpublic e2-musique-s500.json:
+обаcase_key — один и тотжеSHA256([musique,raptor,3hop1__90327_83076_319330]),
+не credential. Значения проверены вimmutableGitblob ивычислением existingdigest.
+В.gitleaksignore только2точныхcommit/path/rule/linefingerprints(2162,2205),
+историяне переписывается, blanketrule/path исключений нет. Public keyname теперь
+case_id_sha256, значениеидентичноprivatecase_key. Sourceplans/raw/journals не
+меняются. Полный historyscan219commits дал0findings; syntheticstdin canary обнаружен;
+новыеvalues/commits продолжаютсканироваться. Это не опубликованное одобрениебота.

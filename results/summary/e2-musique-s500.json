@@ -2159,12 +2159,12 @@
     {
       "run_id": "7936654d-8820-4449-803b-f7ef6074424a",
       "object_id": "1d3e45a61782e6b416768326e085607e59f0052352e2b55fcd0abcddaefffdb5",
-      "case_key": "86c46109914168be935479b563e50be039eeea82c851898f5fed7b24506b69eb",
       "reservation_tokens": 15732,
       "usage_status": "unknown",
       "response_status": "absent",
       "retry": "forbidden",
-      "metric_policy": "terminal infrastructure failure; pipeline EM/F1=0, failure disclosed; not a wrong reader answer"
+      "metric_policy": "terminal infrastructure failure; pipeline EM/F1=0, failure disclosed; not a wrong reader answer",
+      "case_id_sha256": "86c46109914168be935479b563e50be039eeea82c851898f5fed7b24506b69eb"
     }
   ],
   "S500_physical_accounting": {
@@ -2202,12 +2202,12 @@
     "sealed_unknown": {
       "run_id": "7936654d-8820-4449-803b-f7ef6074424a",
       "object_id": "1d3e45a61782e6b416768326e085607e59f0052352e2b55fcd0abcddaefffdb5",
-      "case_key": "86c46109914168be935479b563e50be039eeea82c851898f5fed7b24506b69eb",
       "reservation_tokens": 15732,
       "usage_status": "unknown",
       "response_status": "absent",
       "retry": "forbidden",
-      "metric_policy": "terminal infrastructure failure; pipeline EM/F1=0, failure disclosed; not a wrong reader answer"
+      "metric_policy": "terminal infrastructure failure; pipeline EM/F1=0, failure disclosed; not a wrong reader answer",
+      "case_id_sha256": "86c46109914168be935479b563e50be039eeea82c851898f5fed7b24506b69eb"
     },
     "source_data_index_code_pins": "launcher verify-musique-execution completed successfully before report",
     "source_artifact_pins_verified": true,
@@ -2325,5 +2325,14 @@
     }
   },
   "logical_usage_scope": "per-method usage_by_operation covers500logical cases incl200initial reuse; never add it to physical spend",
-  "S500_physical_usage_scope": "parent+child900new outcomes includes one sealed reader failure; excludes600initial reuse"
+  "S500_physical_usage_scope": "parent+child900new outcomes includes one sealed reader failure; excludes600initial reuse",
+  "public_hash_presentation": "case_id_sha256 aliases private sealed case_key; value unchanged; raw/plans/journals unchanged",
+  "secret_scan": {
+    "full_history_commits_checked": 219,
+    "findings_after_verified_case_hash_fingerprints": 0,
+    "synthetic_canary_detected": true,
+    "historical_checksum_false_positives": 2,
+    "ignore_scope": "exact commit/path/rule/line only; all future values remain scanned",
+    "raw_and_model_results_unchanged": true
+  }
 }

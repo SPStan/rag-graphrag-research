@@ -66,3 +66,9 @@ cost сохранены. Это описательное фиксированн�
 Следующий шаг — ревью PR38 и передача per-case артефактов задачам12/14.
 Новых моделей/индексов/HotpotQA/signal/holdout/E3 в этом блоке не запускалось.
 Draft, Refs #16; без Ready/merge/закрытияissue.
+
+
+Security:2historicalgeneric-api-key matches independently verified as one case
+SHA256, not credentials. Only exact Git061b306/path/rule/line fingerprints are
+allowlisted; public field uses case_id_sha256.219commit historyscan found0leaks,
+syntheticstdin canary detected. Raw/model outputs and expenses unchanged.
