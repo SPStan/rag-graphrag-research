@@ -428,3 +428,84 @@ def test_tracking_reader_repeated_cursor_and_ast_boundary():
     full.compatible_tracking_reader(old, old.replace("return []", "return [1]"))
     with pytest.raises(ValueError, match="outside_observation_reader"):
         full.compatible_tracking_reader(old, old.replace("512", "1024"))
+
+
+def test_report_regeneration_preserves_bound_evidence(approved, monkeypatch):
+    """Exercise the shared runner's report entry, not just the appendix helper."""
+    s = approved
+    for method in e2.METHODS:
+        continuation.run_method(s, method, monkeypatch)
+    core = s500.write_report(s.child_plan, s.output, s.root / "initial")
+    receipt = s.root / "receipt.json"
+    dense.write_json_atomic(
+        receipt, {"verified": True, "run_id": core["run_id"], "views": {}}
+    )
+    monkeypatch.setattr(s500, "ROOT", s.root)
+    sections = {
+        "terminal_audit": {
+            k: core[k] for k in ("run_id", "plan_sha256", "manifest_sha256")
+        },
+        "tracking": {
+            "receipt_relative_path": "receipt.json",
+            "receipt_sha256": dense.sha256_file(receipt),
+            "views": {},
+        },
+        "cumulative_E2_accounting": {"historical_unknown": 1},
+    }
+    sections["terminal_audit"].update(
+        journal_sha256=dense.sha256_file(s.output / "usage.jsonl"),
+        private_evaluation_sha256=dense.sha256_file(s.output / "evaluation.json"),
+    )
+    audit_path = s.root / "audit.json"
+    dense.write_json_atomic(audit_path, sections["terminal_audit"])
+    appendix = s.root / "results/summary/e2-musique-s500-evidence.json"
+    evidence = {k: core[k] for k in ("run_id", "plan_sha256", "manifest_sha256")}
+    evidence.update(
+        raw_directory_name=s.output.name,
+        sections=sections,
+        sections_sha256=runner.digest(sections),
+        terminal_audit_relative_path="audit.json",
+        artifact_sha256={
+            "receipt.json": dense.sha256_file(receipt),
+            "audit.json": dense.sha256_file(audit_path),
+        },
+    )
+    dense.write_json_atomic(appendix, evidence)
+    before = {p: p.read_bytes() for p in s.output.rglob("*") if p.is_file()}
+    posts = len(s.state["posts"])
+    for name in ("rebuild-one", "rebuild-two"):
+        # Same route as --summarize-shared, with a separate public output.
+        monkeypatch.setattr(
+            "sys.argv",
+            [
+                "run_dense_target",
+                "--shared-plan",
+                str(s.child_plan),
+                "--output-dir",
+                str(s.output),
+                "--summarize-shared",
+                str(s.root / name),
+            ],
+        )
+        runner.main()
+    first = dense.read_json(s.root / "rebuild-one.json")
+    assert first == dense.read_json(s.root / "rebuild-two.json")
+    assert all(first[k] == v for k, v in sections.items())
+    assert before == {p: p.read_bytes() for p in before}
+    assert len(s.state["posts"]) == posts
+    for key in ("run_id", "plan_sha256", "manifest_sha256"):
+        changed = copy.deepcopy(evidence)
+        changed[key] = "wrong"
+        dense.write_json_atomic(appendix, changed)
+        with pytest.raises(ValueError, match="evidence_run_binding"):
+            e2.write_report(s.child_plan, s.output, s.root / "rejected")
+    changed = copy.deepcopy(evidence)
+    changed["sections"]["terminal_audit"]["invented_verified"] = True
+    changed["sections_sha256"] = runner.digest(changed["sections"])
+    dense.write_json_atomic(appendix, changed)
+    with pytest.raises(ValueError, match="evidence_audit_changed"):
+        e2.write_report(s.child_plan, s.output, s.root / "rejected")
+    dense.write_json_atomic(appendix, evidence)
+    receipt.write_text("changed")
+    with pytest.raises(ValueError, match="evidence_artifact_changed"):
+        e2.write_report(s.child_plan, s.output, s.root / "rejected")

@@ -65,10 +65,61 @@ cost сохранены. Это описательное фиксированн�
 подтверждение универсального преимущества. Параметры по F1 не подбирались.
 Следующий шаг — ревью PR38 и передача per-case артефактов задачам12/14.
 Новых моделей/индексов/HotpotQA/signal/holdout/E3 в этом блоке не запускалось.
-Draft, Refs #16; без Ready/merge/закрытияissue.
+Draft; критерии issue16 выполнены с disclosed failure. Без Ready/merge/закрытияissue.
 
 
 Security:2historicalgeneric-api-key matches independently verified as one case
 SHA256, not credentials. Only exact Git061b306/path/rule/line fingerprints are
 allowlisted; public field uses case_id_sha256.219commit historyscan found0leaks,
 syntheticstdin canary detected. Raw/model outputs and expenses unchanged.
+
+
+## Воспроизведение и передача результатов (offline)
+
+Полный JSON восстанавливается существующим runner в **новый** output:
+
+```powershell
+./.venv-check/Scripts/python.exe -m scripts.run_dense_target `
+  --shared-plan .cache/e2-musique-s500-unattempted-plan.json `
+  --output-dir results/raw/e2-musique-s500-unattempted-v1 `
+  --summarize-shared "$env:TEMP/s500-report-review/report"
+```
+
+[Проверяемое приложение](e2-musique-s500-evidence.json) содержит дополнительные
+terminal_audit/tracking/cumulative_E2_accounting и опубликованные метаданные.
+Runner сверяет run/plan/manifest, все pinned local artifacts, исходный audit,
+receipt views/IDs и заново вычисленные cumulative known/POST; без приложения
+базовый отчёт не утверждает наличие этих свидетельств. Изменённое приложение
+или несовместимый run отклоняются. Для опубликованного run отсутствие/повреждение
+локального свидетельства — ошибка, не «tracking проверен». Новая сборка не
+переписывает уже сохранённый evaluation.json: допускается только равное содержимое.
+Повторные HTTP/tracking-export не нужны. Старые execution/runtime pins неизменны.
+
+Доступные локальные входы задач12/14, относительно E2 worktree:
+
+- Per-case оценки всех1500: `results/raw/e2-musique-s500-unattempted-v1/evaluation.json`,
+  массив `question_results`; transport case имеет `status=attempted_failed`,
+  `fatal=true`, `error.type=ConnectionError`, исходный RemoteDisconnected в reason.
+- Child manifest и usage: `results/raw/e2-musique-s500-unattempted-v1/manifest.json`,
+  `results/raw/e2-musique-s500-unattempted-v1/usage.jsonl`.
+- Parent failed manifest/usage: `results/raw/e2-musique-s500-v1/manifest.json`,
+  `results/raw/e2-musique-s500-v1/usage.jsonl`; исходный результат
+  `question-86c46109914168be935479b563e50be039eeea82c851898f5fed7b24506b69eb.json`
+  в том же каталоге. QID `3hop1__90327_83076_319330`, метод RAPTOR.
+- Строгий audit: `.cache/e2-musique-s500-unattempted-terminal-audit.json`;
+  receipt: `results/raw/e2-musique-s500-unattempted-v1/tracking/receipt.json`.
+  Их SHA связаны с приложением; inherited refs/claims/source artifacts — в child plan.
+
+Unknown reader input/output остаются null, pipeline0 — marker infrastructure
+failure, не неверный reader answer. Эти пути проверены на доступность; следующие
+задачи и анализ signal-check для issue21 не выполнялись. Closes #16 означает
+выполнение критериев покрытия/сохранения/передачи, не1500успешных ответов.
+PR38 зависит от PR37; обе ветки остаются Draft до отдельного решения.
+
+
+Offline review: две повторные сборки штатным CLI в независимые временные outputs
+дали JSON, равный опубликованному по всем полям, включая audit/tracking/cost.
+SHA5137исходных файлов, frozen/private plans и опубликованного JSON остались
+неизменны; HTTP0/tracking-export0. В целевом наборе49passed; отмеченный ранее
+Windows PermissionError в checkpoint setup не повторился. Он не объявляется
+исправленным изменением экспериментальной логики; при повторении нужен разбор IO.

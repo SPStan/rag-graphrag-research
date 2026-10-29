@@ -1,6 +1,6 @@
 # Спецификация исследования
 
-Статус: E1 завершён структурно6/6 с disclosed extraction errors и semantic_verified=false; целевой E2 pilot200 содержит1199ответов и1sealed transport failure. Полное сравнение S500 ещё не выполнено. Offline freeze issue15 закрепляет конфигурации/reuse/missing-set и бюджетное предложение, но не разрешает запуск. Исторические локальные результаты ниже — development, не независимый benchmark. Основание — [исходное задание](../3_1_student_track_v1.md).
+Статус: E1 завершён структурно6/6 с disclosed extraction errors и semantic_verified=false; целевой E2 pilot200 содержит1199ответов и1sealed transport failure. MuSiQue S500 завершён:1499ответов+1sealed transport failure,1500учтённых случаев; HotpotQA S500 не выполнялся. Offline freeze issue15 закрепляет конфигурации/reuse/missing-set и бюджетное предложение, но не разрешает запуск. Исторические локальные результаты ниже — development, не независимый benchmark. Основание — [исходное задание](../3_1_student_track_v1.md).
 
 Уточнение от 23 сентября: до целевого benchmark выполняем [локальный MVP](LOCAL_MVP.md) на RTX 3070 и небольшой модели. Это отдельная предварительная конфигурация; пороги и модель основного исследования ниже не заменяются. Решение — [ADR-0001](../.adr/0001-local-mvp-and-agent-artifacts.md).
 
@@ -105,12 +105,13 @@ run caps не продлеваются. До отдельного execution-plan
 модельных вызовов нет. Команда аудита — в [протоколе E2](E2_EVALUATION.md#offline-freeze-s500--issue-15).
 
 
-Бюджетный критерий issue15 остаётся открытым до согласования операционного
-лимита: forecast и static worst-case сами по себе не бюджетное разрешение.
+Бюджетный критерий issue15 остаётся частично открытым для HotpotQA;
+MuSiQue отдельно разрешён (см. текущее решение ADR0028). Историческое предложение
+общего лимита: forecast и static worst-case сами по себе не бюджетное разрешение.
 Предложен один empirical operating cap: сумма missing calls × максимум полной
 pilot операции для каждой configuration/operation + один максимальный admission
 reserve. Его точное число и allocations воспроизводятся манифестом. До любого
 POST требуется место под actual-payload reservation в общем утверждённом cap;
 при нехватке — stop, без retry/автоповышения. Завершение1800cases не гарантировано.
 Forecast считает complete-only subtotal/count, known partial tokens и unknown
-сохраняются отдельно. При отсутствии наблюдений прогноз null. Refs #15 до решения.
+сохраняются отдельно. При отсутствии наблюдений прогноз null. Refs #15 до отдельного решения HotpotQA.

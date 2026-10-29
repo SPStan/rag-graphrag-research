@@ -240,3 +240,61 @@ CI061b306 нашёл2generic-api-key совпадения вpublic e2-musique-s5
 case_id_sha256, значениеидентичноprivatecase_key. Sourceplans/raw/journals не
 меняются. Полный historyscan219commits дал0findings; syntheticstdin canary обнаружен;
 новыеvalues/commits продолжаютсканироваться. Это не опубликованное одобрениебота.
+
+
+## Воспроизводимость опубликованных дополнительных свидетельств
+
+Ранее write_report строил базовые метрики и затирал posthoc audit/tracking/cost
+разделы. Выбрано одно reviewed приложение с run/plan/manifest и локальными SHA,
+а не слепое сохранение старого JSON и не повторный tracking-export. Основные
+метрики/physical accounting строятся прежним runner; appendix не может подменять
+core fields. Audit сверяется с исходным snapshot, views с сохранённым receipt,
+cumulative known/POST вычисляются из исходных subtotal один раз. Неизменные raw
+и execution plans не переписываются, существующий evaluation требует равенства.
+Повторная сборка в независимые outputs и негативные tamper-тесты проверяют путь.
+Это postprocessor change, не изменение reader/retrieval/evaluator/эксперимента.
+При изменении lineage необходимы новые проверяемые свидетельства; старое
+приложение для иного run/manifest отклоняется.
+
+
+## Текущее бюджетное решение issue15
+
+Научные формулировки согласованы по сообщению пользователя; опубликованное
+одобрение бота/GitHub review этим не утверждается. Frozen manifest
+`results/summary/full-experiment.json` остаётся неизменным снимком расчёта.
+
+- Разрешено только MuSiQue: пользователь делегировал расчёт с запасом и
+  разрешил cap5990220 новых combined tokens/2100POST
+  (900reader/300filter/900localBGE), retry0, exact-payload reservation до POST.
+  [Запись решения PR38](https://github.com/SPStan/rag-graphrag-research/blob/codex/musique-s500-comparison/results/summary/e2-musique-s500-authorization.json).
+  [Согласие continuation199](https://github.com/SPStan/rag-graphrag-research/blob/codex/musique-s500-comparison/results/summary/e2-musique-s500-unattempted-authorization.json)
+  сохраняет unknown, не разрешает retry и не расширяет исходные caps.
+  Снова запрашивать Mu-разрешение не требуется.
+- Только рассчитано: общий forecast5841708.693, empirical proposal10903320/
+  4200POST для1800missing двух датасетов и static worst-case114669441.
+  Это оценки, а не одобрение HotpotQA; снятие административного90M не даёт
+  неограниченного расхода. Завершение при этих caps не гарантируется.
+- Перед HotpotQA: отдельное scoped решение об allocation/POST caps,
+  неизменных settings и missing-only execution-plan; повторная проверка
+  совместимости/остатка бюджета, exact reservation перед каждым POST,
+  stop при недостатке cap/новом partial/unknown/transport/pin error.
+  Historical Hot unknown/reserve22545 не повторять и не превращать в0.
+  Ни запуск, ни увеличение бюджета здесь не разрешены.
+
+Критерии issue15: (1) шесть конфигураций/ID выполнен; (2) reuse каждого
+pilot результата выполнен с явно sealed failure; (3) оценки и stop-контракт
+есть, Mu allocation утверждён, но общий бюджетный допуск двух датасетов
+остаётся неполным до решения HotpotQA; (4)300/100/100 и development-ограничения
+зафиксированы. Поэтому Refs #15, не Closes. Это оставшееся решение не
+обесценивает отдельное разрешение и завершение MuSiQue/issue16.
+
+
+## Full-history secrets CI: разрешённые точные checksum fingerprints
+
+CI сканирует fetched refs, включая исторический PR38 commit061b306.
+Обе находки в его public JSON (строки2162/2205) независимо сверены с existing
+case digest([musique,raptor,публичный tuning question ID]) и immutable Git blob.
+Пользователь явно разрешил перенести две уже существующие в PR38 точечные
+записи в PR37 после отдельного уведомления об отказе automatic approval.
+В .gitleaksignore только commit/path/rule/line; blanket rule/path исключений нет.
+История и raw не меняются; новые значения продолжают сканироваться.

@@ -9,6 +9,14 @@
   [safe JSON/audit/receipt](../results/summary/e2-musique-s500.json).
   1500uniqueexpected:1499completed+1historical transport failure,0not_attempted.
   Dense500/0, HippoRAG2 500/0, RAPTOR499/1. Не1500ответов.
+- Дополнительные evidence сохранены в e2-musique-s500-evidence.json с run/plan/
+  manifest/artifact SHA; две offline CLI-пересборки в temp равны полному public JSON,
+  5137immutable files unchanged. Команда/точные per-case/manifest/usage/error paths
+  для задач12/14 — в единой таблице. Следующие задачи/signal-check не выполнялись.
+- PR37/issue15: критерии1/2/4 выполнены; бюджетный критерий3 частичен только
+  для HotpotQA. Mu budget/continuation уже разрешены, повторное согласие не нужно.
+  Forecast/static worst-case не разрешают Hot-запуск; scoped решение/plan/admission
+  обязательны отдельно. Текущая запись решения — ADR0028, frozen manifest неизменён.
 - EM/F1(%): Dense34.80/44.93, Hippo43.40/53.55, RAPTOR32.40/42.47.
   R@5passages60.33/70.72; RAPTORprovenance62.12неpassageR@5.
   Pipeline0 для sealed infrastructure failure раскрыт, unknownusage=null.
@@ -32,8 +40,8 @@
   reexport. Executiona0 отдельно отpostprocessorcommit; generator/evaluatorне менялись.
 - S500development/mixedHippoerrors/E1incomplete/replaylatency раскрыты.
   Следующий шаг — ревью PR38, передача per-case задачам12/14; сами новые задачи
-  не запускать. Остальные scientific settings не менять. Draft/Refs #16,
-  без Ready/merge/закрытияissue. После публикации итогового коммита монитор удалить.
+  не запускать. Остальные scientific settings не менять. Draft/Closes #16,
+  без Ready/merge/закрытияissue. Монитор уже удалён; новые прогоны не разрешены.
 
 ## Сохранённый результат pilot200 — 1199ответов+1transport failure
 

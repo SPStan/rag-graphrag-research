@@ -339,7 +339,96 @@ def enrich_report(plan, report):
     report["historical_source_accounting"] = plan["s500"]["source_global_cost"]
 
 
-def write_report(plan_path, directory, public_prefix):
+def apply_report_evidence(safe, directory, evidence_path):
+    """Attach a reviewed, hash-bound appendix; never import a previous output."""
+    evidence = dense.read_json(evidence_path)
+    require(
+        evidence["run_id"] == safe["run_id"]
+        and evidence["plan_sha256"] == safe["plan_sha256"]
+        and evidence["manifest_sha256"] == safe["manifest_sha256"],
+        "S500_evidence_run_binding_changed",
+    )
+    sections = evidence["sections"]
+    require(
+        target.digest(sections) == evidence["sections_sha256"],
+        "S500_evidence_sections_changed",
+    )
+    require(not (set(sections) & set(safe)), "S500_evidence_cannot_override_core")
+    for relative, sha in evidence["artifact_sha256"].items():
+        path = (ROOT / relative).resolve()
+        require(path.is_relative_to(ROOT.resolve()), "S500_evidence_path_escape")
+        require(
+            path.is_file() and dense.sha256_file(path) == sha,
+            "S500_evidence_artifact_changed",
+        )
+    audit = sections["terminal_audit"]
+    require(
+        audit["run_id"] == safe["run_id"]
+        and audit["manifest_sha256"] == safe["manifest_sha256"]
+        and audit["plan_sha256"] == safe["plan_sha256"]
+        and audit["journal_sha256"] == dense.sha256_file(directory / "usage.jsonl")
+        and audit["private_evaluation_sha256"]
+        == dense.sha256_file(directory / "evaluation.json"),
+        "S500_evidence_audit_binding_changed",
+    )
+    audit_path = evidence["terminal_audit_relative_path"]
+    require(audit_path in evidence["artifact_sha256"], "S500_evidence_audit_unpinned")
+    saved_audit = dense.read_json(ROOT / audit_path)
+    sealed = saved_audit.get("sealed_unknown", {})
+    if "case_key" in sealed:
+        sealed["case_id_sha256"] = sealed.pop("case_key")
+    require(saved_audit == audit, "S500_evidence_audit_changed")
+    tracking = sections["tracking"]
+    require(
+        evidence["artifact_sha256"].get(tracking["receipt_relative_path"])
+        == tracking["receipt_sha256"],
+        "S500_evidence_receipt_binding_changed",
+    )
+    receipt = dense.read_json(ROOT / tracking["receipt_relative_path"])
+    require(
+        set(receipt["views"]) == set(tracking["views"]), "S500_evidence_views_changed"
+    )
+    for key, view in tracking["views"].items():
+        saved = receipt["views"][key]
+        require(
+            saved["status"] == "verified"
+            and all(
+                view[k] == saved[k]
+                for k in ("cases", "completed", "failed", "fulltext_roundtrip")
+            )
+            and view["mlflow_run_id"] == saved["mlflow"]["mlflow_run_id"]
+            and view["langfuse_trace_id"] == saved["langfuse"]["trace_id"]
+            and view["linked_JSONL_sha256"] == saved["linked_JSONL"]["sha256"],
+            "S500_evidence_tracking_changed",
+        )
+    source = safe["historical_source_accounting"]
+    if "pilot_physical" in source:
+        historic = [source["pilot_physical"], source["development_physical"]]
+        physical = safe["S500_physical_accounting"]
+        cumulative = sections["cumulative_E2_accounting"]
+        sealed = safe.get("sealed_historical_unknown", []) + source["sealed_unknown"]
+        require(
+            cumulative["unknown_operations"] == len(sealed)
+            and cumulative["unknown_reservations_not_actual"]
+            == sum(x["reservation_tokens"] for x in sealed),
+            "S500_evidence_unknown_accounting_changed",
+        )
+        require(
+            cumulative["known_tokens"]
+            == sum(physical["known_subtotal"].values())
+            + sum(sum(x["known_subtotal"].values()) for x in historic)
+            and cumulative["physical_POST"]
+            == physical["POST"] + sum(x["attempts"] for x in historic)
+            and cumulative["cost_complete"] is False,
+            "S500_evidence_cumulative_accounting_changed",
+        )
+    for sealed in safe.get("sealed_historical_unknown", []):
+        if "case_key" in sealed:
+            sealed["case_id_sha256"] = sealed.pop("case_key")
+    safe.update(copy.deepcopy(sections))
+
+
+def write_report(plan_path, directory, public_prefix, *, evidence_path=None):
     plan, directory, prefix = (
         dense.read_json(Path(plan_path)),
         Path(directory),
@@ -418,7 +507,13 @@ def write_report(plan_path, directory, public_prefix):
             "S500_incomplete_terminal_audit",
         )
     report = e2.summary(plan, directory)
-    dense.write_json_atomic(directory / "evaluation.json", report)
+    evaluation = directory / "evaluation.json"
+    if evaluation.exists():
+        require(
+            dense.read_json(evaluation) == report, "S500_existing_evaluation_changed"
+        )
+    else:
+        dense.write_json_atomic(evaluation, report)
     starts = [r for r in records if r["event"] == "started"]
     known = accounting.summarize(records)
     safe = {
@@ -470,6 +565,16 @@ def write_report(plan_path, directory, public_prefix):
                 "not_attempted": sum(r["not_attempted"] for r in report["rows"]),
             },
         )
+    # The published appendix is independent of the destination prefix. This also
+    # reproduces the full report into a new temporary directory without raw writes.
+    appendix = evidence_path or ROOT / "results/summary/e2-musique-s500-evidence.json"
+    if Path(appendix).exists():
+        evidence = dense.read_json(appendix)
+        if (
+            evidence_path is not None
+            or directory.name == evidence["raw_directory_name"]
+        ):
+            apply_report_evidence(safe, directory, appendix)
     dense.write_json_atomic(prefix.with_suffix(".json"), safe)
     lines = [
         "# MuSiQue S500: " + manifest["status"],
@@ -498,6 +603,13 @@ def write_report(plan_path, directory, public_prefix):
             "Historical Mu reader transport failure is sealed: usage=null, pipeline EM/F1=0, infrastructure failure distinct from a wrong reader answer. Reservation is not actual usage. No unknown was retried.",
             "",
             f"S500 cumulative physical: {safe['S500_physical_accounting']}; source/development and E1 remain separate. Fresh latency includes original S500 parent plus child, excludes initial pilot600. Child runtime/code pins are separate from immutable parent runtime.",
+        ]
+    if "tracking" in safe:
+        lines += [
+            "",
+            "Verified offline appendix: terminal audit, tracking receipt, cumulative E2 accounting and execution/postprocessing metadata are hash-bound to this run; no tracking export performed.",
+            "",
+            "Cumulative E2: " + str(safe["cumulative_E2_accounting"]),
         ]
     prefix.with_suffix(".md").write_text("\n".join(lines) + "\n", encoding="utf-8")
     require(
