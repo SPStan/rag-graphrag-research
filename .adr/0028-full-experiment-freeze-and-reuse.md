@@ -170,3 +170,16 @@ Offline проверка через реальный CLI с fake transport ох�
 pins и расходы; реальные source/index проверки полностью offline. Пересмотр:
 новый reader/index/split либо исчерпанный cap требует отдельного решения;
 этот протокол не подбирается по F1 и не разрешает новые исследования.
+
+
+## Применение unknown-stop на MuSiQue
+
+Run7936654d остановился на remote reader ConnectionError/RemoteDisconnected:
+ответ не получен, usage null, reserve15732 не actual. Новые700completed+1failed,
+199not_attempted;600parent cases сохранены. Соблюдён stop без retry/recovery,
+не снят общий failed guard. Техническое ночное разрешение пользователя не
+переопределяет unknown policy. Кодовый дефект не установлен; исправление кода
+не подменяет неизвестный outcome. Для следующего решения сохранены residual
+3721696tokens/398POST после reserve и immutable partial artifacts; сами residual
+лимиты не разрешают новый запуск. Автоматизация прекращает polling после
+уведомления. Полное сравнение1500cases пока не подтверждено.

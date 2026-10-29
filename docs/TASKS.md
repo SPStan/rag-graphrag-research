@@ -2,36 +2,35 @@
 
 **E1 status:** 6/6 indexes completed under the structural protocol; physical known tokens=32601955; cost_complete=False; unknown reserve61588 preserved. Final audit/verify completed; monitoring paused.
 
-## Текущая очередь — issue #16: MuSiQue S500, согласованный missing-only запуск
+## Текущая очередь — issue #16: MuSiQue S500, остановлено на unknown
 
 - Draft PR38, ветка `codex/musique-s500-comparison`; зависимость PR37/issue15.
-  Пользователь прямо поручил выбрать необходимый бюджет с запасом и разрешил его
-  в сообщении этой задачи (2026-10-29). [Точный текст и область согласия](../results/summary/e2-musique-s500-authorization.json).
-- Утверждён только MuSiQue cap5990220новых combined tokens/≤2100POST:
-  900reader/300Hippo filter/900local BGE. Основание5921100по maxima полных pilot
-  операций+69120admission headroom. Завершение900новых случаев не гарантируется:
-  нехватка резерва останавливает очередь до следующего POST.
-- [Исходный worklist](../results/summary/e2-musique-s500-plan.json) остаётся
-  неизменным снимком подготовки:1500cases,600готовых+900missing,500ordered IDs
-  у каждого метода. Его старые executable/authorization=false не переписываются;
-  для исполнения строится отдельный `.cache/e2-musique-s500-execution-plan.json`.
-- Shared runner дополняется версионным Mu-only guard: точные source/code/index
-  SHA, parent/plan claims, один worker, бюджет до POST, reuse600готовых результатов.
-  Reader/prompt/cap512/top5/model/split/индексы прежние. Новая transport/partial/
-  unknown/infra/pin ошибка останавливает очередь; retry/recovery0.
-- HotpotQA не запускается. Общее предложение PR37/issue15 для обеих datasets
-  не объявляется целиком утверждённым. Historical unknown/reserve22545 и E1cost
-  сохраняются отдельно, logical reuse не оплачивается повторно.
-- Интеграция и бюджет сохранены в runtime `e144ad9`; обязательный offline hook,
-  целевые tests и CI Windows/Linux/conventions/secrets прошли. Launcher29172
-  started2026-10-29T00:47:22Z; private plan SHA начинается99d5e846. Один worker
-  (venv shim28280/realPython34640), порядокDense→HippoRAG2→RAPTOR. Run
-  `7936654d-8820-4449-803b-f7ef6074424a`; initial proof8saved/16POST/12658known/new unknown0. Первый
-  bootstrap не выполнил скрипт из-за пути с пробелами, POST0; model retry0.
-  Active pointer `.cache/e2-musique-s500-active.json`; live usage только через
-  `.cache/e2-musique-s500-monitor.py`/tested shared Windows snapshot reader.
-- До завершения worker код не менять. После900missing — terminal pins/audit,
-  общий evaluator и safe summary. Issue16 пока не завершена; Refs #16, Draft.
+  [Неполная таблица](../results/summary/e2-musique-s500.md) и
+  [safe JSON](../results/summary/e2-musique-s500.json). Run
+  `7936654d-8820-4449-803b-f7ef6074424a`, runtime `e144ad9`; private execution
+  plan SHA начинается99d5e846. Исходные планы, runtime SHA, raw и claims неизменны.
+- Всего1500ожидаемых:1300completed=600reuse+700new,1transport attempted_failed,
+  199not_attempted. Dense500/0/0, HippoRAG2 500/0/0, RAPTOR300/1/199.
+  Полное сравнение не завершено; RAPTOR aggregate EM/F1 null.
+- RAPTOR reader case3hop1__90327_83076_319330: сервер закрыл соединение без
+  ответа (ConnectionError/RemoteDisconnected), checkpoint started, usage null.
+  Новый unknown reserve15732 — не actual usage. Повтор/recovery0, worker завершён.
+  Кодовая причина не установлена; guard сработал штатно. Автоматически не продолжать.
+- Новый Mu-only cap5990220tokens/2100POST был согласован прямым сообщением
+  пользователя. Факт2252792known/1702POST+1unknown; остаток с reserve
+  3721696tokens/398POST. Остаток бюджета не разрешение на продолжение после unknown.
+- E2сsource/development6289445known/4562POST,2unknown/reserve38277,
+  cost_complete=false; source учтён один раз. E1known32601955/reserve61588
+  отдельно. HotpotQA не запускался; oldHot unknown22545 не повторялся.
+- Existing offline report проверил source pins и новые успешные response/
+  checkpoint/journal SHA; fatal case имеет явное strict_success_audit_complete=false.
+  Private per-case evaluation.json/manifest/usage.jsonl лежат в
+  results/raw/e2-musique-s500-v1. Полного terminal audit1500cases нет.
+- Следующее решение: можно ли завершить только199not_attempted через новый
+  проверяемый missing-only lineage, без повторения неизвестного запроса и в
+  прежнем совокупном cap. Такого S500 continuation сейчас не запущено.
+  Модель/prompt/cap512/top5/retrieval/split/индексы прежние. Ни новых экспериментов,
+  ни Ready/merge/закрытияissue. Refs #16. Ночной монитор прекращается после уведомления.
 
 ## Сохранённый результат pilot200 — 1199ответов+1transport failure
 

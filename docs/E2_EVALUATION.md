@@ -855,3 +855,17 @@ unknown не является Mu failure и не даёт разрешения �
 RAPTOR provenance не passage recall@5; S500 включает development, mixed Hippo
 extractor/errors и неполнота исходных расходов раскрываются. Issue16 остаётся
 Draft/Refs #16 до реального завершения и проверки набора.
+
+
+### Фактическая остановка MuSiQue S500
+
+Run7936654d-8820-4449-803b-f7ef6074424a остановлен guard на новом remote reader
+unknown, не на бюджете:700new completed+1transport failure,199missing;
+с600reuse это1300completed/1failed/199not_attempted. [Неполная таблица](../results/summary/e2-musique-s500.md).
+RAPTOR case3hop1__90327_83076_319330 не имеет ответа; checkpoint started,
+usage null, reserve15732 не actual. Новые known2252792/1702POST; cap5990220/2100
+сохранён, retry/recovery0. Ночного разрешения на технические исправления
+недостаточно для обхода unknown-stop/failed-run guard: локальная кодовая ошибка
+не обнаружена. Отдельное решение может касаться лишь199unattempted с новым
+verified immutable lineage и прежним совокупным бюджетом, без повтора unknown.
+Текущий результат не заменяет полный500-ID/method comparison; Refs #16.
