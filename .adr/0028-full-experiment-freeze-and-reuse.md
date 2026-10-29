@@ -206,3 +206,25 @@ reserve15732. Unknown usagenull сохраняется и не получает 
 неизменные parent bytes, budget conservation, sealed case no POST, запрет tamper/
 active lock/claim/second child и отсутствие двойного учёта. Per-POST admission и
 остановка на новой transport/unknown сохраняются; окончание не гарантируется.
+
+
+## Проверенный результат и postprocessor boundary
+
+Unattempted childba393849/runtimea0 завершил199/199 с398POST/802989known,
+0newunknown. Итог1500expected:1499completed+1sealed historicalfailure.
+S500newphysical3055781known/2100POST,Mu unknownreserve15732; parente144/failed
+иsource claims/results/journals immutable. Полный common evaluator, ID/SHA/
+lineage audit,3localMLflow/Langfuse500caseviews/fulltext иartifactroundtrip
+проверены. РасходE1иoldHotunknown сохраняетсяотдельно, cost_complete=false.
+
+Послеterminal обнаружен posthoc pagination defect: nativeAPI отдаёт meta.cursor,
+reader ждал next_cursor и видел1000из2001obs. Минимальное решение поддерживает
+оба поля сguard repeatedcursor. Альтернатива переэкспортироватьdata отклонена:
+существующийDense trace дочитан,успешныеexports не повторяются.3targeted tests
+cover обаcursor schema/2001items/repeatedcursor; realnativefulltext/usage proof
+подтвердил3views. Дляofflinefreeze введён AST guard: разрешено менять толькоbody
+get_all_langfuse_observations, остальныеexport/inference AST nodes неизменны.
+Blanket exception дляtracking отвергнуто. Executioncodea0 зафиксировандоfix;
+postprocessor имеетотдельныйHEAD/sha,старыеplans/runtimeSHA не переписываются.
+Пересмотрнужен приновом API schema илиизменениидругихexport/generationfunctions;
+это не разрешение повторять inference. Source/audit/receipt links вsafeJSON.

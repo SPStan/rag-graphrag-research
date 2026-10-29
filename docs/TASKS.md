@@ -2,41 +2,38 @@
 
 **E1 status:** 6/6 indexes completed under the structural protocol; physical known tokens=32601955; cost_complete=False; unknown reserve61588 preserved. Final audit/verify completed; monitoring paused.
 
-## Текущая очередь — issue #16: MuSiQue S500, остановлено на unknown
+## Текущая очередь — issue #16: MuSiQue S500, результат проверен
 
-- Draft PR38, ветка `codex/musique-s500-comparison`; зависимость PR37/issue15.
-  [Неполная таблица](../results/summary/e2-musique-s500.md) и
-  [safe JSON](../results/summary/e2-musique-s500.json). Run
-  `7936654d-8820-4449-803b-f7ef6074424a`, runtime `e144ad9`; private execution
-  plan SHA начинается99d5e846. Исходные планы, runtime SHA, raw и claims неизменны.
-- Всего1500ожидаемых:1300completed=600reuse+700new,1transport attempted_failed,
-  199not_attempted. Dense500/0/0, HippoRAG2 500/0/0, RAPTOR300/1/199.
-  Полное сравнение не завершено; RAPTOR aggregate EM/F1 null.
-- RAPTOR reader case3hop1__90327_83076_319330: сервер закрыл соединение без
-  ответа (ConnectionError/RemoteDisconnected), checkpoint started, usage null.
-  Новый unknown reserve15732 — не actual usage. Повтор/recovery0, worker завершён.
-  Кодовая причина не установлена; guard сработал штатно. Автоматически не продолжать.
-- Новый Mu-only cap5990220tokens/2100POST был согласован прямым сообщением
-  пользователя. Факт2252792known/1702POST+1unknown; остаток с reserve
-  3721696tokens/398POST. Остаток бюджета не разрешение на продолжение после unknown.
-- E2сsource/development6289445known/4562POST,2unknown/reserve38277,
-  cost_complete=false; source учтён один раз. E1known32601955/reserve61588
-  отдельно. HotpotQA не запускался; oldHot unknown22545 не повторялся.
-- Existing offline report проверил source pins и новые успешные response/
-  checkpoint/journal SHA; fatal case имеет явное strict_success_audit_complete=false.
-  Private per-case evaluation.json/manifest/usage.jsonl лежат в
-  results/raw/e2-musique-s500-v1. Полного terminal audit1500cases нет.
-- После этого уведомления пользователь ответил «Делай то что нужно»:
-  продолжить только199not_attempted, без повтора unknown и расширения cap.
-  [Запись решения](../results/summary/e2-musique-s500-unattempted-authorization.json).
-  Existing S500 runner расширяется одним sealed-unknown child: новый plan/output,
-  immutable1301parent outcomes, reader199/BGE199/filter0, residual3721696/398.
-  Pipeline failure получает отдельный marker/EM-F1=0, usage=null; это не неверный
-  reader answer. При finish ожидаются1499answers+1failure, не1500ответов.
-- До запуска обязательны offline tests/gate и проверенный child plan; нового
-  inference пока нет. После старта вернуть30минутный тихий монитор на фактический
-  child. Новая unknown/transport/infra/pin ошибка останавливает без retry; второй
-  sealed child запрещён. Draft/Refs #16, без Ready/merge/закрытияissue.
+- Draft PR38, `codex/musique-s500-comparison`, зависимость PR37/issue15.
+  [Единая таблица](../results/summary/e2-musique-s500.md),
+  [safe JSON/audit/receipt](../results/summary/e2-musique-s500.json).
+  1500uniqueexpected:1499completed+1historical transport failure,0not_attempted.
+  Dense500/0, HippoRAG2 500/0, RAPTOR499/1. Не1500ответов.
+- EM/F1(%): Dense34.80/44.93, Hippo43.40/53.55, RAPTOR32.40/42.47.
+  R@5passages60.33/70.72; RAPTORprovenance62.12неpassageR@5.
+  Pipeline0 для sealed infrastructure failure раскрыт, unknownusage=null.
+- Child ba393849-c977-4c8f-97d7-303fc12955c8/runtimea0a52cf завершил199new,
+  398POST/802989known, newunknown0. Parent7936654d/runtimee144ad9 сохранён
+  failed неизменным, unknowncase3hop1__90327_83076_319330 не повторён.
+  Exact reader identity/absent response/started checkpoint/reserve15732 сохранены.
+- S500 newphysical parent+child3055781known/2100POST; initial600reuse не оплачены
+  повторно. E2csource/development7092434known/4960POST,2unknown/reserve38277,
+  cost_complete=false; E1known32601955/reserve61588 отдельно. Cap5990220/2100
+  не расширен; model/prompt/cap512/top5/retrieval/index/split/SDK прежние.
+- Terminal audit1500cases:1301parents+199child, SHA source/index/data/code/
+  response/checkpoint/journal,0newunknown/unfinished/duplicate attempts.
+  Privatepercase `results/raw/e2-musique-s500-unattempted-v1/evaluation.json`;
+  sourcefailedraw/results/claims не переписывались, новые recovery не запускались.
+- Localtracking3MLflow/3Langfuse views по500; fullretrieval/generation text/order/
+  answers и usage проверены,36artifact/linkedJSONL roundtripSHA. ОдинMu reader
+  unknown остался null. Posthoc — modelcalls0; IDs и safe proof вJSON.
+- Послеterminal исправлен только posthoc Langfuse reader(meta.cursor/next_cursor):
+ 3targeted regressions+native2001obs/view passed. Denseexistingtrace дочитан без
+  reexport. Executiona0 отдельно отpostprocessorcommit; generator/evaluatorне менялись.
+- S500development/mixedHippoerrors/E1incomplete/replaylatency раскрыты.
+  Следующий шаг — ревью PR38, передача per-case задачам12/14; сами новые задачи
+  не запускать. Остальные scientific settings не менять. Draft/Refs #16,
+  без Ready/merge/закрытияissue. После публикации итогового коммита монитор удалить.
 
 ## Сохранённый результат pilot200 — 1199ответов+1transport failure
 

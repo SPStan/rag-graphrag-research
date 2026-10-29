@@ -793,7 +793,7 @@ unknown reserve22545, расходы E1 и development не входят в но
 Он фиксирует1500case identities:600готовых pilot ответов и900not attempted,
 по200reuse+300missing для каждого из трёх методов. Чужой HotpotQA sealed failure
 остаётся в historical accounting родителя, не запрашивается повторно и не
-объявляется MuSiQue failure. Новых run IDs/ответов/метрик пока нет.
+объявляется MuSiQue failure. Фактический итог приведён ниже; worklist остаётся первоначальным offline-снимком.
 
 Список строится тем же offline planner после полного existing artifact gate:
 
@@ -898,3 +898,28 @@ pilot/development и E1. S500 latency/usage объединяет обе physical
 начальные600reuse; данные child-only также сохранены. Новый runtime фиксируется
 отдельно от parent e144ad9. До terminal audit работа Draft/Refs #16; HotpotQA,
 новые модели/индексы/prompt/cap/retrieval/split и следующие задачи не запускаются.
+
+
+### Проверенный итог MuSiQue S500
+
+[Единая таблица](../results/summary/e2-musique-s500.md)/[safe JSON](../results/summary/e2-musique-s500.json):
+1500uniqueoutcomes=1499answers+1sealed transportfailure,0notattempted.
+Dense EM/F1=34.80/44.93%, Hippo43.40/53.55%, RAPTOR32.40/42.47%.
+Childba393849/runtimea0 закончил199unattempted/398POST/802989known/newunknown0.
+Root7936654d/e144 остаётсяfailed; unknownreader не повторён. Sealed failure
+pipeline0 — infrastructure marker, не неверный ответreader; usage остаётсяnull.
+S500physical3055781known/2100POST +reserve15732; E2csource/development7092434/
+4960POST,2unknown/reserve38277,cost_complete=false; E1отдельно. Logicalreuse
+иsource91871 повторно не добавлялись. ПолныйauditSHA/IDs/lineage выполнен.
+
+Localtracking3MLflow/3Langfuse views по500:fulltext/order/answers,usage/null и
+36artifact/linkedJSONL roundtripSHA проверены без modelcalls. Послеterminal
+обнаружен иисправлен только native observation cursor reader:API meta.cursor
+не читался как next_cursor,1000/2001observations. Поддерживаются оба schema,
+repeatedcursor rejected;3targeted tests/native readback прошли. Dense trace
+дочитан без повторного экспорта. AST guard дляofflinefreeze допускает изменение
+толькоget_all_langfuse_observations, не exporter/generator; старые execution
+codeSHA не переписываются. Sourceexecutiona0/e144 отделены отpostprocessorHEAD.
+Privatepercasepaths/receipt находятсявchildraw; safeIDs/audit витоговомJSON.
+Параметры/модели/индексы неизменны, S500development/mixedHippo/errors/replay
+ограничения сохранены. Следующиезадачи не запущены; Draft/Refs #16.

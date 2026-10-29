@@ -1,40 +1,68 @@
-# MuSiQue S500: неполный прогон (failed)
+# MuSiQue S500: 1500 исходов, 1499 ответов и 1 transport failure
 
-Descriptive S500 includes development. Source latency is not fresh E2E. RAPTOR provenance is not passage recall@5. Mixed Hippo errors and incomplete E1/source cost retained.
+На одинаковых500зафиксированных ID каждого метода учтены все1500случаев;
+not_attempted=0. Dense/HippoRAG2:500ответов, RAPTOR:499ответов+1сохранённый
+инфраструктурный сбой. Unknown reader не повторён, usage=null; pipeline EM/F1=0
+для этого случая — не утверждение о неправильном ответе модели.
 
-| Method | Completed / failed / not attempted | EM | F1 | Passage recall@5 | RAPTOR provenance | Fresh E2E seconds (n) | New reader/filter/BGE known tokens |
-|---|---|---:|---:|---:|---:|---|---|
-| dense | 500 / 0 / 0 | 0.348 | 0.4493305006105006 | 0.6033333333333334 | None | 2.2546996593324002 (300) | 451872/0/7533 |
-| hipporag2 | 500 / 0 / 0 | 0.434 | 0.5354763572092285 | 0.7071666666666666 | None | 4.015264944000325 (300) | 472227/929349/7533 |
-| raptor | 300 / 1 / 199 | None | None | None | None | 3.739350829701087 (101) | 381649/0/2629 |
+| Метод | Completed / failed | EM, % | F1, % | Passage recall@5, % | RAPTOR provenance, % | Новые query wall seconds (n) | Reader I/O known¹ | Filter I/O known¹ | BGE input¹ |
+|---|---|---:|---:|---:|---:|---|---|---|---:|
+| dense | 500 / 0 | 34.80 | 44.93 | 60.33 | — | 2.255 (300) | 748067 / 4189 | — | 12877 |
+| hipporag2 | 500 / 0 | 43.40 | 53.55 | 70.72 | — | 4.015 (300) | 785279 / 4097 | 1521944 / 28514 | 12877 |
+| raptor | 499 / 1 | 32.40 | 42.47 | — | 62.12 | 4.316 (300) | 1954121 / 4464 | — | 12877 |
 
-New physical known tokens {'llm_input_tokens': 2212464, 'llm_output_tokens': 22633, 'embedding_input_tokens': 17695}; POST 1702; usage complete=False. Historical global expense remains separate; never add logical reuse twice. Refs #16.
+¹Логическиеquerytokens для500cases, включая200reuse на метод; это не новая
+оплата. Для RAPTOR это known subtotal с1unknown, не полный расход. Physical
+новые300cases/method (parent+child), child-only и inherited logical выделены
+в JSON отдельно. Hippo fact filter включён. BGE — локальные токены, не расход API.
 
-## Остановка и полнота
+Query wall измерен только для300новыхcases/method: включает guards/persistence,
+исключает загрузку индекса и4сек throttle-pause. Фазы исполнялись последовательно
+в разных запусках; source/replay не freshE2E. RAPTOR provenance не passage recall@5.
 
-Всего1500ожидаемых случаев:1300completed (600reuse+700new),1transport
-attempted_failed,199not_attempted. Dense и HippoRAG2 имеют по500ответов;
-RAPTOR300ответов+1transport failure+199незапущенных. Полного сравнения трёх
-методов нет; RAPTOR EM/F1 остаются null, незапущенные вопросы не неверные ответы.
+## Расходы и lineage
 
-Сервер закрыл reader-соединение без HTTP-ответа: ConnectionError /
-RemoteDisconnected. Case3hop1__90327_83076_319330, ответ отсутствует,
-checkpoint status=started. Обе величины usage этого запроса null;15732tokens —
-консервативный reserve, не фактический расход. Запрос не повторён, recovery0.
-Кодовая причина не установлена; внешнюю транспортную ошибку нельзя исправить
-подменой результата или снятием guard. Автоматическое продолжение остановлено.
+- Child ba393849-c977-4c8f-97d7-303fc12955c8:199completed,398POST,802989known
+  tokens (LLM796282input/1803output, local BGE4904), newunknown0.
+- S500 parent7936654d+child:900новых outcomes=899completed+1failure,2100POST,
+  3055781known tokens (LLM3008746input/24436output, BGE22599). Initial600reuse
+  не оплачены повторно. Mu unknown reserve15732 — не actual usage.
+- E2сsource/development:7092434known/4960POST,2unknown, reserve38277=
+  oldHot22545+Mu15732, cost_complete=false. Source91871 — часть development,
+  не добавлен повторно. E1known32601955/reserve61588/cost_complete=false отдельно.
+- Исходный cap5990220new S500 tokens/2100POST не расширялся; остаток после
+  unknown reservation2918707tokens/0POST не разрешает новые эксперименты.
 
-Новые расходы2252792known tokens/1702POST,1unknown; остаток исходного cap
-после reserve3721696tokens/398POST. Остаток сам по себе не разрешение на запуск.
-E2включая source/development6289445known/4562POST,2unknown с суммарным
-reserve38277 (oldHot22545+newMu15732); cost_complete=false. Source/development
-учтены один раз. E1known32601955/reserve61588/cost_complete=false отдельно.
+Parent runtime e144ad9, child runtime a0a52cf; failed manifest, claims, journals
+и старыеcode/runtime SHA неизменны. Unknown case3hop1__90327_83076_319330:
+ConnectionError/RemoteDisconnected, checkpoint started, response отсутствует.
+Приращение F1 одного такого pipeline failure ограничено0.2п.п. на500случаев;
+это disclosed infrastructure limitation, а не оценка качества неизвестного ответа.
 
-Offline report проверил существующие source pins, SHA новых700успешных cases,
-responses/checkpoints/journal и расход; для fatal case сохранены исходная причина,
-known/unknown и artifact SHA, strict_success_audit_complete=false. Это не полный
-финальный audit1500cases. Runtime e144ad9 и все failed/raw/claims неизменны.
-Private per-case:results/raw/e2-musique-s500-v1/evaluation.json; manifest и
-usage.jsonl в той же папке. Следующий шаг требует отдельного решения о199ранее
-не запущенных случаях с immutable continuation; неизвестный запрос не повторять.
-Draft PR38, Refs #16; issue16 ещё не завершена.
+## Проверка и передача
+
+Terminal audit:1500uniqueexpected,1301parents+199child, source/index/data/code
+pins, successful response/checkpoint/journal SHA, sealed reader identity и отсутствие
+response проверены;0newunknown/unfinished/duplicate attempts. Historical sealed
+unknown ожидаем, не объявляется успешным ответом. Private per-case оценки:
+`results/raw/e2-musique-s500-unattempted-v1/evaluation.json`; manifest и usage.jsonl
+там же, parent artifacts остаются в `results/raw/e2-musique-s500-v1`.
+
+Tracking:3MLflow runs/3Langfuse traces по500cases; в каждом сервисе7500retrieval
+и7500generation documents совпали с source поID/title/text/order и answers.
+36artifact/linked-JSONL roundtrip SHA подтверждены, reader usage известная часть
+совпала, ровно1Mu reader unknown остался null. Derived JSONL связан сtrace IDs.
+Это posthoc export, новых modelcalls0. Сырые тексты остаются только локально.
+
+Postprocessor fix после terminal: Langfuse meta.cursor вместо meta.next_cursor
+обрезал чтение на1000из2001observations. Reader теперь поддерживает оба поля
+и отвергает повтор cursor;3регрессии и реальный native readback прошли. Dense
+trace дочитан без reexport. AST guard допускает изменение только этой функции
+наблюдений; generator/evaluator не менялись. Execution pins не переписаны.
+
+S500 включает development; mixed Hippo extractor/errors и неполнота E1/source
+cost сохранены. Это описательное фиксированное сравнение, не независимое
+подтверждение универсального преимущества. Параметры по F1 не подбирались.
+Следующий шаг — ревью PR38 и передача per-case артефактов задачам12/14.
+Новых моделей/индексов/HotpotQA/signal/holdout/E3 в этом блоке не запускалось.
+Draft, Refs #16; без Ready/merge/закрытияissue.

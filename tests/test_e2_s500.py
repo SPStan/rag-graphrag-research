@@ -385,3 +385,46 @@ def test_sealed_child_rejects_changed_evidence_before_http(stopped_raptor, chang
     with pytest.raises(ValueError):
         s500.prepare_unattempted(s.root_plan, s.root_output, s.auth)
     assert len(s.state["posts"]) == s.physical_before
+
+
+@pytest.mark.parametrize("cursor_field", ["cursor", "next_cursor"])
+def test_local_tracking_reader_reads_all_2001_observations(cursor_field):
+    from types import SimpleNamespace
+    from scripts import track_dense
+
+    requested = []
+
+    def get_many(**kwargs):
+        requested.append(kwargs["cursor"])
+        n = len(requested)
+        return SimpleNamespace(
+            data=list(range(1000 if n < 3 else 1)),
+            meta=SimpleNamespace(**{cursor_field: str(n) if n < 3 else None}),
+        )
+
+    client = SimpleNamespace(
+        api=SimpleNamespace(observations=SimpleNamespace(get_many=get_many))
+    )
+    assert len(track_dense.get_all_langfuse_observations(client, "trace")) == 2001
+    assert requested == [None, "1", "2"]
+
+
+def test_tracking_reader_repeated_cursor_and_ast_boundary():
+    from types import SimpleNamespace
+    from scripts import track_dense, full_experiment as full
+
+    client = SimpleNamespace(
+        api=SimpleNamespace(
+            observations=SimpleNamespace(
+                get_many=lambda **kw: SimpleNamespace(
+                    data=[1], meta=SimpleNamespace(cursor="same")
+                )
+            )
+        )
+    )
+    with pytest.raises(RuntimeError, match="repeated cursor"):
+        track_dense.get_all_langfuse_observations(client, "trace")
+    old = "def get_all_langfuse_observations(client, trace_id):\n    return []\ndef export():\n    return 512\n"
+    full.compatible_tracking_reader(old, old.replace("return []", "return [1]"))
+    with pytest.raises(ValueError, match="outside_observation_reader"):
+        full.compatible_tracking_reader(old, old.replace("512", "1024"))

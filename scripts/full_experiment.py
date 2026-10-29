@@ -415,6 +415,13 @@ def build(plan, source, roots):
             e2_s500.compatible_runner(
                 original, (ROOT / name).read_text(encoding="utf-8")
             )
+        elif name == "scripts/track_dense.py" and dense.sha256_file(ROOT / name) != sha:
+            original = subprocess.check_output(
+                ["git", "-C", str(ROOT), "show", "4bd1d25:" + name], env=env
+            ).decode()
+            compatible_tracking_reader(
+                original, (ROOT / name).read_text(encoding="utf-8")
+            )
         elif name != "scripts/e2_pilot.py":
             require(
                 dense.sha256_file(ROOT / name) == sha,
@@ -800,6 +807,25 @@ def musique_worklist(source):
             "per-case metrics and safe summary for downstream tasks12/14",
         ],
     }
+
+
+def compatible_tracking_reader(original, current):
+    """Only local observation pagination may evolve; inference/export AST stays fixed."""
+
+    def normalize(source):
+        tree = ast.parse(source)
+        for node in tree.body:
+            if (
+                isinstance(node, ast.FunctionDef)
+                and node.name == "get_all_langfuse_observations"
+            ):
+                node.body = [ast.Pass()]
+        return ast.dump(tree, include_attributes=False)
+
+    require(
+        normalize(original) == normalize(current),
+        "tracking_change_outside_observation_reader",
+    )
 
 
 def main(argv=None):
