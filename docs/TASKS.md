@@ -2,30 +2,20 @@
 
 **E1 status:** 6/6 indexes completed under the structural protocol; physical known tokens=32601955; cost_complete=False; unknown reserve61588 preserved. Final audit/verify completed; monitoring paused.
 
-## Текущая очередь — issue #15: offline freeze, бюджет ожидает согласования
+## Текущая очередь — issue15: техническая подготовка, решение HotpotQA отдельно
 
-- Бюджетный критерий issue15 ещё не выполнен: нужен выбор/согласование
-  операционного cap10903320tokens/≤4200POST. PR37 остаётся Draft с Refs #15, без Closes.
-- [Манифест](../results/summary/full-experiment.json):6конфигураций,
-  ordered S500×2×3=3000cases. Реальный offline-аудит:1199compatible completed,
-  1sealed terminal failure,1800missing,0incompatible. Шесть E1 индексов проверены.
-- Новый прогноз5841708.693tokens; conservative reservation114669441tokens,
-  ≤4200POST (1800reader/600filter/1800BGE). Это предложение, **не допуск HTTP**.
-  Операционное предложение10903320=10834200по максимумам пилота+69120admission.
-  Не гарантирует1800cases; stop перед POST, если exact reservation не помещается.
-  Старые pilot2708POST исчерпаны; административный90M снят, research caps scoped.
-- E2 physical с development4036653known/2860POST, unknown1/reserve22545;
-  source91871 уже внутри development237340. E1known32601955/reserve61588 отдельно,
-  cost_complete=false. Исторические runtime/планы/raw/claims не переписаны.
-- [ADR-0028](../.adr/0028-full-experiment-freeze-and-reuse.md) сохраняет failure
-  без retry; shared-answer-only-v1/cap512/top5/65536bytes и 300/100/100 неизменны.
-  Сигнал issue21 не выбран, check/reserve answers/gold/metrics не читались.
-- Проверка: `scripts.full_experiment verify` с явными roots из
-  [E2](E2_EVALUATION.md#offline-freeze-s500--issue-15), transport заблокирован.
-  Freeze не executable. Следующий шаг — ревью issue15 и отдельное согласование
-  execution-plan/нового бюджета; issues16/17/21 здесь не запускались.
-- PR33/36 слиты, issues13/14 закрыты; PR34/35 закрыты как заменённые.
-  Основной checkout с пользовательскими правками не затронут.
+- PR37 остаётся Draft/Refs #15. Научные формулировки согласованы по сообщению
+  пользователя; это не опубликованное bot/GitHub review.
+- Frozen full-experiment.json не изменён: шесть конфигураций,3000IDs,
+ 1199compatible answers+1sealed failure,1800missing; forecast5841708.693,
+ static worst-case114669441 — снимок до исполнения Mu, не актуальный missing-count.
+- MuSiQue имеет отдельные budget/continuation разрешения PR38:
+ cap5990220tokens/2100POST, unknown не повторяется. Согласие повторно не нужно.
+- Для HotpotQA нужен отдельный scoped budget/execution-plan, повторный audit,
+ exact reservation и stop до превышения; Mu-согласие не переносится.
+- Критерии1/2/4 выполнены; общий бюджетный критерий3 частичен до Hot-решения.
+ Запись решения — ADR0028/E2. Манифест/runtime/raw не переписываются.
+- Следующий шаг — ревью PR37, затем зависимого PR38; новых запросов здесь нет.
 
 ## Сохранённый результат pilot200 — 1199ответов+1transport failure
 

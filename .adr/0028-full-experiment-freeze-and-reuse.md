@@ -150,3 +150,35 @@ allocation и не учитываются повторно; старый unknown
 +69120(single largest admission reserve), ≤4200POST. Запас над mean forecast
 5061611.307. Static worst-case114669441 — отдельная величина. Согласования
 операционного cap пока нет; бюджетный критерий issue15 открыт.
+
+
+## Текущее бюджетное решение issue15
+
+Научные формулировки согласованы по сообщению пользователя; опубликованное
+одобрение бота/GitHub review этим не утверждается. Frozen manifest
+`results/summary/full-experiment.json` остаётся неизменным снимком расчёта.
+
+- Разрешено только MuSiQue: пользователь делегировал расчёт с запасом и
+  разрешил cap5990220 новых combined tokens/2100POST
+  (900reader/300filter/900localBGE), retry0, exact-payload reservation до POST.
+  [Запись решения PR38](https://github.com/SPStan/rag-graphrag-research/blob/codex/musique-s500-comparison/results/summary/e2-musique-s500-authorization.json).
+  [Согласие continuation199](https://github.com/SPStan/rag-graphrag-research/blob/codex/musique-s500-comparison/results/summary/e2-musique-s500-unattempted-authorization.json)
+  сохраняет unknown, не разрешает retry и не расширяет исходные caps.
+  Снова запрашивать Mu-разрешение не требуется.
+- Только рассчитано: общий forecast5841708.693, empirical proposal10903320/
+  4200POST для1800missing двух датасетов и static worst-case114669441.
+  Это оценки, а не одобрение HotpotQA; снятие административного90M не даёт
+  неограниченного расхода. Завершение при этих caps не гарантируется.
+- Перед HotpotQA: отдельное scoped решение об allocation/POST caps,
+  неизменных settings и missing-only execution-plan; повторная проверка
+  совместимости/остатка бюджета, exact reservation перед каждым POST,
+  stop при недостатке cap/новом partial/unknown/transport/pin error.
+  Historical Hot unknown/reserve22545 не повторять и не превращать в0.
+  Ни запуск, ни увеличение бюджета здесь не разрешены.
+
+Критерии issue15: (1) шесть конфигураций/ID выполнен; (2) reuse каждого
+pilot результата выполнен с явно sealed failure; (3) оценки и stop-контракт
+есть, Mu allocation утверждён, но общий бюджетный допуск двух датасетов
+остаётся неполным до решения HotpotQA; (4)300/100/100 и development-ограничения
+зафиксированы. Поэтому Refs #15, не Closes. Это оставшееся решение не
+обесценивает отдельное разрешение и завершение MuSiQue/issue16.
