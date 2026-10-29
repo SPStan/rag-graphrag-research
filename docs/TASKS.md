@@ -2,26 +2,29 @@
 
 **E1 status:** 6/6 indexes completed under the structural protocol; physical known tokens=32601955; cost_complete=False; unknown reserve61588 preserved. Final audit/verify completed; monitoring paused.
 
-## Текущая очередь — issue #16: MuSiQue S500, подготовка
+## Текущая очередь — issue #16: MuSiQue S500, согласованный missing-only запуск
 
-- Ветка `codex/musique-s500-comparison` продолжает issue16 отдельным Draft PR.
-  Зависимость — PR37/issue15, HEAD24f4ae5; бюджет там ещё не согласован.
-  Бюджетное разрешение из просьбы начать issue16 не предполагается.
-- [Рабочий список](../results/summary/e2-musique-s500-plan.json) проверен по
-  frozen source:1500method/question cases,600inherited completed,900not_attempted.
-  На каждый Dense/HippoRAG2/RAPTOR:200сохранённых+300новых, те же500ordered IDs.
-- MuSiQue operational proposal5990220new tokens=5921100по pilot maxima+69120
-  admission headroom, ≤2100POST(900reader/300filter/900BGE). Это предложение,
-  не утверждённый cap; завершение900новых cases не гарантировано.
-- Пока выполнена только offline-подготовка. Worklist `executable=false`,
-  `http_authorized=false`; новых inference/embeddings/indexing calls0.
-  Нужны approved execution-plan и интеграция guarded runner с offline tests,
-  затем запуск только missing cases, terminal audit, per-case metrics/summary.
-- Общий budget proposal PR37 остаётся10903320tokens/4200POST для обеих datasets,
-  не следует автоматически складывать независимые dataset headrooms. HotpotQA
-  в issue16 не выполняется; historical sealed unknown/reserve22545 сохранён.
-- Issue16 пока не завершена: полного нового набора и новых метрик нет.
-  Refs #16; исходные runtime/results/journals и пользовательские правки сохранены.
+- Draft PR38, ветка `codex/musique-s500-comparison`; зависимость PR37/issue15.
+  Пользователь прямо поручил выбрать необходимый бюджет с запасом и разрешил его
+  в сообщении этой задачи (2026-10-29). [Точный текст и область согласия](../results/summary/e2-musique-s500-authorization.json).
+- Утверждён только MuSiQue cap5990220новых combined tokens/≤2100POST:
+  900reader/300Hippo filter/900local BGE. Основание5921100по maxima полных pilot
+  операций+69120admission headroom. Завершение900новых случаев не гарантируется:
+  нехватка резерва останавливает очередь до следующего POST.
+- [Исходный worklist](../results/summary/e2-musique-s500-plan.json) остаётся
+  неизменным снимком подготовки:1500cases,600готовых+900missing,500ordered IDs
+  у каждого метода. Его старые executable/authorization=false не переписываются;
+  для исполнения строится отдельный `.cache/e2-musique-s500-execution-plan.json`.
+- Shared runner дополняется версионным Mu-only guard: точные source/code/index
+  SHA, parent/plan claims, один worker, бюджет до POST, reuse600готовых результатов.
+  Reader/prompt/cap512/top5/model/split/индексы прежние. Новая transport/partial/
+  unknown/infra/pin ошибка останавливает очередь; retry/recovery0.
+- HotpotQA не запускается. Общее предложение PR37/issue15 для обеих datasets
+  не объявляется целиком утверждённым. Historical unknown/reserve22545 и E1cost
+  сохраняются отдельно, logical reuse не оплачивается повторно.
+- Следующий проверяемый результат: offline tests и immutable execution-plan,
+  затем900missing cases, строгий terminal audit, общий evaluator и safe summary.
+  Issue16 пока не завершена; Refs #16. Draft не снимается.
 
 ## Сохранённый результат pilot200 — 1199ответов+1transport failure
 

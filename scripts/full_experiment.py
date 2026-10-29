@@ -406,7 +406,16 @@ def build(plan, source, roots):
         "reuse_logic_changed",
     )
     for name, sha in plan["code_sha256"].items():
-        if name != "scripts/e2_pilot.py":
+        if name == "scripts/e2_evaluation.py" and dense.sha256_file(ROOT / name) != sha:
+            from scripts import e2_s500
+
+            original = subprocess.check_output(
+                ["git", "-C", str(ROOT), "show", "4bd1d25:" + name], env=env
+            ).decode()
+            e2_s500.compatible_runner(
+                original, (ROOT / name).read_text(encoding="utf-8")
+            )
+        elif name != "scripts/e2_pilot.py":
             require(
                 dense.sha256_file(ROOT / name) == sha,
                 "inference_or_evaluator_code_changed:" + name,
@@ -796,7 +805,15 @@ def musique_worklist(source):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "action", choices=("prepare", "verify", "prepare-musique", "verify-musique")
+        "action",
+        choices=(
+            "prepare",
+            "verify",
+            "prepare-musique",
+            "verify-musique",
+            "prepare-musique-execution",
+            "verify-musique-execution",
+        ),
     )
     for root in ("artifact", "data", "index"):
         parser.add_argument("--" + root + "-root", required=True, type=Path)
@@ -806,7 +823,47 @@ def main(argv=None):
         type=Path,
         default=ROOT / "results/summary/e2-musique-s500-plan.json",
     )
+    parser.add_argument(
+        "--execution-plan",
+        type=Path,
+        default=ROOT / ".cache/e2-musique-s500-execution-plan.json",
+    )
     args = parser.parse_args(argv)
+    if args.action in ("prepare-musique-execution", "verify-musique-execution"):
+        from scripts import e2_s500
+
+        original = dense.read_json(ROOT / PLAN)
+        e1 = dense.read_json(Path(original["e1_plan"]))
+        require(
+            args.artifact_root.resolve() == ROOT
+            and args.data_root.resolve() == Path(e1["data_root"]).resolve()
+            and args.index_root.resolve() == Path(original["e1_workspace"]).resolve(),
+            "S500_execution_roots_changed",
+        )
+        if args.action == "prepare-musique-execution":
+            plan = e2_s500.prepare(args.dataset_plan)
+            require(
+                not args.execution_plan.exists()
+                or dense.read_json(args.execution_plan) == plan,
+                "S500_frozen_execution_plan_cannot_be_overwritten",
+            )
+            dense.write_json_atomic(args.execution_plan, plan)
+        else:
+            plan = dense.read_json(args.execution_plan)
+            e2_s500.verify(plan)
+        print(
+            json.dumps(
+                {
+                    "version": plan["version"],
+                    "plan_file_sha256": dense.sha256_file(args.execution_plan),
+                    "new_POST_cap": plan["max_posts"],
+                    "new_token_cap": plan["max_combined_tokens"],
+                    "inherited": len(plan["parent_run"]["cases"]),
+                    "HTTP": 0,
+                }
+            )
+        )
+        return
     value = freeze(args.artifact_root, args.data_root, args.index_root)
     if args.action in ("prepare-musique", "verify-musique"):
         require(value == dense.read_json(args.manifest), "full_manifest_changed")

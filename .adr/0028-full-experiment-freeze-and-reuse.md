@@ -150,3 +150,23 @@ allocation и не учитываются повторно; старый unknown
 +69120(single largest admission reserve), ≤4200POST. Запас над mean forecast
 5061611.307. Static worst-case114669441 — отдельная величина. Согласования
 операционного cap пока нет; бюджетный критерий issue15 открыт.
+
+
+## MuSiQue-only разрешение и extension issue16
+
+2026-10-29 пользователь делегировал выбор бюджета с запасом и разрешил его;
+точная цитата и границы в `e2-musique-s500-authorization.json`. Для Mu выбрано
+5990220новых combined tokens/2100POST=5921100pilot maxima+69120admission.
+Это не blanket API authorization и не согласие на HotpotQA/весь cap10903320.
+Старый worklist и full freeze не переписываются: новый private execution-plan
+отдельно фиксирует согласие,600immutable source cases,500IDs и runtime pins.
+
+Минимальная версионная extension существующего shared runner сохраняет legacy
+AST полностью; alternative отдельный runner отклонён из-за дублирования
+payload/evaluator/claims. До нового POST проверяются scope, parent pins,
+per-operation/total POST caps и known+reservation≤cap. Unknown/partial/infra
+останавливают очередь, automatic retry/recovery0; бюджет не гарантирует finish.
+Offline проверка через реальный CLI с fake transport охватывает reuse, ошибки,
+pins и расходы; реальные source/index проверки полностью offline. Пересмотр:
+новый reader/index/split либо исчерпанный cap требует отдельного решения;
+этот протокол не подбирается по F1 и не разрешает новые исследования.

@@ -804,22 +804,54 @@ unknown reserve22545, расходы E1 и development не входят в но
   --artifact-root $Artifacts --data-root $Data --index-root $Indexes
 ```
 
-Вход — существующий full-experiment.json из PR37; canonical SHA связывает его
-с worklist. Модельный транспорт запрещён. CLI не имеет execute-режима. Даже
-после согласования бюджета этот список нельзя передавать как готовый approved
-plan в shared runner: следующий блок той же issue16 должен реализовать и
-offline проверить существующий runner для missing-only S500, сохранив exact
-source compatibility, budget reservations, claims и ошибки.
+Вход — существующий `full-experiment.json` из PR37; canonical SHA связывает
+его с worklist. Старый worklist остаётся immutable offline-снимком, не меняется
+на executable задним числом. Старые runtime/code/result/journal SHA сохраняются.
 
-Mu-only proposal:5990220new combined tokens/≤2100POST =5921100(allocation по
-максимальной полной pilot операции каждого вида/конфигурации) +69120(admission).
-Это не новое согласование и не дополнительный бюджет поверх всего PR37.
-При общем cap10903320 headroom общий: future allocation HotpotQA должна учитывать
-реальный остаток, а не прибавлять второй headroom автоматически. Новых вызовов
-в этом подготовительном блоке нет. До решения issue15 бюджетный критерий
-открыт, issue16 остаётся Draft с Refs #16 и неполным покрытием выполнения.
+### Разрешение Mu-only и исполнение
 
-Дальше в том же PR: approved plan и transport guard tests, затем только900
-missing pairs; общий evaluator и полный audit500IDs/method с сохранением всех
-ошибок и пофазных расходов; безопасная сводка и private per-case artifacts для
-следующих задач. Reader/retrieval/model/cap/index/split не меняются.
+Пользователь делегировал расчёт бюджета с запасом и разрешил его в этой задаче
+2026-10-29. [Запись согласия](../results/summary/e2-musique-s500-authorization.json)
+содержит точную цитату; выбранный агентом cap —5990220new combined tokens,
+≤2100POST(900reader/300filter/900local BGE). Это5921100по maxima полностью
+измеренных pilot операций+69120admission headroom. Ни HotpotQA, ни весь
+двухдатасетный cap PR37 автоматически не разрешены. Завершение900missing
+не гарантировано: payload reservation может исчерпать остаток раньше.
+
+```powershell
+./.venv-check/Scripts/python.exe -m scripts.full_experiment prepare-musique-execution `
+  --artifact-root $Artifacts --data-root $Data --index-root $Indexes
+./.venv-check/Scripts/python.exe -m scripts.full_experiment verify-musique-execution `
+  --artifact-root $Artifacts --data-root $Data --index-root $Indexes
+# В проверенном experimental environment, последовательно для dense/hipporag2/raptor:
+python -m scripts.run_dense_target --shared-plan .cache/e2-musique-s500-execution-plan.json `
+  --execute --shared-method dense --output-dir results/raw/e2-musique-s500-v1 `
+  --approved-plan-sha256 $ExactPlanFileSHA --env-file $MainEnv
+# Для hipporag2/raptor передаются прежние --hippo-source / --raptor-source.
+# На первой fatal ошибке остановить очередь: следующий метод не запускать.
+```
+
+`scripts.e2_s500` интегрирован в существующие verify/Calls/summary/write_report
+только для новой версии плана; старый AST runner после удаления этих guards
+сравнивается с закреплённым runtime. Исходная full freeze не переписывается.
+Execution-plan заново проверяет все артефакты offline и связывает600completed
+Mu cases с источниками. У каждого метода те же500ordered IDs; запросы выполняются
+лишь для300missing. Gold не передаётся генерации; evaluator запускается после неё.
+Parent claims не позволяют перенести тот же бюджет в другую output-directory.
+Один worker, durable checkpoint перед POST; known+candidate reserve≤cap до
+каждого нового вызова. Reserve=serialized payload UTF8 bytes+2048+max_tokens
+для LLM. Отсутствующий usage не ноль: новый partial/unknown/transport/infra/pin/
+budget failure останавливает очередь без retry/recovery. Исторический Hotpot
+unknown не является Mu failure и не даёт разрешения на повтор.
+
+После worker terminal report проверяет response/checkpoint/journal SHA успешных
+случаев,500IDs/method и исходные parent pins; ошибки явно сохранены. Fatal case
+без полного response не объявляется строго проверенным успехом: отчёт содержит
+`strict_success_audit_complete=false`, исходные artifact SHA, unknown и неполное
+сравнение. Private evaluation.json содержит per-case оценки для задач12/14;
+публичная сводка не содержит корпуса/ответов. Fresh latency считается только
+для новых случаев; reused latency не fresh E2E. Новые physical reader/filter/BGE
+затраты отделены от inherited logical usage, глобального source/development и E1.
+RAPTOR provenance не passage recall@5; S500 включает development, mixed Hippo
+extractor/errors и неполнота исходных расходов раскрываются. Issue16 остаётся
+Draft/Refs #16 до реального завершения и проверки набора.

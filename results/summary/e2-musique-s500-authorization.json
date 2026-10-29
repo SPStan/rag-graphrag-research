@@ -1,0 +1,23 @@
+{
+  "kind": "musique_budget_authorization",
+  "approved": true,
+  "dataset": "musique",
+  "authorization_source": "direct user message in this task, 2026-10-29",
+  "user_quote": "Какое согласование тебе нужно? Подумай сам сколько потребуется примерно и возьми чуть с запасом, чтобы не было ошибок. Даю разрешение на этот бюджет",
+  "task_quote": "Начни выполнять issue 16. Создай новый PR",
+  "selection": "agent selected the existing empirical MuSiQue allocation plus admission headroom under user-delegated budget selection",
+  "new_token_cap": 5990220,
+  "new_POST_caps": {
+    "reader": 900,
+    "filter": 300,
+    "query_embedding": 900
+  },
+  "retry": 0,
+  "completion_guaranteed": false,
+  "scope": "MuSiQue missing900cases only; no HotpotQA authorization, no indexing/model/prompt changes; executable plan and offline validation required before HTTP",
+  "basis": {
+    "pilot_maximum_allocation_tokens": 5921100,
+    "admission_headroom_tokens": 69120
+  },
+  "historical_unknown_reserve_separate": 22545
+}
