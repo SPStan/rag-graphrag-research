@@ -22,9 +22,16 @@
 - HotpotQA не запускается. Общее предложение PR37/issue15 для обеих datasets
   не объявляется целиком утверждённым. Historical unknown/reserve22545 и E1cost
   сохраняются отдельно, logical reuse не оплачивается повторно.
-- Следующий проверяемый результат: offline tests и immutable execution-plan,
-  затем900missing cases, строгий terminal audit, общий evaluator и safe summary.
-  Issue16 пока не завершена; Refs #16. Draft не снимается.
+- Интеграция и бюджет сохранены в runtime `e144ad9`; обязательный offline hook,
+  целевые tests и CI Windows/Linux/conventions/secrets прошли. Launcher29172
+  started2026-10-29T00:47:22Z; private plan SHA начинается99d5e846. Один worker
+  (venv shim28280/realPython34640), порядокDense→HippoRAG2→RAPTOR. Run
+  `7936654d-8820-4449-803b-f7ef6074424a`; initial proof8saved/16POST/12658known/new unknown0. Первый
+  bootstrap не выполнил скрипт из-за пути с пробелами, POST0; model retry0.
+  Active pointer `.cache/e2-musique-s500-active.json`; live usage только через
+  `.cache/e2-musique-s500-monitor.py`/tested shared Windows snapshot reader.
+- До завершения worker код не менять. После900missing — terminal pins/audit,
+  общий evaluator и safe summary. Issue16 пока не завершена; Refs #16, Draft.
 
 ## Сохранённый результат pilot200 — 1199ответов+1transport failure
 
