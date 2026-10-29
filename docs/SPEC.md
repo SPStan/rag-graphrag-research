@@ -105,13 +105,13 @@ run caps не продлеваются. До отдельного execution-plan
 модельных вызовов нет. Команда аудита — в [протоколе E2](E2_EVALUATION.md#offline-freeze-s500--issue-15).
 
 
-Бюджетный критерий issue15 остаётся частично открытым для HotpotQA;
-MuSiQue отдельно разрешён (см. текущее решение ADR0028). Историческое предложение
-общего лимита: forecast и static worst-case сами по себе не бюджетное разрешение.
-Предложен один empirical operating cap: сумма missing calls × максимум полной
-pilot операции для каждой configuration/operation + один максимальный admission
-reserve. Его точное число и allocations воспроизводятся манифестом. До любого
-POST требуется место под actual-payload reservation в общем утверждённом cap;
-при нехватке — stop, без retry/автоповышения. Завершение1800cases не гарантировано.
-Forecast считает complete-only subtotal/count, known partial tokens и unknown
-сохраняются отдельно. При отсутствии наблюдений прогноз null. Refs #15 до отдельного решения HotpotQA.
+Бюджетный критерий issue15 выполнен отдельными scoped решениями:
+Mu5990220tokens/2100POST ранее разрешён; HotpotQA4982220tokens/2100POST
+(reader900/filter300/localBGE900) согласован прямым сообщением пользователя
+2026-10-29. Основание4913100по максимумам пилота+69120admission headroom;
+forecast/static worst-case и frozen manifest не переписываются.
+Перед Hot execution нужны отдельный проверенный missing-only plan, актуальный
+audit и команда запуска. Retry0, strict pre-POST reservation/stop, unknown не0,
+старый sealed failure не повторять; окончание не гарантируется. Это бюджетное
+решение не разрешает новые model/embedding/indexing/tracking calls.
+Детали/точная цитата — ADR0028 «Текущее бюджетное решение issue15». Closes #15.

@@ -13,10 +13,11 @@
   manifest/artifact SHA; две offline CLI-пересборки в temp равны полному public JSON,
   5137immutable files unchanged. Команда/точные per-case/manifest/usage/error paths
   для задач12/14 — в единой таблице. Следующие задачи/signal-check не выполнялись.
-- PR37/issue15: критерии1/2/4 выполнены; бюджетный критерий3 частичен только
-  для HotpotQA. Mu budget/continuation уже разрешены, повторное согласие не нужно.
-  Forecast/static worst-case не разрешают Hot-запуск; scoped решение/plan/admission
-  обязательны отдельно. Текущая запись решения — ADR0028, frozen manifest неизменён.
+- PR37/issue15: все4критерия выполнены; отдельный HotpotQA бюджет согласован:
+  4982220новых combined tokens/2100POST (reader900/filter300/localBGE900), retry0.
+  Mu budget/continuation уже разрешены; frozen manifest/исторические unknown неизменны.
+  Согласие на бюджет не запускает Hot: нужны verified missing-only plan, актуальный
+  audit/strict admission и отдельная команда запуска. Запись решения — ADR0028.
 - EM/F1(%): Dense34.80/44.93, Hippo43.40/53.55, RAPTOR32.40/42.47.
   R@5passages60.33/70.72; RAPTORprovenance62.12неpassageR@5.
   Pipeline0 для sealed infrastructure failure раскрыт, unknownusage=null.
