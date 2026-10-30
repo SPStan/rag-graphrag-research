@@ -2,25 +2,21 @@
 
 **E1 status:** 6/6 indexes completed under the structural protocol; physical known tokens=32601955; cost_complete=False; unknown reserve61588 preserved. Final audit/verify completed; monitoring paused.
 
-## Текущая очередь — issue17: HotpotQA S500, этап не запущен
+## Текущая очередь — issues17/18, существующие Draft PR39/40
 
-- Issue15: протокол/reuse/scoped budgets завершены; PR37 слит обычным merge
-  `836516161d544e4c2dcc5f0ed75e7d0e811ec052`, issue15 CLOSED, существующая карточка Done.
-- Итоговый PR38 содержит проверенный MuSiQue S500 (1499ответов+1transport failure,
-  1500accounted). Пользователь2026-10-30 разрешил Ready и последовательный merge
-  PR37→PR38 после проверок. Актуальные статусы интеграции —
-  [PR37](https://github.com/SPStan/rag-graphrag-research/pull/37) и
-  [PR38](https://github.com/SPStan/rag-graphrag-research/pull/38).
-- Следующий отдельный этап — issue17: подготовить verified missing-only Hot plan
-  для900ранее не запущенных cases, reuse600исходов пилота, включая sealed failure.
-  Бюджет4982220новых combined tokens/2100POST (reader900/filter300/localBGE900), retry0
-  уже согласован; это не команда запуска. Exact reservation/strict caps/stop при
-  новых partial/unknown/transport/pin errors обязательны, unknown не повторять.
-- Переход к issue17 — после подтверждения merge37/38 и отдельной команды.
-  В блоке интеграции новых model/embedding/indexing/tracking вызовов нет;
-  issue17 и задачи12/14/21, signal-check/holdout не запускать автоматически.
-- Runtime SHA, frozen/private plans, raw, claims и unknown reserves сохраняются;
-  E1/source cost incomplete и development-ограничения не снимаются.
+- PR37/38 слиты, issues15/16 закрыты. Исторические manifests/raw/runtime SHA неизменны.
+- Пользователь30октября прямо разрешил Hot900missing в бюджете4982220tokens/2100POST,
+  retry0, reuse600(599answers+1sealed failure), без повторения unknown.
+  PR39: `codex/hotpotqa-s500`, рабочая папка `.codex/worktrees/e2-shared-evaluation`.
+  Точный live статус/plan/runtime/PID брать из её `.cache/e2-hotpotqa-s500-active.json`.
+- O/N/R/H ещё pending перед merge; это не запрет исполнения протокола.
+  Без Ready/merge, новых моделей, индексации, tracking-export или signal/holdout.
+- PR40: pure E3 implementation и11synthetic tests готовы; полный результат ждёт
+  verified Hot1500outcomes. 1000paired resamples/seed42, общий evaluator,
+  frozen ID join, no HTTP. Команда — [E3](E3_EVALUATION.md).
+- Mu1500accounted=1499answers+1transport failure. Hot нельзя объявлять завершённым
+  по PID/manifest; required terminal audit/source/index/SHA/usage и public report.
+  Технический failed guard и новые unknown/partial не обходить новым child.
 
 ## Сохранённый результат MuSiQue S500 — issue16
 

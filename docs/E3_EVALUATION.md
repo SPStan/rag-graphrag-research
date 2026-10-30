@@ -40,7 +40,7 @@ pins и immutable lineage. Дубликаты, drift, недостающие и�
    по успешным ответам; отдельно показывать completed/failed/not_attempted.
    Retrieval errors/coverage и пригодность исходных per-case scores проверять
    явно, не придумывать пропущенный recall=0 и не менять прежнюю metric policy.
-3. Предлагаются **1000ресэмплов, seed42, percentile95% [2.5%,97.5%]** по issue18
+3. Зафиксированы пользователем 30 октября **1000ресэмплов, seed42, percentile95% [2.5%,97.5%]** по issue18
    и треку. Один ресэмпл —500индексов с возвращением; одна матрица индексов
    используется всеми3методами и метриками внутри датасета. Seed/RNG/library
    version/count/index digest сохранять. Выбор числа повторов не зависит от F1/CI.
@@ -106,3 +106,31 @@ unknown/reserves не оценивать нулём. Денежных тариф
 Научные O/N/R/H нового этапа ожидают согласования. Все дальнейшие реализация,
 проверки и результаты issue18 останутся в этом PR. До приёмки — Draft/Refs #18,
 без Closes/Ready/merge. Активные часы студента не измерялись.
+
+## Реализованный offline-путь
+
+`scripts.e3_evaluation` использует общий `e2.score_result`, строгий join
+по frozen IDs и pure `compare_asbuilt.bootstrap_mean`. Legacy paired_summary
+сохраняет default10000; pilot2000 не меняется. Новый путь фиксирует1000/seed42,
+одну матрицу ресэмплов на датасет, numpy/Python/code/input SHA и pointwise CI.
+Missing/duplicate/not_attempted/неполный terminal input блокирует публикацию E3.
+Неполный retrieval не подставляется нулём: known coverage и observed mean
+отдельно, полного paired retrieval CI при пропусках нет.
+
+После verified завершения Hot:
+```powershell
+./.venv-check/Scripts/python.exe -m scripts.e3_evaluation `
+  --artifact-root 'C:/Users/Elisei/.codex/worktrees/e2-shared-evaluation/Rag, GraphRAG' `
+  --data-root 'C:/Users/Elisei/Documents/ChatGPT/Rag, GraphRAG' `
+  --output results/summary/e3
+```
+
+До готовности Hot эта команда обязана остановиться, полный E3 не создан.
+11целевых offline-тестов прошли: identical/constant differences, permutation,
+strict ID/metric gates, failures, deterministic CLI и0HTTP. Общий gate
+проверяется на коммите отдельно. Source raw/plans/расходы не переписываются.
+Иллюстрации выбираются только из первых300frozen tuning IDs; их содержательный
+разбор выполняется после terminal inputs, без выбора сигнала issue21.
+Научное O/N/R/H ожидается перед merge; пользователь разрешил исполнение
+фиксированного протокола, поэтому отсутствие согласования не является
+дополнительным запретом технической подготовки или Hot-запуска.
