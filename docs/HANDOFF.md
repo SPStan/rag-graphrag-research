@@ -2,9 +2,29 @@
 
 **E1 status:** 6/6 indexes completed under the structural protocol; physical known tokens=32601955; cost_complete=False; unknown reserve61588 preserved. Final audit/verify completed; monitoring paused.
 
-## Текущая очередь — issue #16: MuSiQue S500, результат проверен
+## Текущая очередь — issue17: HotpotQA S500, этап не запущен
 
-- Draft PR38, `codex/musique-s500-comparison`, зависимость PR37/issue15.
+- Issue15: протокол/reuse/scoped budgets завершены; PR37 слит обычным merge
+  `836516161d544e4c2dcc5f0ed75e7d0e811ec052`, issue15 CLOSED, существующая карточка Done.
+- Итоговый PR38 содержит проверенный MuSiQue S500 (1499ответов+1transport failure,
+  1500accounted). Пользователь2026-10-30 разрешил Ready и последовательный merge
+  PR37→PR38 после проверок. Актуальные статусы интеграции —
+  [PR37](https://github.com/SPStan/rag-graphrag-research/pull/37) и
+  [PR38](https://github.com/SPStan/rag-graphrag-research/pull/38).
+- Следующий отдельный этап — issue17: подготовить verified missing-only Hot plan
+  для900ранее не запущенных cases, reuse600исходов пилота, включая sealed failure.
+  Бюджет4982220новых combined tokens/2100POST (reader900/filter300/localBGE900), retry0
+  уже согласован; это не команда запуска. Exact reservation/strict caps/stop при
+  новых partial/unknown/transport/pin errors обязательны, unknown не повторять.
+- Переход к issue17 — после подтверждения merge37/38 и отдельной команды.
+  В блоке интеграции новых model/embedding/indexing/tracking вызовов нет;
+  issue17 и задачи12/14/21, signal-check/holdout не запускать автоматически.
+- Runtime SHA, frozen/private plans, raw, claims и unknown reserves сохраняются;
+  E1/source cost incomplete и development-ограничения не снимаются.
+
+## Сохранённый результат MuSiQue S500 — issue16
+
+- Итоговый PR38, `codex/musique-s500-comparison`, PR37/issue15 уже слит обычным merge.
   [Единая таблица](../results/summary/e2-musique-s500.md),
   [safe JSON/audit/receipt](../results/summary/e2-musique-s500.json).
   1500uniqueexpected:1499completed+1historical transport failure,0not_attempted.
@@ -40,9 +60,9 @@
  3targeted regressions+native2001obs/view passed. Denseexistingtrace дочитан без
   reexport. Executiona0 отдельно отpostprocessorcommit; generator/evaluatorне менялись.
 - S500development/mixedHippoerrors/E1incomplete/replaylatency раскрыты.
-  Следующий шаг — ревью PR38, передача per-case задачам12/14; сами новые задачи
-  не запускать. Остальные scientific settings не менять. Draft/Closes #16,
-  без Ready/merge/закрытияissue. Монитор уже удалён; новые прогоны не разрешены.
+  Per-case артефакты доступны задачам12/14; сами новые задачи
+  не запускать. Остальные scientific settings не менять. Closes #16,
+  интеграция разрешена пользователем после проверок. Монитор уже удалён; новые прогоны не разрешены.
 
 ## Сохранённый результат pilot200 — 1199ответов+1transport failure
 
