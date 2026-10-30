@@ -1,5 +1,7 @@
 """S500 freeze gates, including results produced by the existing E2 runner."""
 
+from pathlib import Path
+
 import copy
 import json
 from collections import defaultdict
@@ -546,3 +548,86 @@ def test_musique_cli_stages_and_verifies_without_transport(tmp_path, monkeypatch
     dense.write_json_atomic(output, value)
     with pytest.raises(ValueError, match="worklist_changed"):
         full.main(["verify-musique", *args])
+
+
+@pytest.fixture
+def hot_frozen():
+    return json.loads(
+        (Path(__file__).resolve().parents[1] / full.PUBLIC).read_text(encoding="utf-8")
+    )
+
+
+def test_hot_worklist_preserves_terminal_failure_and_mu_snapshot(hot_frozen):
+    h = full.hotpotqa_worklist(hot_frozen)
+    assert h["counts"] == {
+        "expected_cases": 1500,
+        "inherited_completed": 599,
+        "not_attempted": 900,
+        "terminal_failures": 1,
+    }
+    assert h["budget_proposal"]["proposed_new_token_cap"] == 4982220
+    assert h["budget_proposal"]["new_posts_total_upper"] == 2100
+    assert h["http_authorized"] is False and h["executable"] is False
+    old = json.loads(
+        (
+            Path(__file__).resolve().parents[1]
+            / "results/summary/e2-musique-s500-plan.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert full.musique_worklist(hot_frozen) == old
+
+
+@pytest.mark.parametrize("change", ["unknown", "failure", "budget", "ids"])
+def test_hot_worklist_rejects_unbound_source(hot_frozen, change):
+    if change == "unknown":
+        hot_frozen["sealed_unknown"] = []
+    elif change == "failure":
+        c = next(
+            c
+            for c in hot_frozen["configurations"]
+            if c["dataset"] == "hotpotqa" and c["method"] == "raptor"
+        )
+        next(x for x in c["cases"] if x["status"] == "terminal_failure")["status"] = (
+            "compatible_completed"
+        )
+    elif change == "budget":
+        hot_frozen["budget_proposal"]["operational_budget_proposal"][
+            "admission_headroom_tokens"
+        ] += 1
+    else:
+        hot_frozen["datasets"]["hotpotqa"]["ordered_ids"].reverse()
+    with pytest.raises(ValueError):
+        full.hotpotqa_worklist(hot_frozen)
+
+
+def test_hot_worklist_cli_no_network_and_no_overwrite(
+    hot_frozen, tmp_path, monkeypatch
+):
+    import socket
+
+    monkeypatch.setattr(
+        socket.socket, "connect", lambda *a: pytest.fail("HTTP forbidden")
+    )
+    monkeypatch.setattr(full, "freeze", lambda *a: hot_frozen)
+    path = tmp_path / "results/summary/full-experiment.json"
+    path.parent.mkdir(parents=True)
+    path.write_text(json.dumps(hot_frozen), encoding="utf-8")
+    args = [
+        "--artifact-root",
+        str(tmp_path),
+        "--data-root",
+        str(tmp_path),
+        "--index-root",
+        str(tmp_path),
+        "--manifest",
+        str(path),
+    ]
+    full.main(["prepare-hotpotqa", *args])
+    output = path.with_name("e2-hotpotqa-s500-plan.json")
+    before = output.read_bytes()
+    full.main(["verify-hotpotqa", *args])
+    full.main(["prepare-hotpotqa", *args])
+    assert output.read_bytes() == before
+    output.write_text("{}", encoding="utf-8")
+    with pytest.raises(ValueError, match="cannot_be_overwritten"):
+        full.main(["prepare-hotpotqa", *args])

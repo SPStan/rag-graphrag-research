@@ -7,9 +7,11 @@
 - PR37/38 слиты обычными merge commits8365161/2bfdf99; issues15/16 CLOSED,
   существующие карточки Done. Исторические raw/plans/runtime SHA сохранены.
 - Issue17: ветка `codex/hotpotqa-s500`, [протокол](E2_HOTPOTQA_S500.md).
-  Подготовка научной карточки и плана; Hot S500 пока не выполнен, execution CLI
-  ещё не готов. Budget4982220tokens/2100POST уже согласован, retry0, старый unknown
-  не повторять. Для API нужны validated plan и отдельная команда запуска.
+  Offline prepare/verify-hotpotqa и0HTTP tests готовы; Hot S500 не выполнен,
+  executable plan/transport guard ещё не готовы. Куратор пока не согласовал PR39.
+  Budget4982220tokens/2100POST уже согласован, retry0, старый unknown
+  не повторять. Пользователь запросил запуск; до API нужны согласование куратора
+  и verified executable plan/transport guard.
 - Issue18: отдельная ветка `codex/e3-paired-evaluation`, протокол E3 для согласования.
   Вход Mu1500cases доступен; полного Hot входа нет. Полная E3 заблокирована issue17.
   Предлагаются1000paired resamples/seed42 по issue18/треку; pilot2000 не смешивать

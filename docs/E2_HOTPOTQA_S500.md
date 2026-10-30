@@ -86,3 +86,34 @@ PR37/38 слиты, issues15/16 закрыты. Готовые индексы н
 До выполнения критериев — Refs #17, Draft; без Ready/merge/Closes и без запуска API.
 Техническая готовность, научное согласование и разрешение исполнения различаются.
 Активные часы студента не измерялись; новых результатов качества не заявляется.
+
+
+## Выполненная offline-подготовка после запроса запуска
+
+Пользователь разрешил подготовить запуск, но подтвердил, что согласование
+куратора PR39 ещё ожидается. До этого исполнения нет. Добавлены только
+`prepare-hotpotqa`/`verify-hotpotqa` в существующий `scripts.full_experiment`:
+неисполняемый worklist, `executable=false`, `http_authorized=false`.
+Он сохраняет599compatible answers+1sealed failure и900missing, budget4982220/2100.
+Это не executable plan и не Hot transport guard. Старый Mu worklist идентичен.
+
+```powershell
+./.venv-check/Scripts/python.exe -m scripts.full_experiment prepare-hotpotqa `
+  --artifact-root $Artifacts --data-root $Data --index-root $Indexes
+./.venv-check/Scripts/python.exe -m scripts.full_experiment verify-hotpotqa `
+  --artifact-root $Artifacts --data-root $Data --index-root $Indexes
+```
+
+Сначала выполняется existing full freeze/source/index gate, затем сверка с
+immutable full-experiment.json. Публичный output —
+`results/summary/e2-hotpotqa-s500-plan.json`. Повторная подготовка допускает
+только равное содержимое; изменённый worklist не перезаписывается.
+28целевых tests прошли: new CLI0HTTP, budget/source/ID tamper, sealed unknown
+identity и legacy Mu equality. Это не проверка реального исполнения.
+
+
+Реальный prepare/verify прошёл с заблокированным socket.connect: два прохода
+source/index/lineage gate, все6индексов и source cases проверены, HTTP0.
+Frozen full-experiment.json и прежний Mu plan не менялись. Worklist остаётся
+неисполняемым; budget_proposal.authorized=false не отменяет отдельного согласия
+ADR0028, а не даёт транспортного допуска. Hot runner/guard ещё не реализован.

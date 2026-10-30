@@ -699,19 +699,20 @@ def build(plan, source, roots):
     }
 
 
-def musique_worklist(source):
-    """Stage issue16 from a verified freeze; never authorize or execute requests."""
-    data = source["datasets"]["musique"]
+def dataset_worklist(source, dataset):
+    """Stage a verified dataset freeze; never authorize or execute requests."""
+    require(dataset in ("musique", "hotpotqa"), "S500_dataset_forbidden")
+    data = source["datasets"][dataset]
     ids = data["ordered_ids"]
-    require(len(ids) == len(set(ids)) == 500, "musique_expected_500_unique_ids")
+    require(len(ids) == len(set(ids)) == 500, dataset + "_expected_500_unique_ids")
     require(
         e2.ordered_ids_sha256(ids) == data["ordered_ids_sha256"],
-        "musique_ID_pin_changed",
+        dataset + "_ID_pin_changed",
     )
-    configs = [c for c in source["configurations"] if c["dataset"] == "musique"]
+    configs = [c for c in source["configurations"] if c["dataset"] == dataset]
     require(
         len(configs) == 3 and {c["method"] for c in configs} == set(e2.METHODS),
-        "musique_three_methods_required",
+        dataset + "_three_methods_required",
     )
     all_cases, inherited, missing, methods = set(), 0, 0, []
     for method in e2.METHODS:
@@ -719,15 +720,29 @@ def musique_worklist(source):
         reuse = config["cases"]
         new_ids = config["missing_ids"]
         require(
-            all(c["status"] == "compatible_completed" for c in reuse),
-            "musique_source_case_not_completed",
+            all(
+                c["status"] == "compatible_completed"
+                or (
+                    dataset == "hotpotqa"
+                    and c["status"] == "terminal_failure"
+                    and c.get("reason") == "sealed_unknown_no_retry"
+                    and any(
+                        u["case_id_sha256"]
+                        == e2.case_key(dataset, method, c["question_id"])
+                        and u["run_id"] == c["run_id"]
+                        for u in source["sealed_unknown"]
+                    )
+                )
+                for c in reuse
+            ),
+            dataset + "_source_case_not_completed",
         )
         require(
             [c["question_id"] for c in reuse] + new_ids == ids,
-            "musique_case_partition_changed",
+            dataset + "_case_partition_changed",
         )
-        keys = [e2.case_key("musique", method, qid) for qid in ids]
-        require(not all_cases.intersection(keys), "musique_duplicate_case")
+        keys = [e2.case_key(dataset, method, qid) for qid in ids]
+        require(not all_cases.intersection(keys), dataset + "_duplicate_case")
         all_cases.update(keys)
         inherited += len(reuse)
         missing += len(new_ids)
@@ -739,19 +754,19 @@ def musique_worklist(source):
                 "new_question_ids": new_ids,
             }
         )
-    require(len(all_cases) == 1500, "musique_case_count_changed")
+    require(len(all_cases) == 1500, dataset + "_case_count_changed")
     parent_budget = source["budget_proposal"]["operational_budget_proposal"]
-    allocations = [a for a in parent_budget["allocations"] if a["dataset"] == "musique"]
+    allocations = [a for a in parent_budget["allocations"] if a["dataset"] == dataset]
     require(
         len(allocations) == 7
         and all(a["allocation_tokens"] is not None for a in allocations),
-        "musique_budget_observations_missing",
+        dataset + "_budget_observations_missing",
     )
     empirical = sum(a["allocation_tokens"] for a in allocations)
     headroom = parent_budget["admission_headroom_tokens"]
-    return {
+    value = {
         "schema_version": 1,
-        "kind": "musique_S500_worklist",
+        "kind": dataset + "_S500_worklist",
         "status": "prepared_pending_issue15_and_execution_plan",
         "executable": False,
         "http_authorized": False,
@@ -761,7 +776,7 @@ def musique_worklist(source):
             "canonical_json_sha256": target.digest(source),
             "dependency": "PR37 / issue15; budget not approved",
         },
-        "dataset": "musique",
+        "dataset": dataset,
         "question_ids": ids,
         "ordered_ids_sha256": data["ordered_ids_sha256"],
         "corpus_sha256": data["corpus_sha256"],
@@ -808,6 +823,47 @@ def musique_worklist(source):
         ],
     }
 
+    if dataset == "hotpotqa":
+        failed = [
+            c
+            for m in methods
+            for c in m["inherited_results"]
+            if c["status"] == "terminal_failure"
+        ]
+        require(
+            inherited == 600 and missing == 900 and len(failed) == 1,
+            "hotpotqa_expected_599_answers_one_failure_900_missing",
+        )
+        require(
+            empirical == 4913100 and empirical + headroom == 4982220,
+            "hotpotqa_budget_basis_changed",
+        )
+        value["counts"].update(inherited_completed=599, terminal_failures=1)
+        value["status"] = "prepared_pending_execution_plan_and_scientific_approval"
+        value["source"]["dependency"] = (
+            "issue15 completed; approved Hot budget is a separate ADR0028 decision, not HTTP authorization"
+        )
+        value["historical_accounting"] = {
+            "source": "parent freeze; no double accounting",
+            "sealed_unknown": source["sealed_unknown"],
+            "cost_complete": False,
+        }
+        value["remaining_work"] = [
+            "scientific approval for issue17",
+            "verified Hot execution-plan/transport tests",
+            "explicit execution authorization",
+            "missing-only execution and terminal audit",
+        ]
+    return value
+
+
+def musique_worklist(source):
+    return dataset_worklist(source, "musique")
+
+
+def hotpotqa_worklist(source):
+    return dataset_worklist(source, "hotpotqa")
+
 
 def compatible_tracking_reader(original, current):
     """Only local observation pagination may evolve; inference/export AST stays fixed."""
@@ -835,6 +891,8 @@ def main(argv=None):
         choices=(
             "prepare",
             "verify",
+            "prepare-hotpotqa",
+            "verify-hotpotqa",
             "prepare-musique",
             "verify-musique",
             "prepare-musique-execution",
@@ -917,6 +975,20 @@ def main(argv=None):
         )
         return
     value = freeze(args.artifact_root, args.data_root, args.index_root)
+    if args.action in ("prepare-hotpotqa", "verify-hotpotqa"):
+        require(value == dense.read_json(args.manifest), "full_manifest_changed")
+        worklist = hotpotqa_worklist(value)
+        path = args.artifact_root / "results/summary/e2-hotpotqa-s500-plan.json"
+        if args.action == "prepare-hotpotqa":
+            require(
+                not path.exists() or dense.read_json(path) == worklist,
+                "hotpotqa_worklist_cannot_be_overwritten",
+            )
+            dense.write_json_atomic(path, worklist)
+        else:
+            require(dense.read_json(path) == worklist, "hotpotqa_worklist_changed")
+        print(json.dumps({"counts": worklist["counts"], "HTTP": 0}))
+        return
     if args.action in ("prepare-musique", "verify-musique"):
         require(value == dense.read_json(args.manifest), "full_manifest_changed")
         require(
