@@ -2,25 +2,26 @@
 
 **E1 status:** 6/6 indexes completed under the structural protocol; physical known tokens=32601955; cost_complete=False; unknown reserve61588 preserved. Final audit/verify completed; monitoring paused.
 
-## Текущая очередь — issue17: HotpotQA S500, этап не запущен
+## Текущая очередь — технический итог issues17/18, ревью Draft PR39/40
 
-- Issue15: протокол/reuse/scoped budgets завершены; PR37 слит обычным merge
-  `836516161d544e4c2dcc5f0ed75e7d0e811ec052`, issue15 CLOSED, существующая карточка Done.
-- Итоговый PR38 содержит проверенный MuSiQue S500 (1499ответов+1transport failure,
-  1500accounted). Пользователь2026-10-30 разрешил Ready и последовательный merge
-  PR37→PR38 после проверок. Актуальные статусы интеграции —
-  [PR37](https://github.com/SPStan/rag-graphrag-research/pull/37) и
-  [PR38](https://github.com/SPStan/rag-graphrag-research/pull/38).
-- Следующий отдельный этап — issue17: подготовить verified missing-only Hot plan
-  для900ранее не запущенных cases, reuse600исходов пилота, включая sealed failure.
-  Бюджет4982220новых combined tokens/2100POST (reader900/filter300/localBGE900), retry0
-  уже согласован; это не команда запуска. Exact reservation/strict caps/stop при
-  новых partial/unknown/transport/pin errors обязательны, unknown не повторять.
-- Переход к issue17 — после подтверждения merge37/38 и отдельной команды.
-  В блоке интеграции новых model/embedding/indexing/tracking вызовов нет;
-  issue17 и задачи12/14/21, signal-check/holdout не запускать автоматически.
-- Runtime SHA, frozen/private plans, raw, claims и unknown reserves сохраняются;
-  E1/source cost incomplete и development-ограничения не снимаются.
+- Hot issue17:1500unique=1497completed+3failed,0not_attempted; Dense500/0,
+  Hippo498/2,RAPTOR499/1. [Таблица](../results/summary/e2-hotpotqa-s500.md).
+  Child9e7efc49, executionf23bb59; исходный failed root91f59cf6/runtime7a67791
+  и все старые raw/plans/claims неизменны. Root+child physical2763839/2099POST
+  в cap4982220/2100;0newunknown/retry, общийcounter2/2, дальнейших restart нет.
+- Cumulative E2:9856273known/7059POST,2historicalunknown/reserve38277,
+  cost_complete=false. E1 отдельно32601955known/reserve61588,cost_complete=false.
+  Logical reuse/source91871/development не прибавляются повторно; новые физические
+  Hot расходы полностью известны. Error markers и mixed Hippo/errors сохранены.
+- E3 issue18: общий evaluator, frozen500ID join/датасет,1000paired seed42,
+  95%percentile,3000accounted=2996completed+4failed. Реализация и результат в
+  [PR40](https://github.com/SPStan/rag-graphrag-research/pull/40), без новых моделей.
+  Hot−Dense F1:Hippo+5.67п.п.[3.37;8.28],RAPTOR+0.90[-1.14;3.04].
+  Mu Hippo−Dense+8.61[5.24;11.98],RAPTOR−Dense−2.47[-5.24;0.57].
+  Это descriptive development S500, не независимое подтверждение/эквивалентность.
+- Оба PR Draft/Refs17/18; O/N/R/H pending перед merge. Следующий шаг — ревью39,
+  затем40/научное согласование. Без Ready/merge/issueclosure и следующих прогонов.
+  Монитор завершается после публикации; active/status/terminal proof в .cache.
 
 ## Сохранённый результат MuSiQue S500 — issue16
 

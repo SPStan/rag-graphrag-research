@@ -512,6 +512,10 @@ def result_references(plan, manifest, directory):
 
 
 def lineage_records(plan, directory, manifest):
+    if plan.get("version") == "e2-hotpotqa-s500-v1":
+        from scripts import e2_s500
+
+        return e2_s500.current_records(plan, directory, manifest)
     if plan.get("version") == "e2-musique-s500-v1":
         from scripts import e2_s500
 
@@ -549,6 +553,10 @@ def lineage_records(plan, directory, manifest):
 
 
 def verify(plan):
+    if plan.get("version") == "e2-hotpotqa-s500-v1":
+        from scripts import e2_hotpot
+
+        return e2_hotpot.verify(plan)
     if plan.get("version") == "e2-musique-s500-v1":
         from scripts import e2_s500
 
@@ -612,6 +620,10 @@ class Calls:
         url=None,
         headers=None,
     ):
+        if self.plan.get("version") == "e2-hotpotqa-s500-v1":
+            from scripts import e2_hotpot
+
+            e2_hotpot.guard(self, payload, method, dataset, qid, operation)
         if self.plan.get("version") == "e2-musique-s500-v1":
             from scripts import e2_s500
 
@@ -1513,6 +1525,10 @@ def summary(plan, directory):
         and all(r["comparison_complete"] for r in table),
         "historical_E1_excluded": True,
     }
+    if plan.get("version") == "e2-hotpotqa-s500-v1":
+        from scripts import e2_s500
+
+        e2_s500.enrich_report(plan, result)
     if plan.get("version") == "e2-musique-s500-v1":
         from scripts import e2_s500
 
@@ -1656,6 +1672,10 @@ def tracking_payload(plan, directory, dataset, method):
 
 
 def write_report(plan_path, directory, public_prefix):
+    if dense.read_json(Path(plan_path)).get("version") == "e2-hotpotqa-s500-v1":
+        from scripts import e2_hotpot
+
+        return e2_hotpot.write_report(plan_path, directory, public_prefix)
     if dense.read_json(plan_path).get("version") == "e2-musique-s500-v1":
         from scripts import e2_s500
 
