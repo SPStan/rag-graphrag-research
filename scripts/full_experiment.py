@@ -899,6 +899,7 @@ def main(argv=None):
             "prepare-musique-unattempted",
             "verify-musique-execution",
             "prepare-hotpotqa-execution",
+            "prepare-hotpotqa-unattempted",
             "verify-hotpotqa-execution",
         ),
     )
@@ -929,7 +930,11 @@ def main(argv=None):
         default=ROOT / "results/summary/e2-musique-s500-unattempted-authorization.json",
     )
     args = parser.parse_args(argv)
-    if args.action in ("prepare-hotpotqa-execution", "verify-hotpotqa-execution"):
+    if args.action in (
+        "prepare-hotpotqa-execution",
+        "verify-hotpotqa-execution",
+        "prepare-hotpotqa-unattempted",
+    ):
         from scripts import e2_hotpot
 
         original = dense.read_json(ROOT / PLAN)
@@ -940,8 +945,19 @@ def main(argv=None):
             and args.index_root.resolve() == Path(original["e1_workspace"]).resolve(),
             "Hot_execution_roots_changed",
         )
-        if args.action == "prepare-hotpotqa-execution":
-            plan = e2_hotpot.prepare(args.dataset_plan)
+        if args.action in (
+            "prepare-hotpotqa-execution",
+            "prepare-hotpotqa-unattempted",
+        ):
+            plan = (
+                e2_hotpot.prepare_unattempted(
+                    args.parent_plan,
+                    args.parent_output,
+                    args.continuation_authorization,
+                )
+                if args.action == "prepare-hotpotqa-unattempted"
+                else e2_hotpot.prepare(args.dataset_plan)
+            )
             require(
                 not args.execution_plan.exists()
                 or dense.read_json(args.execution_plan) == plan,

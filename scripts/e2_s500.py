@@ -241,10 +241,11 @@ def guard_dataset(
     plan = calls.plan
     spec = plan["s500"].get("continuation")
     if spec:
-        require(
-            method == "raptor" and operation in ("reader", "query_embedding"),
-            "S500_unattempted_RAPTOR_only",
-        )
+        if expected_dataset == "musique":
+            require(
+                method == "raptor" and operation in ("reader", "query_embedding"),
+                "S500_unattempted_RAPTOR_only",
+            )
         require(
             dense.sha256_file(Path(spec["authorization"]))
             == spec["authorization_sha256"],
@@ -603,8 +604,8 @@ def write_dataset_report(
             S500_physical_accounting={
                 "known_subtotal": combined,
                 "POST": len(starts) + previous["POST"],
-                "unknown_reservation_not_actual": plan["sealed_unknown"][0][
-                    "reservation_tokens"
+                "unknown_reservation_not_actual": previous[
+                    "unknown_reservation_not_actual"
                 ],
                 "cost_complete": False,
             },
@@ -634,10 +635,14 @@ def write_dataset_report(
         prior = dense.read_json(Path(history["path"]))["cumulative_E2_accounting"]
         safe["sealed_historical_unknown"] = plan["sealed_unknown"]
         safe["historical_E2_report"] = history
+        physical = safe.get(
+            "S500_physical_accounting",
+            {"known_subtotal": known["known_subtotal"], "POST": len(starts)},
+        )
         safe["cumulative_E2_accounting"] = {
             "known_tokens": prior.get("known_tokens", 0)
-            + sum(known["known_subtotal"].values()),
-            "physical_POST": prior.get("physical_POST", 0) + len(starts),
+            + sum(physical["known_subtotal"].values()),
+            "physical_POST": prior.get("physical_POST", 0) + physical["POST"],
             "unknown_operations": prior.get("unknown_operations"),
             "unknown_reservations_not_actual": prior.get(
                 "unknown_reservations_not_actual"
@@ -683,7 +688,7 @@ def write_dataset_report(
     if spec:
         lines += [
             "",
-            "Historical Mu reader transport failure is sealed: usage=null, pipeline EM/F1=0, infrastructure failure distinct from a wrong reader answer. Reservation is not actual usage. No unknown was retried.",
+            "Historical failures remain immutable: pipeline EM/F1=0 with their original error markers. Unknown usage stays null; reservation is not actual usage. No paid or unknown failure was retried.",
             "",
             f"S500 cumulative physical: {safe['S500_physical_accounting']}; source/development and E1 remain separate. Fresh latency includes original S500 parent plus child, excludes initial pilot600. Child runtime/code pins are separate from immutable parent runtime.",
         ]
@@ -702,13 +707,15 @@ def write_dataset_report(
     return safe
 
 
-def verify_transport_runtime(parent):
+def verify_transport_runtime(parent, runtime=PARENT_RUNTIME, code_files=None):
     require(
-        set(parent["code_sha256"]) == set(CODE_FILES), "S500_parent_code_set_changed"
+        set(parent["code_sha256"])
+        == set(CODE_FILES if code_files is None else code_files),
+        "S500_parent_code_set_changed",
     )
     for name, sha in parent["code_sha256"].items():
         blob = subprocess.check_output(
-            ["git", "-C", str(ROOT), "show", PARENT_RUNTIME + ":" + name]
+            ["git", "-C", str(ROOT), "show", runtime + ":" + name]
         ).replace(b"\r\n", b"\n")
         require(
             sha

@@ -270,3 +270,125 @@ def test_preclaim_rebind_cannot_evade_a_real_run_or_scientific_change(approved, 
             old_path, s.child_plan, s.output, s.root / "no-registry.json"
         )
     assert len(s.state["posts"]) == s.initial_posts
+
+
+@pytest.fixture
+def known_filter_stop(approved, monkeypatch):
+    s = approved
+    continuation.run_method(s, "dense", monkeypatch)
+    original = e2.indexes.retrieve_hippo_query_only
+
+    def malformed_filter(loaded, rag, question, query_vector, embedding_digest):
+        rag.extraction_llm.handler([{"role": "user", "content": "filter-marker"}])
+        raise ValueError("E2_filter_shape_invalid")
+
+    monkeypatch.setattr(e2.indexes, "retrieve_hippo_query_only", malformed_filter)
+    continuation.run_method(s, "hipporag2", monkeypatch)
+    monkeypatch.setattr(e2.indexes, "retrieve_hippo_query_only", original)
+    parent_path, parent_output = s.child_plan, s.output
+    parent = dense.read_json(parent_path)
+    monkeypatch.setattr(hot, "ROOT", s.root)
+    monkeypatch.setattr(hot, "CODE_FILES", ())
+    monkeypatch.setattr(hot, "PARENT_PLAN_SHA", dense.sha256_file(parent_path))
+    monkeypatch.setattr(hot, "EXPECTED_MISSING", 9)
+    monkeypatch.setattr(
+        hot, "FILTER_CASE_KEY", e2.case_key("hotpotqa", "hipporag2", "q0")
+    )
+    monkeypatch.setattr(shared, "verify_transport_runtime", lambda *a, **kw: None)
+    monkeypatch.setattr(hot, "prepare", lambda *a: copy.deepcopy(parent))
+    auth = s.root / "continuation-auth.json"
+    dense.write_json_atomic(
+        auth,
+        hot.continuation_authorization(
+            dense.sha256_file(parent_path),
+            dense.sha256_file(parent_output / "manifest.json"),
+        ),
+    )
+    child = hot.prepare_unattempted(parent_path, parent_output, auth)
+    s.root_plan, s.root_output, s.continuation_auth = parent_path, parent_output, auth
+    s.child_plan, s.output = s.root / "unattempted.json", s.root / "unattempted"
+    dense.write_json_atomic(s.child_plan, child)
+    s.frozen = child
+    s.registry = s.root / ".cache/e2-hotpotqa-s500-recoveries.json"
+    dense.write_json_atomic(
+        s.registry,
+        {
+            "plan_sha256": dense.sha256_file(parent_path),
+            "output": str(parent_output.resolve()),
+            "automatic_resumes": 1,
+            "admissions": [],
+        },
+    )
+    s.root_bytes = {
+        str(p): p.read_bytes() for p in parent_output.iterdir() if p.is_file()
+    }
+    s.continuation_posts = len(s.state["posts"])
+    return s
+
+
+def test_unattempted_CLI_preserves_known_failures_budget_and_no_repayment(
+    known_filter_stop, monkeypatch
+):
+    s = known_filter_stop
+    old = dense.read_json(s.root_plan)
+    parent_manifest = dense.read_json(s.root_output / "manifest.json")
+    spent = parent_manifest["token_accounting"]["summary"]["known_subtotal"]
+    assert s.frozen["max_combined_tokens"] == old["max_combined_tokens"] - sum(
+        spent.values()
+    )
+    assert len(s.frozen["remaining_cases"]) == 9
+    assert s.frozen["max_posts"] == 22  # 9reader+4filter+9BGE
+    assert s.frozen["filter_calls"] == 4
+    assert (
+        hot.admit_unattempted(s.child_plan, s.output, s.registry)["automatic_resumes"]
+        == 2
+    )
+    for method in ("hipporag2", "raptor"):
+        continuation.run_method(s, method, monkeypatch)
+    assert len(s.state["posts"]) - s.continuation_posts == 22
+    count = len(s.state["posts"])
+    for method in e2.METHODS:
+        continuation.run_method(s, method, monkeypatch)
+    assert len(s.state["posts"]) == count
+    report = hot.write_report(s.child_plan, s.output, s.root / "combined")
+    assert report["comparison_complete"]
+    assert report["total_coverage"] == {
+        "expected": 15,
+        "completed": 13,
+        "attempted_failed": 2,
+        "not_attempted": 0,
+    }
+    assert report["S500_physical_accounting"]["POST"] == 28
+    assert report["S500_physical_accounting"]["unknown_reservation_not_actual"] == 0
+    assert all(Path(p).read_bytes() == b for p, b in s.root_bytes.items())
+
+
+@pytest.mark.parametrize(
+    "change",
+    ["parent_sha", "journal", "response", "claim", "authorization", "second_child"],
+)
+def test_known_failure_continuation_strict_pins(known_filter_stop, change):
+    s = known_filter_stop
+    if change == "parent_sha":
+        s.root_plan.write_text("{}", encoding="utf-8")
+    elif change == "journal":
+        with (s.root_output / "usage.jsonl").open("a", encoding="utf-8") as f:
+            f.write("{}\n")
+    elif change == "response":
+        next(s.root_output.glob("*.response.json")).write_text("{}", encoding="utf-8")
+    elif change == "claim":
+        parent = dense.read_json(s.root_plan)
+        (
+            Path(parent["e1_workspace"])
+            / ".cache"
+            / f"e2-{e2.target.digest(parent)}.claim.json"
+        ).write_text("{}", encoding="utf-8")
+    elif change == "authorization":
+        s.continuation_auth.write_text("{}", encoding="utf-8")
+    else:
+        with pytest.raises(ValueError, match="only_original_failed_parent"):
+            hot.prepare_unattempted(s.child_plan, s.output, s.continuation_auth)
+        return
+    with pytest.raises((ValueError, KeyError)):
+        hot.prepare_unattempted(s.root_plan, s.root_output, s.continuation_auth)
+    assert len(s.state["posts"]) == s.continuation_posts

@@ -315,3 +315,38 @@ case digest([musique,raptor,публичный tuning question ID]) и immutable
 записи в PR37 после отдельного уведомления об отказе automatic approval.
 В .gitleaksignore только commit/path/rule/line; blanket rule/path исключений нет.
 История и raw не меняются; новые значения продолжают сканироваться.
+
+## Hot: продолжение только незапущенных после known filter failure,30октября
+
+Исходный Hot run `91f59cf6-e61c-499d-9d29-d55bff1824c2` terminal failed
+на `E2_filter_shape_invalid`, без нового unknown. Его usage/response/checkpoint,
+claims, failed manifest и plan `ce5a2b70…` неизменны. Из1500ожидаемых
+учтено1071:1068completed,3failed,429not_attempted. Новая fatal ошибка имеет
+известный usage: это не transport unknown и не неверный ответ reader.
+
+После уведомления о конкретной причине/429missing/запрете automatic retry
+пользователь ответил «Делай то что нужно». Решение: выполнить только ранее
+незапущенные429cases (Hippo129,RAPTOR300), не повторять failed/paid/unknown.
+Оригинальная filter-fatal политика сохраняется: исходный run остаётся failed;
+её не переносим в продолжение очереди внутри этого failed run. Новый child
+допускается только существующим missing-only механизмом с проверенным immutable
+parent lineage и отдельной hash-bound записью решения. Научные модели, prompt,
+reader cap512, top5, индексы, split, evaluator не меняются; O/N/R/H pending
+перед merge. Новый filter failure снова fatal, второго такого child не будет.
+
+Из прежнего Hot cap4982220/2100POST потрачено1203911known/1112POST,
+новыхunknown0. Childcap3778309tokens/987POST =429reader+129filter+429BGE;
+один оставшийся reader slot исходного failed-case не используется.
+Расширения бюджета нет. Исторические unknown/reserves/E1 остаются отдельно.
+Общий durablecounter становится2/2; дальнейшие auto restarts запрещены.
+
+Неудачные outcomes учитываются pipelineEM/F1=0 с исходными error markers,
+не называются неправильными reader answers; not_attempted не получает0.
+До полноты1500outcomes E3 не публикуется. Terminal audit и cumulative expense
+суммируют parent+child один раз, сохраняя logical reuse отдельно.
+
+Альтернативы: повторить filter или ослабить schema — отклонены; остановиться
+навсегда — безопасно, но не завершает429явно разрешённых missing cases.
+Проверка: actual shared CLI с synthetic HTTP, immutable parent/pins/claims,
+remainingcaps, known-failure reuse, запрет secondchild/unknown и0повторной оплаты;
+затем реальный offline source/index/artifact gate безHTTP и mandatory hook.

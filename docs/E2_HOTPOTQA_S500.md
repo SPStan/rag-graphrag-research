@@ -136,3 +136,14 @@ durable checkpoints; новый output не является способом о
 Shared terminal report генерируется заново в том числе в временный output,
 привязывает manifest/journal/parent SHA и отдельный pinned Mu terminal report.
 Logical reuse не прибавляется к physical expense. Нового tracking-export нет.
+
+## Явно разрешённые429unattempted после known filter failure
+
+Root run91f59cf6 остановился по неизменной filter-fatal policy. В ответ
+на уведомление пользователь разрешил дальнейшую работу; точная запись —
+`results/summary/e2-hotpotqa-s500-unattempted-authorization.json`, ADR0028.
+Новый plan/output сохраняет все1071parent outcomes и их bytes, включая3failures.
+Только Hippo129+RAPTOR300 ранее незапущенных; Dense не запускается заново.
+Предел3778309combined/987POST, retry0; общийcounter2/2, дальнейших restarts нет.
+Unknown0 у нового root не отменяет исторический unknown/null/reserve22545.
+Общий cap4982220/2100POST и научная конфигурация не расширяются.

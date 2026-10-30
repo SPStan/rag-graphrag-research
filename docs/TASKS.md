@@ -2,26 +2,26 @@
 
 **E1 status:** 6/6 indexes completed under the structural protocol; physical known tokens=32601955; cost_complete=False; unknown reserve61588 preserved. Final audit/verify completed; monitoring paused.
 
-## Текущая очередь — подготовительные Draft PR для issues17/18
+## Текущая очередь — Hot429unattempted/issue17, затем offline E3/issue18
 
-- PR37/38 слиты обычными merge commits8365161/2bfdf99; issues15/16 CLOSED,
-  существующие карточки Done. Исторические raw/plans/runtime SHA сохранены.
-- Issue17: ветка `codex/hotpotqa-s500`, [протокол](E2_HOTPOTQA_S500.md).
-  Offline prepare/verify-hotpotqa и0HTTP tests готовы; Hot S500 не выполнен,
-  executable plan/transport guard ещё не готовы. Куратор пока не согласовал PR39.
-  Budget4982220tokens/2100POST уже согласован, retry0, старый unknown
-  не повторять. Пользователь прямо разрешил запуск 30 октября; до API нужны verified
-  executable plan/transport guard и offline-проверки. Научное согласование
-  ожидается перед merge и само по себе не запрещает исполнение протокола.
-- Issue18: отдельная ветка `codex/e3-paired-evaluation`, протокол E3 для согласования.
-  Вход Mu1500cases доступен; полного Hot входа нет. Полная E3 заблокирована issue17.
-  Предлагаются1000paired resamples/seed42 по issue18/треку; pilot2000 не смешивать
-  с новой версией. Метрики/интервалы по реальным ответам сейчас не пересчитываются.
-- Один issue — один итоговый PR: дальнейшие code/tests/results в этих же PR,
-  отдельные smoke/fix PR не создавать. Формулировки17/18 ещё не согласованы.
-- Оба Draft/Refs, без Closes/Ready/merge; куратору сообщения не отправлять.
-  Разрешён только Hot900missing в принятом бюджете; без нового indexing,
-  tracking-export, signal/holdout/issue21.
+- PR39, `codex/hotpotqa-s500`: исходный Hot run91f59cf6 terminal failed на
+  Hippo `E2_filter_shape_invalid`, usage известен, новыхunknown0. Учтено1071/1500:
+  1068completed+3failed,429not_attempted. Оригинальные raw/plans/claims неизменны.
+- После конкретного уведомления пользователь30октября ответил «Делай то что нужно»:
+  разрешено только429ранее незапущенных (Hippo129,RAPTOR300), без повторения
+  paid/failed/unknown и без изменения filter-fatal policy или научной конфигурации.
+  [Решение](../.adr/0028-full-experiment-freeze-and-reuse.md), отдельная authorization
+  `results/summary/e2-hotpotqa-s500-unattempted-authorization.json`.
+- Прежний cap4982220/2100POST: уже1203911known/1112POST; child≤3778309tokens,
+  ≤987POST(429reader/129filter/429BGE),retry0. Commoncounter2/2 после admission,
+  дальнейшие автоматические рестарты запрещены. Exact active plan/runtime/output/PID
+  брать из `.cache/e2-hotpotqa-s500-active.json`, а не исторических строк ниже.
+- PR40 `codex/e3-paired-evaluation`: pure E3 код и11offline regressions готовы,
+  полный отчёт ждёт verified Hot1500. Common evaluator,1000paired/seed42,
+  95%percentile; RAPTOR provenance отдельно от passage recall@5.
+- Формулировки O/N/R/H pending перед merge, это не запрет разрешённого исполнения.
+  Оба Draft/Refs17/18, без Ready/merge, новых моделей/индексации/tracking-export,
+  holdout/signal/issue21. Неизвестный usage не0, E1 и prior E2 неполнота сохраняются.
 
 ## Сохранённый результат MuSiQue S500 — issue16
 

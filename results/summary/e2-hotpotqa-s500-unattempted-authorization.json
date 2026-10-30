@@ -1,0 +1,12 @@
+{
+  "kind": "Hot_known_failure_unattempted_authorization",
+  "approved": true,
+  "user_quote": "Делай то что нужно",
+  "source": "direct reply 2026-10-30 after notification of E2_filter_shape_invalid and429not_attempted",
+  "parent_plan_sha256": "ce5a2b70c805e99d23ffcc26e1d34638df8cb249371500e6fda8de143c6b9b50",
+  "parent_manifest_sha256": "01e6ec75d89910d4bb9f090a5928f6ca9edb42a1f9486d36b235ce1729f1ccfc",
+  "expected_unattempted": 429,
+  "retry_paid_or_unknown": false,
+  "budget_expansion": false,
+  "filter_policy": "fatal in original run; retain failed case unchanged with pipeline zero, never retry; new run only previously unattempted cases"
+}
