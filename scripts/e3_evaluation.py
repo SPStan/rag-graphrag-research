@@ -128,6 +128,15 @@ def load_dataset(artifact_root, data_root, dataset):
         else "results/raw/e2-hotpotqa-s500-v1"
     )
     public_path = artifact_root / f"results/summary/e2-{dataset}-s500.json"
+    binding = None
+    if dataset == "hotpotqa":
+        binding = dense.read_json(artifact_root / ".cache/e2-hotpotqa-s500-active.json")
+        plan_path = artifact_root / binding["plan"]
+        require(
+            dense.sha256_file(plan_path) == binding["plan_sha256"]
+            and Path(binding["output"]).resolve() == output.resolve(),
+            "active_Hot_binding_mismatch",
+        )
     plan = dense.read_json(plan_path)
     manifest_path, evaluation_path = (
         output / "manifest.json",
