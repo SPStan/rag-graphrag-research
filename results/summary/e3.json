@@ -1,0 +1,1272 @@
+{
+  "version": "e3-paired-S500-v1",
+  "comparison_complete": true,
+  "bootstrap": {
+    "seed": 42,
+    "samples": 1000,
+    "interval": "pointwise percentile95 [2.5,97.5]",
+    "rng": "numpy.default_rng/PCG64",
+    "numpy": "2.5.3",
+    "python": "3.12.6"
+  },
+  "metric_function_sha256": "cd94da33712b8b242f3f34825022d26c6cbd05e5afcfcfe5a911bf268eb0be76",
+  "code_sha256": {
+    "e3_evaluation.py": "68f6d29521151152516f2fd6b44f7dde2455416b00d81717a656dfc51e64e0ef",
+    "compare_asbuilt.py": "6a94e4cb90e6e9af52e419c5963adf319ecd184b7a4a0ff9ebacef653e5c2c39",
+    "evaluate_dense.py": "1e39159a7eb02bff83b7bd0fd04a6c062762e43554b7bf6e66caf7e95c47ccd7",
+    "e2_evaluation.py": "ae3815a23e2d20ac700053581e9e95b18c0b30b383fe7663f3b21ddefc026ae7"
+  },
+  "inputs": {
+    "musique": {
+      "files": {
+        "C:\\Users\\Elisei\\.codex\\worktrees\\e2-shared-evaluation\\Rag, GraphRAG\\.cache\\e2-musique-s500-unattempted-plan.json": "d7dc363292c15f66135007bda90be61a43486983ccc1547da5ac24d18f8e9623",
+        "C:\\Users\\Elisei\\.codex\\worktrees\\e2-shared-evaluation\\Rag, GraphRAG\\results\\raw\\e2-musique-s500-unattempted-v1\\manifest.json": "73be5360281e1186758e78e8ec78c30fc11f03f47b6316bada68db308f5f6a88",
+        "C:\\Users\\Elisei\\.codex\\worktrees\\e2-shared-evaluation\\Rag, GraphRAG\\results\\raw\\e2-musique-s500-unattempted-v1\\evaluation.json": "d1a2717f145cc55f8593cc5162466e833e24efc6833fa69f2c0507a83f38f67c",
+        "C:\\Users\\Elisei\\.codex\\worktrees\\e2-shared-evaluation\\Rag, GraphRAG\\results\\summary\\e2-musique-s500.json": "feed713a0178aadb8630a45c9d155255aafcf90ff806d2abf88ce78d61ff0f1f",
+        "C:\\Users\\Elisei\\.codex\\worktrees\\e2-shared-evaluation\\Rag, GraphRAG\\results\\raw\\e2-musique-s500-unattempted-v1\\usage.jsonl": "15eb160336acb7b5d2a15fd0025d2e3ebe72e9c7829fca98151f358bc2643d77",
+        "C:\\Users\\Elisei\\Documents\\ChatGPT\\Rag, GraphRAG\\data\\processed\\musique\\labels.json": "76a36d30f3934c24ad5f7f5eaa6a67e4d26e30f2e29f7302f58d211ccb05da4a",
+        "C:\\Users\\Elisei\\Documents\\ChatGPT\\Rag, GraphRAG\\data\\ids\\musique_s500.json": "82f5b26acedb39998398b0b4e9b4cb8f5fc9ec9bbb16420914dd66a4f058d33a"
+      },
+      "run_id": "ba393849-c977-4c8f-97d7-303fc12955c8",
+      "reader": {
+        "reader_model": "iairlab/qwen3.8-27b",
+        "reader_version": "shared-answer-only-v1",
+        "reader_options": {
+          "temperature": 0,
+          "seed": 42,
+          "max_tokens": 512,
+          "stream": false,
+          "chat_template_kwargs": {
+            "enable_thinking": false
+          }
+        },
+        "message_utf8_bytes_limit": 65536,
+        "embedding_model": "bge-m3:latest",
+        "embedding_digest": "7907646426070047a77226ac3e684fbbe8410524f7b4a74d02837e43f2146bab"
+      },
+      "accounting": {
+        "new_physical_accounting": {
+          "schema_version": 1,
+          "phases": [
+            {
+              "phase": "reader",
+              "provider": "target_api",
+              "attempts": 199,
+              "errors": 0,
+              "unfinished": 0,
+              "cache_hits": 0,
+              "cache_provenance_unknown": 0,
+              "known_subtotal": {
+                "llm_input_tokens": 796282,
+                "llm_output_tokens": 1803,
+                "embedding_input_tokens": 0
+              },
+              "unknown_fields": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 0
+              },
+              "complete": true,
+              "total": {
+                "llm_input_tokens": 796282,
+                "llm_output_tokens": 1803,
+                "embedding_input_tokens": 0
+              }
+            },
+            {
+              "phase": "retrieval",
+              "provider": "local_ollama",
+              "attempts": 199,
+              "errors": 0,
+              "unfinished": 0,
+              "cache_hits": 0,
+              "cache_provenance_unknown": 0,
+              "known_subtotal": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 4904
+              },
+              "unknown_fields": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 0
+              },
+              "complete": true,
+              "total": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 4904
+              }
+            }
+          ],
+          "known_subtotal": {
+            "llm_input_tokens": 796282,
+            "llm_output_tokens": 1803,
+            "embedding_input_tokens": 4904
+          },
+          "complete": true,
+          "attempts": 398,
+          "historical_cache_cost_complete": true,
+          "journal_corrupt_tail": false,
+          "corrupt_tail_bytes": 0
+        },
+        "historical_source_accounting": {
+          "pilot_physical": {
+            "attempts": 2708,
+            "complete": false,
+            "corrupt_tail_bytes": 0,
+            "historical_cache_cost_complete": true,
+            "journal_corrupt_tail": false,
+            "known_subtotal": {
+              "embedding_input_tokens": 29442,
+              "llm_input_tokens": 3737778,
+              "llm_output_tokens": 32093
+            },
+            "phases": [
+              {
+                "attempts": 1188,
+                "cache_hits": 0,
+                "cache_provenance_unknown": 0,
+                "complete": false,
+                "errors": 1,
+                "known_subtotal": {
+                  "embedding_input_tokens": 0,
+                  "llm_input_tokens": 2580521,
+                  "llm_output_tokens": 9041
+                },
+                "phase": "reader",
+                "provider": "target_api",
+                "total": null,
+                "unfinished": 0,
+                "unknown_fields": {
+                  "embedding_input_tokens": 0,
+                  "llm_input_tokens": 1,
+                  "llm_output_tokens": 1
+                }
+              },
+              {
+                "attempts": 1140,
+                "cache_hits": 0,
+                "cache_provenance_unknown": 0,
+                "complete": true,
+                "errors": 0,
+                "known_subtotal": {
+                  "embedding_input_tokens": 29442,
+                  "llm_input_tokens": 0,
+                  "llm_output_tokens": 0
+                },
+                "phase": "retrieval",
+                "provider": "local_ollama",
+                "total": {
+                  "embedding_input_tokens": 29442,
+                  "llm_input_tokens": 0,
+                  "llm_output_tokens": 0
+                },
+                "unfinished": 0,
+                "unknown_fields": {
+                  "embedding_input_tokens": 0,
+                  "llm_input_tokens": 0,
+                  "llm_output_tokens": 0
+                }
+              },
+              {
+                "attempts": 380,
+                "cache_hits": 0,
+                "cache_provenance_unknown": 0,
+                "complete": true,
+                "errors": 0,
+                "known_subtotal": {
+                  "embedding_input_tokens": 0,
+                  "llm_input_tokens": 1157257,
+                  "llm_output_tokens": 23052
+                },
+                "phase": "retrieval",
+                "provider": "target_api",
+                "total": {
+                  "embedding_input_tokens": 0,
+                  "llm_input_tokens": 1157257,
+                  "llm_output_tokens": 23052
+                },
+                "unfinished": 0,
+                "unknown_fields": {
+                  "embedding_input_tokens": 0,
+                  "llm_input_tokens": 0,
+                  "llm_output_tokens": 0
+                }
+              }
+            ],
+            "schema_version": 1
+          },
+          "development_physical": {
+            "attempts": 152,
+            "complete": true,
+            "corrupt_tail_bytes": 0,
+            "historical_cache_cost_complete": true,
+            "journal_corrupt_tail": false,
+            "known_subtotal": {
+              "embedding_input_tokens": 1455,
+              "llm_input_tokens": 216250,
+              "llm_output_tokens": 19635
+            },
+            "phases": [
+              {
+                "attempts": 72,
+                "cache_hits": 0,
+                "cache_provenance_unknown": 0,
+                "complete": true,
+                "errors": 0,
+                "known_subtotal": {
+                  "embedding_input_tokens": 0,
+                  "llm_input_tokens": 155397,
+                  "llm_output_tokens": 18304
+                },
+                "phase": "reader",
+                "provider": "target_api",
+                "total": {
+                  "embedding_input_tokens": 0,
+                  "llm_input_tokens": 155397,
+                  "llm_output_tokens": 18304
+                },
+                "unfinished": 0,
+                "unknown_fields": {
+                  "embedding_input_tokens": 0,
+                  "llm_input_tokens": 0,
+                  "llm_output_tokens": 0
+                }
+              },
+              {
+                "attempts": 60,
+                "cache_hits": 0,
+                "cache_provenance_unknown": 0,
+                "complete": true,
+                "errors": 0,
+                "known_subtotal": {
+                  "embedding_input_tokens": 1455,
+                  "llm_input_tokens": 0,
+                  "llm_output_tokens": 0
+                },
+                "phase": "retrieval",
+                "provider": "local_ollama",
+                "total": {
+                  "embedding_input_tokens": 1455,
+                  "llm_input_tokens": 0,
+                  "llm_output_tokens": 0
+                },
+                "unfinished": 0,
+                "unknown_fields": {
+                  "embedding_input_tokens": 0,
+                  "llm_input_tokens": 0,
+                  "llm_output_tokens": 0
+                }
+              },
+              {
+                "attempts": 20,
+                "cache_hits": 0,
+                "cache_provenance_unknown": 0,
+                "complete": true,
+                "errors": 0,
+                "known_subtotal": {
+                  "embedding_input_tokens": 0,
+                  "llm_input_tokens": 60853,
+                  "llm_output_tokens": 1331
+                },
+                "phase": "retrieval",
+                "provider": "target_api",
+                "total": {
+                  "embedding_input_tokens": 0,
+                  "llm_input_tokens": 60853,
+                  "llm_output_tokens": 1331
+                },
+                "unfinished": 0,
+                "unknown_fields": {
+                  "embedding_input_tokens": 0,
+                  "llm_input_tokens": 0,
+                  "llm_output_tokens": 0
+                }
+              }
+            ],
+            "schema_version": 1
+          },
+          "E1_separate": {
+            "cost_complete": false,
+            "known_tokens": 32601955,
+            "unknown_reserve": 61588
+          },
+          "sealed_unknown": [
+            {
+              "case_id_sha256": "66691940d49950c753856cb0245747e7c19dc1f8c1a49d8006073560972d5d54",
+              "metric_policy": "terminal infrastructure failure; pipeline EM/F1=0, failure disclosed; not a wrong reader answer",
+              "object_id": "439b99afde41dab4503751a2c80177c8c8d1b21a8a54e9ad37dcf2329452f7ef",
+              "reservation_tokens": 22545,
+              "response_status": "absent",
+              "retry": "forbidden",
+              "run_id": "fadc0797-34e3-4468-8f0d-bc9ef1289f3a",
+              "usage_status": "unknown"
+            }
+          ]
+        },
+        "cost_complete": false
+      }
+    },
+    "hotpotqa": {
+      "files": {
+        "C:\\Users\\Elisei\\.codex\\worktrees\\e2-shared-evaluation\\Rag, GraphRAG\\.cache\\e2-hotpotqa-s500-unattempted-plan.json": "e3e923f597c89813182d933acf51ba3060d508d7b40b252a81535b0437a38b3b",
+        "C:\\Users\\Elisei\\.codex\\worktrees\\e2-shared-evaluation\\Rag, GraphRAG\\results\\raw\\e2-hotpotqa-s500-unattempted-v1\\manifest.json": "9bf74b80417abf55101281a63b20419b4a2912efe3074676cb3a94e2b1defb23",
+        "C:\\Users\\Elisei\\.codex\\worktrees\\e2-shared-evaluation\\Rag, GraphRAG\\results\\raw\\e2-hotpotqa-s500-unattempted-v1\\evaluation.json": "a129ac2951c7c177c6548e4de17ab3a9dffa6b82048e6f1602b1a24096f578a4",
+        "C:\\Users\\Elisei\\.codex\\worktrees\\e2-shared-evaluation\\Rag, GraphRAG\\results\\summary\\e2-hotpotqa-s500.json": "4ead77314681c36ba71d5224a76f7f9ad123b81ce4a6d52cf0c480a38d395cdf",
+        "C:\\Users\\Elisei\\.codex\\worktrees\\e2-shared-evaluation\\Rag, GraphRAG\\results\\raw\\e2-hotpotqa-s500-unattempted-v1\\usage.jsonl": "5a7a7d79ae6550387e332e6aea0a34acc433291fc8ef36172a6656a2c349bae8",
+        "C:\\Users\\Elisei\\Documents\\ChatGPT\\Rag, GraphRAG\\data\\processed\\hotpotqa\\labels.json": "42df93c1491eb7e41d46e7b562c0bad4352488ca8587c09d35eedee362875535",
+        "C:\\Users\\Elisei\\Documents\\ChatGPT\\Rag, GraphRAG\\data\\ids\\hotpotqa_s500.json": "c967cbcd5bdb02a6954d66fa472fc4840e23d08fe13e31c635ad6b5427f04a46"
+      },
+      "run_id": "9e7efc49-895c-42d6-a2d3-5676e2071b6b",
+      "reader": {
+        "reader_model": "iairlab/qwen3.8-27b",
+        "reader_version": "shared-answer-only-v1",
+        "reader_options": {
+          "temperature": 0,
+          "seed": 42,
+          "max_tokens": 512,
+          "stream": false,
+          "chat_template_kwargs": {
+            "enable_thinking": false
+          }
+        },
+        "message_utf8_bytes_limit": 65536,
+        "embedding_model": "bge-m3:latest",
+        "embedding_digest": "7907646426070047a77226ac3e684fbbe8410524f7b4a74d02837e43f2146bab"
+      },
+      "accounting": {
+        "new_physical_accounting": {
+          "schema_version": 1,
+          "phases": [
+            {
+              "phase": "reader",
+              "provider": "target_api",
+              "attempts": 429,
+              "errors": 0,
+              "unfinished": 0,
+              "cache_hits": 0,
+              "cache_provenance_unknown": 0,
+              "known_subtotal": {
+                "llm_input_tokens": 1145927,
+                "llm_output_tokens": 2842,
+                "embedding_input_tokens": 0
+              },
+              "unknown_fields": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 0
+              },
+              "complete": true,
+              "total": {
+                "llm_input_tokens": 1145927,
+                "llm_output_tokens": 2842,
+                "embedding_input_tokens": 0
+              }
+            },
+            {
+              "phase": "retrieval",
+              "provider": "local_ollama",
+              "attempts": 429,
+              "errors": 0,
+              "unfinished": 0,
+              "cache_hits": 0,
+              "cache_provenance_unknown": 0,
+              "known_subtotal": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 10355
+              },
+              "unknown_fields": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 0
+              },
+              "complete": true,
+              "total": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 10355
+              }
+            },
+            {
+              "phase": "retrieval",
+              "provider": "target_api",
+              "attempts": 129,
+              "errors": 0,
+              "unfinished": 0,
+              "cache_hits": 0,
+              "cache_provenance_unknown": 0,
+              "known_subtotal": {
+                "llm_input_tokens": 392882,
+                "llm_output_tokens": 7922,
+                "embedding_input_tokens": 0
+              },
+              "unknown_fields": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 0
+              },
+              "complete": true,
+              "total": {
+                "llm_input_tokens": 392882,
+                "llm_output_tokens": 7922,
+                "embedding_input_tokens": 0
+              }
+            }
+          ],
+          "known_subtotal": {
+            "llm_input_tokens": 1538809,
+            "llm_output_tokens": 10764,
+            "embedding_input_tokens": 10355
+          },
+          "complete": true,
+          "attempts": 987,
+          "historical_cache_cost_complete": true,
+          "journal_corrupt_tail": false,
+          "corrupt_tail_bytes": 0
+        },
+        "historical_source_accounting": {
+          "pilot_physical": {
+            "attempts": 2708,
+            "complete": false,
+            "corrupt_tail_bytes": 0,
+            "historical_cache_cost_complete": true,
+            "journal_corrupt_tail": false,
+            "known_subtotal": {
+              "embedding_input_tokens": 29442,
+              "llm_input_tokens": 3737778,
+              "llm_output_tokens": 32093
+            },
+            "phases": [
+              {
+                "attempts": 1188,
+                "cache_hits": 0,
+                "cache_provenance_unknown": 0,
+                "complete": false,
+                "errors": 1,
+                "known_subtotal": {
+                  "embedding_input_tokens": 0,
+                  "llm_input_tokens": 2580521,
+                  "llm_output_tokens": 9041
+                },
+                "phase": "reader",
+                "provider": "target_api",
+                "total": null,
+                "unfinished": 0,
+                "unknown_fields": {
+                  "embedding_input_tokens": 0,
+                  "llm_input_tokens": 1,
+                  "llm_output_tokens": 1
+                }
+              },
+              {
+                "attempts": 1140,
+                "cache_hits": 0,
+                "cache_provenance_unknown": 0,
+                "complete": true,
+                "errors": 0,
+                "known_subtotal": {
+                  "embedding_input_tokens": 29442,
+                  "llm_input_tokens": 0,
+                  "llm_output_tokens": 0
+                },
+                "phase": "retrieval",
+                "provider": "local_ollama",
+                "total": {
+                  "embedding_input_tokens": 29442,
+                  "llm_input_tokens": 0,
+                  "llm_output_tokens": 0
+                },
+                "unfinished": 0,
+                "unknown_fields": {
+                  "embedding_input_tokens": 0,
+                  "llm_input_tokens": 0,
+                  "llm_output_tokens": 0
+                }
+              },
+              {
+                "attempts": 380,
+                "cache_hits": 0,
+                "cache_provenance_unknown": 0,
+                "complete": true,
+                "errors": 0,
+                "known_subtotal": {
+                  "embedding_input_tokens": 0,
+                  "llm_input_tokens": 1157257,
+                  "llm_output_tokens": 23052
+                },
+                "phase": "retrieval",
+                "provider": "target_api",
+                "total": {
+                  "embedding_input_tokens": 0,
+                  "llm_input_tokens": 1157257,
+                  "llm_output_tokens": 23052
+                },
+                "unfinished": 0,
+                "unknown_fields": {
+                  "embedding_input_tokens": 0,
+                  "llm_input_tokens": 0,
+                  "llm_output_tokens": 0
+                }
+              }
+            ],
+            "schema_version": 1
+          },
+          "development_physical": {
+            "attempts": 152,
+            "complete": true,
+            "corrupt_tail_bytes": 0,
+            "historical_cache_cost_complete": true,
+            "journal_corrupt_tail": false,
+            "known_subtotal": {
+              "embedding_input_tokens": 1455,
+              "llm_input_tokens": 216250,
+              "llm_output_tokens": 19635
+            },
+            "phases": [
+              {
+                "attempts": 72,
+                "cache_hits": 0,
+                "cache_provenance_unknown": 0,
+                "complete": true,
+                "errors": 0,
+                "known_subtotal": {
+                  "embedding_input_tokens": 0,
+                  "llm_input_tokens": 155397,
+                  "llm_output_tokens": 18304
+                },
+                "phase": "reader",
+                "provider": "target_api",
+                "total": {
+                  "embedding_input_tokens": 0,
+                  "llm_input_tokens": 155397,
+                  "llm_output_tokens": 18304
+                },
+                "unfinished": 0,
+                "unknown_fields": {
+                  "embedding_input_tokens": 0,
+                  "llm_input_tokens": 0,
+                  "llm_output_tokens": 0
+                }
+              },
+              {
+                "attempts": 60,
+                "cache_hits": 0,
+                "cache_provenance_unknown": 0,
+                "complete": true,
+                "errors": 0,
+                "known_subtotal": {
+                  "embedding_input_tokens": 1455,
+                  "llm_input_tokens": 0,
+                  "llm_output_tokens": 0
+                },
+                "phase": "retrieval",
+                "provider": "local_ollama",
+                "total": {
+                  "embedding_input_tokens": 1455,
+                  "llm_input_tokens": 0,
+                  "llm_output_tokens": 0
+                },
+                "unfinished": 0,
+                "unknown_fields": {
+                  "embedding_input_tokens": 0,
+                  "llm_input_tokens": 0,
+                  "llm_output_tokens": 0
+                }
+              },
+              {
+                "attempts": 20,
+                "cache_hits": 0,
+                "cache_provenance_unknown": 0,
+                "complete": true,
+                "errors": 0,
+                "known_subtotal": {
+                  "embedding_input_tokens": 0,
+                  "llm_input_tokens": 60853,
+                  "llm_output_tokens": 1331
+                },
+                "phase": "retrieval",
+                "provider": "target_api",
+                "total": {
+                  "embedding_input_tokens": 0,
+                  "llm_input_tokens": 60853,
+                  "llm_output_tokens": 1331
+                },
+                "unfinished": 0,
+                "unknown_fields": {
+                  "embedding_input_tokens": 0,
+                  "llm_input_tokens": 0,
+                  "llm_output_tokens": 0
+                }
+              }
+            ],
+            "schema_version": 1
+          },
+          "E1_separate": {
+            "cost_complete": false,
+            "known_tokens": 32601955,
+            "unknown_reserve": 61588
+          },
+          "sealed_unknown": [
+            {
+              "case_id_sha256": "66691940d49950c753856cb0245747e7c19dc1f8c1a49d8006073560972d5d54",
+              "metric_policy": "terminal infrastructure failure; pipeline EM/F1=0, failure disclosed; not a wrong reader answer",
+              "object_id": "439b99afde41dab4503751a2c80177c8c8d1b21a8a54e9ad37dcf2329452f7ef",
+              "reservation_tokens": 22545,
+              "response_status": "absent",
+              "retry": "forbidden",
+              "run_id": "fadc0797-34e3-4468-8f0d-bc9ef1289f3a",
+              "usage_status": "unknown"
+            }
+          ]
+        },
+        "cost_complete": false
+      }
+    }
+  },
+  "datasets": [
+    {
+      "dataset": "musique",
+      "n": 500,
+      "ordered_ids_sha256": "ea8fa2c99a32c6172db06c109100ff5f87f920ebfa36b2e17835193a46997786",
+      "resample_indices_sha256": "6476a1e6b1fee85663ff0098f6fedb4edb4bf671484f76dd10a01e61732a9d95",
+      "rows": [
+        {
+          "method": "dense",
+          "completed": 500,
+          "attempted_failed": 0,
+          "not_attempted": 0,
+          "metrics": {
+            "em": {
+              "known_cases": 500,
+              "mean": 0.348,
+              "ci95": [
+                0.30995,
+                0.388
+              ]
+            },
+            "f1": {
+              "known_cases": 500,
+              "mean": 0.4493305006105006,
+              "ci95": [
+                0.4092130838050838,
+                0.48703500865800864
+              ]
+            },
+            "passage_recall_at_5": {
+              "known_cases": 500,
+              "mean": 0.6033333333333333,
+              "ci95": [
+                0.5783291666666666,
+                0.6278333333333332
+              ]
+            }
+          }
+        },
+        {
+          "method": "hipporag2",
+          "completed": 500,
+          "attempted_failed": 0,
+          "not_attempted": 0,
+          "metrics": {
+            "em": {
+              "known_cases": 500,
+              "mean": 0.434,
+              "ci95": [
+                0.394,
+                0.474
+              ]
+            },
+            "f1": {
+              "known_cases": 500,
+              "mean": 0.5354763572092286,
+              "ci95": [
+                0.4972153290464727,
+                0.5711317847876127
+              ]
+            },
+            "passage_recall_at_5": {
+              "known_cases": 500,
+              "mean": 0.7071666666666666,
+              "ci95": [
+                0.6803166666666666,
+                0.7298374999999999
+              ]
+            }
+          }
+        },
+        {
+          "method": "raptor",
+          "completed": 499,
+          "attempted_failed": 1,
+          "not_attempted": 0,
+          "metrics": {
+            "em": {
+              "known_cases": 500,
+              "mean": 0.324,
+              "ci95": [
+                0.28395,
+                0.366
+              ]
+            },
+            "f1": {
+              "known_cases": 500,
+              "mean": 0.42465066392156176,
+              "ci95": [
+                0.3867174281815536,
+                0.46285846713056467
+              ]
+            },
+            "passage_recall_at_5": {
+              "known_cases": 0,
+              "mean": null,
+              "ci95": null
+            },
+            "supporting_provenance_coverage": {
+              "known_cases": 500,
+              "mean": 0.6211666666666668,
+              "ci95": [
+                0.596325,
+                0.6450125
+              ]
+            }
+          }
+        }
+      ],
+      "paired_differences": [
+        {
+          "left": "hipporag2",
+          "right": "dense",
+          "metric": "em",
+          "mean": 0.086,
+          "ci95": [
+            0.05,
+            0.12
+          ]
+        },
+        {
+          "left": "hipporag2",
+          "right": "dense",
+          "metric": "f1",
+          "mean": 0.08614585659872788,
+          "ci95": [
+            0.05240384272133798,
+            0.11977790524900232
+          ]
+        },
+        {
+          "left": "hipporag2",
+          "right": "dense",
+          "metric": "passage_recall_at_5",
+          "mean": 0.10383333333333335,
+          "ci95": [
+            0.08082500000000001,
+            0.1245
+          ]
+        },
+        {
+          "left": "raptor",
+          "right": "dense",
+          "metric": "em",
+          "mean": -0.024,
+          "ci95": [
+            -0.056,
+            0.006049999999999955
+          ]
+        },
+        {
+          "left": "raptor",
+          "right": "dense",
+          "metric": "f1",
+          "mean": -0.024679836688938854,
+          "ci95": [
+            -0.05238874687490013,
+            0.0057323931019101285
+          ]
+        }
+      ]
+    },
+    {
+      "dataset": "hotpotqa",
+      "n": 500,
+      "ordered_ids_sha256": "1ff6972659d8a1c6294521808e3442bd33cf329289b9a661b1c2bc7e7628e38e",
+      "resample_indices_sha256": "6476a1e6b1fee85663ff0098f6fedb4edb4bf671484f76dd10a01e61732a9d95",
+      "rows": [
+        {
+          "method": "dense",
+          "completed": 500,
+          "attempted_failed": 0,
+          "not_attempted": 0,
+          "metrics": {
+            "em": {
+              "known_cases": 500,
+              "mean": 0.596,
+              "ci95": [
+                0.55595,
+                0.64
+              ]
+            },
+            "f1": {
+              "known_cases": 500,
+              "mean": 0.7202900463521154,
+              "ci95": [
+                0.6843866606382123,
+                0.7543286563532253
+              ]
+            },
+            "passage_recall_at_5": {
+              "known_cases": 500,
+              "mean": 0.878,
+              "ci95": [
+                0.859,
+                0.898
+              ]
+            }
+          }
+        },
+        {
+          "method": "hipporag2",
+          "completed": 498,
+          "attempted_failed": 2,
+          "not_attempted": 0,
+          "metrics": {
+            "em": {
+              "known_cases": 500,
+              "mean": 0.666,
+              "ci95": [
+                0.624,
+                0.708
+              ]
+            },
+            "f1": {
+              "known_cases": 500,
+              "mean": 0.7769847374847375,
+              "ci95": [
+                0.7427283910533912,
+                0.8074423845598846
+              ]
+            },
+            "passage_recall_at_5": {
+              "known_cases": 500,
+              "mean": 0.935,
+              "ci95": [
+                0.92,
+                0.95
+              ]
+            }
+          }
+        },
+        {
+          "method": "raptor",
+          "completed": 499,
+          "attempted_failed": 1,
+          "not_attempted": 0,
+          "metrics": {
+            "em": {
+              "known_cases": 500,
+              "mean": 0.606,
+              "ci95": [
+                0.562,
+                0.646
+              ]
+            },
+            "f1": {
+              "known_cases": 500,
+              "mean": 0.729315417915418,
+              "ci95": [
+                0.6950545598845599,
+                0.7632558044733044
+              ]
+            },
+            "passage_recall_at_5": {
+              "known_cases": 0,
+              "mean": null,
+              "ci95": null
+            },
+            "supporting_provenance_coverage": {
+              "known_cases": 500,
+              "mean": 0.886,
+              "ci95": [
+                0.866,
+                0.905
+              ]
+            }
+          }
+        }
+      ],
+      "paired_differences": [
+        {
+          "left": "hipporag2",
+          "right": "dense",
+          "metric": "em",
+          "mean": 0.07,
+          "ci95": [
+            0.042,
+            0.102
+          ]
+        },
+        {
+          "left": "hipporag2",
+          "right": "dense",
+          "metric": "f1",
+          "mean": 0.05669469113262217,
+          "ci95": [
+            0.03373686610324541,
+            0.08284183114777942
+          ]
+        },
+        {
+          "left": "hipporag2",
+          "right": "dense",
+          "metric": "passage_recall_at_5",
+          "mean": 0.057,
+          "ci95": [
+            0.038,
+            0.075
+          ]
+        },
+        {
+          "left": "raptor",
+          "right": "dense",
+          "metric": "em",
+          "mean": 0.01,
+          "ci95": [
+            -0.016,
+            0.036
+          ]
+        },
+        {
+          "left": "raptor",
+          "right": "dense",
+          "metric": "f1",
+          "mean": 0.0090253715633026,
+          "ci95": [
+            -0.011382149593701318,
+            0.030447005494505488
+          ]
+        }
+      ]
+    }
+  ],
+  "examples": [
+    {
+      "dataset": "musique",
+      "question_id": "2hop__21104_16334",
+      "selection": "first five frozen tuning300 IDs with unequal F1",
+      "scores": {
+        "dense": {
+          "em": 1.0,
+          "f1": 1.0,
+          "passage_recall_at_5": 1.0,
+          "supporting_provenance_coverage": 1.0
+        },
+        "hipporag2": {
+          "em": 0.0,
+          "f1": 0.0,
+          "passage_recall_at_5": 0.5,
+          "supporting_provenance_coverage": 0.5
+        },
+        "raptor": {
+          "em": 0.0,
+          "f1": 0.6666666666666666,
+          "passage_recall_at_5": null,
+          "supporting_provenance_coverage": 1.0
+        }
+      },
+      "statuses": {
+        "dense": "completed",
+        "hipporag2": "completed",
+        "raptor": "completed"
+      },
+      "interpretation": "saved-answer disagreement; illustrative, not a causal frequency or signal choice"
+    },
+    {
+      "dataset": "musique",
+      "question_id": "2hop__126306_396277",
+      "selection": "first five frozen tuning300 IDs with unequal F1",
+      "scores": {
+        "dense": {
+          "em": 0.0,
+          "f1": 0.0,
+          "passage_recall_at_5": 0.5,
+          "supporting_provenance_coverage": 0.5
+        },
+        "hipporag2": {
+          "em": 1.0,
+          "f1": 1.0,
+          "passage_recall_at_5": 1.0,
+          "supporting_provenance_coverage": 1.0
+        },
+        "raptor": {
+          "em": 0.0,
+          "f1": 0.0,
+          "passage_recall_at_5": null,
+          "supporting_provenance_coverage": 0.5
+        }
+      },
+      "statuses": {
+        "dense": "completed",
+        "hipporag2": "completed",
+        "raptor": "completed"
+      },
+      "interpretation": "saved-answer disagreement; illustrative, not a causal frequency or signal choice"
+    },
+    {
+      "dataset": "musique",
+      "question_id": "2hop__488811_30078",
+      "selection": "first five frozen tuning300 IDs with unequal F1",
+      "scores": {
+        "dense": {
+          "em": 0.0,
+          "f1": 0.0,
+          "passage_recall_at_5": 0.5,
+          "supporting_provenance_coverage": 0.5
+        },
+        "hipporag2": {
+          "em": 0.0,
+          "f1": 0.8,
+          "passage_recall_at_5": 1.0,
+          "supporting_provenance_coverage": 1.0
+        },
+        "raptor": {
+          "em": 0.0,
+          "f1": 0.0,
+          "passage_recall_at_5": null,
+          "supporting_provenance_coverage": 0.5
+        }
+      },
+      "statuses": {
+        "dense": "completed",
+        "hipporag2": "completed",
+        "raptor": "completed"
+      },
+      "interpretation": "saved-answer disagreement; illustrative, not a causal frequency or signal choice"
+    },
+    {
+      "dataset": "musique",
+      "question_id": "3hop1__694534_160088_73916",
+      "selection": "first five frozen tuning300 IDs with unequal F1",
+      "scores": {
+        "dense": {
+          "em": 1.0,
+          "f1": 1.0,
+          "passage_recall_at_5": 0.6666666666666666,
+          "supporting_provenance_coverage": 0.6666666666666666
+        },
+        "hipporag2": {
+          "em": 1.0,
+          "f1": 1.0,
+          "passage_recall_at_5": 1.0,
+          "supporting_provenance_coverage": 1.0
+        },
+        "raptor": {
+          "em": 0.0,
+          "f1": 0.0,
+          "passage_recall_at_5": null,
+          "supporting_provenance_coverage": 0.3333333333333333
+        }
+      },
+      "statuses": {
+        "dense": "completed",
+        "hipporag2": "completed",
+        "raptor": "completed"
+      },
+      "interpretation": "saved-answer disagreement; illustrative, not a causal frequency or signal choice"
+    },
+    {
+      "dataset": "musique",
+      "question_id": "4hop1__802394_153080_159767_81096",
+      "selection": "first five frozen tuning300 IDs with unequal F1",
+      "scores": {
+        "dense": {
+          "em": 1.0,
+          "f1": 1.0,
+          "passage_recall_at_5": 0.75,
+          "supporting_provenance_coverage": 0.75
+        },
+        "hipporag2": {
+          "em": 0.0,
+          "f1": 0.0,
+          "passage_recall_at_5": 0.25,
+          "supporting_provenance_coverage": 0.25
+        },
+        "raptor": {
+          "em": 0.0,
+          "f1": 0.0,
+          "passage_recall_at_5": null,
+          "supporting_provenance_coverage": 0.25
+        }
+      },
+      "statuses": {
+        "dense": "completed",
+        "hipporag2": "completed",
+        "raptor": "completed"
+      },
+      "interpretation": "saved-answer disagreement; illustrative, not a causal frequency or signal choice"
+    },
+    {
+      "dataset": "hotpotqa",
+      "question_id": "5abd882f55429924427fd045",
+      "selection": "first five frozen tuning300 IDs with unequal F1",
+      "scores": {
+        "dense": {
+          "em": 0.0,
+          "f1": 0.0,
+          "passage_recall_at_5": 0.5,
+          "supporting_provenance_coverage": 0.5
+        },
+        "hipporag2": {
+          "em": 1.0,
+          "f1": 1.0,
+          "passage_recall_at_5": 1.0,
+          "supporting_provenance_coverage": 1.0
+        },
+        "raptor": {
+          "em": 1.0,
+          "f1": 1.0,
+          "passage_recall_at_5": null,
+          "supporting_provenance_coverage": 1.0
+        }
+      },
+      "statuses": {
+        "dense": "completed",
+        "hipporag2": "completed",
+        "raptor": "completed"
+      },
+      "interpretation": "saved-answer disagreement; illustrative, not a causal frequency or signal choice"
+    },
+    {
+      "dataset": "hotpotqa",
+      "question_id": "5a80ad205542992bc0c4a79d",
+      "selection": "first five frozen tuning300 IDs with unequal F1",
+      "scores": {
+        "dense": {
+          "em": 0.0,
+          "f1": 0.28571428571428575,
+          "passage_recall_at_5": 0.5,
+          "supporting_provenance_coverage": 0.5
+        },
+        "hipporag2": {
+          "em": 0.0,
+          "f1": 0.4444444444444444,
+          "passage_recall_at_5": 1.0,
+          "supporting_provenance_coverage": 1.0
+        },
+        "raptor": {
+          "em": 0.0,
+          "f1": 0.0,
+          "passage_recall_at_5": null,
+          "supporting_provenance_coverage": 0.5
+        }
+      },
+      "statuses": {
+        "dense": "completed",
+        "hipporag2": "completed",
+        "raptor": "completed"
+      },
+      "interpretation": "saved-answer disagreement; illustrative, not a causal frequency or signal choice"
+    },
+    {
+      "dataset": "hotpotqa",
+      "question_id": "5adc3a7055429947ff173913",
+      "selection": "first five frozen tuning300 IDs with unequal F1",
+      "scores": {
+        "dense": {
+          "em": 1.0,
+          "f1": 1.0,
+          "passage_recall_at_5": 1.0,
+          "supporting_provenance_coverage": 1.0
+        },
+        "hipporag2": {
+          "em": 1.0,
+          "f1": 1.0,
+          "passage_recall_at_5": 1.0,
+          "supporting_provenance_coverage": 1.0
+        },
+        "raptor": {
+          "em": 0.0,
+          "f1": 0.5,
+          "passage_recall_at_5": null,
+          "supporting_provenance_coverage": 1.0
+        }
+      },
+      "statuses": {
+        "dense": "completed",
+        "hipporag2": "completed",
+        "raptor": "completed"
+      },
+      "interpretation": "saved-answer disagreement; illustrative, not a causal frequency or signal choice"
+    },
+    {
+      "dataset": "hotpotqa",
+      "question_id": "5adc6f6255429947ff173961",
+      "selection": "first five frozen tuning300 IDs with unequal F1",
+      "scores": {
+        "dense": {
+          "em": 0.0,
+          "f1": 0.0,
+          "passage_recall_at_5": 1.0,
+          "supporting_provenance_coverage": 1.0
+        },
+        "hipporag2": {
+          "em": 1.0,
+          "f1": 1.0,
+          "passage_recall_at_5": 1.0,
+          "supporting_provenance_coverage": 1.0
+        },
+        "raptor": {
+          "em": 1.0,
+          "f1": 1.0,
+          "passage_recall_at_5": null,
+          "supporting_provenance_coverage": 1.0
+        }
+      },
+      "statuses": {
+        "dense": "completed",
+        "hipporag2": "completed",
+        "raptor": "completed"
+      },
+      "interpretation": "saved-answer disagreement; illustrative, not a causal frequency or signal choice"
+    },
+    {
+      "dataset": "hotpotqa",
+      "question_id": "5abaee4f5542996cc5e49f15",
+      "selection": "first five frozen tuning300 IDs with unequal F1",
+      "scores": {
+        "dense": {
+          "em": 1.0,
+          "f1": 1.0,
+          "passage_recall_at_5": 1.0,
+          "supporting_provenance_coverage": 1.0
+        },
+        "hipporag2": {
+          "em": 1.0,
+          "f1": 1.0,
+          "passage_recall_at_5": 1.0,
+          "supporting_provenance_coverage": 1.0
+        },
+        "raptor": {
+          "em": 0.0,
+          "f1": 0.0,
+          "passage_recall_at_5": null,
+          "supporting_provenance_coverage": 0.5
+        }
+      },
+      "statuses": {
+        "dense": "completed",
+        "hipporag2": "completed",
+        "raptor": "completed"
+      },
+      "interpretation": "saved-answer disagreement; illustrative, not a causal frequency or signal choice"
+    }
+  ],
+  "limitations": [
+    "S500 includes development; descriptive, not independent test",
+    "Mixed Hippo extractor/errors and incomplete E1/source cost retained",
+    "Sealed transport failures are pipeline zero, not wrong reader answers; unknown usage is not zero",
+    "RAPTOR provenance is not passage recall@5",
+    "CI containing zero does not establish equivalence or a <2pp bound",
+    "No signal-check selection, models, HTTP or tracking export"
+  ]
+}

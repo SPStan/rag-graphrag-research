@@ -2,21 +2,26 @@
 
 **E1 status:** 6/6 indexes completed under the structural protocol; physical known tokens=32601955; cost_complete=False; unknown reserve61588 preserved. Final audit/verify completed; monitoring paused.
 
-## Текущая очередь — issues17/18, существующие Draft PR39/40
+## Текущая очередь — технический итог issues17/18, ревью Draft PR39/40
 
-- PR37/38 слиты, issues15/16 закрыты. Исторические manifests/raw/runtime SHA неизменны.
-- Пользователь30октября прямо разрешил Hot900missing в бюджете4982220tokens/2100POST,
-  retry0, reuse600(599answers+1sealed failure), без повторения unknown.
-  PR39: `codex/hotpotqa-s500`, рабочая папка `.codex/worktrees/e2-shared-evaluation`.
-  Точный live статус/plan/runtime/PID брать из её `.cache/e2-hotpotqa-s500-active.json`.
-- O/N/R/H ещё pending перед merge; это не запрет исполнения протокола.
-  Без Ready/merge, новых моделей, индексации, tracking-export или signal/holdout.
-- PR40: pure E3 implementation и11synthetic tests готовы; полный результат ждёт
-  verified Hot1500outcomes. 1000paired resamples/seed42, общий evaluator,
-  frozen ID join, no HTTP. Команда — [E3](E3_EVALUATION.md).
-- Mu1500accounted=1499answers+1transport failure. Hot нельзя объявлять завершённым
-  по PID/manifest; required terminal audit/source/index/SHA/usage и public report.
-  Технический failed guard и новые unknown/partial не обходить новым child.
+- Hot issue17:1500unique=1497completed+3failed,0not_attempted; Dense500/0,
+  Hippo498/2,RAPTOR499/1. Проверенный источник —
+  [PR39](https://github.com/SPStan/rag-graphrag-research/pull/39).
+  Executionf23bb59/child9e7efc49; старый failed root91f59cf6/runtime7a67791,
+  raw/plans/claims неизменны. FreshHot2763839known/2099POST,0newunknown/retry,
+  общийcounter2/2, дальнейшие restarts запрещены.
+- [E3](../results/summary/e3.md):3000accounted=2996completed+4failed,
+  общий evaluator/frozen500IDjoin/датасет,1000paired seed42/95%percentile,
+  два identical real offline rebuilds. Hot Hippo−Dense F1+5.67п.п.[3.37;8.28],
+  RAPTOR+0.90[-1.14;3.04]; Mu Hippo+8.61[5.24;11.98],RAPTOR−2.47[-5.24;0.57].
+  Descriptive development S500; CI с0 не эквивалентность/<2п.п.
+- Cumulative E2:9856273known/7059POST,2historicalunknown/reserve38277,
+  cost_complete=false. E1 отдельно32601955known/reserve61588,cost_complete=false.
+  Source/reuse не добавлены повторно; ошибки/mixed Hippo/semantic_verified=false
+  сохраняются. RAPTORprovenance отдельно от passage recall@5.
+- Оба Draft/Refs17/18; научные O/N/R/H pending перед merge. Следующий шаг —
+  ревью39,затем40/актуальное научное согласование, без Ready/merge/issueclosure.
+  Монитор удаляется после публикации. Следующие эксперименты не запускать.
 
 ## Сохранённый результат MuSiQue S500 — issue16
 
