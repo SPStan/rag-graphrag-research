@@ -627,6 +627,13 @@ def write_dataset_report(
         ):
             apply_report_evidence(safe, directory, appendix)
     if dataset == "hotpotqa":
+        safe["execution_code_sha256"] = plan["code_sha256"]
+        safe["report_code_sha256"] = dense.sha256_file(Path(__file__))
+        if spec:
+            safe["S500_physical_accounting"]["cost_complete"] = (
+                known["complete"]
+                and spec["parent_physical"]["unknown_reservation_not_actual"] == 0
+            )
         history = plan["s500"]["historical_E2_report"]
         require(
             dense.sha256_file(Path(history["path"])) == history["sha256"],

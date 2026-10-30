@@ -350,3 +350,13 @@ reader cap512, top5, индексы, split, evaluator не меняются; O/N
 Проверка: actual shared CLI с synthetic HTTP, immutable parent/pins/claims,
 remainingcaps, known-failure reuse, запрет secondchild/unknown и0повторной оплаты;
 затем реальный offline source/index/artifact gate безHTTP и mandatory hook.
+
+### Проверенный Hot итог
+
+Child9e7efc49 завершил429/429; итог1500unique=1497completed+3failed,0not_attempted.
+Fresh Hot physical2763839known/2099POST, полностью измерен; cumulative E2
+9856273known/7059POST сохраняет2historicalunknown/reserve38277/cost_complete=false.
+E1отдельно32601955/reserve61588. Исторические unknown не повторялись и не
+подменялись0. S500 physical completeness отделена от global incompleteness;
+отдельные execution/report code hashes позволяют воспроизвести reporting fix
+без изменения старого execution plan. Полный report повторён в temp с0HTTP.

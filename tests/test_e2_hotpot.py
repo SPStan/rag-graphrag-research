@@ -360,6 +360,11 @@ def test_unattempted_CLI_preserves_known_failures_budget_and_no_repayment(
     }
     assert report["S500_physical_accounting"]["POST"] == 28
     assert report["S500_physical_accounting"]["unknown_reservation_not_actual"] == 0
+    assert report["S500_physical_accounting"]["cost_complete"] is True
+    assert report["cost_complete"] is False
+    assert report["execution_code_sha256"] == s.frozen["code_sha256"]
+    assert report["report_code_sha256"] == dense.sha256_file(Path(shared.__file__))
+    assert hot.write_report(s.child_plan, s.output, s.root / "combined-again") == report
     assert all(Path(p).read_bytes() == b for p, b in s.root_bytes.items())
 
 
