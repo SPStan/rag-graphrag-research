@@ -786,6 +786,158 @@ unknown reserve22545, расходы E1 и development не входят в но
 Утверждение бюджета само по себе не разрешает запуск в этой offline-задаче.
 
 
+## Issue16: начало MuSiQue S500
+
+[Рабочий список](../results/summary/e2-musique-s500-plan.json) — первый
+подготовительный результат, **не executable execution-plan и не отчёт запуска**.
+Он фиксирует1500case identities:600готовых pilot ответов и900not attempted,
+по200reuse+300missing для каждого из трёх методов. Чужой HotpotQA sealed failure
+остаётся в historical accounting родителя, не запрашивается повторно и не
+объявляется MuSiQue failure. Фактический итог приведён ниже; worklist остаётся первоначальным offline-снимком.
+
+Список строится тем же offline planner после полного existing artifact gate:
+
+```powershell
+./.venv-check/Scripts/python.exe -m scripts.full_experiment prepare-musique `
+  --artifact-root $Artifacts --data-root $Data --index-root $Indexes
+./.venv-check/Scripts/python.exe -m scripts.full_experiment verify-musique `
+  --artifact-root $Artifacts --data-root $Data --index-root $Indexes
+```
+
+Вход — существующий `full-experiment.json` из PR37; canonical SHA связывает
+его с worklist. Старый worklist остаётся immutable offline-снимком, не меняется
+на executable задним числом. Старые runtime/code/result/journal SHA сохраняются.
+
+### Разрешение Mu-only и исполнение
+
+Пользователь делегировал расчёт бюджета с запасом и разрешил его в этой задаче
+2026-10-29. [Запись согласия](../results/summary/e2-musique-s500-authorization.json)
+содержит точную цитату; выбранный агентом cap —5990220new combined tokens,
+≤2100POST(900reader/300filter/900local BGE). Это5921100по maxima полностью
+измеренных pilot операций+69120admission headroom. Ни HotpotQA, ни весь
+двухдатасетный cap PR37 автоматически не разрешены. Завершение900missing
+не гарантировано: payload reservation может исчерпать остаток раньше.
+
+```powershell
+./.venv-check/Scripts/python.exe -m scripts.full_experiment prepare-musique-execution `
+  --artifact-root $Artifacts --data-root $Data --index-root $Indexes
+./.venv-check/Scripts/python.exe -m scripts.full_experiment verify-musique-execution `
+  --artifact-root $Artifacts --data-root $Data --index-root $Indexes
+# В проверенном experimental environment, последовательно для dense/hipporag2/raptor:
+python -m scripts.run_dense_target --shared-plan .cache/e2-musique-s500-execution-plan.json `
+  --execute --shared-method dense --output-dir results/raw/e2-musique-s500-v1 `
+  --approved-plan-sha256 $ExactPlanFileSHA --env-file $MainEnv
+# Для hipporag2/raptor передаются прежние --hippo-source / --raptor-source.
+# На первой fatal ошибке остановить очередь: следующий метод не запускать.
+```
+
+`scripts.e2_s500` интегрирован в существующие verify/Calls/summary/write_report
+только для новой версии плана; старый AST runner после удаления этих guards
+сравнивается с закреплённым runtime. Исходная full freeze не переписывается.
+Execution-plan заново проверяет все артефакты offline и связывает600completed
+Mu cases с источниками. У каждого метода те же500ordered IDs; запросы выполняются
+лишь для300missing. Gold не передаётся генерации; evaluator запускается после неё.
+Parent claims не позволяют перенести тот же бюджет в другую output-directory.
+Один worker, durable checkpoint перед POST; known+candidate reserve≤cap до
+каждого нового вызова. Reserve=serialized payload UTF8 bytes+2048+max_tokens
+для LLM. Отсутствующий usage не ноль: новый partial/unknown/transport/infra/pin/
+budget failure останавливает очередь без retry/recovery. Исторический Hotpot
+unknown не является Mu failure и не даёт разрешения на повтор.
+
+После worker terminal report проверяет response/checkpoint/journal SHA успешных
+случаев,500IDs/method и исходные parent pins; ошибки явно сохранены. Fatal case
+без полного response не объявляется строго проверенным успехом: отчёт содержит
+`strict_success_audit_complete=false`, исходные artifact SHA, unknown и неполное
+сравнение. Private evaluation.json содержит per-case оценки для задач12/14;
+публичная сводка не содержит корпуса/ответов. Fresh latency считается только
+для новых случаев; reused latency не fresh E2E. Новые physical reader/filter/BGE
+затраты отделены от inherited logical usage, глобального source/development и E1.
+RAPTOR provenance не passage recall@5; S500 включает development, mixed Hippo
+extractor/errors и неполнота исходных расходов раскрываются. Issue16 остаётся
+Draft/Refs #16 до реального завершения и проверки набора.
+
+
+### Фактическая остановка MuSiQue S500
+
+Run7936654d-8820-4449-803b-f7ef6074424a остановлен guard на новом remote reader
+unknown, не на бюджете:700new completed+1transport failure,199missing;
+с600reuse это1300completed/1failed/199not_attempted. [Неполная таблица](../results/summary/e2-musique-s500.md).
+RAPTOR case3hop1__90327_83076_319330 не имеет ответа; checkpoint started,
+usage null, reserve15732 не actual. Новые known2252792/1702POST; cap5990220/2100
+сохранён, retry/recovery0. Ночного разрешения на технические исправления
+недостаточно для обхода unknown-stop/failed-run guard: локальная кодовая ошибка
+не обнаружена. Отдельное решение может касаться лишь199unattempted с новым
+verified immutable lineage и прежним совокупным бюджетом, без повтора unknown.
+Текущий результат не заменяет полный500-ID/method comparison; Refs #16.
+
+
+### Явно разрешённое unattempted-only продолжение
+
+После уведомления об unknown и необходимости решения о199не запущенных cases
+пользователь ответил «Делай то что нужно». Это разрешение завершить только эти
+199случаев, не повторять неизвестный запрос и не расширять исходный cap.
+[Точная запись](../results/summary/e2-musique-s500-unattempted-authorization.json).
+Новый private plan строится existing `scripts.full_experiment prepare-musique-unattempted`
+с `--execution-plan .cache/e2-musique-s500-unattempted-plan.json`; старый root plan
+не переписывается. Сначала strict parent audit/claim/code-runtime/source pins и
+existing `e2_pilot.seal_unknown_reader`, затем ровно199missing RAPTOR IDs.
+Все1301родительских outcomes immutable, включая700new completed,600reuse и1failure.
+
+Остаток пересчитывается из terminal journal:3721696tokens/398POST после
+2252792known и15732reservation; filter0, reader199/local BGE199. Это остаток того
+же5990220/2100, не новый расход сверх cap. Per-POST admission остаётся строгим,
+никакого worst-case promise завершения. New child допускается один раз; новый
+unknown/transport/infra/pin/budget failure снова останавливает очередь без retry.
+Unknown case имеет отдельный infrastructure marker и pipeline EM/F1=0, согласно
+переиспользуемой sealed-failure policy; он не называется неверным ответом reader.
+Usage остаётся null; reservation не actual. При завершении expected1500outcomes
+будут1499answers+1failure, а не1500ответов. Common evaluator не исключает failed ID.
+
+Parent physical и child physical учитываются по одному разу, отдельно от
+pilot/development и E1. S500 latency/usage объединяет обе physical части, исключая
+начальные600reuse; данные child-only также сохранены. Новый runtime фиксируется
+отдельно от parent e144ad9. До terminal audit работа Draft/Refs #16; HotpotQA,
+новые модели/индексы/prompt/cap/retrieval/split и следующие задачи не запускаются.
+
+
+### Проверенный итог MuSiQue S500
+
+[Единая таблица](../results/summary/e2-musique-s500.md)/[safe JSON](../results/summary/e2-musique-s500.json):
+1500uniqueoutcomes=1499answers+1sealed transportfailure,0notattempted.
+Dense EM/F1=34.80/44.93%, Hippo43.40/53.55%, RAPTOR32.40/42.47%.
+Childba393849/runtimea0 закончил199unattempted/398POST/802989known/newunknown0.
+Root7936654d/e144 остаётсяfailed; unknownreader не повторён. Sealed failure
+pipeline0 — infrastructure marker, не неверный ответreader; usage остаётсяnull.
+S500physical3055781known/2100POST +reserve15732; E2csource/development7092434/
+4960POST,2unknown/reserve38277,cost_complete=false; E1отдельно. Logicalreuse
+иsource91871 повторно не добавлялись. ПолныйauditSHA/IDs/lineage выполнен.
+
+Localtracking3MLflow/3Langfuse views по500:fulltext/order/answers,usage/null и
+36artifact/linkedJSONL roundtripSHA проверены без modelcalls. Послеterminal
+обнаружен иисправлен только native observation cursor reader:API meta.cursor
+не читался как next_cursor,1000/2001observations. Поддерживаются оба schema,
+repeatedcursor rejected;3targeted tests/native readback прошли. Dense trace
+дочитан без повторного экспорта. AST guard дляofflinefreeze допускает изменение
+толькоget_all_langfuse_observations, не exporter/generator; старые execution
+codeSHA не переписываются. Sourceexecutiona0/e144 отделены отpostprocessorHEAD.
+Privatepercasepaths/receipt находятсявchildraw; safeIDs/audit витоговомJSON.
+Параметры/модели/индексы неизменны, S500development/mixedHippo/errors/replay
+ограничения сохранены. Следующиезадачи не запущены; Draft/Refs #16.
+
+
+### Воспроизводимый полный отчёт S500
+
+`e2_s500.write_report` восстанавливает дополнительные разделы из проверяемого
+`results/summary/e2-musique-s500-evidence.json`, а не из старого destination JSON.
+Привязка к run/plan/manifest, pinned audit/receipt/evaluation и сверка cumulative
+accounting обязательны. Per-case raw не перезаписывается; пересборка проверяется
+в новом временном output с запрещённым HTTP. Команда и точные входы задач12/14
+даны в [итоговой таблице](../results/summary/e2-musique-s500.md#воспроизведение-и-передача-результатов-offline).
+Дополнительный файл — проверяемое приложение к одному отчёту, не новый эксперимент.
+PR38 остаётся Draft и зависит от PR37; научные формулировки согласованы по
+сообщению пользователя, опубликованное bot/GitHub review не утверждается.
+
+
 ## Текущее бюджетное решение issue15
 
 Прямое согласие пользователя от2026-10-29: «Я согласен с этими лимитами»

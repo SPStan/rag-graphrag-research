@@ -51,7 +51,8 @@ e19010a34334409f5ad0e58861dd5fe1aa71ec0a:results/summary/e2-pilot200-incomplete.
 920dfc6fd2f575fea2414ddb4fd0381fcb9139c0:results/summary/full-experiment.json:generic-api-key:1
 9c96c88a26a4123ece0cd63209229a9990f00df0:results/summary/full-experiment.json:generic-api-key:1
 
-# User explicitly approved these two exact historical public-case SHA fingerprints.
-# Full-history CI sees PR38 history; no path/rule exclusion.
+# Issue16: two immutable report case IDs, not credentials.
+# Verified as SHA256([musique,raptor,published question ID]) in Git061b306.
+# Exact historical fingerprints only; current/future values stay scanned.
 061b3064b769badd84991fbea9c83a5e767800fb:results/summary/e2-musique-s500.json:generic-api-key:2162
 061b3064b769badd84991fbea9c83a5e767800fb:results/summary/e2-musique-s500.json:generic-api-key:2205

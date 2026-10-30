@@ -42,7 +42,10 @@ def get_all_langfuse_observations(client, trace_id):
             fields="core,basic,io,metadata,usage,trace_context",
         )
         observations.extend(page.data)
-        next_cursor = getattr(getattr(page, "meta", None), "next_cursor", None)
+        meta = getattr(page, "meta", None)
+        next_cursor = getattr(meta, "next_cursor", None) or getattr(
+            meta, "cursor", None
+        )
         if not next_cursor:
             return observations
         if next_cursor == cursor:

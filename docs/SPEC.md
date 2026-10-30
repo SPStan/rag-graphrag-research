@@ -1,6 +1,6 @@
 # Спецификация исследования
 
-Статус: E1 завершён структурно6/6 с disclosed extraction errors и semantic_verified=false; целевой E2 pilot200 содержит1199ответов и1sealed transport failure. Полное сравнение S500 ещё не выполнено. Offline freeze issue15 закрепляет конфигурации/reuse/missing-set и бюджетное решение; само по себе оно не разрешает запуск. Исторические локальные результаты ниже — development, не независимый benchmark. Основание — [исходное задание](../3_1_student_track_v1.md).
+Статус: E1 завершён структурно6/6 с disclosed extraction errors и semantic_verified=false; целевой E2 pilot200 содержит1199ответов и1sealed transport failure. MuSiQue S500 завершён:1499ответов+1sealed transport failure,1500учтённых случаев; HotpotQA S500 не выполнялся. Offline freeze issue15 закрепляет конфигурации/reuse/missing-set и бюджетное предложение, но не разрешает запуск. Исторические локальные результаты ниже — development, не независимый benchmark. Основание — [исходное задание](../3_1_student_track_v1.md).
 
 Уточнение от 23 сентября: до целевого benchmark выполняем [локальный MVP](LOCAL_MVP.md) на RTX 3070 и небольшой модели. Это отдельная предварительная конфигурация; пороги и модель основного исследования ниже не заменяются. Решение — [ADR-0001](../.adr/0001-local-mvp-and-agent-artifacts.md).
 

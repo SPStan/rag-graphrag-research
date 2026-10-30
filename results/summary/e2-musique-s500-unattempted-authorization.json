@@ -1,0 +1,12 @@
+{
+  "kind": "musique_unattempted_authorization",
+  "approved": true,
+  "user_quote": "Делай то что нужно",
+  "context": "reply to notification of one unknown reader and request for decision on199unattempted; continue only those cases without retrying unknown",
+  "source": "direct user message in this task, 2026-10-29",
+  "parent_plan_sha256": "99d5e84615cc09259f2ea39726e035243d40e62005261f0acee33ccc9bb7401e",
+  "expected_unattempted": 199,
+  "budget_expansion": false,
+  "retry_unknown": false,
+  "failure_metric_policy": "terminal infrastructure failure; pipeline EM/F1=0, failure disclosed; not a wrong reader answer"
+}

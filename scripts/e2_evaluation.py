@@ -512,6 +512,10 @@ def result_references(plan, manifest, directory):
 
 
 def lineage_records(plan, directory, manifest):
+    if plan.get("version") == "e2-musique-s500-v1":
+        from scripts import e2_s500
+
+        return e2_s500.current_records(plan, directory, manifest)
     from scripts.token_accounting import verified_reference, read_records
 
     check_parent_pins(plan)
@@ -545,6 +549,10 @@ def lineage_records(plan, directory, manifest):
 
 
 def verify(plan):
+    if plan.get("version") == "e2-musique-s500-v1":
+        from scripts import e2_s500
+
+        return e2_s500.verify(plan)
     if plan.get("version") == "e2-pilot200-v1":
         from scripts import e2_pilot
 
@@ -604,6 +612,10 @@ class Calls:
         url=None,
         headers=None,
     ):
+        if self.plan.get("version") == "e2-musique-s500-v1":
+            from scripts import e2_s500
+
+            e2_s500.guard(self, payload, method, dataset, qid, operation)
         if self.plan.get("version") == "e2-pilot200-v1":
             if (
                 method not in METHODS
@@ -1501,6 +1513,10 @@ def summary(plan, directory):
         and all(r["comparison_complete"] for r in table),
         "historical_E1_excluded": True,
     }
+    if plan.get("version") == "e2-musique-s500-v1":
+        from scripts import e2_s500
+
+        e2_s500.enrich_report(plan, result)
     if plan.get("version") == "e2-pilot200-v1":
         from scripts import e2_pilot
 
@@ -1640,6 +1656,10 @@ def tracking_payload(plan, directory, dataset, method):
 
 
 def write_report(plan_path, directory, public_prefix):
+    if dense.read_json(plan_path).get("version") == "e2-musique-s500-v1":
+        from scripts import e2_s500
+
+        return e2_s500.write_report(plan_path, directory, public_prefix)
     """Generate private evaluation and a safe public table from immutable results.
 
     A failed smoke publishes technical coverage, not a fabricated six-way score.

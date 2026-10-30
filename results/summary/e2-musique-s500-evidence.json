@@ -1,0 +1,176 @@
+{
+  "run_id": "ba393849-c977-4c8f-97d7-303fc12955c8",
+  "plan_sha256": "d7dc363292c15f66135007bda90be61a43486983ccc1547da5ac24d18f8e9623",
+  "manifest_sha256": "73be5360281e1186758e78e8ec78c30fc11f03f47b6316bada68db308f5f6a88",
+  "kind": "S500_reviewed_report_evidence_v1",
+  "raw_directory_name": "e2-musique-s500-unattempted-v1",
+  "sections": {
+    "terminal_audit": {
+      "status": "verified_with_disclosed_historical_unknown",
+      "run_id": "ba393849-c977-4c8f-97d7-303fc12955c8",
+      "parent_run_id": "7936654d-8820-4449-803b-f7ef6074424a",
+      "expected_unique_cases": 1500,
+      "parent_cases": 1301,
+      "child_cases": 199,
+      "completed": 1499,
+      "attempted_failed": 1,
+      "not_attempted": 0,
+      "child_known_tokens": 802989,
+      "child_POST": 398,
+      "child_unknown": 0,
+      "S500_known_tokens": 3055781,
+      "S500_POST": 2100,
+      "S500_unknown": 1,
+      "sealed_unknown": {
+        "run_id": "7936654d-8820-4449-803b-f7ef6074424a",
+        "object_id": "1d3e45a61782e6b416768326e085607e59f0052352e2b55fcd0abcddaefffdb5",
+        "reservation_tokens": 15732,
+        "usage_status": "unknown",
+        "response_status": "absent",
+        "retry": "forbidden",
+        "metric_policy": "terminal infrastructure failure; pipeline EM/F1=0, failure disclosed; not a wrong reader answer",
+        "case_id_sha256": "86c46109914168be935479b563e50be039eeea82c851898f5fed7b24506b69eb"
+      },
+      "source_data_index_code_pins": "launcher verify-musique-execution completed successfully before report",
+      "source_artifact_pins_verified": true,
+      "unfinished_attempts": 0,
+      "duplicate_attempts": 0,
+      "plan_sha256": "d7dc363292c15f66135007bda90be61a43486983ccc1547da5ac24d18f8e9623",
+      "manifest_sha256": "73be5360281e1186758e78e8ec78c30fc11f03f47b6316bada68db308f5f6a88",
+      "journal_sha256": "15eb160336acb7b5d2a15fd0025d2e3ebe72e9c7829fca98151f358bc2643d77",
+      "parent_manifest_sha256": "be15c4ef7323ff9a24ac7d1a1e2a3f2a41da2d0c87a2d29042afced2f68eeffb",
+      "parent_journal_sha256": "1574e514e9d0593402f95513210306d80c59e755525cb7d80bed799366906ed8",
+      "private_evaluation_sha256": "d1a2717f145cc55f8593cc5162466e833e24efc6833fa69f2c0507a83f38f67c",
+      "model_calls_during_audit": 0
+    },
+    "execution_runtimes": {
+      "parent": "e144ad93cbd07f051090673f9baf8e158ceca126",
+      "child": "a0a52cf9c3a06caffad64304a88a0972ae921d40"
+    },
+    "cumulative_E2_accounting": {
+      "known_tokens": 7092434,
+      "physical_POST": 4960,
+      "unknown_operations": 2,
+      "unknown_reservations_not_actual": 38277,
+      "cost_complete": false,
+      "source_development_known_counted_once": 4036653,
+      "source_development_POST_counted_once": 2860,
+      "E1_excluded": true
+    },
+    "budget": {
+      "original_S500_new_token_cap": 5990220,
+      "original_S500_new_POST_cap": 2100,
+      "S500_known_tokens": 3055781,
+      "unknown_reservation_not_actual": 15732,
+      "remaining_after_reserve": 2918707,
+      "remaining_POST": 0,
+      "retry_unknown": false,
+      "new_experiments_authorized": false
+    },
+    "tracking": {
+      "status": "verified",
+      "scope": "3x500 logical pipeline cases; full retrieval/generation documents+usage+source/child artifact SHA; no inference",
+      "views": {
+        "musique-dense": {
+          "cases": 500,
+          "completed": 500,
+          "failed": 0,
+          "mlflow_run_id": "395cb16a2dfe45ecbc136bd1d88dae4b",
+          "mlflow_trace_id": "tr-3b43c28f672b111dc908afd0f6333639",
+          "langfuse_trace_id": "9c1d46a74c6f21ec9f8821ba225be393",
+          "reader_unknown": 0,
+          "artifact_roundtrip_count": 12,
+          "fulltext_roundtrip": {
+            "status": "verified",
+            "cases": 500,
+            "title_text_order_and_answers": true,
+            "mlflow_retrieval": 2500,
+            "mlflow_generation": 2500,
+            "langfuse_retrieval": 2500,
+            "langfuse_generation": 2500
+          },
+          "linked_JSONL_sha256": "7e0b6929224c9ed6ccb934040c9ff437734afe3e423855205cc7206e3571f8a8"
+        },
+        "musique-hipporag2": {
+          "cases": 500,
+          "completed": 500,
+          "failed": 0,
+          "mlflow_run_id": "a83a56c39ba1497f8757a69375ad5e95",
+          "mlflow_trace_id": "tr-867afbe801b545d5c276570f4ca60030",
+          "langfuse_trace_id": "c5ae5e1475e6ea97325f8bc9b85315de",
+          "reader_unknown": 0,
+          "artifact_roundtrip_count": 12,
+          "fulltext_roundtrip": {
+            "status": "verified",
+            "cases": 500,
+            "title_text_order_and_answers": true,
+            "mlflow_retrieval": 2500,
+            "mlflow_generation": 2500,
+            "langfuse_retrieval": 2500,
+            "langfuse_generation": 2500
+          },
+          "linked_JSONL_sha256": "df44f4770ae22bc2c503568f944925248843ff3bcf18f63c15b8597cdb53cefb"
+        },
+        "musique-raptor": {
+          "cases": 500,
+          "completed": 499,
+          "failed": 1,
+          "mlflow_run_id": "5f5150dd00784f2ba4fc100d2135d0d8",
+          "mlflow_trace_id": "tr-5cb43b6057c2b43930e3a67f6648555d",
+          "langfuse_trace_id": "e4a6b0476260df2e72a0c9df796b90ed",
+          "reader_unknown": 1,
+          "artifact_roundtrip_count": 12,
+          "fulltext_roundtrip": {
+            "status": "verified",
+            "cases": 500,
+            "title_text_order_and_answers": true,
+            "mlflow_retrieval": 2500,
+            "mlflow_generation": 2500,
+            "langfuse_retrieval": 2500,
+            "langfuse_generation": 2500
+          },
+          "linked_JSONL_sha256": "62717b622feffaf7610b08041c41918d480ed95c9060f27fcf75e99f226c8485"
+        }
+      },
+      "receipt_relative_path": "results/raw/e2-musique-s500-unattempted-v1/tracking/receipt.json",
+      "receipt_sha256": "fa79888eba2764e8b02c71ade160ba4028fc2be171df3edc5e34ba242df155d8",
+      "model_calls": 0
+    },
+    "postprocessing": {
+      "pagination_reader_fix": "meta.cursor and legacy meta.next_cursor supported; repeated cursor rejected",
+      "targeted_regressions_passed": 3,
+      "actual_native_observations_per_view": 2001,
+      "verified_generation_components_unchanged": true,
+      "component_sha256": {
+        "scripts/track_dense.py": "73dafa3f0b3ec6239bb6676ea9668153482f57cc87633e5e84947ef8b1194abf",
+        "scripts/full_experiment.py": "0f5cf70b3e9fd9f045887e5cefcc0f27e94b51b3fde0eba80cc418710b69dcdf"
+      }
+    },
+    "logical_usage_scope": "per-method usage_by_operation covers500logical cases incl200initial reuse; never add it to physical spend",
+    "S500_physical_usage_scope": "parent+child900new outcomes includes one sealed reader failure; excludes600initial reuse",
+    "public_hash_presentation": "case_id_sha256 aliases private sealed case_key; value unchanged; raw/plans/journals unchanged",
+    "secret_scan": {
+      "full_history_commits_checked": 219,
+      "findings_after_verified_case_hash_fingerprints": 0,
+      "synthetic_canary_detected": true,
+      "historical_checksum_false_positives": 2,
+      "ignore_scope": "exact commit/path/rule/line only; all future values remain scanned",
+      "raw_and_model_results_unchanged": true
+    }
+  },
+  "sections_sha256": "440575b39a41e66dc0df3be9cedf8df540502ab5080f493dc3447f6644e63ff9",
+  "artifact_sha256": {
+    "results/raw/e2-musique-s500-unattempted-v1/manifest.json": "73be5360281e1186758e78e8ec78c30fc11f03f47b6316bada68db308f5f6a88",
+    "results/raw/e2-musique-s500-unattempted-v1/usage.jsonl": "15eb160336acb7b5d2a15fd0025d2e3ebe72e9c7829fca98151f358bc2643d77",
+    "results/raw/e2-musique-s500-unattempted-v1/evaluation.json": "d1a2717f145cc55f8593cc5162466e833e24efc6833fa69f2c0507a83f38f67c",
+    "results/raw/e2-musique-s500-unattempted-v1/tracking/receipt.json": "fa79888eba2764e8b02c71ade160ba4028fc2be171df3edc5e34ba242df155d8",
+    ".cache/e2-musique-s500-unattempted-terminal-audit.json": "640afdcda1d8291ff15c6813d6e3bae4d2cde443873cc7f08cac1c51389fec79",
+    "results/raw/e2-musique-s500-v1/manifest.json": "be15c4ef7323ff9a24ac7d1a1e2a3f2a41da2d0c87a2d29042afced2f68eeffb",
+    "results/raw/e2-musique-s500-v1/usage.jsonl": "1574e514e9d0593402f95513210306d80c59e755525cb7d80bed799366906ed8",
+    ".cache/e2-musique-s500-unattempted-plan.json": "d7dc363292c15f66135007bda90be61a43486983ccc1547da5ac24d18f8e9623",
+    ".cache/e2-musique-s500-execution-plan.json": "99d5e84615cc09259f2ea39726e035243d40e62005261f0acee33ccc9bb7401e",
+    "results/summary/e2-musique-s500-authorization.json": "be8015e37d22ed8b65392200792b06eac7e9af6491b77c91948f94f8bf629d2f",
+    "results/summary/e2-musique-s500-unattempted-authorization.json": "e418ff237b9c97d7bf91ad8489b633c2c33470de83c11029ef468e8c48ba36a5"
+  },
+  "terminal_audit_relative_path": ".cache/e2-musique-s500-unattempted-terminal-audit.json"
+}

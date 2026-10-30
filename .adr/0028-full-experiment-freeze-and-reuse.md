@@ -152,6 +152,111 @@ allocation и не учитываются повторно; старый unknown
 операционного cap пока нет; бюджетный критерий issue15 открыт.
 
 
+## MuSiQue-only разрешение и extension issue16
+
+2026-10-29 пользователь делегировал выбор бюджета с запасом и разрешил его;
+точная цитата и границы в `e2-musique-s500-authorization.json`. Для Mu выбрано
+5990220новых combined tokens/2100POST=5921100pilot maxima+69120admission.
+Это не blanket API authorization и не согласие на HotpotQA/весь cap10903320.
+Старый worklist и full freeze не переписываются: новый private execution-plan
+отдельно фиксирует согласие,600immutable source cases,500IDs и runtime pins.
+
+Минимальная версионная extension существующего shared runner сохраняет legacy
+AST полностью; alternative отдельный runner отклонён из-за дублирования
+payload/evaluator/claims. До нового POST проверяются scope, parent pins,
+per-operation/total POST caps и known+reservation≤cap. Unknown/partial/infra
+останавливают очередь, automatic retry/recovery0; бюджет не гарантирует finish.
+Offline проверка через реальный CLI с fake transport охватывает reuse, ошибки,
+pins и расходы; реальные source/index проверки полностью offline. Пересмотр:
+новый reader/index/split либо исчерпанный cap требует отдельного решения;
+этот протокол не подбирается по F1 и не разрешает новые исследования.
+
+
+## Применение unknown-stop на MuSiQue
+
+Run7936654d остановился на remote reader ConnectionError/RemoteDisconnected:
+ответ не получен, usage null, reserve15732 не actual. Новые700completed+1failed,
+199not_attempted;600parent cases сохранены. Соблюдён stop без retry/recovery,
+не снят общий failed guard. Техническое ночное разрешение пользователя не
+переопределяет unknown policy. Кодовый дефект не установлен; исправление кода
+не подменяет неизвестный outcome. Для следующего решения сохранены residual
+3721696tokens/398POST после reserve и immutable partial artifacts; сами residual
+лимиты не разрешают новый запуск. Автоматизация прекращает polling после
+уведомления. Полное сравнение1500cases пока не подтверждено.
+
+
+## Принятое решение после уведомления об unknown
+
+Прямой ответ пользователя «Делай то что нужно» на запрос решения о199unattempted
+разрешает один missing-only child исходногоS500run. Текст/контекст/границы записаны
+в e2-musique-s500-unattempted-authorization.json. Альтернатива повторить unknown
+отклонена; остановленный parent сохраняется failed с исходнымnull usage.
+Existing seal_unknown_reader проверяет embedding, exact reader payload/objectID,
+started checkpoint, отсутствие response и ровно один attributed unknown.
+Его infrastructure outcome учитываетсяpipeline0 с marker, не как неверный reader
+answer. Это расширение существующего S500 plan/guard, не снятие failed-run запрета.
+
+Parent plan строго pinned к99d5e846/runtime e144ad9 и повторно строится с теми же
+contract/data/index/source настройками; только child code pins новые. Parent claims
+и все artifact SHA остаются immutable; child использует новый plan/output и durable
+claim родительского snapshot. Вторая такая sealed-unknown child запрещена.
+Root cap5990220/2100 не растёт: child≤3721696tokens/398POST после known2252792 и
+reserve15732. Unknown usagenull сохраняется и не получает вымышленного0.
+Целевые offline tests должны пройти через existing runner и проверить ровноmissing,
+неизменные parent bytes, budget conservation, sealed case no POST, запрет tamper/
+active lock/claim/second child и отсутствие двойного учёта. Per-POST admission и
+остановка на новой transport/unknown сохраняются; окончание не гарантируется.
+
+
+## Проверенный результат и postprocessor boundary
+
+Unattempted childba393849/runtimea0 завершил199/199 с398POST/802989known,
+0newunknown. Итог1500expected:1499completed+1sealed historicalfailure.
+S500newphysical3055781known/2100POST,Mu unknownreserve15732; parente144/failed
+иsource claims/results/journals immutable. Полный common evaluator, ID/SHA/
+lineage audit,3localMLflow/Langfuse500caseviews/fulltext иartifactroundtrip
+проверены. РасходE1иoldHotunknown сохраняетсяотдельно, cost_complete=false.
+
+Послеterminal обнаружен posthoc pagination defect: nativeAPI отдаёт meta.cursor,
+reader ждал next_cursor и видел1000из2001obs. Минимальное решение поддерживает
+оба поля сguard repeatedcursor. Альтернатива переэкспортироватьdata отклонена:
+существующийDense trace дочитан,успешныеexports не повторяются.3targeted tests
+cover обаcursor schema/2001items/repeatedcursor; realnativefulltext/usage proof
+подтвердил3views. Дляofflinefreeze введён AST guard: разрешено менять толькоbody
+get_all_langfuse_observations, остальныеexport/inference AST nodes неизменны.
+Blanket exception дляtracking отвергнуто. Executioncodea0 зафиксировандоfix;
+postprocessor имеетотдельныйHEAD/sha,старыеplans/runtimeSHA не переписываются.
+Пересмотрнужен приновом API schema илиизменениидругихexport/generationfunctions;
+это не разрешение повторять inference. Source/audit/receipt links вsafeJSON.
+
+
+## Исторические checksum fingerprints итогового отчёта
+
+CI061b306 нашёл2generic-api-key совпадения вpublic e2-musique-s500.json:
+обаcase_key — один и тотжеSHA256([musique,raptor,3hop1__90327_83076_319330]),
+не credential. Значения проверены вimmutableGitblob ивычислением existingdigest.
+В.gitleaksignore только2точныхcommit/path/rule/linefingerprints(2162,2205),
+историяне переписывается, blanketrule/path исключений нет. Public keyname теперь
+case_id_sha256, значениеидентичноprivatecase_key. Sourceplans/raw/journals не
+меняются. Полный historyscan219commits дал0findings; syntheticstdin canary обнаружен;
+новыеvalues/commits продолжаютсканироваться. Это не опубликованное одобрениебота.
+
+
+## Воспроизводимость опубликованных дополнительных свидетельств
+
+Ранее write_report строил базовые метрики и затирал posthoc audit/tracking/cost
+разделы. Выбрано одно reviewed приложение с run/plan/manifest и локальными SHA,
+а не слепое сохранение старого JSON и не повторный tracking-export. Основные
+метрики/physical accounting строятся прежним runner; appendix не может подменять
+core fields. Audit сверяется с исходным snapshot, views с сохранённым receipt,
+cumulative known/POST вычисляются из исходных subtotal один раз. Неизменные raw
+и execution plans не переписываются, существующий evaluation требует равенства.
+Повторная сборка в независимые outputs и негативные tamper-тесты проверяют путь.
+Это postprocessor change, не изменение reader/retrieval/evaluator/эксперимента.
+При изменении lineage необходимы новые проверяемые свидетельства; старое
+приложение для иного run/manifest отклоняется.
+
+
 ## Текущее бюджетное решение issue15
 
 Прямое согласие пользователя от2026-10-29: «Я согласен с этими лимитами»

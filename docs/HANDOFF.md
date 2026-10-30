@@ -2,22 +2,67 @@
 
 **E1 status:** 6/6 indexes completed under the structural protocol; physical known tokens=32601955; cost_complete=False; unknown reserve61588 preserved. Final audit/verify completed; monitoring paused.
 
-## Текущая очередь — issue15: протокол и бюджеты согласованы
+## Текущая очередь — issue17: HotpotQA S500, этап не запущен
 
-- PR37 остаётся Draft, Closes #15: все4критерия выполнены. Научные формулировки
-  согласованы по сообщению пользователя; опубликованное bot/GitHub review не заявляется.
-- Пользователь принял HotpotQA4982220новых tokens/2100POST
-  (900reader/300filter/900localBGE), retry0; только900ранее unattempted cases.
-  Основание4913100по максимумам пилота+69120admission headroom, без переноса Mu остатка.
-- Mu5990220/2100 и continuation199 уже отдельно разрешены; повторное согласие
-  не нужно. Исторические unknown/costs/reserves не освобождаются и не повторяются.
-- Frozen full-experiment.json не изменён: его1800missing — исторический снимок,
-  не текущий список. До Hot запуска нужны новый verified execution-plan,
-  актуальный audit/остатки и отдельная команда запуска. При нехватке cap/новом
-  unknown/transport/pin error — stop без retry. Завершение не гарантируется.
-- Точная запись согласия и условия — ADR0028/E2; reader/model/index/split прежние.
-  В этом блоке только документация, никаких model/API/embedding/tracking вызовов.
-- Следующий шаг — ревью PR37, затем зависимого PR38. Ready/merge не разрешены.
+- Issue15: протокол/reuse/scoped budgets завершены; PR37 слит обычным merge
+  `836516161d544e4c2dcc5f0ed75e7d0e811ec052`, issue15 CLOSED, существующая карточка Done.
+- Итоговый PR38 содержит проверенный MuSiQue S500 (1499ответов+1transport failure,
+  1500accounted). Пользователь2026-10-30 разрешил Ready и последовательный merge
+  PR37→PR38 после проверок. Актуальные статусы интеграции —
+  [PR37](https://github.com/SPStan/rag-graphrag-research/pull/37) и
+  [PR38](https://github.com/SPStan/rag-graphrag-research/pull/38).
+- Следующий отдельный этап — issue17: подготовить verified missing-only Hot plan
+  для900ранее не запущенных cases, reuse600исходов пилота, включая sealed failure.
+  Бюджет4982220новых combined tokens/2100POST (reader900/filter300/localBGE900), retry0
+  уже согласован; это не команда запуска. Exact reservation/strict caps/stop при
+  новых partial/unknown/transport/pin errors обязательны, unknown не повторять.
+- Переход к issue17 — после подтверждения merge37/38 и отдельной команды.
+  В блоке интеграции новых model/embedding/indexing/tracking вызовов нет;
+  issue17 и задачи12/14/21, signal-check/holdout не запускать автоматически.
+- Runtime SHA, frozen/private plans, raw, claims и unknown reserves сохраняются;
+  E1/source cost incomplete и development-ограничения не снимаются.
+
+## Сохранённый результат MuSiQue S500 — issue16
+
+- Итоговый PR38, `codex/musique-s500-comparison`, PR37/issue15 уже слит обычным merge.
+  [Единая таблица](../results/summary/e2-musique-s500.md),
+  [safe JSON/audit/receipt](../results/summary/e2-musique-s500.json).
+  1500uniqueexpected:1499completed+1historical transport failure,0not_attempted.
+  Dense500/0, HippoRAG2 500/0, RAPTOR499/1. Не1500ответов.
+- Дополнительные evidence сохранены в e2-musique-s500-evidence.json с run/plan/
+  manifest/artifact SHA; две offline CLI-пересборки в temp равны полному public JSON,
+  5137immutable files unchanged. Команда/точные per-case/manifest/usage/error paths
+  для задач12/14 — в единой таблице. Следующие задачи/signal-check не выполнялись.
+- PR37/issue15: все4критерия выполнены; отдельный HotpotQA бюджет согласован:
+  4982220новых combined tokens/2100POST (reader900/filter300/localBGE900), retry0.
+  Mu budget/continuation уже разрешены; frozen manifest/исторические unknown неизменны.
+  Согласие на бюджет не запускает Hot: нужны verified missing-only plan, актуальный
+  audit/strict admission и отдельная команда запуска. Запись решения — ADR0028.
+- EM/F1(%): Dense34.80/44.93, Hippo43.40/53.55, RAPTOR32.40/42.47.
+  R@5passages60.33/70.72; RAPTORprovenance62.12неpassageR@5.
+  Pipeline0 для sealed infrastructure failure раскрыт, unknownusage=null.
+- Child ba393849-c977-4c8f-97d7-303fc12955c8/runtimea0a52cf завершил199new,
+  398POST/802989known, newunknown0. Parent7936654d/runtimee144ad9 сохранён
+  failed неизменным, unknowncase3hop1__90327_83076_319330 не повторён.
+  Exact reader identity/absent response/started checkpoint/reserve15732 сохранены.
+- S500 newphysical parent+child3055781known/2100POST; initial600reuse не оплачены
+  повторно. E2csource/development7092434known/4960POST,2unknown/reserve38277,
+  cost_complete=false; E1known32601955/reserve61588 отдельно. Cap5990220/2100
+  не расширен; model/prompt/cap512/top5/retrieval/index/split/SDK прежние.
+- Terminal audit1500cases:1301parents+199child, SHA source/index/data/code/
+  response/checkpoint/journal,0newunknown/unfinished/duplicate attempts.
+  Privatepercase `results/raw/e2-musique-s500-unattempted-v1/evaluation.json`;
+  sourcefailedraw/results/claims не переписывались, новые recovery не запускались.
+- Localtracking3MLflow/3Langfuse views по500; fullretrieval/generation text/order/
+  answers и usage проверены,36artifact/linkedJSONL roundtripSHA. ОдинMu reader
+  unknown остался null. Posthoc — modelcalls0; IDs и safe proof вJSON.
+- Послеterminal исправлен только posthoc Langfuse reader(meta.cursor/next_cursor):
+ 3targeted regressions+native2001obs/view passed. Denseexistingtrace дочитан без
+  reexport. Executiona0 отдельно отpostprocessorcommit; generator/evaluatorне менялись.
+- S500development/mixedHippoerrors/E1incomplete/replaylatency раскрыты.
+  Per-case артефакты доступны задачам12/14; сами новые задачи
+  не запускать. Остальные scientific settings не менять. Closes #16,
+  интеграция разрешена пользователем после проверок. Монитор уже удалён; новые прогоны не разрешены.
 
 ## Сохранённый результат pilot200 — 1199ответов+1transport failure
 
