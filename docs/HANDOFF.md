@@ -2,25 +2,22 @@
 
 **E1 status:** 6/6 indexes completed under the structural protocol; physical known tokens=32601955; cost_complete=False; unknown reserve61588 preserved. Final audit/verify completed; monitoring paused.
 
-## Текущая очередь — issue17: HotpotQA S500, этап не запущен
+## Текущая очередь — подготовительные Draft PR для issues17/18
 
-- Issue15: протокол/reuse/scoped budgets завершены; PR37 слит обычным merge
-  `836516161d544e4c2dcc5f0ed75e7d0e811ec052`, issue15 CLOSED, существующая карточка Done.
-- Итоговый PR38 содержит проверенный MuSiQue S500 (1499ответов+1transport failure,
-  1500accounted). Пользователь2026-10-30 разрешил Ready и последовательный merge
-  PR37→PR38 после проверок. Актуальные статусы интеграции —
-  [PR37](https://github.com/SPStan/rag-graphrag-research/pull/37) и
-  [PR38](https://github.com/SPStan/rag-graphrag-research/pull/38).
-- Следующий отдельный этап — issue17: подготовить verified missing-only Hot plan
-  для900ранее не запущенных cases, reuse600исходов пилота, включая sealed failure.
-  Бюджет4982220новых combined tokens/2100POST (reader900/filter300/localBGE900), retry0
-  уже согласован; это не команда запуска. Exact reservation/strict caps/stop при
-  новых partial/unknown/transport/pin errors обязательны, unknown не повторять.
-- Переход к issue17 — после подтверждения merge37/38 и отдельной команды.
-  В блоке интеграции новых model/embedding/indexing/tracking вызовов нет;
-  issue17 и задачи12/14/21, signal-check/holdout не запускать автоматически.
-- Runtime SHA, frozen/private plans, raw, claims и unknown reserves сохраняются;
-  E1/source cost incomplete и development-ограничения не снимаются.
+- PR37/38 слиты обычными merge commits8365161/2bfdf99; issues15/16 CLOSED,
+  существующие карточки Done. Исторические raw/plans/runtime SHA сохранены.
+- Issue17: ветка `codex/hotpotqa-s500`, [протокол](E2_HOTPOTQA_S500.md).
+  Подготовка научной карточки и плана; Hot S500 пока не выполнен, execution CLI
+  ещё не готов. Budget4982220tokens/2100POST уже согласован, retry0, старый unknown
+  не повторять. Для API нужны validated plan и отдельная команда запуска.
+- Issue18: отдельная ветка `codex/e3-paired-evaluation`, протокол E3 для согласования.
+  Вход Mu1500cases доступен; полного Hot входа нет. Полная E3 заблокирована issue17.
+  Предлагаются1000paired resamples/seed42 по issue18/треку; pilot2000 не смешивать
+  с новой версией. Метрики/интервалы по реальным ответам сейчас не пересчитываются.
+- Один issue — один итоговый PR: дальнейшие code/tests/results в этих же PR,
+  отдельные smoke/fix PR не создавать. Формулировки17/18 ещё не согласованы.
+- Оба Draft/Refs, без Closes/Ready/merge; куратору сообщения не отправлять.
+  Никаких новых model/embedding/indexing/tracking вызовов, signal/holdout/issue21.
 
 ## Сохранённый результат MuSiQue S500 — issue16
 
