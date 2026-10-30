@@ -682,3 +682,154 @@ embedding observations явно performed_this_run=false, реальных embed
 Reader usage28132/100 подтверждён;8artifact round-trip SHA совпали. EM/F1/recall=null,
 никаких новых model calls экспорт не создал. Source audit7/2/3 раскрыт в артефактах,
 а historical E1 incomplete cost и прежний smoke расход не пересчитаны как новые.
+
+## Offline freeze S500 — issue #15
+
+[Манифест](../results/summary/full-experiment.json) содержит ordered IDs и SHA,
+шесть index/provenance pins, compatibility decisions по каждому пилотному case,
+missing IDs, logical/physical accounting, прогноз и консервативный предел.
+[ADR-0028](../.adr/0028-full-experiment-freeze-and-reuse.md) задаёт политику
+sealed failure и границы будущего запуска. Он имеет `executable=false` и
+`http_authorized=false`; это вход для следующего согласованного execution-plan,
+а не файл для немедленного `--execute`.
+
+Повторить **offline** проверку из чистой ветки с check environment:
+
+```powershell
+# Указать существующие каталоги; roots могут отличаться от исторических путей.
+$Data = '<каталог с data/processed>'
+$Artifacts = '<каталог с results/raw и исходными plans>'
+$Indexes = '<E1 worktree с indexes/e1 и .cache E1 plan>'
+./.venv-check/Scripts/python.exe -m scripts.full_experiment verify `
+  --data-root $Data --artifact-root $Artifacts --index-root $Indexes
+```
+
+`prepare` теми же аргументами строит этот же публичный JSON; `verify` заново
+проверяет источники и сравнивает всё содержимое. Ни один режим не запускает
+модели: HTTP/socket transport заблокирован. Labels только хэшируются, queries
+и corpus доступны для payload/byte bounds; ответы/gold/metrics check/reserve
+не читаются. Отсутствующий/повреждённый candidate исключается как incompatible,
+verify не даёт успешного допуска. Тексты, raw и абсолютные roots в JSON не
+публикуются. Старые manifests/checkpoints/claims не меняются.
+
+Будущий запуск **отдельно**: в issue16/17 потребуется execution-plan для
+missing-set, допуск рассчитанного бюджета и проверка его существующим shared
+runner перед `scripts.run_dense_target --shared-plan <approved-plan> --execute`.
+Текущий freeze не подменяет такой plan; не передавать его напрямую в runner.
+Ни эта команда-шаблон, ни неизрасходованные tokens старого run не разрешают HTTP.
+
+Forecast использует только fully measured logical pilot operations: отдельные
+complete subtotal и count; все известные partial tokens остаются в отчётном
+known_subtotal. Partial/fully unknown и неизвестные поля считаются отдельно.
+При отсутствии complete observations forecast=null, а не0. EM/F1 не используются.
+Filter ≤1/case Hippo, BGE ≤1/case каждого метода: межметодное сокращение не
+выдумывается. Reader input bound строится по всем500 queries и готовым индексам,
+cap65536/no truncation неизменен. Filter reserve использует admission upper,
+не измеренный будущий контекст. Bytes/reservations не называются measured tokens.
+Физические расходы пилота/разработки/индексации и logical reuse раздельны,
+source — часть development, unknown reserve — не actual usage.
+
+Итог freeze: **1199compatible completed +1terminal failure +1800missing,
+0incompatible**. Максимальный S500 reader bound:63955bytes MuSiQue RAPTOR,
+58988bytes HotpotQA RAPTOR,13239/29780bytes corpus top5; прежний cap65536
+достаточен для доказанной статической reader-bound, не утверждает размер
+backend token window. Filter size остаётся admission upper.
+
+| Новые операции | POST upper | Forecast input / output tokens | Conservative reservation |
+|---|---:|---:|---:|
+| Reader |1800|3917901.739 /13721.955|69145500|
+| Hippo filter |600|1827165 /36574.5|41472000|
+| Query BGE |1800|46345.5 /—|4051941|
+| Всего |4200|5841708.693 combined|114669441|
+
+Forecast — средние complete tuning logical operations, не actual usage будущих запросов.
+E2 pilot physical: LLM3737778input/32093output, BGE29442=3799313known,
+2708POST. Development237340/152POST включает source91871; E2 total4036653known/
+2860POST. Historical unknown1/reserve22545 сохраняется. E1known32601955,
+reserve61588 отдельно; обе стоимости неполны. Полный исторический расход
+проекта (включая ранние локальные пробы) здесь не объявляется сверенным.
+114669441 — сумма статических worst-case reservations, не операционный budget.
+Она превышает старую административную90M величину; эта граница снята. Старый E1cap68M относится только к
+индексации, старые pilot caps не дают4200новыхPOST. Перед execution нужен
+отдельный допуск research budget, а не молчаливое расширение старого run.
+
+
+### Историческое предложение бюджета issue15 (до scoped Mu-разрешения)
+
+После исправления partial usage манифест пересобран той же offline-командой.
+В текущем пилоте partial operations=0, fully unknown=1. Forecast до/после одинаков:
+5841708.693. Known reporting subtotals, physical usage, case decisions и старые
+journals/results не менялись. Полностью unknown response не заменён нулевым usage.
+
+**Один операционный вариант:10903320 новых combined tokens и≤4200POST**
+(1800reader/600filter/1800BGE). Он вычислен как10834200: сумма300новых вызовов
+×максимум полной pilot операции отдельно по6конфигурациям и стадиям; плюс69120 —
+один крупнейший admission reserve. Все maxima, sample counts и allocations —
+в `budget_proposal.operational_budget_proposal`. Это даёт запас5061611.307 над
+mean forecast; число не подбиралось округлением или по качеству ответов.
+Static worst-case114669441 сохраняется отдельной оценкой, не operating cap.
+
+Перед любым POST требуется `new_known + new_unknown_reserves + in_flight_reserves
++ exact_candidate_reserve <= approved_cap` и остаток POST caps. Один serial worker;
+exact reserve из реального payload bytes+2048+max_tokens(LLM), а не из среднего
+forecast. При нехватке места — остановка без POST; unknown/partial/transport/
+budget/pin failure — сохранение данных и stop, без retry/автоповышения.
+Offline-регрессия проверяет существующий checked_post с insufficient budget и0POST.
+Полный future execution-plan обязан реализовать/проверить этот контракт до допуска.
+
+Operating cap не гарантирует завершение всех1800: unseen costs могут превысить
+пилотные maxima, а admission может остановить очередь ещё до исчерпания cap.
+Тогда остаётся неполный набор и требуется отдельное решение. Исторический E2
+unknown reserve22545, расходы E1 и development не входят в новую allocation,
+не освобождаются и не суммируются повторно. До согласования этого бюджета
+критерий3 issue15 не выполнен; PR37 содержит **Refs #15**, остаётся Draft.
+Утверждение бюджета само по себе не разрешает запуск в этой offline-задаче.
+
+
+## Текущее бюджетное решение issue15
+
+Прямое согласие пользователя от2026-10-29: «Я согласен с этими лимитами»
+в ответ на предложение4 982 220новых combined tokens/2100POST только HotpotQA.
+Это согласование операционного бюджета как протокольного решения в PR37,
+**не команда запуска**. Научные O/N/R/H уже согласованы по сообщению пользователя;
+публикация bot/GitHub review не утверждается.
+
+| Scope | Утверждённые новые tokens | POST caps | Статус |
+|---|---:|---|---|
+| MuSiQue | 5990220 | reader900/filter300/localBGE900 =2100 | Ранее разрешён и выполнен в PR38; отдельный continuation199 не расширял caps |
+| HotpotQA | 4982220 | reader900/filter300/localBGE900 =2100 | Бюджет согласован; execution не запущен/не разрешён этим решением |
+
+Hot allocation4913100 = сумма300missing calls × maximum fully measured pilot
+operation для каждого метода/стадии; плюс69120 для допуска очередного запроса.
+Источник — неизменный `budget_proposal.operational_budget_proposal.allocations`
+в frozen `results/summary/full-experiment.json`, строки HotpotQA. Scope — только
+900ранее не запущенных method/question cases,600исходов пилота переиспользуются,
+включая один sealed transport failure. Это не600успешных ответов.
+
+Исходный общий proposal10903320 и static worst-case114669441 остаются историческими
+расчётами, не переписываются и не называются actual usage. Сумма отдельно принятых
+allocation caps10972440 выше старого proposal на69120: admission headroom теперь
+отдельный у двух последовательных этапов. Это не перенос неиспользованного Mu
+остатка; исходный Mu cap не расширяется. Исторические costs и unknown reserves
+(Hot22545/Mu15732/E1отдельно) сохраняются, не считаются новыми расходами или нулём.
+
+Перед любым будущим Hot POST необходимы отдельный проверенный missing-only
+execution-plan, актуальная сверка ID/data/index/model/reader/evaluator/source/
+claims/остатков caps и отдельная команда запуска. Один serial worker, retry0.
+До запроса: known+unknown reservations+in-flight+exact candidate reservation
+не выше4982220, totalPOST не выше2100 и отдельные operation caps не превышены.
+При нехватке — stop без POST. Новые partial/unknown/transport/infra/pin/budget
+ошибки останавливают очередь без retry/автопродолжения; sealed unknown не повторять.
+Прежняя политика известных reader case failures сохраняется. Reader cap512,
+prompt/model/top5/index/split/SDK и строгий Hippo filter не меняются.
+Завершение900cases не гарантируется; новый расход/отступление потребует нового
+решения. Никаких моделей/embeddings/индексации/tracking-export этим согласованием
+не запускать. Анализ signal-check для выбора сигнала issue21 не разрешён.
+
+Все четыре критерия issue15 выполнены: шесть configurations/ID закреплены;
+каждый reused result проверен/исключён; missing-set, оценки, scoped caps и stop
+условия зафиксированы;300/100/100 и development-ограничения сохранены.
+PR37: Closes #15, Draft. Исходный frozen manifest/runtime SHA/raw неизменны.
+Записи Mu-согласий остаются в существующем PR38:
+[budget](https://github.com/SPStan/rag-graphrag-research/blob/codex/musique-s500-comparison/results/summary/e2-musique-s500-authorization.json),
+[continuation](https://github.com/SPStan/rag-graphrag-research/blob/codex/musique-s500-comparison/results/summary/e2-musique-s500-unattempted-authorization.json).

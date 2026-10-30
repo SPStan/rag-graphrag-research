@@ -2,21 +2,22 @@
 
 **E1 status:** 6/6 indexes completed under the structural protocol; physical known tokens=32601955; cost_complete=False; unknown reserve61588 preserved. Final audit/verify completed; monitoring paused.
 
-## Текущая очередь — issue #15: полный протокол и reuse
+## Текущая очередь — issue15: протокол и бюджеты согласованы
 
-- Следующий этап после интеграции E1/E2 — issue15: фиксация полного протокола,
-  pinned versions/ID/лимитов и проверяемого reuse. Сам этап15 в этой задаче
-  не запускается; новых LLM/embedding calls, S500, holdout и индексации нет.
-- Научные O/N/R/H PR33/issue13 и PR36/issue14 подтверждены куратором по
-  текущему сообщению пользователя. Ссылка/дата решения не выдумываются;
-  публичного GitHub review/одобрения бота не заявляем. Карточки неизменны.
-- Ready и последовательный обычный merge33→36 разрешены после актуальных
-  проверок, без обхода защиты/checks/reviews. PR36 переводится на master
-  после интеграции33 и проверки полного E2 diff; результаты/runtime не меняются.
-- Прежние согласования mixed extractor, продолжений и sealed unknown сохранены.
-  Semantic_verified=false и cost_complete=false остаются ограничениями.
-  После merge проверяются CLOSED issues13/14 и Done их существующих Project cards.
-- PR34/35 уже закрыты как заменённые; ветки и артефакты сохранены.
+- PR37 остаётся Draft, Closes #15: все4критерия выполнены. Научные формулировки
+  согласованы по сообщению пользователя; опубликованное bot/GitHub review не заявляется.
+- Пользователь принял HotpotQA4982220новых tokens/2100POST
+  (900reader/300filter/900localBGE), retry0; только900ранее unattempted cases.
+  Основание4913100по максимумам пилота+69120admission headroom, без переноса Mu остатка.
+- Mu5990220/2100 и continuation199 уже отдельно разрешены; повторное согласие
+  не нужно. Исторические unknown/costs/reserves не освобождаются и не повторяются.
+- Frozen full-experiment.json не изменён: его1800missing — исторический снимок,
+  не текущий список. До Hot запуска нужны новый verified execution-plan,
+  актуальный audit/остатки и отдельная команда запуска. При нехватке cap/новом
+  unknown/transport/pin error — stop без retry. Завершение не гарантируется.
+- Точная запись согласия и условия — ADR0028/E2; reader/model/index/split прежние.
+  В этом блоке только документация, никаких model/API/embedding/tracking вызовов.
+- Следующий шаг — ревью PR37, затем зависимого PR38. Ready/merge не разрешены.
 
 ## Сохранённый результат pilot200 — 1199ответов+1transport failure
 
