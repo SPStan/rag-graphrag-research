@@ -56,3 +56,10 @@ e19010a34334409f5ad0e58861dd5fe1aa71ec0a:results/summary/e2-pilot200-incomplete.
 # Exact historical fingerprints only; current/future values stay scanned.
 061b3064b769badd84991fbea9c83a5e767800fb:results/summary/e2-musique-s500.json:generic-api-key:2162
 061b3064b769badd84991fbea9c83a5e767800fb:results/summary/e2-musique-s500.json:generic-api-key:2205
+
+# Issue17: two exact false positives in the immutable Hot terminal report.
+# case_key = SHA256([hotpotqa,raptor,published frozen ID 5adbe75455429944faac23af]);
+# scripts/token_accounting.py digest matches the Git f23bb59 LF/CRLF source blob.
+# Exact historical commit:path:rule:line only; no paths/rules/future values excluded.
+9a2d2dfabf73f7f62823759d90327f4f5fd20fd4:results/summary/e2-hotpotqa-s500.json:generic-api-key:3595
+9a2d2dfabf73f7f62823759d90327f4f5fd20fd4:results/summary/e2-hotpotqa-s500.json:generic-api-key:3628
