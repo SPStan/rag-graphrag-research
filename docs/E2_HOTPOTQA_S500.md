@@ -60,7 +60,7 @@ PR37/38 слиты, issues15/16 закрыты. Готовые индексы н
    source/payload/index drift, active worker/claims, cap/reservation/operation limits,
    сохранение known usage и исходного исключения, Hot labels mapping, failed versus
    not_attempted. Негативные проверки обязаны дать0POST.
-5. После отдельной команды запуска: один serial worker, готовые индексы/cache exact
+5. По прямому разрешению пользователя от30октября: один serial worker, готовые индексы/cache exact
    keys; результаты каждого случая/attempt с durable accounting. При завершении
    строгий audit1500unique IDs, common evaluator и immutable lineage, не один PID.
 6. Сводка EM/F1/coverage/failures/retrieval/latency и reader/filter/BGE usage.
@@ -83,7 +83,8 @@ PR37/38 слиты, issues15/16 закрыты. Готовые индексы н
 как неверный reader answer. Старый failed case получает согласованный pipeline0
 и отдельный infrastructure marker, unknown usage не превращается в0.
 
-До выполнения критериев — Refs #17, Draft; без Ready/merge/Closes и без запуска API.
+До выполнения критериев — Refs #17, Draft; без Ready/merge/Closes. Запуск фиксированного протокола прямо разрешён
+пользователем 30 октября; научное согласование требуется перед merge.
 Техническая готовность, научное согласование и разрешение исполнения различаются.
 Активные часы студента не измерялись; новых результатов качества не заявляется.
 
@@ -91,7 +92,7 @@ PR37/38 слиты, issues15/16 закрыты. Готовые индексы н
 ## Выполненная offline-подготовка после запроса запуска
 
 Пользователь разрешил подготовить запуск, но подтвердил, что согласование
-куратора PR39 ещё ожидается. До этого исполнения нет. Добавлены только
+куратора PR39 ещё ожидается перед merge. Это не запрет исполнения. Добавлены
 `prepare-hotpotqa`/`verify-hotpotqa` в существующий `scripts.full_experiment`:
 неисполняемый worklist, `executable=false`, `http_authorized=false`.
 Он сохраняет599compatible answers+1sealed failure и900missing, budget4982220/2100.
@@ -117,3 +118,21 @@ source/index/lineage gate, все6индексов и source cases провер�
 Frozen full-experiment.json и прежний Mu plan не менялись. Worklist остаётся
 неисполняемым; budget_proposal.authorized=false не отменяет отдельного согласия
 ADR0028, а не даёт транспортного допуска. Hot runner/guard ещё не реализован.
+
+## Исполнение по разрешению 30 октября
+
+Hot связывается с общим runner через `scripts.e2_hotpot`, shared
+`prepare_dataset`/`guard_dataset`, без подмены dataset в Mu wrapper.
+Авторизация: `results/summary/e2-hotpotqa-s500-authorization.json`;
+приватный plan: `.cache/e2-hotpotqa-s500-execution-plan.json`.
+Caps4982220combined/2100POST, reader900/filter300/BGE900, retry0.
+Старый sealed transport case никогда не повторяется.
+Failed manifest запрещает повторный запуск; новый unknown/partial блокирует очередь.
+После чистой паузы тот же runner может переиспользовать только проверенные
+durable checkpoints; новый output не является способом обхода claims.
+Автоматизация ведёт общий счётчик максимум2 безопасных возобновлений.
+Если guard не допускает доказуемое продолжение, inference останавливается.
+
+Shared terminal report генерируется заново в том числе в временный output,
+привязывает manifest/journal/parent SHA и отдельный pinned Mu terminal report.
+Logical reuse не прибавляется к physical expense. Нового tracking-export нет.

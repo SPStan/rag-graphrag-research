@@ -898,6 +898,8 @@ def main(argv=None):
             "prepare-musique-execution",
             "prepare-musique-unattempted",
             "verify-musique-execution",
+            "prepare-hotpotqa-execution",
+            "verify-hotpotqa-execution",
         ),
     )
     for root in ("artifact", "data", "index"):
@@ -927,6 +929,41 @@ def main(argv=None):
         default=ROOT / "results/summary/e2-musique-s500-unattempted-authorization.json",
     )
     args = parser.parse_args(argv)
+    if args.action in ("prepare-hotpotqa-execution", "verify-hotpotqa-execution"):
+        from scripts import e2_hotpot
+
+        original = dense.read_json(ROOT / PLAN)
+        e1 = dense.read_json(Path(original["e1_plan"]))
+        require(
+            args.artifact_root.resolve() == ROOT
+            and args.data_root.resolve() == Path(e1["data_root"]).resolve()
+            and args.index_root.resolve() == Path(original["e1_workspace"]).resolve(),
+            "Hot_execution_roots_changed",
+        )
+        if args.action == "prepare-hotpotqa-execution":
+            plan = e2_hotpot.prepare(args.dataset_plan)
+            require(
+                not args.execution_plan.exists()
+                or dense.read_json(args.execution_plan) == plan,
+                "Hot_frozen_execution_plan_cannot_be_overwritten",
+            )
+            dense.write_json_atomic(args.execution_plan, plan)
+        else:
+            plan = dense.read_json(args.execution_plan)
+            e2_hotpot.verify(plan)
+        print(
+            json.dumps(
+                {
+                    "version": plan["version"],
+                    "plan_file_sha256": dense.sha256_file(args.execution_plan),
+                    "new_POST_cap": plan["max_posts"],
+                    "new_token_cap": plan["max_combined_tokens"],
+                    "inherited": len(plan["parent_run"]["cases"]),
+                    "HTTP": 0,
+                }
+            )
+        )
+        return
     if args.action in (
         "prepare-musique-execution",
         "verify-musique-execution",

@@ -10,8 +10,9 @@
   Offline prepare/verify-hotpotqa и0HTTP tests готовы; Hot S500 не выполнен,
   executable plan/transport guard ещё не готовы. Куратор пока не согласовал PR39.
   Budget4982220tokens/2100POST уже согласован, retry0, старый unknown
-  не повторять. Пользователь запросил запуск; до API нужны согласование куратора
-  и verified executable plan/transport guard.
+  не повторять. Пользователь прямо разрешил запуск 30 октября; до API нужны verified
+  executable plan/transport guard и offline-проверки. Научное согласование
+  ожидается перед merge и само по себе не запрещает исполнение протокола.
 - Issue18: отдельная ветка `codex/e3-paired-evaluation`, протокол E3 для согласования.
   Вход Mu1500cases доступен; полного Hot входа нет. Полная E3 заблокирована issue17.
   Предлагаются1000paired resamples/seed42 по issue18/треку; pilot2000 не смешивать
@@ -19,7 +20,8 @@
 - Один issue — один итоговый PR: дальнейшие code/tests/results в этих же PR,
   отдельные smoke/fix PR не создавать. Формулировки17/18 ещё не согласованы.
 - Оба Draft/Refs, без Closes/Ready/merge; куратору сообщения не отправлять.
-  Никаких новых model/embedding/indexing/tracking вызовов, signal/holdout/issue21.
+  Разрешён только Hot900missing в принятом бюджете; без нового indexing,
+  tracking-export, signal/holdout/issue21.
 
 ## Сохранённый результат MuSiQue S500 — issue16
 
