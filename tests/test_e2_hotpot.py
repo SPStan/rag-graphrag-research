@@ -197,3 +197,76 @@ def test_resume_failed_run_and_unbound_checkpoint_forbidden(approved, monkeypatc
     with pytest.raises(ValueError, match="clean_method_boundary"):
         hot.resume_preflight(s.child_plan, s.output, registry)
     assert dense.read_json(registry)["automatic_resumes"] == 0
+
+
+def test_prepare_accepts_serialized_string_paths(tmp_path, monkeypatch):
+    """verify loads paths from JSON strings, unlike initial default Path."""
+    monkeypatch.setattr(hot, "ROOT", tmp_path)
+    monkeypatch.setattr(hot, "CODE_FILES", ())
+    history = tmp_path / "results/summary/e2-musique-s500.json"
+    history.parent.mkdir(parents=True)
+    history.write_text("{}", encoding="utf-8")
+    auth = tmp_path / "auth.json"
+    auth.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(
+        shared,
+        "prepare_dataset",
+        lambda *a, **kw: {"parent_run": {"files": {}}, "s500": {}},
+    )
+    assert hot.prepare("worklist.json", str(auth)) == hot.prepare(
+        Path("worklist.json"), auth
+    )
+    assert hot.prepare("worklist.json", str(auth))["s500"][
+        "authorization_sha256"
+    ] == dense.sha256_file(auth)
+
+
+def test_preclaim_code_only_rebind_preserves_budget_and_counter(approved):
+    s = approved
+    old_path = s.root / "old-plan.json"
+    old = copy.deepcopy(s.frozen)
+    old["code_sha256"] = {"old": "runtime"}
+    dense.write_json_atomic(old_path, old)
+    registry = s.root / "rebind.json"
+    dense.write_json_atomic(
+        registry,
+        {
+            "plan_sha256": dense.sha256_file(old_path),
+            "output": str(s.output.resolve()),
+            "automatic_resumes": 0,
+        },
+    )
+    result = hot.admit_preclaim_rebind(old_path, s.child_plan, s.output, registry)
+    assert result["automatic_resumes"] == 1
+    assert result["admissions"][0]["physical_POST"] == 0
+    assert dense.read_json(old_path) == old
+    assert (
+        dense.read_json(s.child_plan)["max_combined_tokens"]
+        == old["max_combined_tokens"]
+    )
+    with pytest.raises(ValueError, match="registry_mismatch"):
+        hot.admit_preclaim_rebind(old_path, s.child_plan, s.output, registry)
+
+
+@pytest.mark.parametrize("change", ["output", "budget", "claim"])
+def test_preclaim_rebind_cannot_evade_a_real_run_or_scientific_change(approved, change):
+    s = approved
+    old_path = s.root / "old-plan.json"
+    old = copy.deepcopy(s.frozen)
+    if change == "budget":
+        old["max_combined_tokens"] -= 1
+    dense.write_json_atomic(old_path, old)
+    if change == "output":
+        s.output.mkdir()
+    if change == "claim":
+        claim = (
+            Path(old["e1_workspace"])
+            / ".cache"
+            / f"e2-{e2.target.digest(old)}.claim.json"
+        )
+        dense.write_json_atomic(claim, {"directory": "existing"})
+    with pytest.raises(ValueError):
+        hot.admit_preclaim_rebind(
+            old_path, s.child_plan, s.output, s.root / "no-registry.json"
+        )
+    assert len(s.state["posts"]) == s.initial_posts

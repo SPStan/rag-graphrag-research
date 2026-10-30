@@ -30,6 +30,7 @@ def validate_authorization(value):
 
 
 def prepare(worklist_path, authorization_path=AUTHORIZATION):
+    authorization_path = Path(authorization_path)
     plan = shared.prepare_dataset(
         worklist_path,
         authorization_path,
@@ -148,6 +149,69 @@ def resume_preflight(plan_path, directory, registry_path):
                 "new_POST": len(starts),
             }
         )
+        dense.write_json_atomic(registry_path, state)
+    registry_path.with_suffix(".lock").unlink()
+    return state
+
+
+def admit_preclaim_rebind(old_plan_path, new_plan_path, directory, registry_path):
+    """Technical code-only rebind before ANY run/claim/POST has been created.
+
+    This is not continuation of a failed run: existing output or either claim
+    rejects admission. Old plans/diagnostics remain immutable.
+    """
+    import os
+    from scripts import e2_evaluation as e2
+
+    old_plan_path, new_plan_path, directory, registry_path = map(
+        Path, (old_plan_path, new_plan_path, directory, registry_path)
+    )
+    old, new = dense.read_json(old_plan_path), dense.read_json(new_plan_path)
+    shared.require(
+        old["version"] == new["version"] == VERSION, "Hot_preclaim_version_changed"
+    )
+    shared.require(
+        {k: v for k, v in old.items() if k != "code_sha256"}
+        == {k: v for k, v in new.items() if k != "code_sha256"},
+        "Hot_preclaim_not_code_only",
+    )
+    shared.require(not directory.exists(), "Hot_existing_output_not_preclaim")
+    for plan in (old, new):
+        workspace = Path(plan["e1_workspace"]) / ".cache"
+        shared.require(
+            not (workspace / f"e2-{e2.target.digest(plan)}.claim.json").exists(),
+            "Hot_existing_plan_claim_not_preclaim",
+        )
+        shared.require(
+            not (
+                workspace
+                / f"e2-continuation-of-{e2.target.digest(plan['parent_run']['files'])}.claim.json"
+            ).exists(),
+            "Hot_existing_parent_claim_not_preclaim",
+        )
+    verify(new)
+    state = dense.read_json(registry_path)
+    shared.require(
+        state["plan_sha256"] == dense.sha256_file(old_plan_path)
+        and state["output"] == str(directory.resolve()),
+        "Hot_preclaim_registry_mismatch",
+    )
+    shared.require(state["automatic_resumes"] < 2, "Hot_recovery_limit")
+    with registry_path.with_suffix(".lock").open("x", encoding="utf-8") as stream:
+        stream.write(str(os.getpid()))
+        stream.flush()
+        os.fsync(stream.fileno())
+        state["automatic_resumes"] += 1
+        state.setdefault("admissions", []).append(
+            {
+                "kind": "preclaim_code_only_rebind",
+                "old_plan_sha256": dense.sha256_file(old_plan_path),
+                "new_plan_sha256": dense.sha256_file(new_plan_path),
+                "physical_POST": 0,
+                "unknown": 0,
+            }
+        )
+        state["plan_sha256"] = dense.sha256_file(new_plan_path)
         dense.write_json_atomic(registry_path, state)
     registry_path.with_suffix(".lock").unlink()
     return state
