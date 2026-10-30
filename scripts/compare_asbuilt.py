@@ -120,6 +120,26 @@ class NativeChat:
             raise
 
 
+def bootstrap_mean(values, samples):
+    """Pure existing percentile kernel, with explicit shared resample indices."""
+    values, samples = np.asarray(values, dtype=float), np.asarray(samples)
+    if values.ndim != 1 or not len(values) or not np.isfinite(values).all():
+        raise ValueError("Invalid bootstrap values")
+    if (
+        samples.ndim != 2
+        or samples.shape[1] != len(values)
+        or samples.dtype.kind not in "iu"
+        or not len(samples)
+        or samples.min() < 0
+        or samples.max() >= len(values)
+    ):
+        raise ValueError("Invalid bootstrap indices")
+    return {
+        "mean": float(values.mean()),
+        "ci95": np.quantile(values[samples].mean(axis=1), [0.025, 0.975]).tolist(),
+    }
+
+
 def paired_summary(left, right, seed=42):
     a, b = left["per_question"], right["per_question"]
     if [r["question_id"] for r in a] != [r["question_id"] for r in b]:
@@ -129,11 +149,10 @@ def paired_summary(left, right, seed=42):
     result = {}
     for key in ("em", "f1", "recall_at_k"):
         delta = np.array([y[key] - x[key] for x, y in zip(a, b)])
+        estimate = bootstrap_mean(delta, samples)
         result[key] = {
-            "hipporag_minus_dense": float(delta.mean()),
-            "paired_bootstrap_95_percent": np.quantile(
-                delta[samples].mean(axis=1), [0.025, 0.975]
-            ).tolist(),
+            "hipporag_minus_dense": estimate["mean"],
+            "paired_bootstrap_95_percent": estimate["ci95"],
             "better": int((delta > 0).sum()),
             "equal": int((delta == 0).sum()),
             "worse": int((delta < 0).sum()),

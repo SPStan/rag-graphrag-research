@@ -115,3 +115,13 @@ audit и команда запуска. Retry0, strict pre-POST reservation/stop
 старый sealed failure не повторять; окончание не гарантируется. Это бюджетное
 решение не разрешает новые model/embedding/indexing/tracking calls.
 Детали/точная цитата — ADR0028 «Текущее бюджетное решение issue15». Closes #15.
+
+
+## Подготовка E3 — issue18
+
+[Предлагаемый протокол метрик/парных интервалов](E3_EVALUATION.md) подготовлен
+для отдельного согласования куратора. Итог E3 не рассчитан: полного HotpotQA S500
+из issue17 пока нет. Предложены1000shared resamples/seed42 по треку, строгий join
+по500IDs/датасет, no model calls, separate RAPTOR provenance и failure disclosure.
+Pilot2000/legacy10000 не меняются; отсутствие значимой разности не означает
+эквивалентности. Refs #18, Draft; это не разрешение новых экспериментов.
