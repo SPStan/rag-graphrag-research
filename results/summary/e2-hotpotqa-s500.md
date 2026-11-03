@@ -1,15 +1,40 @@
-# hotpotqa S500: completed
+# HotpotQA S500: качество и затраты
 
-Descriptive S500 includes development. Source latency is not fresh E2E. RAPTOR provenance is not passage recall@5. Mixed Hippo errors and incomplete E1/source cost retained.
+Сравниваются Dense, HippoRAG2 и RAPTOR на 500 одинаковых вопросах. EM — доля точных ответов; F1 учитывает частичное совпадение. Значения качества указаны в процентах.
 
-| Method | Completed / failed / not attempted | EM | F1 | Passage recall@5 | RAPTOR provenance | Fresh E2E seconds (n) | S500 reader/filter/BGE known tokens |
-|---|---|---:|---:|---:|---:|---|---|
-| dense | 500 / 0 / 0 | 0.596 | 0.7202900463521152 | 0.878 | None | 2.546623831666584 (300) | 419200/0/7212 |
-| hipporag2 | 498 / 2 / 0 | 0.666 | 0.7769847374847375 | 0.935 | None | 4.4840140603332115 (300) | 425861/932174/7212 |
-| raptor | 499 / 1 / 0 | 0.606 | 0.7293154179154179 | None | 0.886 | 4.060463957333268 (300) | 964968/0/7212 |
+| Метод | Ответы / сбои / не запущены | EM, % | F1, % | Recall@5, % |
+|---|---:|---:|---:|---:|
+| dense | 500 / 0 / 0 | 59.60 | 72.03 | 87.80 |
+| hipporag2 | 498 / 2 / 0 | 66.60 | 77.70 | 93.50 |
+| raptor | 499 / 1 / 0 | 60.60 | 72.93 | — |
 
-New physical known tokens {'llm_input_tokens': 1538809, 'llm_output_tokens': 10764, 'embedding_input_tokens': 10355}; POST 987; usage complete=True. Historical global expense remains separate; never add logical reuse twice. Refs #17.
+Recall@5 измеряет долю найденных supporting passages только у Dense/Hippo. У RAPTOR вместо него используется покрытие исходных документов через summary-узлы; это другая метрика.
+Покрытие RAPTOR: 88.60 %.
 
-Historical failures remain immutable: pipeline EM/F1=0 with their original error markers. Unknown usage stays null; reservation is not actual usage. No paid or unknown failure was retried.
+## Затраты новых запросов
 
-S500 cumulative physical: {'known_subtotal': {'llm_input_tokens': 2716828, 'llm_output_tokens': 25375, 'embedding_input_tokens': 21636}, 'POST': 2099, 'unknown_reservation_not_actual': 0, 'cost_complete': True}; source/development and E1 remain separate. Fresh latency includes original S500 parent plus child, excludes initial pilot600. Child runtime/code pins are separate from immutable parent runtime.
+Качество выше посчитано по 500 вопросам каждого метода. Здесь учтены только 300 новых случаев на метод; 200 результатов пилота переиспользованы. Время — среднее на новый случай, без загрузки индекса и пауз между запросами.
+
+| Метод | Время, с | Reader, токены | Fact filter, токены | Локальный BGE, токены |
+|---|---:|---:|---:|---:|
+| dense | 2.55 | 419 200 | 0 | 7 212 |
+| hipporag2 | 4.48 | 425 861 | 932 174 | 7 212 |
+| raptor | 4.06 | 964 968 | 0 | 7 212 |
+
+Reader и fact filter — токены LLM (вход + выход); BGE — отдельные локальные embedding-токены. Это измерение расхода токенов, не денежная стоимость.
+
+## На что обратить внимание
+
+HippoRAG2 прибавил +5.67 п.п. F1 относительно Dense. Сопоставьте этот выигрыш с дополнительными токенами fact filter и временем в таблице выше. Это компромисс качества и затрат, а не доказательство универсального преимущества или причины прироста.
+
+Нужно сопоставлять прирост качества с временем и расходом, включая fact filter HippoRAG2. Парные интервалы и выводы по гипотезам приведены в [E3](https://github.com/SPStan/rag-graphrag-research/blob/codex/e3-paired-evaluation/results/summary/e3.md). Подробная интерпретация — в [протоколе HotpotQA](../../docs/E2_HOTPOTQA_S500.md).
+
+## Ограничения и проверяемые данные
+
+S500 включает development/pilot: это не независимый тест. Ошибки pipeline учитываются как нулевой EM/F1, но не называются неправильными ответами reader. Исторический unknown usage остаётся неизвестным. Mixed Hippo extraction/errors и неполнота учёта E1 сохранены.
+
+Новый физический расход HotpotQA: 2 763 839 известных токенов, 2 099 POST. Пилот повторно не оплачивался.
+Совокупный E2: 9 856 273 известных токенов, 7 059 POST; 2 операции с неизвестным usage. Резерв 38 277 токенов — не измеренный расход. Полная стоимость неизвестна.
+E1 учитывается отдельно: 32 601 955 известных токенов и резерв 61 588; стоимость неполна.
+
+[Машинные данные, SHA и аудит](e2-hotpotqa-s500.json) · [Протокол и пути к артефактам](../../docs/E2_HOTPOTQA_S500.md). Refs #17.

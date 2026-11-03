@@ -474,3 +474,13 @@ def test_known_failure_continuation_strict_pins(known_filter_stop, change):
     with pytest.raises((ValueError, KeyError)):
         hot.prepare_unattempted(s.root_plan, s.root_output, s.continuation_auth)
     assert len(s.state["posts"]) == s.continuation_posts
+
+
+def test_public_markdown_is_readable_and_keeps_measurements():
+    report = dense.read_json(hot.ROOT / "results/summary/e2-hotpotqa-s500.json")
+    text = "\n".join(shared.hotpotqa_report_lines(report))
+    assert "77.70" in text and "72.03" in text
+    assert "932 174" in text and "4.48" in text
+    assert "{'" not in text and "None" not in text
+    assert "e2-hotpotqa-s500.json" in text
+    assert "500" in text and "300" in text

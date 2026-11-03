@@ -706,6 +706,8 @@ def write_dataset_report(
             "",
             "Cumulative E2: " + str(safe["cumulative_E2_accounting"]),
         ]
+    if dataset == "hotpotqa":
+        lines = hotpotqa_report_lines(safe)
     prefix.with_suffix(".md").write_text("\n".join(lines) + "\n", encoding="utf-8")
     require(
         dense.sha256_file(manifest_path) == manifest_sha,
@@ -906,3 +908,99 @@ def prepare_unattempted(parent_path, directory, authorization_path):
         "initial_reuse_cases": sorted(parent["parent_run"]["cases"]),
     }
     return fresh
+
+
+def hotpotqa_report_lines(report):
+    """Human-readable view of the saved measurements; no evaluation or HTTP."""
+
+    def percent(value):
+        return "—" if value is None else f"{100 * value:.2f}"
+
+    def number(value):
+        return "неизвестно" if value is None else f"{value:,}".replace(",", " ")
+
+    rows = report["rows"]
+    lines = [
+        "# HotpotQA S500: качество и затраты",
+        "",
+        "Сравниваются Dense, HippoRAG2 и RAPTOR на 500 одинаковых вопросах. "
+        "EM — доля точных ответов; F1 учитывает частичное совпадение. Значения качества указаны в процентах.",
+        "",
+        "| Метод | Ответы / сбои / не запущены | EM, % | F1, % | Recall@5, % |",
+        "|---|---:|---:|---:|---:|",
+    ]
+    for r in rows:
+        lines.append(
+            f"| {r['method']} | {r['completed']} / {r['attempted_failed']} / {r['not_attempted']} | {percent(r['em'])} | {percent(r['f1'])} | {percent(r['passage_recall_at_5'])} |"
+        )
+    lines += [
+        "",
+        "Recall@5 измеряет долю найденных supporting passages только у Dense/Hippo. "
+        "У RAPTOR вместо него используется покрытие исходных документов через summary-узлы; это другая метрика.",
+    ]
+    for r in rows:
+        if r["method"] == "raptor":
+            lines.append(f"Покрытие RAPTOR: {percent(r['provenance_coverage'])} %.")
+    lines += [
+        "",
+        "## Затраты новых запросов",
+        "",
+        "Качество выше посчитано по 500 вопросам каждого метода. Здесь учтены только 300 новых случаев на метод; "
+        "200 результатов пилота переиспользованы. Время — среднее на новый случай, без загрузки индекса и пауз между запросами.",
+        "",
+        "| Метод | Время, с | Reader, токены | Fact filter, токены | Локальный BGE, токены |",
+        "|---|---:|---:|---:|---:|",
+    ]
+    for r in rows:
+        usage = r.get("S500_physical_usage", r["new_physical_usage"])
+        amounts = [
+            number(sum(usage[op]["known_subtotal"].values()))
+            for op in ("reader", "filter", "query_embedding")
+        ]
+        seconds = r.get("S500_mean_fresh_e2e_seconds", r["mean_fresh_e2e_seconds"])
+        elapsed = "—" if seconds is None else f"{seconds:.2f}"
+        lines.append(f"| {r['method']} | {elapsed} | {' | '.join(amounts)} |")
+    lines += [
+        "",
+        "Reader и fact filter — токены LLM (вход + выход); BGE — отдельные локальные embedding-токены. "
+        "Это измерение расхода токенов, не денежная стоимость.",
+        "",
+        "## На что обратить внимание",
+        "",
+        "Нужно сопоставлять прирост качества с временем и расходом, включая fact filter HippoRAG2. "
+        "Парные интервалы и выводы по гипотезам приведены в [E3](https://github.com/SPStan/rag-graphrag-research/blob/codex/e3-paired-evaluation/results/summary/e3.md). "
+        "Подробная интерпретация — в [протоколе HotpotQA](../../docs/E2_HOTPOTQA_S500.md).",
+        "",
+        "## Ограничения и проверяемые данные",
+        "",
+        "S500 включает development/pilot: это не независимый тест. Ошибки pipeline учитываются как нулевой EM/F1, "
+        "но не называются неправильными ответами reader. Исторический unknown usage остаётся неизвестным. "
+        "Mixed Hippo extraction/errors и неполнота учёта E1 сохранены.",
+        "",
+    ]
+    by_method = {r["method"]: r for r in rows}
+    dense_row, hippo = by_method.get("dense"), by_method.get("hipporag2")
+    if dense_row and hippo and dense_row["f1"] is not None and hippo["f1"] is not None:
+        delta = 100 * (hippo["f1"] - dense_row["f1"])
+        lines.insert(
+            lines.index("## На что обратить внимание") + 2,
+            f"HippoRAG2 прибавил {delta:+.2f} п.п. F1 относительно Dense. "
+            "Сопоставьте этот выигрыш с дополнительными токенами fact filter и временем в таблице выше. "
+            "Это компромисс качества и затрат, а не доказательство универсального преимущества или причины прироста.\n",
+        )
+    physical = report.get("S500_physical_accounting")
+    if physical:
+        lines.append(
+            f"Новый физический расход HotpotQA: {number(sum(physical['known_subtotal'].values()))} известных токенов, {number(physical['POST'])} POST. Пилот повторно не оплачивался."
+        )
+    cumulative = report.get("cumulative_E2_accounting")
+    if cumulative:
+        lines.append(
+            f"Совокупный E2: {number(cumulative['known_tokens'])} известных токенов, {number(cumulative['physical_POST'])} POST; {cumulative['unknown_operations']} операции с неизвестным usage. Резерв {number(cumulative['unknown_reservations_not_actual'])} токенов — не измеренный расход. Полная стоимость неизвестна."
+        )
+    lines += [
+        "E1 учитывается отдельно: 32 601 955 известных токенов и резерв 61 588; стоимость неполна.",
+        "",
+        "[Машинные данные, SHA и аудит](e2-hotpotqa-s500.json) · [Протокол и пути к артефактам](../../docs/E2_HOTPOTQA_S500.md). Refs #17.",
+    ]
+    return lines
