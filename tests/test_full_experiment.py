@@ -628,6 +628,148 @@ def test_hot_worklist_cli_no_network_and_no_overwrite(
     full.main(["verify-hotpotqa", *args])
     full.main(["prepare-hotpotqa", *args])
     assert output.read_bytes() == before
+    custom = tmp_path / "custom-hot-worklist.json"
+    full.main(["prepare-hotpotqa", *args, "--dataset-plan", str(custom)])
+    full.main(["verify-hotpotqa", *args, "--dataset-plan", str(custom)])
+    assert custom.read_bytes() == before
+    assert output.read_bytes() == before
     output.write_text("{}", encoding="utf-8")
     with pytest.raises(ValueError, match="cannot_be_overwritten"):
         full.main(["prepare-hotpotqa", *args])
+
+
+@pytest.mark.parametrize(
+    "action,required",
+    [
+        ("prepare-hotpotqa-execution", ("dataset-plan", "execution-plan")),
+        ("verify-hotpotqa-execution", ("execution-plan",)),
+        (
+            "prepare-hotpotqa-unattempted",
+            (
+                "parent-plan",
+                "parent-output",
+                "continuation-authorization",
+                "execution-plan",
+            ),
+        ),
+    ],
+)
+def test_hot_execution_CLI_requires_explicit_paths_before_IO(
+    tmp_path, monkeypatch, capsys, action, required
+):
+    import socket
+
+    monkeypatch.setattr(
+        socket.socket, "connect", lambda *a: pytest.fail("HTTP forbidden")
+    )
+    monkeypatch.setattr(
+        dense, "read_json", lambda *a: pytest.fail("read before path validation")
+    )
+    roots = [
+        arg
+        for root in ("artifact", "data", "index")
+        for arg in ("--" + root + "-root", str(tmp_path))
+    ]
+    for missing in required:
+        flags = [
+            arg
+            for name in required
+            if name != missing
+            for arg in ("--" + name, str(tmp_path / name))
+        ]
+        with pytest.raises(SystemExit) as exc:
+            full.main([action, *roots, *flags])
+        assert exc.value.code == 2
+        assert "--" + missing in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("dataset", ["hotpotqa", "musique"])
+@pytest.mark.parametrize("operation", ["prepare", "verify", "unattempted"])
+def test_execution_CLI_routes_Hot_explicit_paths_and_keeps_Mu_defaults(
+    tmp_path, monkeypatch, capsys, dataset, operation
+):
+    import socket
+    from scripts import e2_hotpot, e2_s500
+
+    monkeypatch.setattr(
+        socket.socket, "connect", lambda *a: pytest.fail("HTTP forbidden")
+    )
+    monkeypatch.setattr(full, "ROOT", tmp_path)
+    e1 = tmp_path / "e1.json"
+    dense.write_json_atomic(e1, {"data_root": str(tmp_path)})
+    dense.write_json_atomic(
+        tmp_path / full.PLAN, {"e1_plan": str(e1), "e1_workspace": str(tmp_path)}
+    )
+    plan = {
+        "version": "synthetic",
+        "max_posts": 1,
+        "max_combined_tokens": 100,
+        "parent_run": {"cases": {}},
+    }
+    execution = tmp_path / f".cache/e2-{dataset}-s500-execution-plan.json"
+    worklist = tmp_path / f"results/summary/e2-{dataset}-s500-plan.json"
+    parent = execution
+    parent_output = tmp_path / f"results/raw/e2-{dataset}-s500-v1"
+    auth = (
+        tmp_path / f"results/summary/e2-{dataset}-s500-unattempted-authorization.json"
+    )
+    flags = []
+    if dataset == "hotpotqa":
+        # Explicit custom paths must reach the Hot binding, never Mu defaults.
+        execution, worklist, parent, parent_output, auth = [
+            tmp_path / ("custom-" + name)
+            for name in (
+                "execution.json",
+                "worklist.json",
+                "parent.json",
+                "parent-output",
+                "auth.json",
+            )
+        ]
+        flags = ["--execution-plan", str(execution)]
+        if operation == "prepare":
+            flags += ["--dataset-plan", str(worklist)]
+        elif operation == "unattempted":
+            flags += [
+                "--parent-plan",
+                str(parent),
+                "--parent-output",
+                str(parent_output),
+                "--continuation-authorization",
+                str(auth),
+            ]
+    dense.write_json_atomic(execution, plan)
+    binding = e2_hotpot if dataset == "hotpotqa" else e2_s500
+    calls = []
+
+    def prepare(path):
+        assert path == worklist
+        calls.append("prepare")
+        return plan
+
+    def unattempted(p, output, authorization):
+        assert (p, output, authorization) == (parent, parent_output, auth)
+        calls.append("unattempted")
+        return plan
+
+    def verify(value):
+        assert value == plan
+        calls.append("verify")
+
+    monkeypatch.setattr(binding, "prepare", prepare)
+    monkeypatch.setattr(binding, "prepare_unattempted", unattempted)
+    monkeypatch.setattr(binding, "verify", verify)
+    action = (
+        f"prepare-{dataset}-unattempted"
+        if operation == "unattempted"
+        else f"{operation}-{dataset}-execution"
+    )
+    roots = [
+        arg
+        for root in ("artifact", "data", "index")
+        for arg in ("--" + root + "-root", str(tmp_path))
+    ]
+    full.main([action, *roots, *flags])
+    assert calls == [operation]
+    assert json.loads(capsys.readouterr().out)["HTTP"] == 0
+    assert dense.read_json(execution) == plan

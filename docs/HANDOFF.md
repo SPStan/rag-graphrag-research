@@ -4,12 +4,13 @@
 
 ## Текущая очередь — технический итог issues17/18, ревью Draft PR39/40
 
-- Замечание к PR39: чтение ledger, проверка plan/output и предела2/2,
-  увеличение счётчика выполняются внутри одного exclusive lock в resume_preflight
-  и admit_preclaim_rebind. Три offline-регрессии воспроизводят допуск конкурента
-  перед захватом lock: оба допуска учтены, третий отклонён, устаревший rebind
-  отклонён. Целевые тесты:26passed. Это исправление после выполнения; execution
-  SHA, планы, raw, результаты и научные формулировки не меняются.
+- Замечания к PR39 исправлены: чтение/проверки/увеличение recovery ledger
+  защищены одним exclusive lock; регрессии исключают потерю допуска и превышение2/2.
+  Hot execution CLI требует явные dataset/execution/parent/authorization paths
+  по своей команде до чтения файлов. Worklist использует Hot default либо явный
+  путь; Mu defaults совместимы. CLI и Hot guard:63целевых tests passed,0HTTP.
+  Контракт флагов — E2_HOTPOTQA_S500.md. Это post-execution исправления;
+  execution SHA, планы, raw, результаты и научные формулировки не меняются.
 
 - Hot issue17:1500unique=1497completed+3failed,0not_attempted; Dense500/0,
   Hippo498/2,RAPTOR499/1. [Таблица](../results/summary/e2-hotpotqa-s500.md).

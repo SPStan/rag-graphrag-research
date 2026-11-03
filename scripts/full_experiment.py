@@ -906,30 +906,45 @@ def main(argv=None):
     for root in ("artifact", "data", "index"):
         parser.add_argument("--" + root + "-root", required=True, type=Path)
     parser.add_argument("--manifest", type=Path, default=ROOT / PUBLIC)
-    parser.add_argument(
-        "--dataset-plan",
-        type=Path,
-        default=ROOT / "results/summary/e2-musique-s500-plan.json",
-    )
-    parser.add_argument(
-        "--execution-plan",
-        type=Path,
-        default=ROOT / ".cache/e2-musique-s500-execution-plan.json",
-    )
-    parser.add_argument(
-        "--parent-plan",
-        type=Path,
-        default=ROOT / ".cache/e2-musique-s500-execution-plan.json",
-    )
-    parser.add_argument(
-        "--parent-output", type=Path, default=ROOT / "results/raw/e2-musique-s500-v1"
-    )
-    parser.add_argument(
-        "--continuation-authorization",
-        type=Path,
-        default=ROOT / "results/summary/e2-musique-s500-unattempted-authorization.json",
-    )
+    for option in (
+        "dataset-plan",
+        "execution-plan",
+        "parent-plan",
+        "parent-output",
+        "continuation-authorization",
+    ):
+        parser.add_argument("--" + option, type=Path)
     args = parser.parse_args(argv)
+    required_hot_paths = {
+        "prepare-hotpotqa-execution": ("dataset_plan", "execution_plan"),
+        "verify-hotpotqa-execution": ("execution_plan",),
+        "prepare-hotpotqa-unattempted": (
+            "parent_plan",
+            "parent_output",
+            "continuation_authorization",
+            "execution_plan",
+        ),
+    }.get(args.action, ())
+    missing = [
+        "--" + name.replace("_", "-")
+        for name in required_hot_paths
+        if getattr(args, name) is None
+    ]
+    if missing:
+        parser.error(args.action + " requires explicit " + ", ".join(missing))
+    dataset = "hotpotqa" if "hotpotqa" in args.action else "musique"
+    worklist_root = args.artifact_root if dataset == "hotpotqa" else ROOT
+    defaults = {
+        "dataset_plan": worklist_root / f"results/summary/e2-{dataset}-s500-plan.json",
+        "execution_plan": ROOT / f".cache/e2-{dataset}-s500-execution-plan.json",
+        "parent_plan": ROOT / f".cache/e2-{dataset}-s500-execution-plan.json",
+        "parent_output": ROOT / f"results/raw/e2-{dataset}-s500-v1",
+        "continuation_authorization": ROOT
+        / f"results/summary/e2-{dataset}-s500-unattempted-authorization.json",
+    }
+    for name, default in defaults.items():
+        if getattr(args, name) is None:
+            setattr(args, name, default)
     if args.action in (
         "prepare-hotpotqa-execution",
         "verify-hotpotqa-execution",
@@ -1031,7 +1046,7 @@ def main(argv=None):
     if args.action in ("prepare-hotpotqa", "verify-hotpotqa"):
         require(value == dense.read_json(args.manifest), "full_manifest_changed")
         worklist = hotpotqa_worklist(value)
-        path = args.artifact_root / "results/summary/e2-hotpotqa-s500-plan.json"
+        path = args.dataset_plan
         if args.action == "prepare-hotpotqa":
             require(
                 not path.exists() or dense.read_json(path) == worklist,

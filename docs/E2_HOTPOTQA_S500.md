@@ -58,6 +58,21 @@ pipeline retrieval; missing/not_attempted не подменяется успеш
 
 ## Воспроизведение и передача
 
+Пути Hot CLI фиксируются явно; скрытого выбора MuSiQue-файлов нет:
+
+| Команда `scripts.full_experiment` | Обязательные пути кроме трёх roots |
+|---|---|
+| `prepare-hotpotqa-execution` | `--dataset-plan`, `--execution-plan` |
+| `verify-hotpotqa-execution` | `--execution-plan` |
+| `prepare-hotpotqa-unattempted` | `--parent-plan`, `--parent-output`, `--continuation-authorization`, `--execution-plan` |
+
+Отсутствующий аргумент даёт ошибку CLI до чтения файлов. `prepare-hotpotqa` и
+`verify-hotpotqa` используют `results/summary/e2-hotpotqa-s500-plan.json` под
+artifact-root либо явный `--dataset-plan`; defaults MuSiQue не менялись.
+Это описание интерфейса, не разрешение нового запуска или переписывания старого
+плана. Execution SHA старых запусков остаются исходными; post-execution изменения
+CLI не означают повторного исполнения или проверки old pins текущим кодом.
+
 В worktree PR39 при сохранённых private artifacts:
 ```powershell
 ./.venv-check/Scripts/python.exe -m scripts.run_dense_target `
