@@ -117,11 +117,15 @@ audit и команда запуска. Retry0, strict pre-POST reservation/stop
 Детали/точная цитата — ADR0028 «Текущее бюджетное решение issue15». Closes #15.
 
 
-## Подготовка E3 — issue18
+## Итог E3 — issue18
 
-[Предлагаемый протокол метрик/парных интервалов](E3_EVALUATION.md) подготовлен
-для отдельного согласования куратора. Итог E3 не рассчитан: полного HotpotQA S500
-из issue17 пока нет. Предложены1000shared resamples/seed42 по треку, строгий join
-по500IDs/датасет, no model calls, separate RAPTOR provenance и failure disclosure.
-Pilot2000/legacy10000 не меняются; отсутствие значимой разности не означает
-эквивалентности. Refs #18, Draft; это не разрешение новых экспериментов.
+[Протокол и результат E3](E3_EVALUATION.md) реализованы offline по сохранённым
+исходам MuSiQue и HotpotQA S500:3000учтённых случаев,2996completed+4failed,
+0not_attempted. [Таблица](../results/summary/e3.md) и
+[JSON с версиями и входными SHA](../results/summary/e3.json) опубликованы.
+Общий evaluator, строгий join по500frozen IDs/датасет,1000shared paired resamples,
+seed42,95%percentile интервалы; RAPTOR provenance отдельно от passage recall@5.
+Ошибки сохранены в pipeline means, unknown usage не заменён нулём; S500 содержит
+development/pilot и не является независимым тестом. Pilot2000/legacy10000
+не менялись; CI с нулём не доказывает эквивалентность. Научные O/N/R/H pending
+перед merge, Refs #18, Draft. Новых model/HTTP/index/tracking calls нет.

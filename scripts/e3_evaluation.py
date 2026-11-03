@@ -214,7 +214,12 @@ def load_dataset(artifact_root, data_root, dataset):
         require(
             all(
                 rescored[k] == row["metrics"][k]
-                for k in ("em", "f1", "supporting_provenance_coverage")
+                for k in (
+                    "em",
+                    "f1",
+                    "passage_recall_at_5",
+                    "supporting_provenance_coverage",
+                )
             ),
             "common_evaluator_score_mismatch",
         )

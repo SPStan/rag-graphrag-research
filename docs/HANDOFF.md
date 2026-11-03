@@ -4,6 +4,11 @@
 
 ## Текущая очередь — технический итог issues17/18, ревью Draft PR39/40
 
+- Замечания к PR40: loader E3 сверяет passage recall@5 с общим evaluator
+  наряду с EM/F1/provenance; регрессия через loader/CLI отклоняет подмену
+  Dense/Hippo recall, включая failed-case и null.12целевых тестов прошли.
+  SPEC отражает рассчитанный итог E3; научные формулировки и raw/plans неизменны.
+
 - Hot issue17:1500unique=1497completed+3failed,0not_attempted; Dense500/0,
   Hippo498/2,RAPTOR499/1. Проверенный источник —
   [PR39](https://github.com/SPStan/rag-graphrag-research/pull/39).

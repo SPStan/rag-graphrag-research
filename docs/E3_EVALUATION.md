@@ -11,7 +11,8 @@ Scientific O/N/R/H PR40 pending перед merge; Draft/Refs #18, без Ready/m
 Строгий join по ordered frozen IDs каждого датасета. Duplicate/missing/unexpected
 ID, not_attempted, несопоставимый reader, неполный terminal source или SHA drift
 останавливают анализ. E3 повторно применяет общий `e2.score_result` к saved answers
-и labels, проверяет соответствие сохранённым per-case scores и response/checkpoints.
+и labels, проверяет все четыре сохранённых per-case метрики: EM, F1,
+passage recall@5 и supporting provenance, а также response/checkpoints.
 Gold используется только offline-оценщиком; новых model/HTTP/index/tracking calls нет.
 
 **1000paired resamples, seed42, PCG64,95%percentile [2.5%,97.5%]**, по500вопросов
@@ -39,11 +40,11 @@ provenance−Dense recall не вычисляется.
 
 Реальная E3 дважды воспроизведена в новых outputs с запрещённым socket.connect:
 JSON/MD byte-identical. После уточнения отчётного scope Hot cost повторён тот же
-пересчёт: меняется input hash отчёта, числовые scores/CI не меняются.11целевых
+пересчёт: меняется input hash отчёта, числовые scores/CI не меняются.12целевых
 synthetic tests прошли (identical/constant difference, permutation, ID gates,
-failures, repeatability,0HTTP), mandatory hook финального коммита/его CI отдельно.
+failures, repeatability,0HTTP и отклонение изменённого recall через loader/CLI), mandatory hook финального коммита/его CI отдельно.
 Промежуточная ошибка Windows setup при системном TEMP не была тестом логики;
-повтор с предусмотренным TEMP дал11passed. При повторении нужен разбор среды,
+повтор с предусмотренным TEMP дал11passed; после проверки recall —12passed. При повторении нужен разбор среды,
 не изменение эксперимента. Активные часы студента не измерялись.
 
 ## Результат и границы вывода
