@@ -114,6 +114,14 @@ def test_existing_CLI_reproducible_and_zero_HTTP(tmp_path, monkeypatch):
             ]
         )
         results.append(dense.read_json(prefix.with_suffix(".json")))
+        lines = prefix.with_suffix(".md").read_text(encoding="utf-8").splitlines()
+        start = next(i for i, line in enumerate(lines) if line.startswith("| Dataset"))
+        table = lines[start : start + 8]
+        assert len(table) == 8 and all(line.startswith("|") for line in table)
+        assert sum(line.startswith("| musique |") for line in table) == 3
+        assert sum(line.startswith("| hotpotqa |") for line in table) == 3
+        assert all("−Dense" not in line for line in lines[: start + 8])
+
     assert results[0] == results[1]
     assert results[0]["bootstrap"]["samples"] == 1000
     assert results[0]["bootstrap"]["seed"] == 42
