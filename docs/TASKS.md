@@ -4,6 +4,13 @@
 
 ## Текущая очередь — технический итог issues17/18, ревью Draft PR39/40
 
+- Замечание к PR39: чтение ledger, проверка plan/output и предела2/2,
+  увеличение счётчика выполняются внутри одного exclusive lock в resume_preflight
+  и admit_preclaim_rebind. Три offline-регрессии воспроизводят допуск конкурента
+  перед захватом lock: оба допуска учтены, третий отклонён, устаревший rebind
+  отклонён. Целевые тесты:26passed. Это исправление после выполнения; execution
+  SHA, планы, raw, результаты и научные формулировки не меняются.
+
 - Hot issue17:1500unique=1497completed+3failed,0not_attempted; Dense500/0,
   Hippo498/2,RAPTOR499/1. [Таблица](../results/summary/e2-hotpotqa-s500.md).
   Child9e7efc49, executionf23bb59; исходный failed root91f59cf6/runtime7a67791

@@ -181,6 +181,48 @@ def test_resume_clean_boundary_counter_and_exact_checkpoint_reuse(
         hot.resume_preflight(s.child_plan, s.output, registry)
 
 
+@pytest.mark.parametrize("initial_count", [0, 1])
+def test_resume_reads_latest_counter_after_competing_admission(
+    approved, monkeypatch, initial_count
+):
+    s = approved
+    continuation.run_method(s, "dense", monkeypatch)
+    registry = s.root / "interleaved-resume.json"
+    dense.write_json_atomic(
+        registry,
+        {
+            "plan_sha256": dense.sha256_file(s.child_plan),
+            "output": str(s.output.resolve()),
+            "automatic_resumes": initial_count,
+        },
+    )
+    original_open = Path.open
+    competed = False
+    before = len(s.state["posts"])
+
+    def interleave(path, mode="r", *args, **kwargs):
+        nonlocal competed
+        if path == registry.with_suffix(".lock") and mode == "x" and not competed:
+            # Another process finishes admission after our preflight, before lock.
+            competed = True
+            hot.resume_preflight(s.child_plan, s.output, registry)
+        return original_open(path, mode, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", interleave)
+    if initial_count == 0:
+        assert (
+            hot.resume_preflight(s.child_plan, s.output, registry)["automatic_resumes"]
+            == 2
+        )
+    else:
+        with pytest.raises(ValueError, match="Hot_recovery_limit"):
+            hot.resume_preflight(s.child_plan, s.output, registry)
+    state = dense.read_json(registry)
+    assert competed and state["automatic_resumes"] == 2
+    assert len(state["admissions"]) == 2 - initial_count
+    assert len(s.state["posts"]) == before
+
+
 def test_resume_failed_run_and_unbound_checkpoint_forbidden(approved, monkeypatch):
     s = approved
     s.state["fault"] = "transport"
@@ -246,6 +288,41 @@ def test_preclaim_code_only_rebind_preserves_budget_and_counter(approved):
     )
     with pytest.raises(ValueError, match="registry_mismatch"):
         hot.admit_preclaim_rebind(old_path, s.child_plan, s.output, registry)
+
+
+def test_preclaim_reads_latest_binding_after_competing_rebind(approved, monkeypatch):
+    s = approved
+    old_path = s.root / "old-interleaved-plan.json"
+    old = copy.deepcopy(s.frozen)
+    old["code_sha256"] = {"old": "runtime"}
+    dense.write_json_atomic(old_path, old)
+    registry = s.root / "interleaved-rebind.json"
+    dense.write_json_atomic(
+        registry,
+        {
+            "plan_sha256": dense.sha256_file(old_path),
+            "output": str(s.output.resolve()),
+            "automatic_resumes": 0,
+        },
+    )
+    original_open = Path.open
+    competed = False
+
+    def interleave(path, mode="r", *args, **kwargs):
+        nonlocal competed
+        if path == registry.with_suffix(".lock") and mode == "x" and not competed:
+            competed = True
+            hot.admit_preclaim_rebind(old_path, s.child_plan, s.output, registry)
+        return original_open(path, mode, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", interleave)
+    with pytest.raises(ValueError, match="Hot_preclaim_registry_mismatch"):
+        hot.admit_preclaim_rebind(old_path, s.child_plan, s.output, registry)
+    state = dense.read_json(registry)
+    assert competed and state["automatic_resumes"] == 1
+    assert len(state["admissions"]) == 1
+    assert state["plan_sha256"] == dense.sha256_file(s.child_plan)
+    assert len(s.state["posts"]) == s.initial_posts
 
 
 @pytest.mark.parametrize("change", ["output", "budget", "claim"])

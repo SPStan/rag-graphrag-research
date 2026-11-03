@@ -150,18 +150,18 @@ def resume_preflight(plan_path, directory, registry_path):
         len(starts) == len(objects) and {r["object_id"] for r in starts} == objects,
         "Hot_unbound_attempt_no_resume",
     )
-    state = dense.read_json(registry_path)
-    shared.require(
-        state["plan_sha256"] == dense.sha256_file(plan_path)
-        and state["output"] == str(directory.resolve()),
-        "Hot_recovery_registry_changed",
-    )
-    shared.require(state["automatic_resumes"] < 2, "Hot_recovery_limit")
     # Exclusive durable ledger lock; an interrupted admission blocks rather than resets.
     with registry_path.with_suffix(".lock").open("x", encoding="utf-8") as stream:
         stream.write(str(os.getpid()))
         stream.flush()
         os.fsync(stream.fileno())
+        state = dense.read_json(registry_path)
+        shared.require(
+            state["plan_sha256"] == dense.sha256_file(plan_path)
+            and state["output"] == str(directory.resolve()),
+            "Hot_recovery_registry_changed",
+        )
+        shared.require(state["automatic_resumes"] < 2, "Hot_recovery_limit")
         state["automatic_resumes"] += 1
         state.setdefault("admissions", []).append(
             {
@@ -210,17 +210,17 @@ def admit_preclaim_rebind(old_plan_path, new_plan_path, directory, registry_path
             "Hot_existing_parent_claim_not_preclaim",
         )
     verify(new)
-    state = dense.read_json(registry_path)
-    shared.require(
-        state["plan_sha256"] == dense.sha256_file(old_plan_path)
-        and state["output"] == str(directory.resolve()),
-        "Hot_preclaim_registry_mismatch",
-    )
-    shared.require(state["automatic_resumes"] < 2, "Hot_recovery_limit")
     with registry_path.with_suffix(".lock").open("x", encoding="utf-8") as stream:
         stream.write(str(os.getpid()))
         stream.flush()
         os.fsync(stream.fileno())
+        state = dense.read_json(registry_path)
+        shared.require(
+            state["plan_sha256"] == dense.sha256_file(old_plan_path)
+            and state["output"] == str(directory.resolve()),
+            "Hot_preclaim_registry_mismatch",
+        )
+        shared.require(state["automatic_resumes"] < 2, "Hot_recovery_limit")
         state["automatic_resumes"] += 1
         state.setdefault("admissions", []).append(
             {
