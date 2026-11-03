@@ -353,7 +353,7 @@ def main(argv=None):
     for dataset in result["datasets"]:
         for delta in dataset["paired_differences"]:
             lines.append(
-                f"\n{dataset['dataset']} {delta['left']}в€’Dense {delta['metric']}: {delta['mean']:.4f}, CI {delta['ci95']}."
+                f"\n{dataset['dataset']} {delta['left']}−Dense {delta['metric']}: {delta['mean']:.4f}, CI {delta['ci95']}."
             )
     lines += [
         "",

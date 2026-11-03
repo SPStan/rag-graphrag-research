@@ -118,6 +118,8 @@ def test_existing_CLI_reproducible_and_zero_HTTP(tmp_path, monkeypatch):
         start = next(i for i, line in enumerate(lines) if line.startswith("| Dataset"))
         table = lines[start : start + 8]
         assert len(table) == 8 and all(line.startswith("|") for line in table)
+        assert "\u2212Dense" in "\n".join(lines[start + 8:])
+        assert "\u0432\u20ac\u2019Dense" not in "\n".join(lines)
         assert sum(line.startswith("| musique |") for line in table) == 3
         assert sum(line.startswith("| hotpotqa |") for line in table) == 3
         assert all("−Dense" not in line for line in lines[: start + 8])
