@@ -38,7 +38,7 @@ def compatible_runner(original, current):
                 isinstance(test, ast.Compare)
                 and len(test.comparators) == 1
                 and isinstance(test.comparators[0], ast.Constant)
-                and test.comparators[0].value == VERSION
+                and test.comparators[0].value in (VERSION, "e2-hotpotqa-s500-v1")
             ):
                 require(not node.orelse, "S500_extension_modified_legacy_else")
                 return None
@@ -67,6 +67,19 @@ def validate_authorization(value):
 
 
 def prepare(worklist_path, authorization_path=AUTHORIZATION):
+    return prepare_dataset(
+        worklist_path,
+        authorization_path,
+        dataset="musique",
+        version=VERSION,
+        token_cap=TOKEN_CAP,
+        validator=validate_authorization,
+    )
+
+
+def prepare_dataset(
+    worklist_path, authorization_path, *, dataset, version, token_cap, validator
+):
     """Rebuild private execution metadata offline; never modifies old sources."""
     from scripts import full_experiment as full
 
@@ -75,7 +88,7 @@ def prepare(worklist_path, authorization_path=AUTHORIZATION):
         Path(authorization_path).resolve(),
     )
     worklist, auth = dense.read_json(worklist_path), dense.read_json(authorization_path)
-    validate_authorization(auth)
+    validator(auth)
     source_path = ROOT / full.PUBLIC
     frozen = dense.read_json(source_path)
     original_path, original_dir = ROOT / full.PLAN, ROOT / full.OUTPUT
@@ -83,11 +96,11 @@ def prepare(worklist_path, authorization_path=AUTHORIZATION):
     e1 = dense.read_json(Path(parent["e1_plan"]))
     actual = full.freeze(ROOT, e1["data_root"], parent["e1_workspace"])
     require(
-        actual == frozen and full.musique_worklist(frozen) == worklist,
+        actual == frozen and full.dataset_worklist(frozen, dataset) == worklist,
         "S500_source_or_worklist_changed",
     )
     require(
-        worklist["budget_proposal"]["proposed_new_token_cap"] == TOKEN_CAP,
+        worklist["budget_proposal"]["proposed_new_token_cap"] == token_cap,
         "S500_budget_basis_changed",
     )
     manifest_path = original_dir / "manifest.json"
@@ -109,13 +122,19 @@ def prepare(worklist_path, authorization_path=AUTHORIZATION):
     cases = {}
     for method in worklist["methods"]:
         for result in method["inherited_results"]:
-            key = e2.case_key("musique", method["method"], result["question_id"])
+            key = e2.case_key(dataset, method["method"], result["question_id"])
             path, sha = refs[key]
             require(
                 sha == result["result_sha256"] and dense.sha256_file(path) == sha,
                 "S500_inherited_result_changed",
             )
-            cases[key] = {"path": str(path), "sha256": sha, "status": "completed"}
+            cases[key] = {
+                "path": str(path),
+                "sha256": sha,
+                "status": "completed"
+                if result["status"] == "compatible_completed"
+                else "failed",
+            }
             files[str(path)] = sha
     require(len(cases) == 600, "S500_expected_600_inherited_cases")
     value = {
@@ -133,9 +152,9 @@ def prepare(worklist_path, authorization_path=AUTHORIZATION):
             "pilot_protocol",
         )
     }
-    data = copy.deepcopy(parent["datasets"]["musique"])
+    data = copy.deepcopy(parent["datasets"][dataset])
     data["question_ids"] = worklist["question_ids"]
-    raw = Path(e1["data_root"]) / "data/processed/musique"
+    raw = Path(e1["data_root"]) / f"data/processed/{dataset}"
     data["queries_sha256"] = target.digest(
         e2.select_in_view(
             dense.read_json(raw / "queries.json"), data["question_ids"], "query"
@@ -143,16 +162,16 @@ def prepare(worklist_path, authorization_path=AUTHORIZATION):
     )
     data["ordered_ids_sha256"] = worklist["ordered_ids_sha256"]
     value.update(
-        version=VERSION,
-        mode="approved_musique_S500_missing_only",
-        datasets={"musique": data},
+        version=version,
+        mode="approved_" + dataset + "_S500_missing_only",
+        datasets={dataset: data},
         http_authorized=True,
         max_posts=2100,
         max_llm_posts=1200,
         max_embedding_posts=900,
         reader_calls=900,
         filter_calls=300,
-        max_combined_tokens=TOKEN_CAP,
+        max_combined_tokens=token_cap,
         pilot_reuse={"contexts": {}, "readers": {}, "files": {}},
         code_sha256={name: dense.sha256_file(ROOT / name) for name in CODE_FILES},
         parent_run={
@@ -179,6 +198,8 @@ def prepare(worklist_path, authorization_path=AUTHORIZATION):
             "scope": "new physical expense only; source global cost separate; no automatic recovery",
         },
     )
+    if dataset == "hotpotqa":
+        value["sealed_unknown"] = copy.deepcopy(parent["sealed_unknown"])
     return value
 
 
@@ -202,13 +223,29 @@ def verify(plan):
 
 
 def guard(calls, payload, method, dataset, qid, operation):
+    return guard_dataset(
+        calls,
+        payload,
+        method,
+        dataset,
+        qid,
+        operation,
+        expected_dataset="musique",
+        token_cap=TOKEN_CAP,
+    )
+
+
+def guard_dataset(
+    calls, payload, method, dataset, qid, operation, *, expected_dataset, token_cap
+):
     plan = calls.plan
     spec = plan["s500"].get("continuation")
     if spec:
-        require(
-            method == "raptor" and operation in ("reader", "query_embedding"),
-            "S500_unattempted_RAPTOR_only",
-        )
+        if expected_dataset == "musique":
+            require(
+                method == "raptor" and operation in ("reader", "query_embedding"),
+                "S500_unattempted_RAPTOR_only",
+            )
         require(
             dense.sha256_file(Path(spec["authorization"]))
             == spec["authorization_sha256"],
@@ -216,14 +253,14 @@ def guard(calls, payload, method, dataset, qid, operation):
         )
     require(
         plan.get("http_authorized") is True
-        and set(plan["datasets"]) == {"musique"}
-        and dataset == "musique"
+        and set(plan["datasets"]) == {expected_dataset}
+        and dataset == expected_dataset
         and method in e2.METHODS
-        and qid in plan["datasets"]["musique"]["question_ids"],
+        and qid in plan["datasets"][expected_dataset]["question_ids"],
         "S500_case_outside_approved_scope",
     )
     require(
-        plan["max_combined_tokens"] <= TOKEN_CAP
+        plan["max_combined_tokens"] <= token_cap
         and plan["max_posts"] <= 2100
         and plan["reader_calls"] <= 900
         and plan["filter_calls"] <= 300
@@ -429,6 +466,18 @@ def apply_report_evidence(safe, directory, evidence_path):
 
 
 def write_report(plan_path, directory, public_prefix, *, evidence_path=None):
+    return write_dataset_report(
+        plan_path,
+        directory,
+        public_prefix,
+        dataset="musique",
+        evidence_path=evidence_path,
+    )
+
+
+def write_dataset_report(
+    plan_path, directory, public_prefix, *, dataset, evidence_path=None
+):
     plan, directory, prefix = (
         dense.read_json(Path(plan_path)),
         Path(directory),
@@ -445,8 +494,8 @@ def write_report(plan_path, directory, public_prefix, *, evidence_path=None):
         "S500_report_requires_terminal_or_paused_run",
     )
     require(
-        set(plan["datasets"]) == {"musique"}
-        and len(plan["datasets"]["musique"]["question_ids"]) == EXPECTED_IDS,
+        set(plan["datasets"]) == {dataset}
+        and len(plan["datasets"][dataset]["question_ids"]) == EXPECTED_IDS,
         "S500_report_scope_changed",
     )
     prefix.parent.mkdir(parents=True, exist_ok=True)
@@ -517,7 +566,7 @@ def write_report(plan_path, directory, public_prefix, *, evidence_path=None):
     starts = [r for r in records if r["event"] == "started"]
     known = accounting.summarize(records)
     safe = {
-        "kind": "e2_musique_S500",
+        "kind": "e2_" + dataset + "_S500",
         "run_id": manifest["run_id"],
         "status": manifest["status"],
         "plan_sha256": dense.sha256_file(plan_path),
@@ -541,7 +590,9 @@ def write_report(plan_path, directory, public_prefix, *, evidence_path=None):
         "further_experiments_authorized": False,
     }
     spec = plan["s500"].get("continuation")
-    safe["cost_complete"] = known["complete"] and not spec
+    safe["cost_complete"] = (
+        known["complete"] and not spec and not plan.get("sealed_unknown")
+    )
     if spec:
         previous = spec["parent_physical"]
         combined = {
@@ -553,8 +604,8 @@ def write_report(plan_path, directory, public_prefix, *, evidence_path=None):
             S500_physical_accounting={
                 "known_subtotal": combined,
                 "POST": len(starts) + previous["POST"],
-                "unknown_reservation_not_actual": plan["sealed_unknown"][0][
-                    "reservation_tokens"
+                "unknown_reservation_not_actual": previous[
+                    "unknown_reservation_not_actual"
                 ],
                 "cost_complete": False,
             },
@@ -568,16 +619,60 @@ def write_report(plan_path, directory, public_prefix, *, evidence_path=None):
     # The published appendix is independent of the destination prefix. This also
     # reproduces the full report into a new temporary directory without raw writes.
     appendix = evidence_path or ROOT / "results/summary/e2-musique-s500-evidence.json"
-    if Path(appendix).exists():
+    if dataset == "musique" and Path(appendix).exists():
         evidence = dense.read_json(appendix)
         if (
             evidence_path is not None
             or directory.name == evidence["raw_directory_name"]
         ):
             apply_report_evidence(safe, directory, appendix)
+    if dataset == "hotpotqa":
+        safe["execution_code_sha256"] = plan["code_sha256"]
+        safe["report_code_sha256"] = dense.sha256_file(Path(__file__))
+        if spec:
+            safe["S500_physical_accounting"]["cost_complete"] = (
+                known["complete"]
+                and spec["parent_physical"]["unknown_reservation_not_actual"] == 0
+            )
+        history = plan["s500"]["historical_E2_report"]
+        require(
+            dense.sha256_file(Path(history["path"])) == history["sha256"],
+            "Hot_history_changed",
+        )
+        prior = dense.read_json(Path(history["path"]))["cumulative_E2_accounting"]
+        safe["sealed_historical_unknown"] = plan["sealed_unknown"]
+        safe["historical_E2_report"] = history
+        physical = safe.get(
+            "S500_physical_accounting",
+            {"known_subtotal": known["known_subtotal"], "POST": len(starts)},
+        )
+        safe["cumulative_E2_accounting"] = {
+            "known_tokens": prior.get("known_tokens", 0)
+            + sum(physical["known_subtotal"].values()),
+            "physical_POST": prior.get("physical_POST", 0) + physical["POST"],
+            "unknown_operations": prior.get("unknown_operations"),
+            "unknown_reservations_not_actual": prior.get(
+                "unknown_reservations_not_actual"
+            ),
+            "prior": prior,
+            "new_physical": known,
+            "new_POST": len(starts),
+            "cost_complete": False,
+            "scope": "prior E2 plus Hot new physical once; logical reuse and E1 excluded",
+        }
+        safe["terminal_audit"] = {
+            "expected": EXPECTED_IDS * len(e2.METHODS),
+            "inherited": len(plan["parent_run"]["cases"]),
+            "new": len(manifest["results"]),
+            "completed": sum(r["completed"] for r in report["rows"]),
+            "failed": sum(r["attempted_failed"] for r in report["rows"]),
+            "not_attempted": sum(r["not_attempted"] for r in report["rows"]),
+            "manifest_sha256": manifest_sha,
+            "journal_sha256": dense.sha256_file(directory / "usage.jsonl"),
+        }
     dense.write_json_atomic(prefix.with_suffix(".json"), safe)
     lines = [
-        "# MuSiQue S500: " + manifest["status"],
+        "# " + dataset + " S500: " + manifest["status"],
         "",
         "Descriptive S500 includes development. Source latency is not fresh E2E. RAPTOR provenance is not passage recall@5. Mixed Hippo errors and incomplete E1/source cost retained.",
         "",
@@ -595,12 +690,12 @@ def write_report(plan_path, directory, public_prefix, *, evidence_path=None):
         )
     lines += [
         "",
-        f"New physical known tokens {known['known_subtotal']}; POST {len(starts)}; usage complete={known['complete']}. Historical global expense remains separate; never add logical reuse twice. Refs #16.",
+        f"New physical known tokens {known['known_subtotal']}; POST {len(starts)}; usage complete={known['complete']}. Historical global expense remains separate; never add logical reuse twice. Refs #{16 if dataset == 'musique' else 17}.",
     ]
     if spec:
         lines += [
             "",
-            "Historical Mu reader transport failure is sealed: usage=null, pipeline EM/F1=0, infrastructure failure distinct from a wrong reader answer. Reservation is not actual usage. No unknown was retried.",
+            "Historical failures remain immutable: pipeline EM/F1=0 with their original error markers. Unknown usage stays null; reservation is not actual usage. No paid or unknown failure was retried.",
             "",
             f"S500 cumulative physical: {safe['S500_physical_accounting']}; source/development and E1 remain separate. Fresh latency includes original S500 parent plus child, excludes initial pilot600. Child runtime/code pins are separate from immutable parent runtime.",
         ]
@@ -611,6 +706,8 @@ def write_report(plan_path, directory, public_prefix, *, evidence_path=None):
             "",
             "Cumulative E2: " + str(safe["cumulative_E2_accounting"]),
         ]
+    if dataset == "hotpotqa":
+        lines = hotpotqa_report_lines(safe)
     prefix.with_suffix(".md").write_text("\n".join(lines) + "\n", encoding="utf-8")
     require(
         dense.sha256_file(manifest_path) == manifest_sha,
@@ -619,13 +716,15 @@ def write_report(plan_path, directory, public_prefix, *, evidence_path=None):
     return safe
 
 
-def verify_transport_runtime(parent):
+def verify_transport_runtime(parent, runtime=PARENT_RUNTIME, code_files=None):
     require(
-        set(parent["code_sha256"]) == set(CODE_FILES), "S500_parent_code_set_changed"
+        set(parent["code_sha256"])
+        == set(CODE_FILES if code_files is None else code_files),
+        "S500_parent_code_set_changed",
     )
     for name, sha in parent["code_sha256"].items():
         blob = subprocess.check_output(
-            ["git", "-C", str(ROOT), "show", PARENT_RUNTIME + ":" + name]
+            ["git", "-C", str(ROOT), "show", runtime + ":" + name]
         ).replace(b"\r\n", b"\n")
         require(
             sha
@@ -809,3 +908,99 @@ def prepare_unattempted(parent_path, directory, authorization_path):
         "initial_reuse_cases": sorted(parent["parent_run"]["cases"]),
     }
     return fresh
+
+
+def hotpotqa_report_lines(report):
+    """Human-readable view of the saved measurements; no evaluation or HTTP."""
+
+    def percent(value):
+        return "—" if value is None else f"{100 * value:.2f}"
+
+    def number(value):
+        return "неизвестно" if value is None else f"{value:,}".replace(",", " ")
+
+    rows = report["rows"]
+    lines = [
+        "# HotpotQA S500: качество и затраты",
+        "",
+        "Сравниваются Dense, HippoRAG2 и RAPTOR на 500 одинаковых вопросах. "
+        "EM — доля точных ответов; F1 учитывает частичное совпадение. Значения качества указаны в процентах.",
+        "",
+        "| Метод | Ответы / сбои / не запущены | EM, % | F1, % | Recall@5, % |",
+        "|---|---:|---:|---:|---:|",
+    ]
+    for r in rows:
+        lines.append(
+            f"| {r['method']} | {r['completed']} / {r['attempted_failed']} / {r['not_attempted']} | {percent(r['em'])} | {percent(r['f1'])} | {percent(r['passage_recall_at_5'])} |"
+        )
+    lines += [
+        "",
+        "Recall@5 измеряет долю найденных supporting passages только у Dense/Hippo. "
+        "У RAPTOR вместо него используется покрытие исходных документов через summary-узлы; это другая метрика.",
+    ]
+    for r in rows:
+        if r["method"] == "raptor":
+            lines.append(f"Покрытие RAPTOR: {percent(r['provenance_coverage'])} %.")
+    lines += [
+        "",
+        "## Затраты новых запросов",
+        "",
+        "Качество выше посчитано по 500 вопросам каждого метода. Здесь учтены только 300 новых случаев на метод; "
+        "200 результатов пилота переиспользованы. Время — среднее на новый случай, без загрузки индекса и пауз между запросами.",
+        "",
+        "| Метод | Время, с | Reader, токены | Fact filter, токены | Локальный BGE, токены |",
+        "|---|---:|---:|---:|---:|",
+    ]
+    for r in rows:
+        usage = r.get("S500_physical_usage", r["new_physical_usage"])
+        amounts = [
+            number(sum(usage[op]["known_subtotal"].values()))
+            for op in ("reader", "filter", "query_embedding")
+        ]
+        seconds = r.get("S500_mean_fresh_e2e_seconds", r["mean_fresh_e2e_seconds"])
+        elapsed = "—" if seconds is None else f"{seconds:.2f}"
+        lines.append(f"| {r['method']} | {elapsed} | {' | '.join(amounts)} |")
+    lines += [
+        "",
+        "Reader и fact filter — токены LLM (вход + выход); BGE — отдельные локальные embedding-токены. "
+        "Это измерение расхода токенов, не денежная стоимость.",
+        "",
+        "## На что обратить внимание",
+        "",
+        "Нужно сопоставлять прирост качества с временем и расходом, включая fact filter HippoRAG2. "
+        "Парные интервалы и выводы по гипотезам приведены в [E3](https://github.com/SPStan/rag-graphrag-research/blob/codex/e3-paired-evaluation/results/summary/e3.md). "
+        "Подробная интерпретация — в [протоколе HotpotQA](../../docs/E2_HOTPOTQA_S500.md).",
+        "",
+        "## Ограничения и проверяемые данные",
+        "",
+        "S500 включает development/pilot: это не независимый тест. Ошибки pipeline учитываются как нулевой EM/F1, "
+        "но не называются неправильными ответами reader. Исторический unknown usage остаётся неизвестным. "
+        "Mixed Hippo extraction/errors и неполнота учёта E1 сохранены.",
+        "",
+    ]
+    by_method = {r["method"]: r for r in rows}
+    dense_row, hippo = by_method.get("dense"), by_method.get("hipporag2")
+    if dense_row and hippo and dense_row["f1"] is not None and hippo["f1"] is not None:
+        delta = 100 * (hippo["f1"] - dense_row["f1"])
+        lines.insert(
+            lines.index("## На что обратить внимание") + 2,
+            f"HippoRAG2 прибавил {delta:+.2f} п.п. F1 относительно Dense. "
+            "Сопоставьте этот выигрыш с дополнительными токенами fact filter и временем в таблице выше. "
+            "Это компромисс качества и затрат, а не доказательство универсального преимущества или причины прироста.\n",
+        )
+    physical = report.get("S500_physical_accounting")
+    if physical:
+        lines.append(
+            f"Новый физический расход HotpotQA: {number(sum(physical['known_subtotal'].values()))} известных токенов, {number(physical['POST'])} POST. Пилот повторно не оплачивался."
+        )
+    cumulative = report.get("cumulative_E2_accounting")
+    if cumulative:
+        lines.append(
+            f"Совокупный E2: {number(cumulative['known_tokens'])} известных токенов, {number(cumulative['physical_POST'])} POST; {cumulative['unknown_operations']} операции с неизвестным usage. Резерв {number(cumulative['unknown_reservations_not_actual'])} токенов — не измеренный расход. Полная стоимость неизвестна."
+        )
+    lines += [
+        "E1 учитывается отдельно: 32 601 955 известных токенов и резерв 61 588; стоимость неполна.",
+        "",
+        "[Машинные данные, SHA и аудит](e2-hotpotqa-s500.json) · [Протокол и пути к артефактам](../../docs/E2_HOTPOTQA_S500.md). Refs #17.",
+    ]
+    return lines
