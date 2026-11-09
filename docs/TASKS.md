@@ -2,7 +2,7 @@
 
 **E1 status:** 6/6 indexes completed under the structural protocol; physical known tokens=32601955; cost_complete=False; unknown reserve61588 preserved. Final audit/verify completed; monitoring paused.
 
-## Текущая очередь — технический итог issues17/18, ревью Draft PR39/40
+## Текущая очередь — полное ревью PR39/40 и научное согласование
 
 - Замечания к PR39 исправлены: чтение/проверки/увеличение recovery ledger
   защищены одним exclusive lock; регрессии исключают потерю допуска и превышение2/2.
@@ -27,9 +27,17 @@
   Hot−Dense F1:Hippo+5.67п.п.[3.37;8.28],RAPTOR+0.90[-1.14;3.04].
   Mu Hippo−Dense+8.61[5.24;11.98],RAPTOR−Dense−2.47[-5.24;0.57].
   Это descriptive development S500, не независимое подтверждение/эквивалентность.
-- Оба PR Draft/Refs17/18; O/N/R/H pending перед merge. Следующий шаг — ревью39,
-  затем40/научное согласование. Без Ready/merge/issueclosure и следующих прогонов.
-  Монитор завершается после публикации; active/status/terminal proof в .cache.
+- Проверка перед полным ревью 9 ноября: CI исходных HEAD PR39/8ce1138 и
+  PR40/0082a55 зелёный; локальный offline-пересчёт подтвердил 3 000 случаев,
+  метрики, интервалы и входные SHA. Таблица Hot воспроизведена; raw не записывались.
+- Научные O/N/R/H отмечены ботом как устаревшие: требуется повторный
+  research_submit обоих PR и явное актуальное решение Alex. До этого Refs,
+  issues и PR открыты; merge только по отдельной команде пользователя.
+  Ready запрашивает полное техническое ревью и не заменяет научного согласия.
+- Для правки PR40 используется изолированная копия
+  C:/Users/Elisei/AppData/Local/Temp/codex-e3-review-20261109:
+  исходный checkout PR40 содержит посторонние удаления, они не включены в коммит.
+  Все inference завершены; новых моделей, индексации или tracking-export нет.
 
 ## Сохранённый результат MuSiQue S500 — issue16
 
