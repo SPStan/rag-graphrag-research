@@ -4,7 +4,9 @@
 2996completed+4attempted_failed,0not_attempted. Одна
 [таблица E3](../results/summary/e3.md), [safe JSON](../results/summary/e3.json)
 с интервальными оценками, input/code/version hashes и example IDs.
-Scientific O/N/R/H PR40 pending перед merge; Draft/Refs #18, без Ready/merge.
+Научные O/N/R/H требуют повторного актуального согласования перед merge.
+Refs #18; issue и PR остаются открытыми. Полное техническое ревью запрашивается
+отдельно после проверок и не заменяет научного согласия.
 
 ## Метод и воспроизводимость
 
@@ -109,10 +111,26 @@ Hot evidence/report получены в [PR39](https://github.com/SPStan/rag-gra
 | Критерий issue18 | Свидетельство |
 |---|---|
 | E3:3метода×2датасета |3000unique frozen cases,2996completed+4failed,0not_attempted |
-| Парные CI/seed/count/tests |1000shared draws/seed42,95%percentile,11targettests |
+| Парные CI/seed/count/tests | 1 000 общих ресэмплов; seed 42; 95 % percentile; 12 целевых тестов |
 | Воспроизведение без моделей |Два byte-identical real rebuilds с0HTTP,input/code/version SHA |
 | Ошибки/ограничения |Полный error ledger,10фиксированных tuning examples,development/CI caveats |
 
 Следующий шаг — ревью PR39, затем PR40 и актуальное научное согласование перед
 отдельно разрешённым merge. Новые модели/индексация/tracking-export/holdout/signal
 и следующие исследовательские задачи в этом блоке не запускались.
+
+
+## Проверка перед полным ревью — 9 ноября
+
+Для исходного HEAD 0082a55 подтверждён зелёный CI Windows/Linux, conventions и
+secrets. В коде собраны 12 целевых тестов; таблица критериев приведена к этому
+числу. Сеть при offline-пересчёте была запрещена: проверены 3 000 исходов,
+сохранённые scores и входные SHA; метрики, интервалы и выбранные примеры совпали.
+Два рендера дали одинаковые байты. Переносы строк кода и Markdown LF/CRLF
+учтены отдельно от содержимого. Старые raw и опубликованные численные отчёты
+не записывались. Таблица HotpotQA также воспроизведена из сохранённого JSON.
+
+Планы, manifests, evaluation, usage и все parent-файлы обоих датасетов доступны
+локально по указанным выше путям. Для независимого воспроизведения куратору
+потребуются эти private-артефакты: в GitHub они не опубликованы. Научное
+согласование и полное ревью не объявляются полученными этим подтверждением.
