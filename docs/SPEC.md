@@ -128,4 +128,4 @@ seed42,95%percentile интервалы; RAPTOR provenance отдельно от
 Ошибки сохранены в pipeline means, unknown usage не заменён нулём; S500 содержит
 development/pilot и не является независимым тестом. Pilot2000/legacy10000
 не менялись; CI с нулём не доказывает эквивалентность. Научные O/N/R/H pending
-перед merge, Refs #18, Draft. Новых model/HTTP/index/tracking calls нет.
+перед merge, Refs #18; PR открыт для полного технического ревью. Новых model/HTTP/index/tracking calls нет.
