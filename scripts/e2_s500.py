@@ -646,13 +646,19 @@ def write_dataset_report(
             "S500_physical_accounting",
             {"known_subtotal": known["known_subtotal"], "POST": len(starts)},
         )
+        fresh_complete = known["complete"] and (
+            not spec or spec["parent_physical"]["unknown_reservation_not_actual"] == 0
+        )
+        # A new unknown makes totals unknown; retain historical counts under prior.
         safe["cumulative_E2_accounting"] = {
             "known_tokens": prior.get("known_tokens", 0)
             + sum(physical["known_subtotal"].values()),
             "physical_POST": prior.get("physical_POST", 0) + physical["POST"],
-            "unknown_operations": prior.get("unknown_operations"),
-            "unknown_reservations_not_actual": prior.get(
-                "unknown_reservations_not_actual"
+            "unknown_operations": prior.get("unknown_operations")
+            if fresh_complete
+            else None,
+            "unknown_reservations_not_actual": (
+                prior.get("unknown_reservations_not_actual") if fresh_complete else None
             ),
             "prior": prior,
             "new_physical": known,
@@ -996,7 +1002,7 @@ def hotpotqa_report_lines(report):
     cumulative = report.get("cumulative_E2_accounting")
     if cumulative:
         lines.append(
-            f"Совокупный E2: {number(cumulative['known_tokens'])} известных токенов, {number(cumulative['physical_POST'])} POST; {cumulative['unknown_operations']} операции с неизвестным usage. Резерв {number(cumulative['unknown_reservations_not_actual'])} токенов — не измеренный расход. Полная стоимость неизвестна."
+            f"Совокупный E2: {number(cumulative['known_tokens'])} известных токенов, {number(cumulative['physical_POST'])} POST; {number(cumulative['unknown_operations'])} операции с неизвестным usage. Резерв {number(cumulative['unknown_reservations_not_actual'])} токенов — не измеренный расход. Полная стоимость неизвестна."
         )
     lines += [
         "E1 учитывается отдельно: 32 601 955 известных токенов и резерв 61 588; стоимость неполна.",

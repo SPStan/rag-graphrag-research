@@ -60,7 +60,15 @@ def approved(scenario, monkeypatch):
     dense.write_json_atomic(auth, dense.read_json(hot.AUTHORIZATION))
     history = s.root / "history.json"
     dense.write_json_atomic(
-        history, {"cumulative_E2_accounting": {"known": 123, "unknown": 2}}
+        history,
+        {
+            "cumulative_E2_accounting": {
+                "known_tokens": 123,
+                "physical_POST": 7,
+                "unknown_operations": 2,
+                "unknown_reservations_not_actual": 38277,
+            }
+        },
     )
     pins[str(history)] = dense.sha256_file(history)
     plan.update(
@@ -484,3 +492,28 @@ def test_public_markdown_is_readable_and_keeps_measurements():
     assert "{'" not in text and "None" not in text
     assert "e2-hotpotqa-s500.json" in text
     assert "500" in text and "300" in text
+
+
+@pytest.mark.parametrize("fault", ["unknown", "transport", None])
+def test_failed_report_never_hides_new_unknown_usage(approved, monkeypatch, fault):
+    s = approved
+    s.state["fault"] = fault
+    continuation.run_method(s, "dense", monkeypatch)
+    before = len(s.state["posts"])
+    report = hot.write_report(s.child_plan, s.output, s.root / "unknown-report")
+    total = report["cumulative_E2_accounting"]
+    assert total["prior"]["unknown_operations"] == 2
+    assert total["prior"]["unknown_reservations_not_actual"] == 38277
+    assert total["known_tokens"] >= 123
+    assert total["physical_POST"] == 7 + report["new_POST"]
+    if fault:
+        assert total["unknown_operations"] is None
+        assert total["unknown_reservations_not_actual"] is None
+        assert not total["cost_complete"]
+        assert "неизвестно" in (s.root / "unknown-report.md").read_text(
+            encoding="utf-8"
+        )
+    else:
+        assert total["unknown_operations"] == 2
+        assert total["unknown_reservations_not_actual"] == 38277
+    assert len(s.state["posts"]) == before
