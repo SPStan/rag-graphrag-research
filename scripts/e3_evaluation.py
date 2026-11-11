@@ -5,11 +5,13 @@ import inspect
 import json
 import platform
 from pathlib import Path
+from unittest.mock import patch
 import numpy as np
 from scripts import (
     e2_evaluation as e2,
     run_dense as dense,
     token_accounting as accounting,
+    full_experiment as full,
 )
 from scripts.compare_asbuilt import bootstrap_mean
 
@@ -57,6 +59,11 @@ def join(rows, dataset, ids):
         joined[method][qid] = row
     require(all(set(x) == set(ids) for x in joined.values()), "missing_IDs")
     return {m: [joined[m][qid] for qid in ids] for m in METHODS}
+
+
+def join_order(rows, dataset, ids):
+    paired = join(rows, dataset, ids)
+    return [row for method in METHODS for row in paired[method]]
 
 
 def analyze(rows, dataset, ids):
@@ -119,6 +126,149 @@ def analyze(rows, dataset, ids):
     }
 
 
+def verify_protocol(plan, artifact_root, dataset):
+    """Bind execution conditions to the immutable issue15 freeze, not each other."""
+    freeze_path = artifact_root / "results/summary/full-experiment.json"
+    frozen = dense.read_json(freeze_path)
+    require(
+        e2.target.digest(frozen) == plan["s500"]["source_digest"],
+        "frozen_protocol_digest_mismatch",
+    )
+    require(full.contract(plan) == frozen["contract"], "frozen_protocol_mismatch")
+    require(
+        plan["message_utf8_bytes_limit"] == frozen["input_message_bytes_limit"],
+        "frozen_payload_limit_mismatch",
+    )
+    data, expected = plan["datasets"][dataset], frozen["datasets"][dataset]
+    for actual, original in (
+        ("question_ids", "ordered_ids"),
+        ("ordered_ids_sha256", "ordered_ids_sha256"),
+        ("queries_sha256", "queries_sha256"),
+        ("corpus_sha256", "corpus_sha256"),
+        ("labels_sha256_evaluator_only", "labels_sha256_hash_only"),
+        ("split_sha256", "split_file_sha256"),
+    ):
+        require(data[actual] == expected[original], "frozen_dataset_mismatch")
+    expected_indexes = {
+        row["method"]: row["index"]
+        for row in frozen["configurations"]
+        if row["dataset"] == dataset
+    }
+    require(
+        {row["method"]: row for row in data["indexes"]} == expected_indexes,
+        "frozen_index_mismatch",
+    )
+    parent_path = plan.get("s500", {}).get("continuation", {}).get("parent_plan")
+    if parent_path:
+        parent = dense.read_json(Path(parent_path))
+        require(
+            full.contract(parent) == frozen["contract"]
+            and parent["datasets"][dataset] == data,
+            "parent_protocol_mismatch",
+        )
+    source = {
+        k: frozen[k]
+        for k in (
+            "pilot_physical",
+            "development_physical",
+            "E1_separate",
+            "sealed_unknown",
+        )
+    }
+    require(plan["s500"]["source_global_cost"] == source, "frozen_source_cost_mismatch")
+    return freeze_path
+
+
+def verify_aggregates(plan, output, manifest, evaluation, public, records):
+    """Recompute scores/counts/logical usage; physical expense comes from journals."""
+    rebuilt = e2.summary(plan, output)
+
+    def normalized(value):
+        if isinstance(value, dict):
+            return {
+                k: str((output.parents[2] / v).resolve())
+                if k == "path"
+                else normalized(v)
+                for k, v in value.items()
+            }
+        if isinstance(value, list):
+            return [normalized(v) for v in value]
+        return value
+
+    require(
+        normalized(rebuilt) == normalized(evaluation), "evaluation_rebuild_mismatch"
+    )
+    require(public["rows"] == rebuilt["rows"], "public_rows_mismatch")
+    known = accounting.summarize(records)
+    require(public["new_physical_accounting"] == known, "public_journal_mismatch")
+    posts = sum(r["event"] == "started" for r in records)
+    for key in ("new_POST", "model_posts"):
+        require(public[key] == posts, "public_POST_mismatch")
+    require(
+        public["historical_source_accounting"] == plan["s500"]["source_global_cost"],
+        "public_source_cost_mismatch",
+    )
+    require(
+        public["inherited_cases"] == len(plan["parent_run"]["cases"])
+        and public["new_terminal_cases"] == len(manifest["results"]),
+        "public_coverage_mismatch",
+    )
+    spec = plan["s500"].get("continuation")
+    complete = known["complete"] and not spec and not plan.get("sealed_unknown")
+    if spec:
+        parent_dir = Path(spec["parent_directory"])
+        parent = dense.read_json(parent_dir / "manifest.json")
+        ref = accounting.verified_reference(parent, parent_dir / "manifest.json")
+        require(ref["status"] == "verified", "parent_journal_mismatch")
+        parent_records = accounting.read_records(parent_dir / "usage.jsonl")
+        parent_known = accounting.summarize(parent_records)
+        previous = spec["parent_physical"]
+        reservation = sum(
+            x["reservation_tokens"]
+            for x in plan.get("sealed_unknown", [])
+            if x["run_id"] == parent["run_id"]
+        )
+        require(
+            previous["unknown_reservation_not_actual"] == reservation,
+            "parent_unknown_reservation_mismatch",
+        )
+        require(
+            previous["known_subtotal"] == parent_known["known_subtotal"]
+            and previous["POST"]
+            == sum(r["event"] == "started" for r in parent_records),
+            "parent_physical_mismatch",
+        )
+        physical = {
+            "known_subtotal": {
+                k: known["known_subtotal"][k] + parent_known["known_subtotal"][k]
+                for k in accounting.TOKEN_FIELDS
+            },
+            "POST": posts + previous["POST"],
+            "unknown_reservation_not_actual": previous[
+                "unknown_reservation_not_actual"
+            ],
+            "cost_complete": (
+                known["complete"]
+                and parent_known["complete"]
+                and previous["unknown_reservation_not_actual"] == 0
+            )
+            if plan["version"] == "e2-hotpotqa-s500-v1"
+            else False,
+        }
+        require(
+            public["S500_physical_accounting"] == physical, "public_physical_mismatch"
+        )
+        counts = {
+            "expected": 1500,
+            "completed": sum(r["completed"] for r in rebuilt["rows"]),
+            "attempted_failed": sum(r["attempted_failed"] for r in rebuilt["rows"]),
+            "not_attempted": sum(r["not_attempted"] for r in rebuilt["rows"]),
+        }
+        require(public["total_coverage"] == counts, "public_coverage_mismatch")
+    require(public["cost_complete"] == complete, "public_cost_completeness_mismatch")
+    return rebuilt
+
+
 def load_dataset(artifact_root, data_root, dataset):
     suffix = "unattempted" if dataset == "musique" else "execution"
     plan_path = artifact_root / f".cache/e2-{dataset}-s500-{suffix}-plan.json"
@@ -168,6 +318,7 @@ def load_dataset(artifact_root, data_root, dataset):
     )
     require(manifest["plan_sha256"] == e2.target.digest(plan), "plan_identity_mismatch")
     e2.check_parent_pins(plan)
+    freeze_path = verify_protocol(plan, artifact_root, dataset)
     reference = accounting.verified_reference(manifest, manifest_path)
     require(reference["status"] == "verified", "journal_mismatch")
     records = accounting.read_records(output / "usage.jsonl")
@@ -193,6 +344,7 @@ def load_dataset(artifact_root, data_root, dataset):
     require(len(refs) == 1500, "expected_1500_unique_outcomes")
     rows = evaluation["question_results"]
     join(rows, dataset, ids)
+    expected_objects = set()
     for row in rows:
         key = e2.case_key(dataset, row["method"], row["question_id"])
         path, sha = refs[key]
@@ -225,6 +377,20 @@ def load_dataset(artifact_root, data_root, dataset):
         )
         if key in manifest["results"]:
             e2.verify_saved_case(plan, output, saved, records)
+            for op in saved.get("operations", []):
+                if op.get("physical_attempted"):
+                    require(
+                        op["journal_object_id"] not in expected_objects,
+                        "duplicate_physical_object",
+                    )
+                    expected_objects.add(op["journal_object_id"])
+    starts = [r for r in records if r["event"] == "started"]
+    require(
+        len(starts) == len(expected_objects)
+        and {r["object_id"] for r in starts} == expected_objects,
+        "unbound_or_duplicate_POST",
+    )
+    verify_aggregates(plan, output, manifest, evaluation, public, records)
     metadata = {
         "files": {
             str(p.resolve()): dense.sha256_file(p)
@@ -236,6 +402,7 @@ def load_dataset(artifact_root, data_root, dataset):
                 output / "usage.jsonl",
                 labels_file,
                 ids_file,
+                freeze_path,
             )
         },
         "run_id": manifest["run_id"],
@@ -263,7 +430,7 @@ def load_dataset(artifact_root, data_root, dataset):
 
 
 def build(artifact_root, data_root):
-    datasets, inputs, examples = [], {}, []
+    datasets, inputs, examples, scores = [], {}, [], []
     reader = None
     for dataset in ("musique", "hotpotqa"):
         rows, ids, metadata = load_dataset(artifact_root, data_root, dataset)
@@ -273,6 +440,17 @@ def build(artifact_root, data_root):
         reader = metadata["reader"]
         datasets.append(analyze(rows, dataset, ids))
         inputs[dataset] = metadata
+        scores.extend(
+            {
+                "dataset": dataset,
+                "method": r["method"],
+                "question_id": r["question_id"],
+                "status": r["status"],
+                "pipeline_failure": r["status"] == "attempted_failed",
+                "metrics": r["metrics"],
+            }
+            for r in join_order(rows, dataset, ids)
+        )
         paired = join(rows, dataset, ids)
         # Fixed strata, then frozen tuning order; no check/reserve selection.
         candidates = [
@@ -313,6 +491,8 @@ def build(artifact_root, data_root):
             )
         },
         "inputs": inputs,
+        "question_scores": scores,
+        "question_scores_sha256": e2.target.digest(scores),
         "datasets": datasets,
         "examples": examples,
         "limitations": [
@@ -332,7 +512,16 @@ def main(argv=None):
     parser.add_argument("--data-root", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args(argv)
-    result = build(args.artifact_root, args.data_root)
+    with (
+        patch(
+            "socket.socket.connect", side_effect=AssertionError("E3_network_forbidden")
+        ),
+        patch(
+            "socket.socket.connect_ex",
+            side_effect=AssertionError("E3_network_forbidden"),
+        ),
+    ):
+        result = build(args.artifact_root, args.data_root)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     dense.write_json_atomic(args.output.with_suffix(".json"), result)
     lines = [

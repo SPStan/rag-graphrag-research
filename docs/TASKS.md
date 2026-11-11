@@ -2,35 +2,56 @@
 
 **E1 status:** 6/6 indexes completed under the structural protocol; physical known tokens=32601955; cost_complete=False; unknown reserve61588 preserved. Final audit/verify completed; monitoring paused.
 
-## Текущая очередь — полное ревью PR39/40 и научное согласование
+## Текущая очередь — строгая приёмка E3 в PR40
 
-- Замечания к PR40: loader E3 сверяет passage recall@5 с общим evaluator
-  наряду с EM/F1/provenance; регрессия через loader/CLI отклоняет подмену
-  Dense/Hippo recall, включая failed-case и null.12целевых тестов прошли.
-  SPEC отражает рассчитанный итог E3; научные формулировки и raw/plans неизменны.
+- PR39 слит в master (a381534), issue17 закрыта. Master интегрирован в PR40
+  обычным merge; основной dirty checkout и прежний PR40 checkout не менялись.
+- PR40: O/N/R/H полностью согласованы, GitHub approval опубликовано;
+  текущий блок исправляет техническую приёмку №18, merge не выполняется.
+- E3 сверяет execution/parent contract с frozen issue15, включая top_k,
+  IDs/data/index pins; scores/counts/logical usage пересчитываются, child/parent
+  physical expense сверяются с журналами. Подмена сводки блокирует публикацию.
+- 30 целевых тестов; два byte-identical real CLI rebuilds с запретом сети.
+  16 676 immutable файлов неизменны; метрики/интервалы/примеры остались прежними.
+  Все 3 000 per-case scores (2 996 complete + 4 failure markers) опубликованы
+  в e3.json.question_scores для №20; raw/gold/ответов там нет. №20 не запускалась.
+- Команда полного пересчёта и независимого bootstrap из публичных scores:
+  docs/E3_EVALUATION.md, «Строгая приёмка входов и демонстрация пересчёта».
+
+
+- Замечания к PR39 исправлены: чтение/проверки/увеличение recovery ledger
+  защищены одним exclusive lock; регрессии исключают потерю допуска и превышение2/2.
+  Hot execution CLI требует явные dataset/execution/parent/authorization paths
+  по своей команде до чтения файлов. Worklist использует Hot default либо явный
+  путь; Mu defaults совместимы. CLI и Hot guard:63целевых tests passed,0HTTP.
+  Контракт флагов — E2_HOTPOTQA_S500.md. Это post-execution исправления;
+  execution SHA, планы, raw, результаты и научные формулировки не меняются.
 
 - Hot issue17:1500unique=1497completed+3failed,0not_attempted; Dense500/0,
-  Hippo498/2,RAPTOR499/1. Проверенный источник —
-  [PR39](https://github.com/SPStan/rag-graphrag-research/pull/39).
-  Executionf23bb59/child9e7efc49; старый failed root91f59cf6/runtime7a67791,
-  raw/plans/claims неизменны. FreshHot2763839known/2099POST,0newunknown/retry,
-  общийcounter2/2, дальнейшие restarts запрещены.
-- [E3](../results/summary/e3.md):3000accounted=2996completed+4failed,
-  общий evaluator/frozen500IDjoin/датасет,1000paired seed42/95%percentile,
-  два identical real offline rebuilds. Hot Hippo−Dense F1+5.67п.п.[3.37;8.28],
-  RAPTOR+0.90[-1.14;3.04]; Mu Hippo+8.61[5.24;11.98],RAPTOR−2.47[-5.24;0.57].
-  Descriptive development S500; CI с0 не эквивалентность/<2п.п.
+  Hippo498/2,RAPTOR499/1. [Таблица](../results/summary/e2-hotpotqa-s500.md).
+  Child9e7efc49, executionf23bb59; исходный failed root91f59cf6/runtime7a67791
+  и все старые raw/plans/claims неизменны. Root+child physical2763839/2099POST
+  в cap4982220/2100;0newunknown/retry, общийcounter2/2, дальнейших restart нет.
 - Cumulative E2:9856273known/7059POST,2historicalunknown/reserve38277,
   cost_complete=false. E1 отдельно32601955known/reserve61588,cost_complete=false.
-  Source/reuse не добавлены повторно; ошибки/mixed Hippo/semantic_verified=false
-  сохраняются. RAPTORprovenance отдельно от passage recall@5.
+  Logical reuse/source91871/development не прибавляются повторно; новые физические
+  Hot расходы полностью известны. Error markers и mixed Hippo/errors сохранены.
+- E3 issue18: общий evaluator, frozen500ID join/датасет,1000paired seed42,
+  95%percentile,3000accounted=2996completed+4failed. Реализация и результат в
+  [PR40](https://github.com/SPStan/rag-graphrag-research/pull/40), без новых моделей.
+  Hot−Dense F1:Hippo+5.67п.п.[3.37;8.28],RAPTOR+0.90[-1.14;3.04].
+  Mu Hippo−Dense+8.61[5.24;11.98],RAPTOR−Dense−2.47[-5.24;0.57].
+  Это descriptive development S500, не независимое подтверждение/эквивалентность.
 - Проверка перед полным ревью 9 ноября: CI исходных HEAD PR39/8ce1138 и
   PR40/0082a55 зелёный; локальный offline-пересчёт подтвердил 3 000 случаев,
   метрики, интервалы и входные SHA. Таблица Hot воспроизведена; raw не записывались.
-- Научные O/N/R/H отмечены ботом как устаревшие: требуется повторный
-  research_submit обоих PR и явное актуальное решение Alex. До этого Refs,
-  issues и PR открыты; merge только по отдельной команде пользователя.
-  Ready запрашивает полное техническое ревью и не заменяет научного согласия.
+- Научные O/N/R/H PR39 полностью согласованы 10 ноября:
+  [решение](https://github.com/SPStan/rag-graphrag-research/pull/39#pullrequestreview-5844435151).
+  Пользователь разрешил merge PR39 после технических проверок. Замечание о новых
+  unknown в расходе исправлено: при неполном fresh usage итоговые unknown/reserve
+  становятся null, исторические значения остаются в prior; 30 целевых тестов прошли.
+  PR39 слит: a381534; issue17 закрыта. PR40: научные формулировки согласованы,
+  техническая приёмка входов и offline-пересчёт дорабатываются. Merge40 не выполняется.
 - Для правки PR40 используется изолированная копия
   C:/Users/Elisei/AppData/Local/Temp/codex-e3-review-20261109:
   исходный checkout PR40 содержит посторонние удаления, они не включены в коммит.

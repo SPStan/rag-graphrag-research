@@ -106,17 +106,19 @@ usage/response/checkpoint и parent refs. Планы, orderedIDs/source revision
 model/reader/index pins и все input hashes перечислены в `e3.json.inputs`;
 error fields `status/error/fatal/operations` не маскируются.
 Hot evidence/report получены в [PR39](https://github.com/SPStan/rag-graphrag-research/pull/39),
-это зависимость по данным; git base PR40 независим, source artifacts не копируются.
+PR39 уже слит в master и интегрирован обычным merge в PR40.
+Private source артефакты остаются на месте; execution plans и raw неизменны.
 
 | Критерий issue18 | Свидетельство |
 |---|---|
 | E3:3метода×2датасета |3000unique frozen cases,2996completed+4failed,0not_attempted |
-| Парные CI/seed/count/tests | 1 000 общих ресэмплов; seed 42; 95 % percentile; 12 целевых тестов |
+| Парные CI/seed/count/tests | 1 000 общих ресэмплов; seed 42; 95 % percentile; 30 целевых тестов |
 | Воспроизведение без моделей |Два byte-identical real rebuilds с0HTTP,input/code/version SHA |
 | Ошибки/ограничения |Полный error ledger,10фиксированных tuning examples,development/CI caveats |
 
-Следующий шаг — ревью PR39, затем PR40 и актуальное научное согласование перед
-отдельно разрешённым merge. Новые модели/индексация/tracking-export/holdout/signal
+Следующий шаг — техническая приёмка PR40 перед отдельно разрешённым merge.
+Научные O/N/R/H [согласованы](https://github.com/SPStan/rag-graphrag-research/pull/40#pullrequestreview-5845238116)
+без изменения формулировок; научное согласие не заменяет технические проверки. Новые модели/индексация/tracking-export/holdout/signal
 и следующие исследовательские задачи в этом блоке не запускались.
 
 
@@ -134,3 +136,77 @@ secrets. В коде собраны 12 целевых тестов; таблиц
 локально по указанным выше путям. Для независимого воспроизведения куратору
 потребуются эти private-артефакты: в GitHub они не опубликованы. Научное
 согласование и полное ревью не объявляются полученными этим подтверждением.
+
+
+## Строгая приёмка входов и демонстрация пересчёта
+
+Команда E3 сверяет execution plan с замороженным
+`results/summary/full-experiment.json` и его digest: весь контракт issue15,
+включая top_k=5, reader/options/templates/parser/evaluator, Hippo-параметры,
+embedding revision и порядок контекста. Отдельно проверяются byte gate,
+frozen IDs/source/labels/split/index pins и условия parent-плана.
+Одинаковые неправильные настройки двух датасетов также не проходят:
+основание сверки — frozen-протокол, а не совпадение планов между собой.
+
+Общий evaluator заново считает оценки из сохранённых ответов.
+Штатный E2 summary заново собирает строки, counts, latency и logical usage.
+Они должны совпасть с private evaluation и публичной сводкой E2.
+Новые physical usage/POST сверяются с журналом child, parent physical — с
+проверенным журналом parent; неизвестный расход не заменяется нулём.
+Historical source/development сверяются с frozen snapshot и не добавляются
+как новый расход. CLI запрещает socket connect/connect_ex, не пишет в raw.
+Относительный и абсолютный путь к одному журналу нормализуются; содержание,
+SHA и учёт не ослабляются.
+
+Проверка 11 ноября на сохранённых артефактах:
+**3 000 уникальных исходов = 2 996 ответов + 4 pipeline failures**.
+Два запуска штатной команды дали одинаковые байты JSON.
+Все **16 676** проверенных immutable файлов сохранили SHA;
+ранее опубликованные метрики, интервалы и десять примеров совпали.
+30 целевых тестов проверяют rebound SHA при смене top_k,
+подмену F1/counts/logical usage/physical expense и unknown/partial journal.
+Сначала тестам была недоступна стандартная Windows temp-папка;
+с предусмотренными проектом TEMP/TMP они прошли. В синтетической фикстуре
+также исправлена недостающая parent directory; эксперимент не менялся.
+
+Fingerprints демонстрации:
+
+- JSON двух пересборок: `0dea854ebc46cb3b993b8704ea72d37a033635aeba44a31711d7cc47ec841a24`.
+- Digest исходных файлов: `7f97a8aee8da153bdbcd7566929c4d3eb9db40fc16d3224b4fe71bebe39cebf3`.
+- Digest массива оценок: `d92666caf02d84605fa08d89bcab34f515130a6e171f4af67b208121180d8276`.
+
+Полный пересчёт из worktree PR40 в новый output:
+
+```powershell
+./.venv-check/Scripts/python.exe -m scripts.e3_evaluation --artifact-root "C:/Users/Elisei/.codex/worktrees/e2-shared-evaluation/Rag, GraphRAG" --data-root "C:/Users/Elisei/Documents/ChatGPT/Rag, GraphRAG" --output .cache/e3-independent-rebuild
+```
+
+### Передача оценок для oracle-анализа №20
+
+[Публичный e3.json](../results/summary/e3.json) содержит
+`question_scores`: все 3 000 строк в frozen-порядке, dataset/method/question_id,
+status, pipeline_failure и EM/F1/recall/provenance. Текстов вопросов, ответов,
+gold и контекстов в приложении нет. Digest массива — в
+`question_scores_sha256`; original evaluation/manifest/usage SHA — в `inputs`.
+Failed-случаи остаются нулевыми pipeline scores, а не неверными ответами reader.
+Oracle-анализ №20 здесь не выполнялся.
+
+С публичными оценками можно независимо пересчитать все интервалы,
+не получая private raw. Код для Python из worktree PR40:
+
+```python
+from pathlib import Path
+from scripts import e3_evaluation as e3, run_dense as dense
+
+v = dense.read_json(Path("results/summary/e3.json"))
+assert e3.e2.target.digest(v["question_scores"]) == v["question_scores_sha256"]
+for expected in v["datasets"]:
+    rows = [r for r in v["question_scores"] if r["dataset"] == expected["dataset"]]
+    ids = [r["question_id"] for r in rows if r["method"] == "dense"]
+    assert e3.analyze(rows, expected["dataset"], ids) == expected
+print("3000 scores: means and paired intervals match")
+```
+
+Это проверяет статистику по опубликованным scores. Для повторной оценки текста
+ответа и supporting labels всё ещё нужны private артефакты по указанным выше
+путям; куратор их пока не проверял.

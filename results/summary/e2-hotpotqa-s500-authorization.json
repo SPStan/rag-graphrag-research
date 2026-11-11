@@ -1,0 +1,15 @@
+{
+  "kind": "hotpotqa_S500_execution_authorization",
+  "dataset": "hotpotqa",
+  "approved": true,
+  "new_token_cap": 4982220,
+  "new_POST_caps": {
+    "reader": 900,
+    "filter": 300,
+    "query_embedding": 900
+  },
+  "retry": 0,
+  "automatic_resumes": 2,
+  "source": "direct user instruction 2026-10-30; scientific approval required before merge, not execution",
+  "scope": "900missing only; sealed unknown never repeated; fixed scientific configuration"
+}
