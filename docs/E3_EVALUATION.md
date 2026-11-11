@@ -117,6 +117,7 @@ Private source артефакты остаются на месте; execution pl
 | Ошибки/ограничения |Полный error ledger,10фиксированных tuning examples,development/CI caveats |
 
 Следующий шаг — техническая приёмка PR40 перед отдельно разрешённым merge.
+Merge остановлен из-за раскрытия per-case control/reserve scores в истории.
 Научные O/N/R/H [согласованы](https://github.com/SPStan/rag-graphrag-research/pull/40#pullrequestreview-5845238116)
 без изменения формулировок; научное согласие не заменяет технические проверки. Новые модели/индексация/tracking-export/holdout/signal
 и следующие исследовательские задачи в этом блоке не запускались.
@@ -169,7 +170,7 @@ SHA и учёт не ослабляются.
 с предусмотренными проектом TEMP/TMP они прошли. В синтетической фикстуре
 также исправлена недостающая parent directory; эксперимент не менялся.
 
-Fingerprints демонстрации:
+Fingerprints полной private-пересборки до ограничения публичных scores:
 
 - JSON двух пересборок: `0dea854ebc46cb3b993b8704ea72d37a033635aeba44a31711d7cc47ec841a24`.
 - Digest исходных файлов: `7f97a8aee8da153bdbcd7566929c4d3eb9db40fc16d3224b4fe71bebe39cebf3`.
@@ -181,32 +182,51 @@ Fingerprints демонстрации:
 ./.venv-check/Scripts/python.exe -m scripts.e3_evaluation --artifact-root "C:/Users/Elisei/.codex/worktrees/e2-shared-evaluation/Rag, GraphRAG" --data-root "C:/Users/Elisei/Documents/ChatGPT/Rag, GraphRAG" --output .cache/e3-independent-rebuild
 ```
 
-### Передача оценок для oracle-анализа №20
+### Передача оценок для oracle-анализа №20 и защита контроля
 
-[Публичный e3.json](../results/summary/e3.json) содержит
-`question_scores`: все 3 000 строк в frozen-порядке, dataset/method/question_id,
-status, pipeline_failure и EM/F1/recall/provenance. Текстов вопросов, ответов,
-gold и контекстов в приложении нет. Digest массива — в
-`question_scores_sha256`; original evaluation/manifest/usage SHA — в `inputs`.
-Failed-случаи остаются нулевыми pipeline scores, а не неверными ответами reader.
-Oracle-анализ №20 здесь не выполнялся.
+Полные 3 000 per-case scores хранятся только в private-файле:
+`C:/Users/Elisei/.codex/worktrees/e2-shared-evaluation/Rag, GraphRAG/.cache/e3-oracle-inputs-private.json`.
+Файл игнорируется Git. Он содержит оценки, статусы и входные SHA, без gold,
+текстов ответов и контекстов; oracle-анализ №20 не запускался.
+Исходные полные evaluation/manifest/usage остаются по указанным выше private-путям.
 
-С публичными оценками можно независимо пересчитать все интервалы,
-не получая private raw. Код для Python из worktree PR40:
+Публичный `e3.json.question_scores` ограничен tuning300 каждого датасета:
+1 800 строк (300 ID ×3метода ×2датасета). В нём нет per-case scores control100
+или reserved100. Агрегаты E3 и bootstrap используют все500ID и остаются прежними.
+Регрессия через штатную CLI проверяет это разделение; фильтр не опционален.
+Две реальные offline-пересборки после ограничения совпали побайтно:
+1 800 public tuning scores,0control/reserve scores; агрегаты по3 000исходам
+и интервалы не изменились. SHA текущего JSON:
+`e3e3db15ef35c1cff6fec958decbee1318d54cc3d9f22f01b5b5a705d3b1903a`;
+digest tuning scores:
+`6fe58b82d148a0b50ff498a454be12b58ec02977f29a47344729313f67efef43`.
+
+**Раскрытие в истории:** коммит4793612 уже содержал полный массив — в том числе
+600 control и600 reserved per-case scores. Gold-текстов он не содержал, однако
+EM/F1 по методам могут служить target labels для oracle/router. Удаление из
+текущей версии не удаляет опубликованный Git history и не восстанавливает
+независимость контроля. История не переписывается; merge PR40 остановлен до
+решения пользователя о последствиях. Нельзя считать эти случаи pristine либо
+использовать их для подбора сигнала/порога. Полное научное согласование формулировок
+не заменяет принятие этого отклонения.
+
+Для независимой проверки всех интервалов нужен private ledger. Из worktree PR40:
 
 ```python
 from pathlib import Path
 from scripts import e3_evaluation as e3, run_dense as dense
 
 v = dense.read_json(Path("results/summary/e3.json"))
-assert e3.e2.target.digest(v["question_scores"]) == v["question_scores_sha256"]
+private = dense.read_json(Path(
+    "C:/Users/Elisei/.codex/worktrees/e2-shared-evaluation/Rag, GraphRAG/.cache/e3-oracle-inputs-private.json"
+))
+scores = private["question_scores"]
+assert e3.e2.target.digest(scores) == private["question_scores_sha256"]
 for expected in v["datasets"]:
-    rows = [r for r in v["question_scores"] if r["dataset"] == expected["dataset"]]
+    rows = [r for r in scores if r["dataset"] == expected["dataset"]]
     ids = [r["question_id"] for r in rows if r["method"] == "dense"]
     assert e3.analyze(rows, expected["dataset"], ids) == expected
-print("3000 scores: means and paired intervals match")
 ```
 
-Это проверяет статистику по опубликованным scores. Для повторной оценки текста
-ответа и supporting labels всё ещё нужны private артефакты по указанным выше
-путям; куратор их пока не проверял.
+Проверка текстов и supporting labels по-прежнему требует private исходных
+артефактов; их куратор независимо не проверял.

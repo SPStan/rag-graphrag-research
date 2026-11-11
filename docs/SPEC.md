@@ -129,4 +129,6 @@ seed42,95%percentile интервалы; RAPTOR provenance отдельно от
 development/pilot и не является независимым тестом. Pilot2000/legacy10000
 не менялись; CI с нулём не доказывает эквивалентность. Научные O/N/R/H согласованы; техническая приёмка остаётся отдельной.
 E3 сверяет frozen protocol, пересчитанные метрики/counts и журналы расходов;
-публичный JSON содержит 3 000 per-case scores для №20. Refs #18. Новых model/HTTP/index/tracking calls нет.
+публичный JSON содержит только tuning300 scores; полный ledger для №20 private.
+Control/reserve scores были раскрыты в4793612: pristine-статус не подтверждён,
+merge40 остановлен до решения о последствиях. Refs #18. Новых model/HTTP/index/tracking calls нет.

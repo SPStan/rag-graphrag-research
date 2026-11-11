@@ -450,6 +450,7 @@ def build(artifact_root, data_root):
                 "metrics": r["metrics"],
             }
             for r in join_order(rows, dataset, ids)
+            if r["question_id"] in set(ids[:300])
         )
         paired = join(rows, dataset, ids)
         # Fixed strata, then frozen tuning order; no check/reserve selection.
@@ -491,6 +492,7 @@ def build(artifact_root, data_root):
             )
         },
         "inputs": inputs,
+        "question_scores_scope": "tuning300_only; control100 and reserved100 per-case scores remain private",
         "question_scores": scores,
         "question_scores_sha256": e2.target.digest(scores),
         "datasets": datasets,

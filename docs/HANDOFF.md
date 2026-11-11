@@ -2,7 +2,7 @@
 
 **E1 status:** 6/6 indexes completed under the structural protocol; physical known tokens=32601955; cost_complete=False; unknown reserve61588 preserved. Final audit/verify completed; monitoring paused.
 
-## Текущая очередь — строгая приёмка E3 в PR40
+## Текущая очередь — защита контрольных меток перед merge PR40
 
 - PR39 слит в master (a381534), issue17 закрыта. Master интегрирован в PR40
   обычным merge; основной dirty checkout и прежний PR40 checkout не менялись.
@@ -13,8 +13,12 @@
   physical expense сверяются с журналами. Подмена сводки блокирует публикацию.
 - 30 целевых тестов; два byte-identical real CLI rebuilds с запретом сети.
   16 676 immutable файлов неизменны; метрики/интервалы/примеры остались прежними.
-  Все 3 000 per-case scores (2 996 complete + 4 failure markers) опубликованы
-  в e3.json.question_scores для №20; raw/gold/ответов там нет. №20 не запускалась.
+  Полные 3 000 per-case scores для №20 теперь только в private
+  .cache/e3-oracle-inputs-private.json в Hot worktree. Публичны лишь tuning300:
+  1 800 scores; control100/reserved100 по вопросам не экспортируются.
+  В 4793612 полный массив уже был опубликован: 600 control и600 reserve scores
+  доступны в истории. Поэтому pristine-контроль не подтверждён; merge40 остановлен
+  до решения пользователя о последствиях раскрытия. Gold-текстов опубликовано не было.
 - Команда полного пересчёта и независимого bootstrap из публичных scores:
   docs/E3_EVALUATION.md, «Строгая приёмка входов и демонстрация пересчёта».
 

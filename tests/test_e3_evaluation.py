@@ -494,3 +494,51 @@ def test_CLI_rejects_new_unknown_or_partial_journal(tmp_path, saved_inputs, usag
             ]
         )
     assert not (tmp_path / "unknown.json").exists()
+
+
+def test_public_CLI_never_exports_control_or_reserved_scores(tmp_path, monkeypatch):
+    ids = [f"q{i}" for i in range(500)]
+
+    def source(root, data, dataset):
+        selected = []
+        for method in e3.METHODS:
+            for qid in ids:
+                selected.append(
+                    {
+                        "dataset": dataset,
+                        "method": method,
+                        "question_id": qid,
+                        "status": "completed",
+                        "metrics": {
+                            "em": 0.5,
+                            "f1": 0.5,
+                            "passage_recall_at_5": None if method == "raptor" else 0.5,
+                            "supporting_provenance_coverage": 0.5,
+                        },
+                    }
+                )
+        return selected, ids, {"reader": {}, "files": {}}
+
+    monkeypatch.setattr(e3, "load_dataset", source)
+    prefix = tmp_path / "public"
+    e3.main(
+        [
+            "--artifact-root",
+            str(tmp_path),
+            "--data-root",
+            str(tmp_path),
+            "--output",
+            str(prefix),
+        ]
+    )
+    public = dense.read_json(prefix.with_suffix(".json"))
+    assert len(public["question_scores"]) == 1800
+    assert {r["question_id"] for r in public["question_scores"]} == set(ids[:300])
+    assert not {r["question_id"] for r in public["question_scores"]} & set(ids[300:])
+    assert all(x["n"] == 500 for x in public["datasets"])
+    assert all(r["completed"] == 500 for x in public["datasets"] for r in x["rows"])
+    assert public["question_scores_scope"].startswith("tuning300_only")
+    assert (
+        e3.e2.target.digest(public["question_scores"])
+        == public["question_scores_sha256"]
+    )
