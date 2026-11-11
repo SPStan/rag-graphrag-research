@@ -1,0 +1,2492 @@
+{
+  "version": "e4-token-cost-v1",
+  "code_sha256": {
+    "e4_cost.py": "14361f07ece1b9fa4bfeabd5090ae368e167f2690a6df209b3453e04e7b5d98e",
+    "run_e1.py": "ea921a6c4b747ea9e081c0421c5dd384ac21d7e78fd0568d501328a37a660e8b"
+  },
+  "inputs": {
+    "files": {
+      "results\\summary\\e1-indexing.json": "149b96963ee7fd712a934f7a915c32575203d2226848b330d4d9707dd1e356aa",
+      "results\\summary\\full-experiment.json": "dd9018971cf71e42bc63d09a3075c5353b58bf2943b3a1083576136ac2f9cdb5",
+      "results\\summary\\e3.json": "e3e3db15ef35c1cff6fec958decbee1318d54cc3d9f22f01b5b5a705d3b1903a",
+      "results\\summary\\e2-musique-s500.json": "feed713a0178aadb8630a45c9d155255aafcf90ff806d2abf88ce78d61ff0f1f",
+      "results\\summary\\e2-hotpotqa-s500.json": "8a4f64a63e7a6f3ed6e39e31c311c27957fbeb6eace73652601ec98f982188ef"
+    },
+    "E1_batch_id": "edff74df-c567-49de-a834-f9f1fc6f7f74",
+    "E1_known_physical_tokens": 32601955,
+    "E1_unknown_reserve_not_usage": 61588,
+    "E1_cost_complete": false,
+    "E2_physical_by_dataset": {
+      "musique": {
+        "child_run_id": "ba393849-c977-4c8f-97d7-303fc12955c8",
+        "new_physical": {
+          "schema_version": 1,
+          "phases": [
+            {
+              "phase": "reader",
+              "provider": "target_api",
+              "attempts": 199,
+              "errors": 0,
+              "unfinished": 0,
+              "cache_hits": 0,
+              "cache_provenance_unknown": 0,
+              "known_subtotal": {
+                "llm_input_tokens": 796282,
+                "llm_output_tokens": 1803,
+                "embedding_input_tokens": 0
+              },
+              "unknown_fields": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 0
+              },
+              "complete": true,
+              "total": {
+                "llm_input_tokens": 796282,
+                "llm_output_tokens": 1803,
+                "embedding_input_tokens": 0
+              }
+            },
+            {
+              "phase": "retrieval",
+              "provider": "local_ollama",
+              "attempts": 199,
+              "errors": 0,
+              "unfinished": 0,
+              "cache_hits": 0,
+              "cache_provenance_unknown": 0,
+              "known_subtotal": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 4904
+              },
+              "unknown_fields": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 0
+              },
+              "complete": true,
+              "total": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 4904
+              }
+            }
+          ],
+          "known_subtotal": {
+            "llm_input_tokens": 796282,
+            "llm_output_tokens": 1803,
+            "embedding_input_tokens": 4904
+          },
+          "complete": true,
+          "attempts": 398,
+          "historical_cache_cost_complete": true,
+          "journal_corrupt_tail": false,
+          "corrupt_tail_bytes": 0
+        },
+        "S500_physical": {
+          "known_subtotal": {
+            "llm_input_tokens": 3008746,
+            "llm_output_tokens": 24436,
+            "embedding_input_tokens": 22599
+          },
+          "POST": 2100,
+          "unknown_reservation_not_actual": 15732,
+          "cost_complete": false
+        }
+      },
+      "hotpotqa": {
+        "child_run_id": "9e7efc49-895c-42d6-a2d3-5676e2071b6b",
+        "new_physical": {
+          "schema_version": 1,
+          "phases": [
+            {
+              "phase": "reader",
+              "provider": "target_api",
+              "attempts": 429,
+              "errors": 0,
+              "unfinished": 0,
+              "cache_hits": 0,
+              "cache_provenance_unknown": 0,
+              "known_subtotal": {
+                "llm_input_tokens": 1145927,
+                "llm_output_tokens": 2842,
+                "embedding_input_tokens": 0
+              },
+              "unknown_fields": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 0
+              },
+              "complete": true,
+              "total": {
+                "llm_input_tokens": 1145927,
+                "llm_output_tokens": 2842,
+                "embedding_input_tokens": 0
+              }
+            },
+            {
+              "phase": "retrieval",
+              "provider": "local_ollama",
+              "attempts": 429,
+              "errors": 0,
+              "unfinished": 0,
+              "cache_hits": 0,
+              "cache_provenance_unknown": 0,
+              "known_subtotal": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 10355
+              },
+              "unknown_fields": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 0
+              },
+              "complete": true,
+              "total": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 10355
+              }
+            },
+            {
+              "phase": "retrieval",
+              "provider": "target_api",
+              "attempts": 129,
+              "errors": 0,
+              "unfinished": 0,
+              "cache_hits": 0,
+              "cache_provenance_unknown": 0,
+              "known_subtotal": {
+                "llm_input_tokens": 392882,
+                "llm_output_tokens": 7922,
+                "embedding_input_tokens": 0
+              },
+              "unknown_fields": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 0
+              },
+              "complete": true,
+              "total": {
+                "llm_input_tokens": 392882,
+                "llm_output_tokens": 7922,
+                "embedding_input_tokens": 0
+              }
+            }
+          ],
+          "known_subtotal": {
+            "llm_input_tokens": 1538809,
+            "llm_output_tokens": 10764,
+            "embedding_input_tokens": 10355
+          },
+          "complete": true,
+          "attempts": 987,
+          "historical_cache_cost_complete": true,
+          "journal_corrupt_tail": false,
+          "corrupt_tail_bytes": 0
+        },
+        "S500_physical": {
+          "known_subtotal": {
+            "llm_input_tokens": 2716828,
+            "llm_output_tokens": 25375,
+            "embedding_input_tokens": 21636
+          },
+          "POST": 2099,
+          "unknown_reservation_not_actual": 0,
+          "cost_complete": true
+        }
+      }
+    },
+    "E2_cumulative_physical_once": {
+      "known_tokens": 9856273,
+      "physical_POST": 7059,
+      "unknown_operations": 2,
+      "unknown_reservations_not_actual": 38277,
+      "prior": {
+        "known_tokens": 7092434,
+        "physical_POST": 4960,
+        "unknown_operations": 2,
+        "unknown_reservations_not_actual": 38277,
+        "cost_complete": false,
+        "source_development_known_counted_once": 4036653,
+        "source_development_POST_counted_once": 2860,
+        "E1_excluded": true
+      },
+      "new_physical": {
+        "schema_version": 1,
+        "phases": [
+          {
+            "phase": "reader",
+            "provider": "target_api",
+            "attempts": 429,
+            "errors": 0,
+            "unfinished": 0,
+            "cache_hits": 0,
+            "cache_provenance_unknown": 0,
+            "known_subtotal": {
+              "llm_input_tokens": 1145927,
+              "llm_output_tokens": 2842,
+              "embedding_input_tokens": 0
+            },
+            "unknown_fields": {
+              "llm_input_tokens": 0,
+              "llm_output_tokens": 0,
+              "embedding_input_tokens": 0
+            },
+            "complete": true,
+            "total": {
+              "llm_input_tokens": 1145927,
+              "llm_output_tokens": 2842,
+              "embedding_input_tokens": 0
+            }
+          },
+          {
+            "phase": "retrieval",
+            "provider": "local_ollama",
+            "attempts": 429,
+            "errors": 0,
+            "unfinished": 0,
+            "cache_hits": 0,
+            "cache_provenance_unknown": 0,
+            "known_subtotal": {
+              "llm_input_tokens": 0,
+              "llm_output_tokens": 0,
+              "embedding_input_tokens": 10355
+            },
+            "unknown_fields": {
+              "llm_input_tokens": 0,
+              "llm_output_tokens": 0,
+              "embedding_input_tokens": 0
+            },
+            "complete": true,
+            "total": {
+              "llm_input_tokens": 0,
+              "llm_output_tokens": 0,
+              "embedding_input_tokens": 10355
+            }
+          },
+          {
+            "phase": "retrieval",
+            "provider": "target_api",
+            "attempts": 129,
+            "errors": 0,
+            "unfinished": 0,
+            "cache_hits": 0,
+            "cache_provenance_unknown": 0,
+            "known_subtotal": {
+              "llm_input_tokens": 392882,
+              "llm_output_tokens": 7922,
+              "embedding_input_tokens": 0
+            },
+            "unknown_fields": {
+              "llm_input_tokens": 0,
+              "llm_output_tokens": 0,
+              "embedding_input_tokens": 0
+            },
+            "complete": true,
+            "total": {
+              "llm_input_tokens": 392882,
+              "llm_output_tokens": 7922,
+              "embedding_input_tokens": 0
+            }
+          }
+        ],
+        "known_subtotal": {
+          "llm_input_tokens": 1538809,
+          "llm_output_tokens": 10764,
+          "embedding_input_tokens": 10355
+        },
+        "complete": true,
+        "attempts": 987,
+        "historical_cache_cost_complete": true,
+        "journal_corrupt_tail": false,
+        "corrupt_tail_bytes": 0
+      },
+      "new_POST": 987,
+      "cost_complete": false,
+      "scope": "prior E2 plus Hot new physical once; logical reuse and E1 excluded"
+    }
+  },
+  "N": [
+    100,
+    1000,
+    10000,
+    100000
+  ],
+  "configurations": [
+    {
+      "dataset": "musique",
+      "method": "dense",
+      "EM": 0.348,
+      "completed": 500,
+      "attempted_failed": 0,
+      "query_denominator": 500,
+      "channels": {
+        "llm": {
+          "I": {
+            "known": 0,
+            "complete": true,
+            "value": 0
+          },
+          "q": {
+            "known": 1504.512,
+            "complete": true,
+            "value": 1504.512
+          },
+          "query_unknown_operations": 0
+        },
+        "embedding": {
+          "I": {
+            "known": 684560,
+            "complete": true,
+            "value": 684560
+          },
+          "q": {
+            "known": 25.754,
+            "complete": true,
+            "value": 25.754
+          },
+          "query_unknown_operations": 0
+        }
+      },
+      "index_run_ids": [
+        "72cc4f85-7656-44a2-87c0-bbb3df5df81c"
+      ],
+      "E2_child_run_id": "ba393849-c977-4c8f-97d7-303fc12955c8",
+      "index_physical_own": {
+        "schema_version": 1,
+        "phases": [
+          {
+            "phase": "index",
+            "provider": "local_ollama",
+            "attempts": 172,
+            "errors": 0,
+            "unfinished": 0,
+            "cache_hits": 0,
+            "cache_provenance_unknown": 0,
+            "known_subtotal": {
+              "llm_input_tokens": 0,
+              "llm_output_tokens": 0,
+              "embedding_input_tokens": 684560
+            },
+            "unknown_fields": {
+              "llm_input_tokens": 0,
+              "llm_output_tokens": 0,
+              "embedding_input_tokens": 0
+            },
+            "complete": true,
+            "total": {
+              "llm_input_tokens": 0,
+              "llm_output_tokens": 0,
+              "embedding_input_tokens": 684560
+            }
+          }
+        ],
+        "known_subtotal": {
+          "llm_input_tokens": 0,
+          "llm_output_tokens": 0,
+          "embedding_input_tokens": 684560
+        },
+        "complete": true,
+        "attempts": 172,
+        "historical_cache_cost_complete": true,
+        "journal_corrupt_tail": false,
+        "corrupt_tail_bytes": 0
+      },
+      "index_phases_current": {
+        "index_embedding": {
+          "schema_version": 1,
+          "phases": [
+            {
+              "phase": "index",
+              "provider": "local_ollama",
+              "attempts": 172,
+              "errors": 0,
+              "unfinished": 0,
+              "cache_hits": 0,
+              "cache_provenance_unknown": 0,
+              "known_subtotal": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 684560
+              },
+              "unknown_fields": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 0
+              },
+              "complete": true,
+              "total": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 684560
+              }
+            }
+          ],
+          "known_subtotal": {
+            "llm_input_tokens": 0,
+            "llm_output_tokens": 0,
+            "embedding_input_tokens": 684560
+          },
+          "complete": true,
+          "attempts": 172,
+          "historical_cache_cost_complete": true,
+          "journal_corrupt_tail": false,
+          "corrupt_tail_bytes": 0
+        }
+      },
+      "query_logical_phases": {
+        "query_embedding": {
+          "calls": 500,
+          "known_subtotal": {
+            "llm_input_tokens": 0,
+            "llm_output_tokens": 0,
+            "embedding_input_tokens": 12877
+          }
+        },
+        "reader": {
+          "calls": 500,
+          "known_subtotal": {
+            "llm_input_tokens": 748067,
+            "llm_output_tokens": 4189,
+            "embedding_input_tokens": 0
+          }
+        }
+      },
+      "query_logical_models": {
+        "bge-m3:latest": {
+          "known_subtotal": {
+            "llm_input_tokens": 0,
+            "llm_output_tokens": 0,
+            "embedding_input_tokens": 12877
+          },
+          "unknown_operations": 0,
+          "complete": true
+        },
+        "iairlab/qwen3.8-27b": {
+          "known_subtotal": {
+            "llm_input_tokens": 748067,
+            "llm_output_tokens": 4189,
+            "embedding_input_tokens": 0
+          },
+          "unknown_operations": 0,
+          "complete": true
+        }
+      },
+      "query_manifest_sha256": "73be5360281e1186758e78e8ec78c30fc11f03f47b6316bada68db308f5f6a88",
+      "query_plan_sha256": "d7dc363292c15f66135007bda90be61a43486983ccc1547da5ac24d18f8e9623",
+      "leaf_reuse_attribution": null
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "dense",
+      "EM": 0.596,
+      "completed": 500,
+      "attempted_failed": 0,
+      "query_denominator": 500,
+      "channels": {
+        "llm": {
+          "I": {
+            "known": 0,
+            "complete": true,
+            "value": 0
+          },
+          "q": {
+            "known": 1398.3799999999999,
+            "complete": true,
+            "value": 1398.3799999999999
+          },
+          "query_unknown_operations": 0
+        },
+        "embedding": {
+          "I": {
+            "known": 776137,
+            "complete": false,
+            "value": null
+          },
+          "q": {
+            "known": 24.334,
+            "complete": true,
+            "value": 24.334
+          },
+          "query_unknown_operations": 0
+        }
+      },
+      "index_run_ids": [
+        "f93e2e87-e6e8-4a3a-a2c0-2b88e1bf3319"
+      ],
+      "E2_child_run_id": "9e7efc49-895c-42d6-a2d3-5676e2071b6b",
+      "index_physical_own": {
+        "schema_version": 1,
+        "phases": [
+          {
+            "phase": "index",
+            "provider": "local_ollama",
+            "attempts": 175,
+            "errors": 1,
+            "unfinished": 0,
+            "cache_hits": 0,
+            "cache_provenance_unknown": 0,
+            "known_subtotal": {
+              "llm_input_tokens": 0,
+              "llm_output_tokens": 0,
+              "embedding_input_tokens": 776137
+            },
+            "unknown_fields": {
+              "llm_input_tokens": 0,
+              "llm_output_tokens": 0,
+              "embedding_input_tokens": 1
+            },
+            "complete": false,
+            "total": null
+          }
+        ],
+        "known_subtotal": {
+          "llm_input_tokens": 0,
+          "llm_output_tokens": 0,
+          "embedding_input_tokens": 776137
+        },
+        "complete": false,
+        "attempts": 175,
+        "historical_cache_cost_complete": true,
+        "journal_corrupt_tail": false,
+        "corrupt_tail_bytes": 0
+      },
+      "index_phases_current": {
+        "index_embedding": {
+          "schema_version": 1,
+          "phases": [
+            {
+              "phase": "index",
+              "provider": "local_ollama",
+              "attempts": 172,
+              "errors": 0,
+              "unfinished": 0,
+              "cache_hits": 0,
+              "cache_provenance_unknown": 0,
+              "known_subtotal": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 766804
+              },
+              "unknown_fields": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 0
+              },
+              "complete": true,
+              "total": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 766804
+              }
+            }
+          ],
+          "known_subtotal": {
+            "llm_input_tokens": 0,
+            "llm_output_tokens": 0,
+            "embedding_input_tokens": 766804
+          },
+          "complete": true,
+          "attempts": 172,
+          "historical_cache_cost_complete": true,
+          "journal_corrupt_tail": false,
+          "corrupt_tail_bytes": 0
+        }
+      },
+      "query_logical_phases": {
+        "query_embedding": {
+          "calls": 500,
+          "known_subtotal": {
+            "llm_input_tokens": 0,
+            "llm_output_tokens": 0,
+            "embedding_input_tokens": 12167
+          }
+        },
+        "reader": {
+          "calls": 500,
+          "known_subtotal": {
+            "llm_input_tokens": 695751,
+            "llm_output_tokens": 3439,
+            "embedding_input_tokens": 0
+          }
+        }
+      },
+      "query_logical_models": {
+        "bge-m3:latest": {
+          "known_subtotal": {
+            "llm_input_tokens": 0,
+            "llm_output_tokens": 0,
+            "embedding_input_tokens": 12167
+          },
+          "unknown_operations": 0,
+          "complete": true
+        },
+        "iairlab/qwen3.8-27b": {
+          "known_subtotal": {
+            "llm_input_tokens": 695751,
+            "llm_output_tokens": 3439,
+            "embedding_input_tokens": 0
+          },
+          "unknown_operations": 0,
+          "complete": true
+        }
+      },
+      "query_manifest_sha256": "9bf74b80417abf55101281a63b20419b4a2912efe3074676cb3a94e2b1defb23",
+      "query_plan_sha256": "e3e923f597c89813182d933acf51ba3060d508d7b40b252a81535b0437a38b3b",
+      "leaf_reuse_attribution": null
+    },
+    {
+      "dataset": "musique",
+      "method": "hipporag2",
+      "EM": 0.434,
+      "completed": 500,
+      "attempted_failed": 0,
+      "query_denominator": 500,
+      "channels": {
+        "llm": {
+          "I": {
+            "known": 7443878,
+            "complete": false,
+            "value": null
+          },
+          "q": {
+            "known": 4679.668,
+            "complete": true,
+            "value": 4679.668
+          },
+          "query_unknown_operations": 0
+        },
+        "embedding": {
+          "I": {
+            "known": 2721136,
+            "complete": false,
+            "value": null
+          },
+          "q": {
+            "known": 25.754,
+            "complete": true,
+            "value": 25.754
+          },
+          "query_unknown_operations": 0
+        }
+      },
+      "index_run_ids": [
+        "1c12c3c8-3870-453b-813d-ba84498940a2"
+      ],
+      "E2_child_run_id": "ba393849-c977-4c8f-97d7-303fc12955c8",
+      "index_physical_own": {
+        "schema_version": 1,
+        "phases": [
+          {
+            "phase": "index",
+            "provider": "local_ollama",
+            "attempts": 10145,
+            "errors": 1,
+            "unfinished": 0,
+            "cache_hits": 2638,
+            "cache_provenance_unknown": 2638,
+            "known_subtotal": {
+              "llm_input_tokens": 0,
+              "llm_output_tokens": 0,
+              "embedding_input_tokens": 2721136
+            },
+            "unknown_fields": {
+              "llm_input_tokens": 0,
+              "llm_output_tokens": 0,
+              "embedding_input_tokens": 1
+            },
+            "complete": false,
+            "total": null
+          },
+          {
+            "phase": "index",
+            "provider": "target_api",
+            "attempts": 11017,
+            "errors": 2,
+            "unfinished": 0,
+            "cache_hits": 23898,
+            "cache_provenance_unknown": 23892,
+            "known_subtotal": {
+              "llm_input_tokens": 5430111,
+              "llm_output_tokens": 2013767,
+              "embedding_input_tokens": 0
+            },
+            "unknown_fields": {
+              "llm_input_tokens": 2,
+              "llm_output_tokens": 2,
+              "embedding_input_tokens": 0
+            },
+            "complete": false,
+            "total": null
+          }
+        ],
+        "known_subtotal": {
+          "llm_input_tokens": 5430111,
+          "llm_output_tokens": 2013767,
+          "embedding_input_tokens": 2721136
+        },
+        "complete": false,
+        "attempts": 21162,
+        "historical_cache_cost_complete": false,
+        "journal_corrupt_tail": false,
+        "corrupt_tail_bytes": 0
+      },
+      "index_phases_current": {
+        "index_embedding": {
+          "schema_version": 1,
+          "phases": [
+            {
+              "phase": "index",
+              "provider": "local_ollama",
+              "attempts": 8261,
+              "errors": 0,
+              "unfinished": 0,
+              "cache_hits": 1606,
+              "cache_provenance_unknown": 1606,
+              "known_subtotal": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 1548898
+              },
+              "unknown_fields": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 0
+              },
+              "complete": true,
+              "total": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 1548898
+              }
+            }
+          ],
+          "known_subtotal": {
+            "llm_input_tokens": 0,
+            "llm_output_tokens": 0,
+            "embedding_input_tokens": 1548898
+          },
+          "complete": true,
+          "attempts": 8261,
+          "historical_cache_cost_complete": false,
+          "journal_corrupt_tail": false,
+          "corrupt_tail_bytes": 0
+        },
+        "openie_ner": {
+          "schema_version": 1,
+          "phases": [
+            {
+              "phase": "index",
+              "provider": "target_api",
+              "attempts": 0,
+              "errors": 0,
+              "unfinished": 0,
+              "cache_hits": 5500,
+              "cache_provenance_unknown": 5500,
+              "known_subtotal": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 0
+              },
+              "unknown_fields": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 0
+              },
+              "complete": true,
+              "total": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 0
+              }
+            }
+          ],
+          "known_subtotal": {
+            "llm_input_tokens": 0,
+            "llm_output_tokens": 0,
+            "embedding_input_tokens": 0
+          },
+          "complete": true,
+          "attempts": 0,
+          "historical_cache_cost_complete": false,
+          "journal_corrupt_tail": false,
+          "corrupt_tail_bytes": 0
+        },
+        "openie_triples": {
+          "schema_version": 1,
+          "phases": [
+            {
+              "phase": "index",
+              "provider": "target_api",
+              "attempts": 0,
+              "errors": 0,
+              "unfinished": 0,
+              "cache_hits": 5500,
+              "cache_provenance_unknown": 5497,
+              "known_subtotal": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 0
+              },
+              "unknown_fields": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 0
+              },
+              "complete": true,
+              "total": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 0
+              }
+            }
+          ],
+          "known_subtotal": {
+            "llm_input_tokens": 0,
+            "llm_output_tokens": 0,
+            "embedding_input_tokens": 0
+          },
+          "complete": true,
+          "attempts": 0,
+          "historical_cache_cost_complete": false,
+          "journal_corrupt_tail": false,
+          "corrupt_tail_bytes": 0
+        }
+      },
+      "query_logical_phases": {
+        "query_embedding": {
+          "calls": 500,
+          "known_subtotal": {
+            "llm_input_tokens": 0,
+            "llm_output_tokens": 0,
+            "embedding_input_tokens": 12877
+          }
+        },
+        "filter": {
+          "calls": 500,
+          "known_subtotal": {
+            "llm_input_tokens": 1521944,
+            "llm_output_tokens": 28514,
+            "embedding_input_tokens": 0
+          }
+        },
+        "reader": {
+          "calls": 500,
+          "known_subtotal": {
+            "llm_input_tokens": 785279,
+            "llm_output_tokens": 4097,
+            "embedding_input_tokens": 0
+          }
+        }
+      },
+      "query_logical_models": {
+        "bge-m3:latest": {
+          "known_subtotal": {
+            "llm_input_tokens": 0,
+            "llm_output_tokens": 0,
+            "embedding_input_tokens": 12877
+          },
+          "unknown_operations": 0,
+          "complete": true
+        },
+        "iairlab/qwen3.8-27b": {
+          "known_subtotal": {
+            "llm_input_tokens": 2307223,
+            "llm_output_tokens": 32611,
+            "embedding_input_tokens": 0
+          },
+          "unknown_operations": 0,
+          "complete": true
+        }
+      },
+      "query_manifest_sha256": "73be5360281e1186758e78e8ec78c30fc11f03f47b6316bada68db308f5f6a88",
+      "query_plan_sha256": "d7dc363292c15f66135007bda90be61a43486983ccc1547da5ac24d18f8e9623",
+      "leaf_reuse_attribution": null
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "hipporag2",
+      "EM": 0.666,
+      "completed": 498,
+      "attempted_failed": 2,
+      "query_denominator": 500,
+      "channels": {
+        "llm": {
+          "I": {
+            "known": 7817801,
+            "complete": false,
+            "value": null
+          },
+          "q": {
+            "known": 4532.87,
+            "complete": true,
+            "value": 4532.87
+          },
+          "query_unknown_operations": 0
+        },
+        "embedding": {
+          "I": {
+            "known": 2856226,
+            "complete": false,
+            "value": null
+          },
+          "q": {
+            "known": 24.334,
+            "complete": true,
+            "value": 24.334
+          },
+          "query_unknown_operations": 0
+        }
+      },
+      "index_run_ids": [
+        "822bed2d-86f1-4583-85f9-c61620952f04"
+      ],
+      "E2_child_run_id": "9e7efc49-895c-42d6-a2d3-5676e2071b6b",
+      "index_physical_own": {
+        "schema_version": 1,
+        "phases": [
+          {
+            "phase": "index",
+            "provider": "local_ollama",
+            "attempts": 16406,
+            "errors": 1,
+            "unfinished": 0,
+            "cache_hits": 12671,
+            "cache_provenance_unknown": 9919,
+            "known_subtotal": {
+              "llm_input_tokens": 0,
+              "llm_output_tokens": 0,
+              "embedding_input_tokens": 2856226
+            },
+            "unknown_fields": {
+              "llm_input_tokens": 0,
+              "llm_output_tokens": 0,
+              "embedding_input_tokens": 1
+            },
+            "complete": false,
+            "total": null
+          },
+          {
+            "phase": "index",
+            "provider": "target_api",
+            "attempts": 11031,
+            "errors": 0,
+            "unfinished": 0,
+            "cache_hits": 24585,
+            "cache_provenance_unknown": 9210,
+            "known_subtotal": {
+              "llm_input_tokens": 5651334,
+              "llm_output_tokens": 2166467,
+              "embedding_input_tokens": 0
+            },
+            "unknown_fields": {
+              "llm_input_tokens": 0,
+              "llm_output_tokens": 0,
+              "embedding_input_tokens": 0
+            },
+            "complete": true,
+            "total": {
+              "llm_input_tokens": 5651334,
+              "llm_output_tokens": 2166467,
+              "embedding_input_tokens": 0
+            }
+          }
+        ],
+        "known_subtotal": {
+          "llm_input_tokens": 5651334,
+          "llm_output_tokens": 2166467,
+          "embedding_input_tokens": 2856226
+        },
+        "complete": false,
+        "attempts": 27437,
+        "historical_cache_cost_complete": false,
+        "journal_corrupt_tail": false,
+        "corrupt_tail_bytes": 0
+      },
+      "index_phases_current": {
+        "index_embedding": {
+          "schema_version": 1,
+          "phases": [
+            {
+              "phase": "index",
+              "provider": "local_ollama",
+              "attempts": 5798,
+              "errors": 0,
+              "unfinished": 0,
+              "cache_hits": 10607,
+              "cache_provenance_unknown": 9919,
+              "known_subtotal": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 1094840
+              },
+              "unknown_fields": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 0
+              },
+              "complete": true,
+              "total": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 1094840
+              }
+            }
+          ],
+          "known_subtotal": {
+            "llm_input_tokens": 0,
+            "llm_output_tokens": 0,
+            "embedding_input_tokens": 1094840
+          },
+          "complete": true,
+          "attempts": 5798,
+          "historical_cache_cost_complete": false,
+          "journal_corrupt_tail": false,
+          "corrupt_tail_bytes": 0
+        },
+        "openie_ner": {
+          "schema_version": 1,
+          "phases": [
+            {
+              "phase": "index",
+              "provider": "target_api",
+              "attempts": 0,
+              "errors": 0,
+              "unfinished": 0,
+              "cache_hits": 5500,
+              "cache_provenance_unknown": 2716,
+              "known_subtotal": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 0
+              },
+              "unknown_fields": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 0
+              },
+              "complete": true,
+              "total": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 0
+              }
+            }
+          ],
+          "known_subtotal": {
+            "llm_input_tokens": 0,
+            "llm_output_tokens": 0,
+            "embedding_input_tokens": 0
+          },
+          "complete": true,
+          "attempts": 0,
+          "historical_cache_cost_complete": false,
+          "journal_corrupt_tail": false,
+          "corrupt_tail_bytes": 0
+        },
+        "openie_triples": {
+          "schema_version": 1,
+          "phases": [
+            {
+              "phase": "index",
+              "provider": "target_api",
+              "attempts": 0,
+              "errors": 0,
+              "unfinished": 0,
+              "cache_hits": 5500,
+              "cache_provenance_unknown": 2717,
+              "known_subtotal": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 0
+              },
+              "unknown_fields": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 0
+              },
+              "complete": true,
+              "total": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 0
+              }
+            }
+          ],
+          "known_subtotal": {
+            "llm_input_tokens": 0,
+            "llm_output_tokens": 0,
+            "embedding_input_tokens": 0
+          },
+          "complete": true,
+          "attempts": 0,
+          "historical_cache_cost_complete": false,
+          "journal_corrupt_tail": false,
+          "corrupt_tail_bytes": 0
+        }
+      },
+      "query_logical_phases": {
+        "query_embedding": {
+          "calls": 500,
+          "known_subtotal": {
+            "llm_input_tokens": 0,
+            "llm_output_tokens": 0,
+            "embedding_input_tokens": 12167
+          }
+        },
+        "filter": {
+          "calls": 500,
+          "known_subtotal": {
+            "llm_input_tokens": 1522232,
+            "llm_output_tokens": 31326,
+            "embedding_input_tokens": 0
+          }
+        },
+        "reader": {
+          "calls": 499,
+          "known_subtotal": {
+            "llm_input_tokens": 708978,
+            "llm_output_tokens": 3899,
+            "embedding_input_tokens": 0
+          }
+        }
+      },
+      "query_logical_models": {
+        "bge-m3:latest": {
+          "known_subtotal": {
+            "llm_input_tokens": 0,
+            "llm_output_tokens": 0,
+            "embedding_input_tokens": 12167
+          },
+          "unknown_operations": 0,
+          "complete": true
+        },
+        "iairlab/qwen3.8-27b": {
+          "known_subtotal": {
+            "llm_input_tokens": 2231210,
+            "llm_output_tokens": 35225,
+            "embedding_input_tokens": 0
+          },
+          "unknown_operations": 0,
+          "complete": true
+        }
+      },
+      "query_manifest_sha256": "9bf74b80417abf55101281a63b20419b4a2912efe3074676cb3a94e2b1defb23",
+      "query_plan_sha256": "e3e923f597c89813182d933acf51ba3060d508d7b40b252a81535b0437a38b3b",
+      "leaf_reuse_attribution": null
+    },
+    {
+      "dataset": "musique",
+      "method": "raptor",
+      "EM": 0.324,
+      "completed": 499,
+      "attempted_failed": 1,
+      "query_denominator": 500,
+      "channels": {
+        "llm": {
+          "I": {
+            "known": 3342184,
+            "complete": false,
+            "value": null
+          },
+          "q": {
+            "known": 3917.17,
+            "complete": false,
+            "value": null
+          },
+          "query_unknown_operations": 1
+        },
+        "embedding": {
+          "I": {
+            "known": 2314512,
+            "complete": false,
+            "value": null
+          },
+          "q": {
+            "known": 25.754,
+            "complete": true,
+            "value": 25.754
+          },
+          "query_unknown_operations": 0
+        }
+      },
+      "index_run_ids": [
+        "957006e6-5d60-43f6-990d-027851323111",
+        "72cc4f85-7656-44a2-87c0-bbb3df5df81c"
+      ],
+      "E2_child_run_id": "ba393849-c977-4c8f-97d7-303fc12955c8",
+      "index_physical_own": {
+        "schema_version": 1,
+        "phases": [
+          {
+            "phase": "index",
+            "provider": "local_ollama",
+            "attempts": 1925,
+            "errors": 1,
+            "unfinished": 0,
+            "cache_hits": 18289,
+            "cache_provenance_unknown": 1787,
+            "known_subtotal": {
+              "llm_input_tokens": 0,
+              "llm_output_tokens": 0,
+              "embedding_input_tokens": 1629952
+            },
+            "unknown_fields": {
+              "llm_input_tokens": 0,
+              "llm_output_tokens": 0,
+              "embedding_input_tokens": 1
+            },
+            "complete": false,
+            "total": null
+          },
+          {
+            "phase": "index",
+            "provider": "target_api",
+            "attempts": 1927,
+            "errors": 0,
+            "unfinished": 0,
+            "cache_hits": 1786,
+            "cache_provenance_unknown": 1786,
+            "known_subtotal": {
+              "llm_input_tokens": 1720918,
+              "llm_output_tokens": 1621266,
+              "embedding_input_tokens": 0
+            },
+            "unknown_fields": {
+              "llm_input_tokens": 0,
+              "llm_output_tokens": 0,
+              "embedding_input_tokens": 0
+            },
+            "complete": true,
+            "total": {
+              "llm_input_tokens": 1720918,
+              "llm_output_tokens": 1621266,
+              "embedding_input_tokens": 0
+            }
+          }
+        ],
+        "known_subtotal": {
+          "llm_input_tokens": 1720918,
+          "llm_output_tokens": 1621266,
+          "embedding_input_tokens": 1629952
+        },
+        "complete": false,
+        "attempts": 3852,
+        "historical_cache_cost_complete": false,
+        "journal_corrupt_tail": false,
+        "corrupt_tail_bytes": 0
+      },
+      "index_phases_current": {
+        "index_embedding": {
+          "schema_version": 1,
+          "phases": [
+            {
+              "phase": "index",
+              "provider": "local_ollama",
+              "attempts": 653,
+              "errors": 0,
+              "unfinished": 0,
+              "cache_hits": 6785,
+              "cache_provenance_unknown": 1284,
+              "known_subtotal": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 806712
+              },
+              "unknown_fields": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 0
+              },
+              "complete": true,
+              "total": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 806712
+              }
+            }
+          ],
+          "known_subtotal": {
+            "llm_input_tokens": 0,
+            "llm_output_tokens": 0,
+            "embedding_input_tokens": 806712
+          },
+          "complete": true,
+          "attempts": 653,
+          "historical_cache_cost_complete": false,
+          "journal_corrupt_tail": false,
+          "corrupt_tail_bytes": 0
+        },
+        "summary": {
+          "schema_version": 1,
+          "phases": [
+            {
+              "phase": "index",
+              "provider": "target_api",
+              "attempts": 656,
+              "errors": 0,
+              "unfinished": 0,
+              "cache_hits": 1282,
+              "cache_provenance_unknown": 1282,
+              "known_subtotal": {
+                "llm_input_tokens": 862322,
+                "llm_output_tokens": 806094,
+                "embedding_input_tokens": 0
+              },
+              "unknown_fields": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 0
+              },
+              "complete": true,
+              "total": {
+                "llm_input_tokens": 862322,
+                "llm_output_tokens": 806094,
+                "embedding_input_tokens": 0
+              }
+            }
+          ],
+          "known_subtotal": {
+            "llm_input_tokens": 862322,
+            "llm_output_tokens": 806094,
+            "embedding_input_tokens": 0
+          },
+          "complete": true,
+          "attempts": 656,
+          "historical_cache_cost_complete": false,
+          "journal_corrupt_tail": false,
+          "corrupt_tail_bytes": 0
+        }
+      },
+      "query_logical_phases": {
+        "query_embedding": {
+          "calls": 500,
+          "known_subtotal": {
+            "llm_input_tokens": 0,
+            "llm_output_tokens": 0,
+            "embedding_input_tokens": 12877
+          }
+        },
+        "reader": {
+          "calls": 500,
+          "known_subtotal": {
+            "llm_input_tokens": 1954121,
+            "llm_output_tokens": 4464,
+            "embedding_input_tokens": 0
+          }
+        }
+      },
+      "query_logical_models": {
+        "bge-m3:latest": {
+          "known_subtotal": {
+            "llm_input_tokens": 0,
+            "llm_output_tokens": 0,
+            "embedding_input_tokens": 12877
+          },
+          "unknown_operations": 0,
+          "complete": true
+        },
+        "iairlab/qwen3.8-27b": {
+          "known_subtotal": {
+            "llm_input_tokens": 1954121,
+            "llm_output_tokens": 4464,
+            "embedding_input_tokens": 0
+          },
+          "unknown_operations": 1,
+          "complete": false
+        }
+      },
+      "query_manifest_sha256": "73be5360281e1186758e78e8ec78c30fc11f03f47b6316bada68db308f5f6a88",
+      "query_plan_sha256": "d7dc363292c15f66135007bda90be61a43486983ccc1547da5ac24d18f8e9623",
+      "leaf_reuse_attribution": {
+        "llm_input_tokens": 0,
+        "llm_output_tokens": 0,
+        "embedding_input_tokens": 684560
+      }
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "raptor",
+      "EM": 0.606,
+      "completed": 499,
+      "attempted_failed": 1,
+      "query_denominator": 500,
+      "channels": {
+        "llm": {
+          "I": {
+            "known": 3593135,
+            "complete": false,
+            "value": null
+          },
+          "q": {
+            "known": 3238.7439999999997,
+            "complete": false,
+            "value": null
+          },
+          "query_unknown_operations": 1
+        },
+        "embedding": {
+          "I": {
+            "known": 2513083,
+            "complete": false,
+            "value": null
+          },
+          "q": {
+            "known": 24.334,
+            "complete": true,
+            "value": 24.334
+          },
+          "query_unknown_operations": 0
+        }
+      },
+      "index_run_ids": [
+        "bb177a66-f03d-4a43-979e-d53c11821903",
+        "f93e2e87-e6e8-4a3a-a2c0-2b88e1bf3319"
+      ],
+      "E2_child_run_id": "9e7efc49-895c-42d6-a2d3-5676e2071b6b",
+      "index_physical_own": {
+        "schema_version": 1,
+        "phases": [
+          {
+            "phase": "index",
+            "provider": "local_ollama",
+            "attempts": 2088,
+            "errors": 0,
+            "unfinished": 0,
+            "cache_hits": 19837,
+            "cache_provenance_unknown": 507,
+            "known_subtotal": {
+              "llm_input_tokens": 0,
+              "llm_output_tokens": 0,
+              "embedding_input_tokens": 1736946
+            },
+            "unknown_fields": {
+              "llm_input_tokens": 0,
+              "llm_output_tokens": 0,
+              "embedding_input_tokens": 0
+            },
+            "complete": true,
+            "total": {
+              "llm_input_tokens": 0,
+              "llm_output_tokens": 0,
+              "embedding_input_tokens": 1736946
+            }
+          },
+          {
+            "phase": "index",
+            "provider": "target_api",
+            "attempts": 2092,
+            "errors": 1,
+            "unfinished": 0,
+            "cache_hits": 3336,
+            "cache_provenance_unknown": 507,
+            "known_subtotal": {
+              "llm_input_tokens": 1852868,
+              "llm_output_tokens": 1740267,
+              "embedding_input_tokens": 0
+            },
+            "unknown_fields": {
+              "llm_input_tokens": 1,
+              "llm_output_tokens": 1,
+              "embedding_input_tokens": 0
+            },
+            "complete": false,
+            "total": null
+          }
+        ],
+        "known_subtotal": {
+          "llm_input_tokens": 1852868,
+          "llm_output_tokens": 1740267,
+          "embedding_input_tokens": 1736946
+        },
+        "complete": false,
+        "attempts": 4180,
+        "historical_cache_cost_complete": false,
+        "journal_corrupt_tail": false,
+        "corrupt_tail_bytes": 0
+      },
+      "index_phases_current": {
+        "index_embedding": {
+          "schema_version": 1,
+          "phases": [
+            {
+              "phase": "index",
+              "provider": "local_ollama",
+              "attempts": 173,
+              "errors": 0,
+              "unfinished": 0,
+              "cache_hits": 7422,
+              "cache_provenance_unknown": 507,
+              "known_subtotal": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 227228
+              },
+              "unknown_fields": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 0
+              },
+              "complete": true,
+              "total": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 227228
+              }
+            }
+          ],
+          "known_subtotal": {
+            "llm_input_tokens": 0,
+            "llm_output_tokens": 0,
+            "embedding_input_tokens": 227228
+          },
+          "complete": true,
+          "attempts": 173,
+          "historical_cache_cost_complete": false,
+          "journal_corrupt_tail": false,
+          "corrupt_tail_bytes": 0
+        },
+        "summary": {
+          "schema_version": 1,
+          "phases": [
+            {
+              "phase": "index",
+              "provider": "target_api",
+              "attempts": 174,
+              "errors": 0,
+              "unfinished": 0,
+              "cache_hits": 1921,
+              "cache_provenance_unknown": 507,
+              "known_subtotal": {
+                "llm_input_tokens": 242497,
+                "llm_output_tokens": 227686,
+                "embedding_input_tokens": 0
+              },
+              "unknown_fields": {
+                "llm_input_tokens": 0,
+                "llm_output_tokens": 0,
+                "embedding_input_tokens": 0
+              },
+              "complete": true,
+              "total": {
+                "llm_input_tokens": 242497,
+                "llm_output_tokens": 227686,
+                "embedding_input_tokens": 0
+              }
+            }
+          ],
+          "known_subtotal": {
+            "llm_input_tokens": 242497,
+            "llm_output_tokens": 227686,
+            "embedding_input_tokens": 0
+          },
+          "complete": true,
+          "attempts": 174,
+          "historical_cache_cost_complete": false,
+          "journal_corrupt_tail": false,
+          "corrupt_tail_bytes": 0
+        }
+      },
+      "query_logical_phases": {
+        "query_embedding": {
+          "calls": 500,
+          "known_subtotal": {
+            "llm_input_tokens": 0,
+            "llm_output_tokens": 0,
+            "embedding_input_tokens": 12167
+          }
+        },
+        "reader": {
+          "calls": 500,
+          "known_subtotal": {
+            "llm_input_tokens": 1615965,
+            "llm_output_tokens": 3407,
+            "embedding_input_tokens": 0
+          }
+        }
+      },
+      "query_logical_models": {
+        "bge-m3:latest": {
+          "known_subtotal": {
+            "llm_input_tokens": 0,
+            "llm_output_tokens": 0,
+            "embedding_input_tokens": 12167
+          },
+          "unknown_operations": 0,
+          "complete": true
+        },
+        "iairlab/qwen3.8-27b": {
+          "known_subtotal": {
+            "llm_input_tokens": 1615965,
+            "llm_output_tokens": 3407,
+            "embedding_input_tokens": 0
+          },
+          "unknown_operations": 1,
+          "complete": false
+        }
+      },
+      "query_manifest_sha256": "9bf74b80417abf55101281a63b20419b4a2912efe3074676cb3a94e2b1defb23",
+      "query_plan_sha256": "e3e923f597c89813182d933acf51ba3060d508d7b40b252a81535b0437a38b3b",
+      "leaf_reuse_attribution": {
+        "llm_input_tokens": 0,
+        "llm_output_tokens": 0,
+        "embedding_input_tokens": 776137
+      }
+    }
+  ],
+  "projections": [
+    {
+      "dataset": "musique",
+      "method": "dense",
+      "channel": "llm",
+      "N": 100,
+      "EM": 0.348,
+      "complete": true,
+      "known_minimum": {
+        "T": 150451.19999999998,
+        "C": 1504.512,
+        "tokens_per_exact": 4323.310344827586
+      },
+      "full_cost": {
+        "T": 150451.19999999998,
+        "C": 1504.512,
+        "tokens_per_exact": 4323.310344827586
+      }
+    },
+    {
+      "dataset": "musique",
+      "method": "dense",
+      "channel": "llm",
+      "N": 1000,
+      "EM": 0.348,
+      "complete": true,
+      "known_minimum": {
+        "T": 1504512.0,
+        "C": 1504.512,
+        "tokens_per_exact": 4323.310344827586
+      },
+      "full_cost": {
+        "T": 1504512.0,
+        "C": 1504.512,
+        "tokens_per_exact": 4323.310344827586
+      }
+    },
+    {
+      "dataset": "musique",
+      "method": "dense",
+      "channel": "llm",
+      "N": 10000,
+      "EM": 0.348,
+      "complete": true,
+      "known_minimum": {
+        "T": 15045120.0,
+        "C": 1504.512,
+        "tokens_per_exact": 4323.310344827586
+      },
+      "full_cost": {
+        "T": 15045120.0,
+        "C": 1504.512,
+        "tokens_per_exact": 4323.310344827586
+      }
+    },
+    {
+      "dataset": "musique",
+      "method": "dense",
+      "channel": "llm",
+      "N": 100000,
+      "EM": 0.348,
+      "complete": true,
+      "known_minimum": {
+        "T": 150451200.0,
+        "C": 1504.512,
+        "tokens_per_exact": 4323.310344827586
+      },
+      "full_cost": {
+        "T": 150451200.0,
+        "C": 1504.512,
+        "tokens_per_exact": 4323.310344827586
+      }
+    },
+    {
+      "dataset": "musique",
+      "method": "dense",
+      "channel": "embedding",
+      "N": 100,
+      "EM": 0.348,
+      "complete": true,
+      "known_minimum": {
+        "T": 687135.4,
+        "C": 6871.354,
+        "tokens_per_exact": 19745.27011494253
+      },
+      "full_cost": {
+        "T": 687135.4,
+        "C": 6871.354,
+        "tokens_per_exact": 19745.27011494253
+      }
+    },
+    {
+      "dataset": "musique",
+      "method": "dense",
+      "channel": "embedding",
+      "N": 1000,
+      "EM": 0.348,
+      "complete": true,
+      "known_minimum": {
+        "T": 710314.0,
+        "C": 710.314,
+        "tokens_per_exact": 2041.132183908046
+      },
+      "full_cost": {
+        "T": 710314.0,
+        "C": 710.314,
+        "tokens_per_exact": 2041.132183908046
+      }
+    },
+    {
+      "dataset": "musique",
+      "method": "dense",
+      "channel": "embedding",
+      "N": 10000,
+      "EM": 0.348,
+      "complete": true,
+      "known_minimum": {
+        "T": 942100.0,
+        "C": 94.21000000000001,
+        "tokens_per_exact": 270.71839080459773
+      },
+      "full_cost": {
+        "T": 942100.0,
+        "C": 94.21000000000001,
+        "tokens_per_exact": 270.71839080459773
+      }
+    },
+    {
+      "dataset": "musique",
+      "method": "dense",
+      "channel": "embedding",
+      "N": 100000,
+      "EM": 0.348,
+      "complete": true,
+      "known_minimum": {
+        "T": 3259960.0,
+        "C": 32.5996,
+        "tokens_per_exact": 93.67701149425288
+      },
+      "full_cost": {
+        "T": 3259960.0,
+        "C": 32.5996,
+        "tokens_per_exact": 93.67701149425288
+      }
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "dense",
+      "channel": "llm",
+      "N": 100,
+      "EM": 0.596,
+      "complete": true,
+      "known_minimum": {
+        "T": 139838.0,
+        "C": 1398.3799999999999,
+        "tokens_per_exact": 2346.2751677852348
+      },
+      "full_cost": {
+        "T": 139838.0,
+        "C": 1398.3799999999999,
+        "tokens_per_exact": 2346.2751677852348
+      }
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "dense",
+      "channel": "llm",
+      "N": 1000,
+      "EM": 0.596,
+      "complete": true,
+      "known_minimum": {
+        "T": 1398379.9999999998,
+        "C": 1398.3799999999999,
+        "tokens_per_exact": 2346.2751677852348
+      },
+      "full_cost": {
+        "T": 1398379.9999999998,
+        "C": 1398.3799999999999,
+        "tokens_per_exact": 2346.2751677852348
+      }
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "dense",
+      "channel": "llm",
+      "N": 10000,
+      "EM": 0.596,
+      "complete": true,
+      "known_minimum": {
+        "T": 13983799.999999998,
+        "C": 1398.3799999999999,
+        "tokens_per_exact": 2346.2751677852348
+      },
+      "full_cost": {
+        "T": 13983799.999999998,
+        "C": 1398.3799999999999,
+        "tokens_per_exact": 2346.2751677852348
+      }
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "dense",
+      "channel": "llm",
+      "N": 100000,
+      "EM": 0.596,
+      "complete": true,
+      "known_minimum": {
+        "T": 139838000.0,
+        "C": 1398.3799999999999,
+        "tokens_per_exact": 2346.2751677852348
+      },
+      "full_cost": {
+        "T": 139838000.0,
+        "C": 1398.3799999999999,
+        "tokens_per_exact": 2346.2751677852348
+      }
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "dense",
+      "channel": "embedding",
+      "N": 100,
+      "EM": 0.596,
+      "complete": false,
+      "known_minimum": {
+        "T": 778570.4,
+        "C": 7785.704,
+        "tokens_per_exact": 13063.261744966443
+      },
+      "full_cost": null
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "dense",
+      "channel": "embedding",
+      "N": 1000,
+      "EM": 0.596,
+      "complete": false,
+      "known_minimum": {
+        "T": 800471.0,
+        "C": 800.4709999999999,
+        "tokens_per_exact": 1343.0721476510066
+      },
+      "full_cost": null
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "dense",
+      "channel": "embedding",
+      "N": 10000,
+      "EM": 0.596,
+      "complete": false,
+      "known_minimum": {
+        "T": 1019477.0,
+        "C": 101.9477,
+        "tokens_per_exact": 171.05318791946308
+      },
+      "full_cost": null
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "dense",
+      "channel": "embedding",
+      "N": 100000,
+      "EM": 0.596,
+      "complete": false,
+      "known_minimum": {
+        "T": 3209537.0,
+        "C": 32.09537,
+        "tokens_per_exact": 53.851291946308734
+      },
+      "full_cost": null
+    },
+    {
+      "dataset": "musique",
+      "method": "hipporag2",
+      "channel": "llm",
+      "N": 100,
+      "EM": 0.434,
+      "complete": false,
+      "known_minimum": {
+        "T": 7911844.8,
+        "C": 79118.448,
+        "tokens_per_exact": 182300.57142857145
+      },
+      "full_cost": null
+    },
+    {
+      "dataset": "musique",
+      "method": "hipporag2",
+      "channel": "llm",
+      "N": 1000,
+      "EM": 0.434,
+      "complete": false,
+      "known_minimum": {
+        "T": 12123546.0,
+        "C": 12123.545999999998,
+        "tokens_per_exact": 27934.43778801843
+      },
+      "full_cost": null
+    },
+    {
+      "dataset": "musique",
+      "method": "hipporag2",
+      "channel": "llm",
+      "N": 10000,
+      "EM": 0.434,
+      "complete": false,
+      "known_minimum": {
+        "T": 54240558.0,
+        "C": 5424.0558,
+        "tokens_per_exact": 12497.824423963133
+      },
+      "full_cost": null
+    },
+    {
+      "dataset": "musique",
+      "method": "hipporag2",
+      "channel": "llm",
+      "N": 100000,
+      "EM": 0.434,
+      "complete": false,
+      "known_minimum": {
+        "T": 475410677.99999994,
+        "C": 4754.10678,
+        "tokens_per_exact": 10954.163087557605
+      },
+      "full_cost": null
+    },
+    {
+      "dataset": "musique",
+      "method": "hipporag2",
+      "channel": "embedding",
+      "N": 100,
+      "EM": 0.434,
+      "complete": false,
+      "known_minimum": {
+        "T": 2723711.4,
+        "C": 27237.114,
+        "tokens_per_exact": 62758.32718894009
+      },
+      "full_cost": null
+    },
+    {
+      "dataset": "musique",
+      "method": "hipporag2",
+      "channel": "embedding",
+      "N": 1000,
+      "EM": 0.434,
+      "complete": false,
+      "known_minimum": {
+        "T": 2746890.0,
+        "C": 2746.89,
+        "tokens_per_exact": 6329.239631336405
+      },
+      "full_cost": null
+    },
+    {
+      "dataset": "musique",
+      "method": "hipporag2",
+      "channel": "embedding",
+      "N": 10000,
+      "EM": 0.434,
+      "complete": false,
+      "known_minimum": {
+        "T": 2978676.0,
+        "C": 297.86760000000004,
+        "tokens_per_exact": 686.330875576037
+      },
+      "full_cost": null
+    },
+    {
+      "dataset": "musique",
+      "method": "hipporag2",
+      "channel": "embedding",
+      "N": 100000,
+      "EM": 0.434,
+      "complete": false,
+      "known_minimum": {
+        "T": 5296536.0,
+        "C": 52.965360000000004,
+        "tokens_per_exact": 122.04
+      },
+      "full_cost": null
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "hipporag2",
+      "channel": "llm",
+      "N": 100,
+      "EM": 0.666,
+      "complete": false,
+      "known_minimum": {
+        "T": 8271088.0,
+        "C": 82710.87999999999,
+        "tokens_per_exact": 124190.51051051049
+      },
+      "full_cost": null
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "hipporag2",
+      "channel": "llm",
+      "N": 1000,
+      "EM": 0.666,
+      "complete": false,
+      "known_minimum": {
+        "T": 12350671.0,
+        "C": 12350.671,
+        "tokens_per_exact": 18544.55105105105
+      },
+      "full_cost": null
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "hipporag2",
+      "channel": "llm",
+      "N": 10000,
+      "EM": 0.666,
+      "complete": false,
+      "known_minimum": {
+        "T": 53146501.0,
+        "C": 5314.6501,
+        "tokens_per_exact": 7979.955105105105
+      },
+      "full_cost": null
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "hipporag2",
+      "channel": "llm",
+      "N": 100000,
+      "EM": 0.666,
+      "complete": false,
+      "known_minimum": {
+        "T": 461104801.0,
+        "C": 4611.0480099999995,
+        "tokens_per_exact": 6923.495510510509
+      },
+      "full_cost": null
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "hipporag2",
+      "channel": "embedding",
+      "N": 100,
+      "EM": 0.666,
+      "complete": false,
+      "known_minimum": {
+        "T": 2858659.4,
+        "C": 28586.593999999997,
+        "tokens_per_exact": 42922.81381381381
+      },
+      "full_cost": null
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "hipporag2",
+      "channel": "embedding",
+      "N": 1000,
+      "EM": 0.666,
+      "complete": false,
+      "known_minimum": {
+        "T": 2880560.0,
+        "C": 2880.56,
+        "tokens_per_exact": 4325.165165165165
+      },
+      "full_cost": null
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "hipporag2",
+      "channel": "embedding",
+      "N": 10000,
+      "EM": 0.666,
+      "complete": false,
+      "known_minimum": {
+        "T": 3099566.0,
+        "C": 309.9566,
+        "tokens_per_exact": 465.4003003003003
+      },
+      "full_cost": null
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "hipporag2",
+      "channel": "embedding",
+      "N": 100000,
+      "EM": 0.666,
+      "complete": false,
+      "known_minimum": {
+        "T": 5289626.0,
+        "C": 52.89626,
+        "tokens_per_exact": 79.42381381381381
+      },
+      "full_cost": null
+    },
+    {
+      "dataset": "musique",
+      "method": "raptor",
+      "channel": "llm",
+      "N": 100,
+      "EM": 0.324,
+      "complete": false,
+      "known_minimum": {
+        "T": 3733901.0,
+        "C": 37339.009999999995,
+        "tokens_per_exact": 115243.85802469133
+      },
+      "full_cost": null
+    },
+    {
+      "dataset": "musique",
+      "method": "raptor",
+      "channel": "llm",
+      "N": 1000,
+      "EM": 0.324,
+      "complete": false,
+      "known_minimum": {
+        "T": 7259354.0,
+        "C": 7259.354,
+        "tokens_per_exact": 22405.413580246914
+      },
+      "full_cost": null
+    },
+    {
+      "dataset": "musique",
+      "method": "raptor",
+      "channel": "llm",
+      "N": 10000,
+      "EM": 0.324,
+      "complete": false,
+      "known_minimum": {
+        "T": 42513884.0,
+        "C": 4251.3884,
+        "tokens_per_exact": 13121.569135802469
+      },
+      "full_cost": null
+    },
+    {
+      "dataset": "musique",
+      "method": "raptor",
+      "channel": "llm",
+      "N": 100000,
+      "EM": 0.324,
+      "complete": false,
+      "known_minimum": {
+        "T": 395059184.0,
+        "C": 3950.59184,
+        "tokens_per_exact": 12193.184691358025
+      },
+      "full_cost": null
+    },
+    {
+      "dataset": "musique",
+      "method": "raptor",
+      "channel": "embedding",
+      "N": 100,
+      "EM": 0.324,
+      "complete": false,
+      "known_minimum": {
+        "T": 2317087.4,
+        "C": 23170.874,
+        "tokens_per_exact": 71515.04320987655
+      },
+      "full_cost": null
+    },
+    {
+      "dataset": "musique",
+      "method": "raptor",
+      "channel": "embedding",
+      "N": 1000,
+      "EM": 0.324,
+      "complete": false,
+      "known_minimum": {
+        "T": 2340266.0,
+        "C": 2340.266,
+        "tokens_per_exact": 7223.043209876543
+      },
+      "full_cost": null
+    },
+    {
+      "dataset": "musique",
+      "method": "raptor",
+      "channel": "embedding",
+      "N": 10000,
+      "EM": 0.324,
+      "complete": false,
+      "known_minimum": {
+        "T": 2572052.0,
+        "C": 257.2052,
+        "tokens_per_exact": 793.8432098765431
+      },
+      "full_cost": null
+    },
+    {
+      "dataset": "musique",
+      "method": "raptor",
+      "channel": "embedding",
+      "N": 100000,
+      "EM": 0.324,
+      "complete": false,
+      "known_minimum": {
+        "T": 4889912.0,
+        "C": 48.899119999999996,
+        "tokens_per_exact": 150.92320987654318
+      },
+      "full_cost": null
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "raptor",
+      "channel": "llm",
+      "N": 100,
+      "EM": 0.606,
+      "complete": false,
+      "known_minimum": {
+        "T": 3917009.4,
+        "C": 39170.094,
+        "tokens_per_exact": 64637.118811881184
+      },
+      "full_cost": null
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "raptor",
+      "channel": "llm",
+      "N": 1000,
+      "EM": 0.606,
+      "complete": false,
+      "known_minimum": {
+        "T": 6831879.0,
+        "C": 6831.879,
+        "tokens_per_exact": 11273.727722772277
+      },
+      "full_cost": null
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "raptor",
+      "channel": "llm",
+      "N": 10000,
+      "EM": 0.606,
+      "complete": false,
+      "known_minimum": {
+        "T": 35980575.0,
+        "C": 3598.0575,
+        "tokens_per_exact": 5937.388613861386
+      },
+      "full_cost": null
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "raptor",
+      "channel": "llm",
+      "N": 100000,
+      "EM": 0.606,
+      "complete": false,
+      "known_minimum": {
+        "T": 327467534.99999994,
+        "C": 3274.6753499999995,
+        "tokens_per_exact": 5403.754702970296
+      },
+      "full_cost": null
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "raptor",
+      "channel": "embedding",
+      "N": 100,
+      "EM": 0.606,
+      "complete": false,
+      "known_minimum": {
+        "T": 2515516.4,
+        "C": 25155.164,
+        "tokens_per_exact": 41510.171617161715
+      },
+      "full_cost": null
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "raptor",
+      "channel": "embedding",
+      "N": 1000,
+      "EM": 0.606,
+      "complete": false,
+      "known_minimum": {
+        "T": 2537417.0,
+        "C": 2537.417,
+        "tokens_per_exact": 4187.156765676567
+      },
+      "full_cost": null
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "raptor",
+      "channel": "embedding",
+      "N": 10000,
+      "EM": 0.606,
+      "complete": false,
+      "known_minimum": {
+        "T": 2756423.0,
+        "C": 275.6423,
+        "tokens_per_exact": 454.8552805280528
+      },
+      "full_cost": null
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "raptor",
+      "channel": "embedding",
+      "N": 100000,
+      "EM": 0.606,
+      "complete": false,
+      "known_minimum": {
+        "T": 4946483.0,
+        "C": 49.46483,
+        "tokens_per_exact": 81.62513201320132
+      },
+      "full_cost": null
+    }
+  ],
+  "crossovers": [
+    {
+      "dataset": "musique",
+      "method": "hipporag2",
+      "channel": "llm",
+      "known_minimum_scenario": {
+        "status": "dense_cheaper_all_positive_N",
+        "N_star": null,
+        "direction": null
+      },
+      "full_cost_result": {
+        "status": "dense_cheaper_all_positive_N",
+        "N_star": null,
+        "proof": "exact Dense cost below graph known lower bounds"
+      }
+    },
+    {
+      "dataset": "musique",
+      "method": "hipporag2",
+      "channel": "embedding",
+      "known_minimum_scenario": {
+        "status": "dense_cheaper_all_N",
+        "N_star": null,
+        "direction": null
+      },
+      "full_cost_result": {
+        "status": "dense_cheaper_all_positive_N",
+        "N_star": null,
+        "proof": "exact Dense cost below graph known lower bounds"
+      }
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "hipporag2",
+      "channel": "llm",
+      "known_minimum_scenario": {
+        "status": "dense_cheaper_all_positive_N",
+        "N_star": null,
+        "direction": null
+      },
+      "full_cost_result": {
+        "status": "dense_cheaper_all_positive_N",
+        "N_star": null,
+        "proof": "exact Dense cost below graph known lower bounds"
+      }
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "hipporag2",
+      "channel": "embedding",
+      "known_minimum_scenario": {
+        "status": "dense_cheaper_all_N",
+        "N_star": null,
+        "direction": null
+      },
+      "full_cost_result": {
+        "status": "unidentified_incomplete_cost",
+        "N_star": null
+      }
+    },
+    {
+      "dataset": "musique",
+      "method": "raptor",
+      "channel": "llm",
+      "known_minimum_scenario": {
+        "status": "dense_cheaper_all_positive_N",
+        "N_star": null,
+        "direction": null
+      },
+      "full_cost_result": {
+        "status": "dense_cheaper_all_positive_N",
+        "N_star": null,
+        "proof": "exact Dense cost below graph known lower bounds"
+      }
+    },
+    {
+      "dataset": "musique",
+      "method": "raptor",
+      "channel": "embedding",
+      "known_minimum_scenario": {
+        "status": "dense_cheaper_all_N",
+        "N_star": null,
+        "direction": null
+      },
+      "full_cost_result": {
+        "status": "dense_cheaper_all_positive_N",
+        "N_star": null,
+        "proof": "exact Dense cost below graph known lower bounds"
+      }
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "raptor",
+      "channel": "llm",
+      "known_minimum_scenario": {
+        "status": "dense_cheaper_all_positive_N",
+        "N_star": null,
+        "direction": null
+      },
+      "full_cost_result": {
+        "status": "dense_cheaper_all_positive_N",
+        "N_star": null,
+        "proof": "exact Dense cost below graph known lower bounds"
+      }
+    },
+    {
+      "dataset": "hotpotqa",
+      "method": "raptor",
+      "channel": "embedding",
+      "known_minimum_scenario": {
+        "status": "dense_cheaper_all_N",
+        "N_star": null,
+        "direction": null
+      },
+      "full_cost_result": {
+        "status": "unidentified_incomplete_cost",
+        "N_star": null
+      }
+    }
+  ],
+  "assumptions": [
+    "I is standalone attributed construction including recorded failed histories and RAPTOR Dense leaves.",
+    "q is logical request usage/500, not fresh physical POST expense; reusable pilot usage is not charged again.",
+    "Reader/filter/query embedding included; failures remain in the offered-question denominator.",
+    "EM is aggregate exact match on the same500 IDs, including failures; not F1.",
+    "Quality and mean request mix are assumed stationary for projected N; no additional inference.",
+    "Known minima are lower bounds, not measurements of full cost; reservations are not usage.",
+    "LLM and local BGE tokens are separate units, not money; LLM input/output and mixed indexing models retained.",
+    "Development S500 and historical control-score disclosure retained; no signal selection or control per-case export."
+  ]
+}
