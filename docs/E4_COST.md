@@ -101,13 +101,44 @@ Labels, private raw и per-case контрольные оценки не отк�
 ./.venv-check/Scripts/python.exe -m scripts.e4_cost --output results/summary/e4-cost
 ~~~
 
-Для SVG используется существующий Matplotlib3.11.2 в основном .venv,
-окружение не обновлялось:
+### Переносимый рендер SVG
+
+Все команды выполняются **из корня репозитория**, где находятся pyproject.toml
+и каталог scripts. Нужен Python3.12; команда python должна указывать на него.
+Для первоначальной установки нужен доступ к PyPI. Сам расчёт и рендер работают
+offline и не обращаются к моделям.
+
+Создайте отдельное окружение в игнорируемом каталоге .cache. Это не меняет
+основное или проверочное окружение проекта. NumPy/requests/python-dotenv
+закреплены на версиях uv.lock, Matplotlib — на версии исходного рендера3.11.2.
+Остальные библиотеки Matplotlib устанавливаются pip как зависимости.
+
+Windows, PowerShell:
 
 ~~~powershell
-$env:PYTHONPATH=$PWD
-& "C:/Users/Elisei/Documents/ChatGPT/Rag, GraphRAG/.venv/Scripts/python.exe" -m scripts.e4_cost --plot
+python -m venv .cache/e4-render-venv
+$renderPython = "./.cache/e4-render-venv/Scripts/python.exe"
+& $renderPython -m pip install "numpy==2.5.3" "requests==2.34.2" "python-dotenv==1.2.4" "matplotlib==3.11.2"
+& $renderPython -m pip check
+& $renderPython -m scripts.e4_cost --plot --output .cache/e4-render-check/e4-cost
 ~~~
+
+Linux/macOS (Python3.12):
+
+~~~sh
+python3.12 -m venv .cache/e4-render-venv
+render_python=./.cache/e4-render-venv/bin/python
+"$render_python" -m pip install "numpy==2.5.3" "requests==2.34.2" "python-dotenv==1.2.4" "matplotlib==3.11.2"
+"$render_python" -m pip check
+"$render_python" -m scripts.e4_cost --plot --output .cache/e4-render-check/e4-cost
+~~~
+
+Активация окружения и PYTHONPATH не требуются. Результат — JSON/CSV/Markdown/SVG
+в .cache/e4-render-check; опубликованные файлы при этой проверке не перезаписываются.
+Инструкция проверена на Windows в заново созданном окружении: pip check прошёл,
+все четыре артефакта побайтно совпали с опубликованными.
+После проверки для обновления отчёта в текущей рабочей ветке можно заменить
+output на results/summary/e4-cost.
 
 График: N и C(N) — log axes; пунктир — неполная известная нижняя граница,
 сплошная линия — полный измеренный компонент. Неизвестная часть не исчезает.
