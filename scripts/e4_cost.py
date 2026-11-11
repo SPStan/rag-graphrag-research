@@ -146,6 +146,34 @@ def bounded_crossover(dense_cost, graph_cost):
     return {"status": "unidentified_incomplete_cost", "N_star": None}
 
 
+def exact_answer_crossover(dense_cost, dense_em, graph_cost, graph_em):
+    """C/EM compares I/EM and q/EM, not the unadjusted per-question costs."""
+    require(
+        all(math.isfinite(em) and 0 <= em <= 1 for em in (dense_em, graph_em)),
+        "invalid_EM",
+    )
+    if dense_em == 0 or graph_em == 0:
+        undefined = {"status": "undefined_EM_zero", "N_star": None}
+        return {
+            "known_minimum_scenario": dict(undefined),
+            "full_cost_result": dict(undefined),
+        }
+
+    def scaled(cost, em):
+        return {
+            k: {"known": cost[k]["known"] / em, "complete": cost[k]["complete"]}
+            for k in ("I", "q")
+        }
+
+    a, b = scaled(dense_cost, dense_em), scaled(graph_cost, graph_em)
+    return {
+        "known_minimum_scenario": crossover(
+            a["I"]["known"], a["q"]["known"], b["I"]["known"], b["q"]["known"]
+        ),
+        "full_cost_result": bounded_crossover(a, b),
+    }
+
+
 def load_inputs(root):
     """Aggregate-only inputs; never open labels, questions, or control per-case scores."""
     paths = {
@@ -350,6 +378,9 @@ def build(root):
                         "channel": channel,
                         "known_minimum_scenario": known,
                         "full_cost_result": bounded_crossover(a, b),
+                        "per_exact_answer": exact_answer_crossover(
+                            a, baseline["EM"], b, config["EM"]
+                        ),
                     }
                 )
     return {
@@ -413,8 +444,8 @@ def markdown(report):
         "",
         "## Окупаемость относительно Dense",
         "",
-        "| Dataset | Method | Unit | Known-cost scenario | N* | Full-cost conclusion |",
-        "|---|---|---|---|---:|---|",
+        "| Dataset | Method | Unit | Показатель | Known-cost scenario | N* | Full-cost conclusion |",
+        "|---|---|---|---|---|---:|---|",
     ]
     descriptions = {
         "dense_cheaper_all_positive_N": "Dense дешевле при всех N>0",
@@ -425,13 +456,17 @@ def markdown(report):
         "positive_crossing": "положительное пересечение",
         "unrepresentable_crossing": "вне численного диапазона",
         "unidentified_incomplete_cost": "не определяется: неполный учёт",
+        "undefined_EM_zero": "не определено: EM=0",
     }
     for x in report["crossovers"]:
-        k, f = x["known_minimum_scenario"], x["full_cost_result"]
-        star = number(k["N_star"]) if k["N_star"] is not None else "нет"
-        lines.append(
-            f"| {x['dataset']} | {x['method']} | {x['channel']} | {descriptions[k['status']]} | {star} | {descriptions[f['status']]} |"
-        )
+        for basis, view in (("C(N)", x), ("C(N)/EM", x["per_exact_answer"])):
+            k, f = view["known_minimum_scenario"], view["full_cost_result"]
+            star = number(k["N_star"]) if k["N_star"] is not None else "нет"
+            if k["status"] in ("undefined_EM_zero", "unidentified_incomplete_cost"):
+                star = "не определено"
+            lines.append(
+                f"| {x['dataset']} | {x['method']} | {x['channel']} | {basis} | {descriptions[k['status']]} | {star} | {descriptions[f['status']]} |"
+            )
     lines += [
         "",
         "[График C(N): пунктир — известный минимум](e4-cost.svg)",

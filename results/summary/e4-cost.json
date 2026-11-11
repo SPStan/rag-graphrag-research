@@ -1,7 +1,7 @@
 {
   "version": "e4-token-cost-v1",
   "code_sha256": {
-    "e4_cost.py": "14361f07ece1b9fa4bfeabd5090ae368e167f2690a6df209b3453e04e7b5d98e",
+    "e4_cost.py": "f6935c309f6343f6fe7ef232fcc9862920aeef766fb7915498e4a3cb9075e381",
     "run_e1.py": "ea921a6c4b747ea9e081c0421c5dd384ac21d7e78fd0568d501328a37a660e8b"
   },
   "inputs": {
@@ -2373,6 +2373,18 @@
         "status": "dense_cheaper_all_positive_N",
         "N_star": null,
         "proof": "exact Dense cost below graph known lower bounds"
+      },
+      "per_exact_answer": {
+        "known_minimum_scenario": {
+          "status": "dense_cheaper_all_positive_N",
+          "N_star": null,
+          "direction": null
+        },
+        "full_cost_result": {
+          "status": "dense_cheaper_all_positive_N",
+          "N_star": null,
+          "proof": "exact Dense cost below graph known lower bounds"
+        }
       }
     },
     {
@@ -2388,6 +2400,17 @@
         "status": "dense_cheaper_all_positive_N",
         "N_star": null,
         "proof": "exact Dense cost below graph known lower bounds"
+      },
+      "per_exact_answer": {
+        "known_minimum_scenario": {
+          "status": "positive_crossing",
+          "N_star": 293409.5078479568,
+          "direction": "graph_cheaper_after"
+        },
+        "full_cost_result": {
+          "status": "unidentified_incomplete_cost",
+          "N_star": null
+        }
       }
     },
     {
@@ -2403,6 +2426,18 @@
         "status": "dense_cheaper_all_positive_N",
         "N_star": null,
         "proof": "exact Dense cost below graph known lower bounds"
+      },
+      "per_exact_answer": {
+        "known_minimum_scenario": {
+          "status": "dense_cheaper_all_positive_N",
+          "N_star": null,
+          "direction": null
+        },
+        "full_cost_result": {
+          "status": "dense_cheaper_all_positive_N",
+          "N_star": null,
+          "proof": "exact Dense cost below graph known lower bounds"
+        }
       }
     },
     {
@@ -2417,6 +2452,17 @@
       "full_cost_result": {
         "status": "unidentified_incomplete_cost",
         "N_star": null
+      },
+      "per_exact_answer": {
+        "known_minimum_scenario": {
+          "status": "positive_crossing",
+          "N_star": 695912.5115945942,
+          "direction": "graph_cheaper_after"
+        },
+        "full_cost_result": {
+          "status": "unidentified_incomplete_cost",
+          "N_star": null
+        }
       }
     },
     {
@@ -2432,6 +2478,18 @@
         "status": "dense_cheaper_all_positive_N",
         "N_star": null,
         "proof": "exact Dense cost below graph known lower bounds"
+      },
+      "per_exact_answer": {
+        "known_minimum_scenario": {
+          "status": "dense_cheaper_all_positive_N",
+          "N_star": null,
+          "direction": null
+        },
+        "full_cost_result": {
+          "status": "dense_cheaper_all_positive_N",
+          "N_star": null,
+          "proof": "exact Dense cost below graph known lower bounds"
+        }
       }
     },
     {
@@ -2447,6 +2505,18 @@
         "status": "dense_cheaper_all_positive_N",
         "N_star": null,
         "proof": "exact Dense cost below graph known lower bounds"
+      },
+      "per_exact_answer": {
+        "known_minimum_scenario": {
+          "status": "dense_cheaper_all_positive_N",
+          "N_star": null,
+          "direction": null
+        },
+        "full_cost_result": {
+          "status": "dense_cheaper_all_positive_N",
+          "N_star": null,
+          "proof": "exact Dense cost below graph known lower bounds"
+        }
       }
     },
     {
@@ -2462,6 +2532,18 @@
         "status": "dense_cheaper_all_positive_N",
         "N_star": null,
         "proof": "exact Dense cost below graph known lower bounds"
+      },
+      "per_exact_answer": {
+        "known_minimum_scenario": {
+          "status": "dense_cheaper_all_positive_N",
+          "N_star": null,
+          "direction": null
+        },
+        "full_cost_result": {
+          "status": "dense_cheaper_all_positive_N",
+          "N_star": null,
+          "proof": "exact Dense cost below graph known lower bounds"
+        }
       }
     },
     {
@@ -2476,6 +2558,17 @@
       "full_cost_result": {
         "status": "unidentified_incomplete_cost",
         "N_star": null
+      },
+      "per_exact_answer": {
+        "known_minimum_scenario": {
+          "status": "positive_crossing",
+          "N_star": 4222316.289964681,
+          "direction": "graph_cheaper_after"
+        },
+        "full_cost_result": {
+          "status": "unidentified_incomplete_cost",
+          "N_star": null
+        }
       }
     }
   ],

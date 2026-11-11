@@ -214,3 +214,49 @@ def test_windows_and_POSIX_metadata_pins_are_portable():
         "/home/work/results/e2.json",
     ):
         assert e4.pin_by_name({"files": {path: "sha"}}, "e2.json") == "sha"
+
+
+def test_raw_cost_dominance_does_not_imply_exact_answer_cost_dominance():
+    a, b = cost(0, 2), cost(10, 3)
+    assert e4.bounded_crossover(a, b)["status"] == "dense_cheaper_all_positive_N"
+    adjusted = e4.exact_answer_crossover(a, 0.25, b, 1.0)
+    assert adjusted["full_cost_result"]["status"] == "positive_crossing"
+    assert adjusted["full_cost_result"]["N_star"] == 2.0
+    assert adjusted["full_cost_result"]["direction"] == "graph_cheaper_after"
+
+
+def test_exact_answer_unknown_and_zero_EM_keep_comparison_undefined():
+    a, b = cost(0, 2), cost(10, 3, False)
+    assert (
+        e4.exact_answer_crossover(a, 0.25, b, 1.0)["full_cost_result"]["status"]
+        == "unidentified_incomplete_cost"
+    )
+    for em_a, em_b in ((0, 1), (1, 0), (0, 0)):
+        result = e4.exact_answer_crossover(a, em_a, b, em_b)
+        assert result["full_cost_result"] == {
+            "status": "undefined_EM_zero",
+            "N_star": None,
+        }
+
+
+def test_real_LLM_dominance_is_verified_separately_per_exact_answer():
+    report = e4.build(ROOT)
+    for x in report["crossovers"]:
+        if x["channel"] == "llm":
+            assert (
+                x["per_exact_answer"]["full_cost_result"]["status"]
+                == "dense_cheaper_all_positive_N"
+            )
+    mu_hip_embedding = next(
+        x
+        for x in report["crossovers"]
+        if (x["dataset"], x["method"], x["channel"])
+        == ("musique", "hipporag2", "embedding")
+    )
+    assert (
+        mu_hip_embedding["full_cost_result"]["status"] == "dense_cheaper_all_positive_N"
+    )
+    assert (
+        mu_hip_embedding["per_exact_answer"]["full_cost_result"]["status"]
+        == "unidentified_incomplete_cost"
+    )

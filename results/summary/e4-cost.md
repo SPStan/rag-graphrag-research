@@ -72,16 +72,24 @@ LLM input+output и локальные BGE input tokens считаются от�
 
 ## Окупаемость относительно Dense
 
-| Dataset | Method | Unit | Known-cost scenario | N* | Full-cost conclusion |
-|---|---|---|---|---:|---|
-| musique | hipporag2 | llm | Dense дешевле при всех N>0 | нет | Dense дешевле при всех N>0 |
-| musique | hipporag2 | embedding | Dense дешевле при равных q | нет | Dense дешевле при всех N>0 |
-| hotpotqa | hipporag2 | llm | Dense дешевле при всех N>0 | нет | Dense дешевле при всех N>0 |
-| hotpotqa | hipporag2 | embedding | Dense дешевле при равных q | нет | не определяется: неполный учёт |
-| musique | raptor | llm | Dense дешевле при всех N>0 | нет | Dense дешевле при всех N>0 |
-| musique | raptor | embedding | Dense дешевле при равных q | нет | Dense дешевле при всех N>0 |
-| hotpotqa | raptor | llm | Dense дешевле при всех N>0 | нет | Dense дешевле при всех N>0 |
-| hotpotqa | raptor | embedding | Dense дешевле при равных q | нет | не определяется: неполный учёт |
+| Dataset | Method | Unit | Показатель | Known-cost scenario | N* | Full-cost conclusion |
+|---|---|---|---|---|---:|---|
+| musique | hipporag2 | llm | C(N) | Dense дешевле при всех N>0 | нет | Dense дешевле при всех N>0 |
+| musique | hipporag2 | llm | C(N)/EM | Dense дешевле при всех N>0 | нет | Dense дешевле при всех N>0 |
+| musique | hipporag2 | embedding | C(N) | Dense дешевле при равных q | нет | Dense дешевле при всех N>0 |
+| musique | hipporag2 | embedding | C(N)/EM | положительное пересечение | 293 409.5 | не определяется: неполный учёт |
+| hotpotqa | hipporag2 | llm | C(N) | Dense дешевле при всех N>0 | нет | Dense дешевле при всех N>0 |
+| hotpotqa | hipporag2 | llm | C(N)/EM | Dense дешевле при всех N>0 | нет | Dense дешевле при всех N>0 |
+| hotpotqa | hipporag2 | embedding | C(N) | Dense дешевле при равных q | нет | не определяется: неполный учёт |
+| hotpotqa | hipporag2 | embedding | C(N)/EM | положительное пересечение | 695 912.5 | не определяется: неполный учёт |
+| musique | raptor | llm | C(N) | Dense дешевле при всех N>0 | нет | Dense дешевле при всех N>0 |
+| musique | raptor | llm | C(N)/EM | Dense дешевле при всех N>0 | нет | Dense дешевле при всех N>0 |
+| musique | raptor | embedding | C(N) | Dense дешевле при равных q | нет | Dense дешевле при всех N>0 |
+| musique | raptor | embedding | C(N)/EM | Dense дешевле при всех N>0 | нет | Dense дешевле при всех N>0 |
+| hotpotqa | raptor | llm | C(N) | Dense дешевле при всех N>0 | нет | Dense дешевле при всех N>0 |
+| hotpotqa | raptor | llm | C(N)/EM | Dense дешевле при всех N>0 | нет | Dense дешевле при всех N>0 |
+| hotpotqa | raptor | embedding | C(N) | Dense дешевле при равных q | нет | не определяется: неполный учёт |
+| hotpotqa | raptor | embedding | C(N)/EM | положительное пересечение | 4 222 316.3 | не определяется: неполный учёт |
 
 [График C(N): пунктир — известный минимум](e4-cost.svg)
 
