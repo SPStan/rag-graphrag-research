@@ -115,3 +115,20 @@ audit и команда запуска. Retry0, strict pre-POST reservation/stop
 старый sealed failure не повторять; окончание не гарантируется. Это бюджетное
 решение не разрешает новые model/embedding/indexing/tracking calls.
 Детали/точная цитата — ADR0028 «Текущее бюджетное решение issue15». Closes #15.
+
+
+## Итог E3 — issue18
+
+[Протокол и результат E3](E3_EVALUATION.md) реализованы offline по сохранённым
+исходам MuSiQue и HotpotQA S500:3000учтённых случаев,2996completed+4failed,
+0not_attempted. [Таблица](../results/summary/e3.md) и
+[JSON с версиями и входными SHA](../results/summary/e3.json) опубликованы.
+Общий evaluator, строгий join по500frozen IDs/датасет,1000shared paired resamples,
+seed42,95%percentile интервалы; RAPTOR provenance отдельно от passage recall@5.
+Ошибки сохранены в pipeline means, unknown usage не заменён нулём; S500 содержит
+development/pilot и не является независимым тестом. Pilot2000/legacy10000
+не менялись; CI с нулём не доказывает эквивалентность. Научные O/N/R/H согласованы; техническая приёмка остаётся отдельной.
+E3 сверяет frozen protocol, пересчитанные метрики/counts и журналы расходов;
+публичный JSON содержит только tuning300 scores; полный ledger для №20 private.
+Control/reserve scores были раскрыты в4793612: pristine-статус не подтверждён,
+пользователь принял merge E3 с явным раскрытием ограничения. Closes #18. Новых model/HTTP/index/tracking calls нет.
