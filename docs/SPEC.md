@@ -131,4 +131,4 @@ development/pilot и не является независимым тестом. 
 E3 сверяет frozen protocol, пересчитанные метрики/counts и журналы расходов;
 публичный JSON содержит только tuning300 scores; полный ledger для №20 private.
 Control/reserve scores были раскрыты в4793612: pristine-статус не подтверждён,
-merge40 остановлен до решения о последствиях. Refs #18. Новых model/HTTP/index/tracking calls нет.
+пользователь принял merge E3 с явным раскрытием ограничения. Closes #18. Новых model/HTTP/index/tracking calls нет.

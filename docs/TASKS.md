@@ -2,12 +2,12 @@
 
 **E1 status:** 6/6 indexes completed under the structural protocol; physical known tokens=32601955; cost_complete=False; unknown reserve61588 preserved. Final audit/verify completed; monitoring paused.
 
-## Текущая очередь — защита контрольных меток перед merge PR40
+## Текущая очередь — завершение issue18 с раскрытым ограничением контроля
 
 - PR39 слит в master (a381534), issue17 закрыта. Master интегрирован в PR40
   обычным merge; основной dirty checkout и прежний PR40 checkout не менялись.
 - PR40: O/N/R/H полностью согласованы, GitHub approval опубликовано;
-  текущий блок исправляет техническую приёмку №18, merge не выполняется.
+  пользователь разрешил merge после CI и явно принял раскрытое ограничение контроля.
 - E3 сверяет execution/parent contract с frozen issue15, включая top_k,
   IDs/data/index pins; scores/counts/logical usage пересчитываются, child/parent
   physical expense сверяются с журналами. Подмена сводки блокирует публикацию.
@@ -17,8 +17,10 @@
   .cache/e3-oracle-inputs-private.json в Hot worktree. Публичны лишь tuning300:
   1 800 scores; control100/reserved100 по вопросам не экспортируются.
   В 4793612 полный массив уже был опубликован: 600 control и600 reserve scores
-  доступны в истории. Поэтому pristine-контроль не подтверждён; merge40 остановлен
-  до решения пользователя о последствиях раскрытия. Gold-текстов опубликовано не было.
+  доступны в истории. Pristine-контроль не подтверждён; пользователь прямым
+  ответом «Да» принял merge с явным раскрытием этого ограничения. Это не
+  восстанавливает закрытость контроля и не разрешает подбор сигнала по нему.
+  Gold-текстов опубликовано не было. Новые задачи и прогоны не запускаются.
 - Команда полного пересчёта и независимого bootstrap из публичных scores:
   docs/E3_EVALUATION.md, «Строгая приёмка входов и демонстрация пересчёта».
 
