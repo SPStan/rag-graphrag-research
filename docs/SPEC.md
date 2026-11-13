@@ -132,3 +132,12 @@ E3 сверяет frozen protocol, пересчитанные метрики/cou
 публичный JSON содержит только tuning300 scores; полный ledger для №20 private.
 Control/reserve scores были раскрыты в4793612: pristine-статус не подтверждён,
 пользователь принял merge E3 с явным раскрытием ограничения. Closes #18. Новых model/HTTP/index/tracking calls нет.
+
+
+## E4 — issue19
+
+[Расчёт и ограничения](E4_COST.md):6конфигураций,4N,2отдельные токенные единицы.
+Неполный I/q даёт null полной стоимости и известный минимум отдельно.
+Reserve не actual, EM не F1; standalone leaf attribution не добавляется повторно
+к physical bill. Стоимость и качество рассматриваются отдельно.
+Это offline-проекция по S500, а не новые прогоны. Refs #19.

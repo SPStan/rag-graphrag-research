@@ -2,27 +2,29 @@
 
 **E1 status:** 6/6 indexes completed under the structural protocol; physical known tokens=32601955; cost_complete=False; unknown reserve61588 preserved. Final audit/verify completed; monitoring paused.
 
-## Текущая очередь — завершение issue18 с раскрытым ограничением контроля
+## Результат issue19 — offline E4; следующие задачи отдельно
 
-- PR39 слит в master (a381534), issue17 закрыта. Master интегрирован в PR40
-  обычным merge; основной dirty checkout и прежний PR40 checkout не менялись.
-- PR40: O/N/R/H полностью согласованы, GitHub approval опубликовано;
-  пользователь разрешил merge после CI и явно принял раскрытое ограничение контроля.
-- E3 сверяет execution/parent contract с frozen issue15, включая top_k,
-  IDs/data/index pins; scores/counts/logical usage пересчитываются, child/parent
-  physical expense сверяются с журналами. Подмена сводки блокирует публикацию.
-- 30 целевых тестов; два byte-identical real CLI rebuilds с запретом сети.
-  16 676 immutable файлов неизменны; метрики/интервалы/примеры остались прежними.
-  Полные 3 000 per-case scores для №20 теперь только в private
-  .cache/e3-oracle-inputs-private.json в Hot worktree. Публичны лишь tuning300:
-  1 800 scores; control100/reserved100 по вопросам не экспортируются.
-  В 4793612 полный массив уже был опубликован: 600 control и600 reserve scores
-  доступны в истории. Pristine-контроль не подтверждён; пользователь прямым
-  ответом «Да» принял merge с явным раскрытием этого ограничения. Это не
-  восстанавливает закрытость контроля и не разрешает подбор сигнала по нему.
-  Gold-текстов опубликовано не было. Новые задачи и прогоны не запускаются.
-- Команда полного пересчёта и независимого bootstrap из публичных scores:
-  docs/E3_EVALUATION.md, «Строгая приёмка входов и демонстрация пересчёта».
+- PR40 слит (05f6a5a), issue18 закрыта. Ограничение раскрытия контроля в истории
+  сохраняется; публичны лишь tuning300 scores. Контроль не использовать для выбора
+  сигнала. Private ledger №20 остаётся private.
+- E4: scripts/e4_cost.py, docs/E4_COST.md, ADR0029;3метода/2датасета,
+  N=100/1000/10000/100000, LLM/BGE отдельно. I — standalone E1 attribution,
+  q — logical usage/500 с filter/failed cases. Physical ledgers отдельно.
+- При unknown полные значения null; известные минимумы не полный расход.
+  N*≤0/равные q/EM=0 обработаны; C/EM использует fractional EM. Нижние границы
+  графа выше точной Dense LLM-прямой, что исключает окупаемость в этой единице.
+- 23 целевых теста, offline JSON/CSV/Markdown/SVG, input/code SHA.
+  Raw/plans/execution SHA неизменны. PR41 открыт для полного технического ревью.
+  Текущие O1/N1/R1/H1 [полностью согласованы Alex](https://github.com/SPStan/rag-graphrag-research/pull/41#pullrequestreview-5878467239).
+  GitHub approval опубликован; пользователь разрешил merge после актуального CI.
+  Формулировки сохранены; повторный research_submit не нужен.
+  Следующая задача20 — только по отдельному поручению, без доступа к контрольным
+  меткам для выбора сигнала; в текущем блоке она не запускается.
+  Новых моделей/индексации/tracking нет,20/21 не запускать.
+- По первичному ревью бота отдельно проверены C(N) и C(N)/EM через I/EM и q/EM.
+  Добавлен контрпример: raw-доминирование может смениться после учёта EM.
+  На реальных данных LLM-вывод подтверждён отдельно для обоих показателей;
+  embedding-результат на точный ответ при unknown не объявляется установленным.
 
 
 - Замечания к PR39 исправлены: чтение/проверки/увеличение recovery ledger
