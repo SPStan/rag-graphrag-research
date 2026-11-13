@@ -2,30 +2,28 @@
 
 **E1 status:** 6/6 indexes completed under the structural protocol; physical known tokens=32601955; cost_complete=False; unknown reserve61588 preserved. Final audit/verify completed; monitoring paused.
 
-## Результат issue19 — offline E4; следующие задачи отдельно
+## Issue20 — oracle Dense / HippoRAG2
 
-- PR40 слит (05f6a5a), issue18 закрыта. Ограничение раскрытия контроля в истории
-  сохраняется; публичны лишь tuning300 scores. Контроль не использовать для выбора
-  сигнала. Private ledger №20 остаётся private.
-- E4: scripts/e4_cost.py, docs/E4_COST.md, ADR0029;3метода/2датасета,
-  N=100/1000/10000/100000, LLM/BGE отдельно. I — standalone E1 attribution,
-  q — logical usage/500 с filter/failed cases. Physical ledgers отдельно.
-- При unknown полные значения null; известные минимумы не полный расход.
-  N*≤0/равные q/EM=0 обработаны; C/EM использует fractional EM. Нижние границы
-  графа выше точной Dense LLM-прямой, что исключает окупаемость в этой единице.
-- 23 целевых теста, offline JSON/CSV/Markdown/SVG, input/code SHA.
-  Raw/plans/execution SHA неизменны. PR41 открыт для полного технического ревью.
-  Текущие O1/N1/R1/H1 [полностью согласованы Alex](https://github.com/SPStan/rag-graphrag-research/pull/41#pullrequestreview-5878467239).
-  GitHub approval опубликован; пользователь разрешил merge после актуального CI.
-  Формулировки сохранены; повторный research_submit не нужен.
-  Следующая задача20 — только по отдельному поручению, без доступа к контрольным
-  меткам для выбора сигнала; в текущем блоке она не запускается.
-  Новых моделей/индексации/tracking нет,20/21 не запускать.
-- По первичному ревью бота отдельно проверены C(N) и C(N)/EM через I/EM и q/EM.
-  Добавлен контрпример: raw-доминирование может смениться после учёта EM.
-  На реальных данных LLM-вывод подтверждён отдельно для обоих показателей;
-  embedding-результат на точный ответ при unknown не объявляется установленным.
+- Пользователь поручил issue20; PR41 слит (e334df1), issue19 закрыта.
+- Offline oracle использует сохранённые E3 ответы и private ledger, frozen500 ID
+  на датасет; выбранный в pilot200 метод HippoRAG2 не пересматривается.
+- F1 Dense / Hippo / oracle: Mu 44,93 / 53,55 / 58,16%; Hot 72,03 / 77,70 / 79,76%.
+  Резерв к Hippo +4,61 / +2,06 п.п.; это идеальный предел, не работающий router.
+- Только Dense верен по EM: 19 / 12 вопросов; все четыре группы и EM-oracle
+  в [отчёте](../results/summary/oracle.md), формулы/команда — [ORACLE](ORACLE.md).
+- По 500 пар, без удаления failed: Mu Dense500/Hippo500 completed;
+  Hot Dense500/Hippo498+2failed. E3 loader сверяет protocol/IDs/response/usage,
+  оценки пересчитаны общим evaluator и сопоставлены с private ledger.
+- Публичны только агрегаты и SHA. Private ledger/raw/plans/execution SHA неизменны.
+  Контрольные ID/scores не публикуются; issue21/signal-check не анализируется.
+  Историческое раскрытие контроля, development S500, mixed Hippo/errors и
+  неполнота E1/E2 cost остаются ограничениями. Новых POST/токенов — 0.
+- 52 целевых теста passed; две реальные offline-пересборки JSON/Markdown
+  побайтно совпали, 0HTTP. Обязательный hook/CI — на итоговом HEAD PR.
+  Научная карточка issue20 требует согласования; Draft, без merge/закрытия issue.
+  Следующее действие — ревью oracle; issue21 только отдельным поручением.
 
+## Сохранённые E1–E4 результаты и история
 
 - Замечания к PR39 исправлены: чтение/проверки/увеличение recovery ledger
   защищены одним exclusive lock; регрессии исключают потерю допуска и превышение2/2.

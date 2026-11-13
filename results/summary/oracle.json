@@ -1,0 +1,185 @@
+{
+  "version": "dense-hippo-oracle-v1",
+  "metric_version": "hipporag2-squad-normalization-answer-marker-v3",
+  "graph_method": "hipporag2",
+  "selection": "issue14 pilot200 decision; docs/E2_EVALUATION.md; not selected by this oracle",
+  "private_ledger_sha256": "c2fa1543ff1eb10792709d590e885892bbd009a5e0a3cc05bea5629b8c375fe2",
+  "inputs": {
+    "musique": {
+      "run_id": "ba393849-c977-4c8f-97d7-303fc12955c8",
+      "files": {
+        ".cache/e2-musique-s500-unattempted-plan.json": "d7dc363292c15f66135007bda90be61a43486983ccc1547da5ac24d18f8e9623",
+        "results/raw/e2-musique-s500-unattempted-v1/manifest.json": "73be5360281e1186758e78e8ec78c30fc11f03f47b6316bada68db308f5f6a88",
+        "results/raw/e2-musique-s500-unattempted-v1/evaluation.json": "d1a2717f145cc55f8593cc5162466e833e24efc6833fa69f2c0507a83f38f67c",
+        "results/summary/e2-musique-s500.json": "feed713a0178aadb8630a45c9d155255aafcf90ff806d2abf88ce78d61ff0f1f",
+        "results/raw/e2-musique-s500-unattempted-v1/usage.jsonl": "15eb160336acb7b5d2a15fd0025d2e3ebe72e9c7829fca98151f358bc2643d77",
+        "data/processed/musique/labels.json": "76a36d30f3934c24ad5f7f5eaa6a67e4d26e30f2e29f7302f58d211ccb05da4a",
+        "data/ids/musique_s500.json": "82f5b26acedb39998398b0b4e9b4cb8f5fc9ec9bbb16420914dd66a4f058d33a",
+        "results/summary/full-experiment.json": "43f7383c17f7a3f0842ace68b38ba98cc2f52e127ae0563b89c659908cf57495"
+      },
+      "ordered_ids_sha256": "ea8fa2c99a32c6172db06c109100ff5f87f920ebfa36b2e17835193a46997786",
+      "reader": {
+        "reader_model": "iairlab/qwen3.8-27b",
+        "reader_version": "shared-answer-only-v1",
+        "reader_options": {
+          "temperature": 0,
+          "seed": 42,
+          "max_tokens": 512,
+          "stream": false,
+          "chat_template_kwargs": {
+            "enable_thinking": false
+          }
+        },
+        "message_utf8_bytes_limit": 65536,
+        "embedding_model": "bge-m3:latest",
+        "embedding_digest": "7907646426070047a77226ac3e684fbbe8410524f7b4a74d02837e43f2146bab"
+      }
+    },
+    "hotpotqa": {
+      "run_id": "9e7efc49-895c-42d6-a2d3-5676e2071b6b",
+      "files": {
+        ".cache/e2-hotpotqa-s500-unattempted-plan.json": "e3e923f597c89813182d933acf51ba3060d508d7b40b252a81535b0437a38b3b",
+        "results/raw/e2-hotpotqa-s500-unattempted-v1/manifest.json": "9bf74b80417abf55101281a63b20419b4a2912efe3074676cb3a94e2b1defb23",
+        "results/raw/e2-hotpotqa-s500-unattempted-v1/evaluation.json": "a129ac2951c7c177c6548e4de17ab3a9dffa6b82048e6f1602b1a24096f578a4",
+        "results/summary/e2-hotpotqa-s500.json": "8a4f64a63e7a6f3ed6e39e31c311c27957fbeb6eace73652601ec98f982188ef",
+        "results/raw/e2-hotpotqa-s500-unattempted-v1/usage.jsonl": "5a7a7d79ae6550387e332e6aea0a34acc433291fc8ef36172a6656a2c349bae8",
+        "data/processed/hotpotqa/labels.json": "42df93c1491eb7e41d46e7b562c0bad4352488ca8587c09d35eedee362875535",
+        "data/ids/hotpotqa_s500.json": "c967cbcd5bdb02a6954d66fa472fc4840e23d08fe13e31c635ad6b5427f04a46",
+        "results/summary/full-experiment.json": "43f7383c17f7a3f0842ace68b38ba98cc2f52e127ae0563b89c659908cf57495"
+      },
+      "ordered_ids_sha256": "1ff6972659d8a1c6294521808e3442bd33cf329289b9a661b1c2bc7e7628e38e",
+      "reader": {
+        "reader_model": "iairlab/qwen3.8-27b",
+        "reader_version": "shared-answer-only-v1",
+        "reader_options": {
+          "temperature": 0,
+          "seed": 42,
+          "max_tokens": 512,
+          "stream": false,
+          "chat_template_kwargs": {
+            "enable_thinking": false
+          }
+        },
+        "message_utf8_bytes_limit": 65536,
+        "embedding_model": "bge-m3:latest",
+        "embedding_digest": "7907646426070047a77226ac3e684fbbe8410524f7b4a74d02837e43f2146bab"
+      }
+    }
+  },
+  "code_sha256": {
+    "analyze_oracle.py": "8d0a77e5eb621ca57aaa9bf6e8559a83e492b4193fe2d934296530a96d071cdd",
+    "e3_evaluation.py": "df98725a94e533f84f28315a0bb688d33f1ec80db99d2fe31f94b94c617aece6",
+    "e2_evaluation.py": "2cc0cef9f02874a246f7eb1c797cbe2cad0dbd1768dbe1f5f76936a4aacfc3af",
+    "evaluate_dense.py": "1e39159a7eb02bff83b7bd0fd04a6c062762e43554b7bf6e66caf7e95c47ccd7"
+  },
+  "datasets": [
+    {
+      "dataset": "musique",
+      "n": 500,
+      "metrics": {
+        "em": {
+          "dense": 0.348,
+          "hipporag2": 0.434,
+          "oracle": 0.472,
+          "hippo_minus_dense_pp": 8.600000000000001,
+          "oracle_minus_dense_pp": 12.4,
+          "oracle_minus_hippo_pp": 3.799999999999998
+        },
+        "f1": {
+          "dense": 0.4493305006105006,
+          "hipporag2": 0.5354763572092285,
+          "oracle": 0.5815800551838942,
+          "hippo_minus_dense_pp": 8.614585659872787,
+          "oracle_minus_dense_pp": 13.22495545733936,
+          "oracle_minus_hippo_pp": 4.610369797466573
+        }
+      },
+      "em_groups": {
+        "both_correct": {
+          "count": 155,
+          "fraction": 0.31
+        },
+        "dense_only": {
+          "count": 19,
+          "fraction": 0.038
+        },
+        "hippo_only": {
+          "count": 62,
+          "fraction": 0.124
+        },
+        "both_wrong": {
+          "count": 264,
+          "fraction": 0.528
+        }
+      },
+      "outcomes": {
+        "dense": {
+          "completed": 500,
+          "attempted_failed": 0
+        },
+        "hipporag2": {
+          "completed": 500,
+          "attempted_failed": 0
+        }
+      }
+    },
+    {
+      "dataset": "hotpotqa",
+      "n": 500,
+      "metrics": {
+        "em": {
+          "dense": 0.596,
+          "hipporag2": 0.666,
+          "oracle": 0.69,
+          "hippo_minus_dense_pp": 7.000000000000006,
+          "oracle_minus_dense_pp": 9.399999999999997,
+          "oracle_minus_hippo_pp": 2.399999999999991
+        },
+        "f1": {
+          "dense": 0.7202900463521154,
+          "hipporag2": 0.7769847374847375,
+          "oracle": 0.7976220113220113,
+          "hippo_minus_dense_pp": 5.669469113262215,
+          "oracle_minus_dense_pp": 7.733196496989592,
+          "oracle_minus_hippo_pp": 2.063727383727376
+        }
+      },
+      "em_groups": {
+        "both_correct": {
+          "count": 286,
+          "fraction": 0.572
+        },
+        "dense_only": {
+          "count": 12,
+          "fraction": 0.024
+        },
+        "hippo_only": {
+          "count": 47,
+          "fraction": 0.094
+        },
+        "both_wrong": {
+          "count": 155,
+          "fraction": 0.31
+        }
+      },
+      "outcomes": {
+        "dense": {
+          "completed": 500,
+          "attempted_failed": 0
+        },
+        "hipporag2": {
+          "completed": 498,
+          "attempted_failed": 2
+        }
+      }
+    }
+  ],
+  "limitations": [
+    "Oracle uses reference labels to select among fixed saved answers; it is not a deployable router or an economic benefit.",
+    "EM and F1 oracles select independently; their maximizing answer may differ.",
+    "S500 includes development/pilot; this is descriptive, not an independent test.",
+    "Historical control/reserve score disclosure remains; no signal or threshold is selected here.",
+    "Existing attempted_failed pipeline scores remain zero; infrastructure failure is not a wrong reader answer; unknown usage remains unknown.",
+    "Only aggregate metrics/groups are public; no per-question scores, IDs or labels are exported."
+  ]
+}
