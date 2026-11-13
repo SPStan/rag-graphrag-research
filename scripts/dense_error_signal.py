@@ -17,6 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 VERSION = "negative-top1-cosine-v1"
 DATASETS = ("musique", "hotpotqa")
 CODE_FILES = (
+    "run_dense.py",
     "dense_error_signal.py",
     "e2_evaluation.py",
     "e3_evaluation.py",
@@ -200,6 +201,16 @@ def verify_freeze(path, commit):
     subprocess.run(
         ["git", "merge-base", "--is-ancestor", commit, "HEAD"], cwd=ROOT, check=True
     )
+    # Legacy freeze41c2f1c did not list this IO/hash dependency. Bind it to
+    # that exact Git commit before calling its JSON reader, without editing
+    # the historical decision or substituting the current dependency hash.
+    run_dense_sha = code_digest(blob("scripts/run_dense.py"))
+    require(
+        code_digest((ROOT / "scripts/run_dense.py").read_bytes())
+        == code_digest(Path(dense.__file__).read_bytes())
+        == run_dense_sha,
+        "signal_code_changed_after_freeze:run_dense.py",
+    )
     decision = dense.read_json(path)
     require(
         decision["version"] == VERSION
@@ -210,9 +221,14 @@ def verify_freeze(path, commit):
         "signal_contract_changed",
     )
     for name in CODE_FILES:
+        expected = (
+            decision["code_sha256_lf"].get(name, run_dense_sha)
+            if name == "run_dense.py"
+            else decision["code_sha256_lf"][name]
+        )
         require(
             code_digest(blob(f"scripts/{name}"))
-            == decision["code_sha256_lf"][name]
+            == expected
             == code_digest((ROOT / "scripts" / name).read_bytes()),
             "signal_code_changed_after_freeze",
         )

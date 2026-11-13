@@ -95,6 +95,51 @@ def test_saved_feature_projection_does_not_access_answer_or_metrics(
     assert signal.error_signal(scores) == -0.5
 
 
+def test_run_dense_drift_rejected_before_its_json_reader(tmp_path, monkeypatch):
+    (tmp_path / "scripts").mkdir()
+    dependency = tmp_path / "scripts/run_dense.py"
+    dependency.write_bytes(b"changed dependency")
+    decision = tmp_path / "freeze.json"
+    decision.write_bytes(b"{}")
+    monkeypatch.setattr(signal, "ROOT", tmp_path)
+    monkeypatch.setattr(
+        signal.subprocess,
+        "check_output",
+        lambda args, **kw: b"{}"
+        if args[2].endswith(":freeze.json")
+        else b"original dependency",
+    )
+    monkeypatch.setattr(signal.subprocess, "run", lambda *args, **kw: None)
+
+    def forbidden_reader(*args):
+        raise AssertionError("Changed IO dependency must not read the freeze")
+
+    monkeypatch.setattr(signal.dense, "read_json", forbidden_reader)
+    with pytest.raises(ValueError, match="run_dense.py"):
+        signal.verify_freeze(decision, "a" * 40)
+
+
+def test_imported_run_dense_must_match_freeze_too(tmp_path, monkeypatch):
+    (tmp_path / "scripts").mkdir()
+    (tmp_path / "scripts/run_dense.py").write_bytes(b"original dependency")
+    imported = tmp_path / "other_run_dense.py"
+    imported.write_bytes(b"different imported dependency")
+    decision = tmp_path / "freeze.json"
+    decision.write_bytes(b"{}")
+    monkeypatch.setattr(signal, "ROOT", tmp_path)
+    monkeypatch.setattr(signal.dense, "__file__", str(imported))
+    monkeypatch.setattr(
+        signal.subprocess,
+        "check_output",
+        lambda args, **kw: b"{}"
+        if args[2].endswith(":freeze.json")
+        else b"original dependency",
+    )
+    monkeypatch.setattr(signal.subprocess, "run", lambda *args, **kw: None)
+    with pytest.raises(ValueError, match="run_dense.py"):
+        signal.verify_freeze(decision, "a" * 40)
+
+
 def test_real_cli_freeze_before_labels_private_output_and_reproducibility(
     tmp_path, monkeypatch
 ):
@@ -178,6 +223,23 @@ def test_real_cli_freeze_before_labels_private_output_and_reproducibility(
     with pytest.raises(ValueError, match="freeze_not_committed"):
         signal.verify_freeze(decision, "a" * 40)
     decision.write_bytes(original)
+    # Existing historical freezes must be supplemented from their Git blob,
+    # never by rewriting them or trusting the current run_dense.py hash.
+    legacy = json.loads(original)
+    del legacy["code_sha256_lf"]["run_dense.py"]
+    legacy_bytes = json.dumps(legacy).encode("utf-8")
+    for payload in (original, legacy_bytes):
+        decision.write_bytes(payload)
+        committed[decision.relative_to(repo).as_posix()] = payload
+        assert signal.verify_freeze(decision, "a" * 40)["version"] == signal.VERSION
+        dependency = repo / "scripts/run_dense.py"
+        baseline = dependency.read_bytes()
+        dependency.write_bytes(baseline + b"\n# changed after freeze\n")
+        with pytest.raises(ValueError, match="run_dense.py"):
+            signal.verify_freeze(decision, "a" * 40)
+        dependency.write_bytes(baseline)
+    decision.write_bytes(original)
+    committed[decision.relative_to(repo).as_posix()] = original
     with pytest.raises(ValueError, match="full_freeze_commit"):
         signal.verify_freeze(decision, "short")
     args = [

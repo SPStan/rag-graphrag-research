@@ -51,6 +51,8 @@ terminal manifests, case hashes, frozen protocol и Dense index/reader contract.
 Указать корни сохранённых E2 артефактов и данных; сервисы/API-ключи не нужны.
 
 ```powershell
+$env:UV_PROJECT_ENVIRONMENT = '.venv-check'
+uv sync --locked
 $env:E2_ARTIFACT_ROOT = 'C:/Users/Elisei/.codex/worktrees/e2-shared-evaluation/Rag, GraphRAG'
 $env:E2_DATA_ROOT = 'C:/Users/Elisei/Documents/ChatGPT/Rag, GraphRAG'
 uv run --locked python -m scripts.dense_error_signal freeze --artifact-root "$env:E2_ARTIFACT_ROOT" --decision results/summary/dense-error-signal-freeze.json
@@ -76,7 +78,7 @@ SHA воспроизводимы; измеренное wall time может от
 
 ## Проверки и границы
 
-23 целевых синтетических теста: формула/направление, запрет gold на входе,
+25 целевых синтетических тестов: формула/направление, запрет gold на входе,
 неверные/NaN scores, AUROC/ties/один класс, gold только после freeze, mismatch
 committed decision/code, приватность output, неизменный split и повторяемость CLI
 с 0HTTP. Подагентов, новых моделей, индексации, tracking-export и E6 нет.
@@ -122,3 +124,46 @@ reader/index contract hashes находятся в public freeze; frozen IDs и 
 
 Refs #21: до закрытия нужны полное ревью, научное согласование и принятие
 ограничения ранее раскрытого контроля. Чистый holdout не восстановлен.
+
+
+## Проверка зависимости run_dense.py после ревью
+
+Исходные freeze41c2f1c, агрегаты7ae0357 и private CSV сохранены без изменений.
+`run_dense.py` добавлен в CODE_FILES. Для исторического freeze, где этого поля
+ещё нет, baseline берётся только из Git blob исходного freeze-коммита, а не из
+текущего файла. Проверяются файл checkout и фактически импортированный модуль.
+Несовпадение останавливает verify_freeze до вызова JSON reader.
+В новых freeze hash зависимости включается явно; пропущенные pins остальных
+файлов по-прежнему не допускаются. Нормализуются только LF/CRLF.
+
+Регрессии проверяют отказ при изменении run_dense.py и для явного pin, и для
+старого формата freeze; отдельный тест проверяет отказ до использования reader.
+Новые gold labels не читались, сигнал не переоценивался. Это исправление
+верификатора после эксперимента, не новая версия исходного расчёта.
+
+После изменения самого verifier текущий evaluate намеренно отвергает исторический
+freeze по pin dense_error_signal.py. Этот guard не ослаблен. Для воспроизведения
+старого результата нужен отдельный checkout исходного freeze-коммита и явная
+проверка run_dense.py относительно него. Из корня текущей ветки, с уже
+подготовленной .venv-check и E2_ARTIFACT_ROOT/E2_DATA_ROOT из рецепта выше:
+
+```powershell
+$freeze = '41c2f1c6d44b98609be79f6c4986271f0e54d1e1'
+$checkPython = (Resolve-Path .venv-check/Scripts/python.exe).Path
+git worktree add --detach .cache/e5-frozen-replay $freeze
+if ($LASTEXITCODE -ne 0) { throw 'Frozen checkout unavailable' }
+Push-Location .cache/e5-frozen-replay
+try {
+    git diff --exit-code $freeze -- scripts/run_dense.py
+    if ($LASTEXITCODE -ne 0) { throw 'run_dense.py differs from freeze' }
+    & $checkPython -m scripts.dense_error_signal evaluate --artifact-root "$env:E2_ARTIFACT_ROOT" --data-root "$env:E2_DATA_ROOT" --decision results/summary/dense-error-signal-freeze.json --freeze-commit $freeze --private-output "$env:E2_ARTIFACT_ROOT/.cache/dense-error-signal-historical-replay-private.csv" --output .cache/historical-replay.json
+} finally { Pop-Location }
+```
+
+Нужны новые output/private-output: перезапись запрещена. Это рецепт будущего
+локального воспроизведения, не дополнительная выполненная оценка в исправлении.
+Индивидуальные targets остаются private; опубликованные AUROC не меняются.
+
+Научная карточка уже зарегистрирована: решение Alex по O1/N1/R1/H1 ожидается.
+Повторный research_submit неизменной карточки не нужен. Ограничение исторически
+раскрытого контроля также требует отдельного принятия перед закрытием задачи.
