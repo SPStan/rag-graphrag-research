@@ -2,7 +2,7 @@
 
 **E1 status:** 6/6 indexes completed under the structural protocol; physical known tokens=32601955; cost_complete=False; unknown reserve61588 preserved. Final audit/verify completed; monitoring paused.
 
-## Текущая очередь — issue19: offline E4
+## Результат issue19 — offline E4; следующие задачи отдельно
 
 - PR40 слит (05f6a5a), issue18 закрыта. Ограничение раскрытия контроля в истории
   сохраняется; публичны лишь tuning300 scores. Контроль не использовать для выбора
@@ -15,10 +15,11 @@
   графа выше точной Dense LLM-прямой, что исключает окупаемость в этой единице.
 - 23 целевых теста, offline JSON/CSV/Markdown/SVG, input/code SHA.
   Raw/plans/execution SHA неизменны. PR41 открыт для полного технического ревью.
-  По [опубликованному ревью](https://github.com/SPStan/rag-graphrag-research/pull/41#pullrequestreview-5860687831)
-  научная карточка зарегистрирована; решение Alex по текущим O1/N1/R1/H1 ожидается.
-  Повторный research_submit не нужен; актуальный статус — research_status.
-  До полного согласования merge запрещён.
+  Текущие O1/N1/R1/H1 [полностью согласованы Alex](https://github.com/SPStan/rag-graphrag-research/pull/41#pullrequestreview-5878467239).
+  GitHub approval опубликован; пользователь разрешил merge после актуального CI.
+  Формулировки сохранены; повторный research_submit не нужен.
+  Следующая задача20 — только по отдельному поручению, без доступа к контрольным
+  меткам для выбора сигнала; в текущем блоке она не запускается.
   Новых моделей/индексации/tracking нет,20/21 не запускать.
 - По первичному ревью бота отдельно проверены C(N) и C(N)/EM через I/EM и q/EM.
   Добавлен контрпример: raw-доминирование может смениться после учёта EM.
