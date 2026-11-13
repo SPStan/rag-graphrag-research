@@ -1,0 +1,60 @@
+{
+  "version": "negative-top1-cosine-v1",
+  "formula": "error_signal = -retrieval.scores[0]",
+  "direction": "larger means more likely Dense EM=0",
+  "selection": "Only candidate: saved BGE cosine top1, available for all tuning300 cases; direction from similarity-confidence prior, not check labels or AUROC optimization",
+  "target": "int(existing evaluator EM == 0)",
+  "threshold": null,
+  "threshold_reason": "ranking-only AUROC; no cascade or threshold fitting",
+  "split": "frozen S500 [0:300] tuning, [300:400] signal-check, [400:500] reserved; seed42; no reshuffle",
+  "code_sha256_lf": {
+    "dense_error_signal.py": "0948a7e8797bd4d9b85c28fb293c25397fe2851caec7fc6e0aee1b9d90b57c8b",
+    "e2_evaluation.py": "80494fd412aa369b9ccf8bbc3007902635334e492f9ca46e633a368b37fbe258",
+    "e3_evaluation.py": "e097e7094846b1b7e15aef952ccf3cf67c31db89f838f2a09899676dee79f9a0",
+    "evaluate_dense.py": "193439e71832f22420975ad065aba7be5653b8f31fbc5734067bc59ecb8d9671",
+    "full_experiment.py": "9e2161d3e70d59121dbceda1e835f5bd492e612976927e64fe0f30a79aa6bec2",
+    "evaluation_view.py": "9a12780981c3bf6edfcea16771a74edfebb7b629f64fd85f5a287f416f5d7718",
+    "answer_parser.py": "70fcba402589b61440c75d77fafcb76bb43fa53581a2ee68d3a5185bb5a359bd"
+  },
+  "metric_version": "hipporag2-squad-normalization-answer-marker-v3",
+  "metric_code_sha256_lf": "193439e71832f22420975ad065aba7be5653b8f31fbc5734067bc59ecb8d9671",
+  "datasets": {
+    "musique": {
+      "inputs": {
+        "run_id": "ba393849-c977-4c8f-97d7-303fc12955c8",
+        "plan_sha256": "d7dc363292c15f66135007bda90be61a43486983ccc1547da5ac24d18f8e9623",
+        "manifest_sha256": "73be5360281e1186758e78e8ec78c30fc11f03f47b6316bada68db308f5f6a88",
+        "ids_sha256": "82f5b26acedb39998398b0b4e9b4cb8f5fc9ec9bbb16420914dd66a4f058d33a",
+        "split_sha256": "4a89a6215282ce8c51a6704b6153f9df404c0ae645286d88eab5f531fb65d64b",
+        "labels_sha256_evaluation_only": "76a36d30f3934c24ad5f7f5eaa6a67e4d26e30f2e29f7302f58d211ccb05da4a",
+        "contract_sha256": "cfe6d0e5e08e84cdc7d2f192fb5adb224584e6cab500a1152a5486e0c07e7acd",
+        "index_sha256": "ce08311b70aac585b0c61d32b21c7497ba35cf630e223716404cfd07fe7f6639"
+      },
+      "tuning_n": 300,
+      "check_n": 100,
+      "reserved_n": 100,
+      "tuning_top1_min": 0.43244409561157227,
+      "tuning_top1_max": 0.7253267765045166,
+      "tuning_top1_mean": 0.5654964633782704
+    },
+    "hotpotqa": {
+      "inputs": {
+        "run_id": "9e7efc49-895c-42d6-a2d3-5676e2071b6b",
+        "plan_sha256": "e3e923f597c89813182d933acf51ba3060d508d7b40b252a81535b0437a38b3b",
+        "manifest_sha256": "9bf74b80417abf55101281a63b20419b4a2912efe3074676cb3a94e2b1defb23",
+        "ids_sha256": "c967cbcd5bdb02a6954d66fa472fc4840e23d08fe13e31c635ad6b5427f04a46",
+        "split_sha256": "197d0b06a78a799869538b012c3e01da7fb46b9d8c04815d1f5dd68fc7ffcb56",
+        "labels_sha256_evaluation_only": "42df93c1491eb7e41d46e7b562c0bad4352488ca8587c09d35eedee362875535",
+        "contract_sha256": "cfe6d0e5e08e84cdc7d2f192fb5adb224584e6cab500a1152a5486e0c07e7acd",
+        "index_sha256": "0a6af0770837cadcf34ddba5f5f0b71db4fc80e61457a1ef8758085f7269178d"
+      },
+      "tuning_n": 300,
+      "check_n": 100,
+      "reserved_n": 100,
+      "tuning_top1_min": 0.42712801694869995,
+      "tuning_top1_max": 0.8180096745491028,
+      "tuning_top1_mean": 0.6260318102439245
+    }
+  },
+  "limitation": "Historical control/reserve scores were disclosed in PR40 and processed by E3/oracle. Freeze precedes this signal-check evaluation only; no pristine or independent test claim."
+}
