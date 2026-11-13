@@ -55,7 +55,7 @@ $env:E2_ARTIFACT_ROOT = 'C:/Users/Elisei/.codex/worktrees/e2-shared-evaluation/R
 $env:E2_DATA_ROOT = 'C:/Users/Elisei/Documents/ChatGPT/Rag, GraphRAG'
 uv run --locked python -m scripts.dense_error_signal freeze --artifact-root "$env:E2_ARTIFACT_ROOT" --decision results/summary/dense-error-signal-freeze.json
 # Затем обычный commit с обязательными hooks; не переписывать готовую заморозку
-uv run --locked python -m scripts.dense_error_signal evaluate --artifact-root "$env:E2_ARTIFACT_ROOT" --data-root "$env:E2_DATA_ROOT" --decision results/summary/dense-error-signal-freeze.json --freeze-commit FULL_FREEZE_COMMIT_SHA --private-output "$env:E2_ARTIFACT_ROOT/.cache/dense-error-signal-check.csv" --output .cache/dense-error-signal-check.json
+uv run --locked python -m scripts.dense_error_signal evaluate --artifact-root "$env:E2_ARTIFACT_ROOT" --data-root "$env:E2_DATA_ROOT" --decision results/summary/dense-error-signal-freeze.json --freeze-commit 41c2f1c6d44b98609be79f6c4986271f0e54d1e1 --private-output "$env:E2_ARTIFACT_ROOT/.cache/dense-error-signal-check.csv" --output .cache/dense-error-signal-check.json
 ```
 
 В репозитории решение уже заморожено: повторно вызывать `freeze` поверх него
@@ -82,3 +82,43 @@ committed decision/code, приватность output, неизменный spl
 с 0HTTP. Подагентов, новых моделей, индексации, tracking-export и E6 нет.
 Активные человеко-часы Елисея не измерялись; время помощника не равно труду студента.
 Научная карточка новой задачи требует отдельного согласования.
+
+
+## Результат фиксированной проверки
+
+[Таблица](../results/summary/dense-error-signal.md) и [JSON](../results/summary/dense-error-signal.json):
+MuSiQue AUROC 0,585 (59 ошибок / 41 точный ответ), HotpotQA 0,441 (37 / 63).
+Гипотеза точечной AUROC>0,5 на каждом наборе не подтвердилась. Направление
+не менялось, новый сигнал не выбирался. Выборка мала; CI и независимое
+подтверждение не заявляются. Для универсального E6 этот результат не даёт
+достаточного основания: полноценный каскад, порог и экономия не измерялись.
+Следующий шаг — ревью фиксированного отрицательного результата и принятие
+ограничения загрязнённого контроля; не новый поиск по этим check labels.
+
+Freeze commit: `41c2f1c6d44b98609be79f6c4986271f0e54d1e1`, опубликован до текущей
+оценки. Все input/code pins прошли проверку. Точное аналитическое воспроизведение
+подтверждено совпадением analytical_digest и private CSV SHA. Wall time измерено
+заново и закономерно может различаться; оно исключено из analytical_digest.
+
+Private таблица200строк: artifact-root/.cache/dense-error-signal-v1-private.csv;
+повтор: .cache/dense-error-signal-v1-rebuild-private.csv. Доступ только локальный,
+в Git не включаются. Содержимое и цели не печатаются. Run ID источников:
+
+- musique: `7936654d-8820-4449-803b-f7ef6074424a`;
+
+- hotpotqa: `91f59cf6-e61c-499d-9d29-d55bff1824c2`;
+
+Исходные составные terminal manifests/plans: Mu e2-musique-s500-unattempted-v1
+и Hot e2-hotpotqa-s500-unattempted-v1 в results/raw artifact-root. Их SHA и
+reader/index contract hashes находятся в public freeze; frozen IDs и split
+остаются в data/ids. Старые raw/планы/usage и E1/E2 unknown cost не изменялись.
+
+| Критерий issue21 | Состояние |
+|---|---|
+| Формула/направление/split до отложенной оценки | Зафиксированы до текущего пересчёта; историческая нетронутость контроля отсутствует, ограничение требует согласования |
+| Нет gold/EM/F1 на входе сигнала | Tuple пяти retrieval scores, gold отдельно в scorer; тесты изоляции |
+| AUROC/один класс/расход воспроизводимы | Два набора по100, private CSV + analytical digest, null при одном классе, 0 новых POST/токенов |
+| Вывод для E6 без имитации каскада | Общая гипотеза не подтвердилась; каскад/экономия не объявляются полученными |
+
+Refs #21: до закрытия нужны полное ревью, научное согласование и принятие
+ограничения ранее раскрытого контроля. Чистый holdout не восстановлен.

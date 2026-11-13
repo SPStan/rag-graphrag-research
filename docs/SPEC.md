@@ -141,3 +141,13 @@ Control/reserve scores были раскрыты в4793612: pristine-стату�
 Reserve не actual, EM не F1; standalone leaf attribution не добавляется повторно
 к physical bill. Стоимость и качество рассматриваются отдельно.
 Это offline-проекция по S500, а не новые прогоны. Refs #19.
+
+
+## E5: один фиксированный сигнал — issue21
+
+[Протокол](DENSE_ERROR_SIGNAL.md) и [результат](../results/summary/dense-error-signal.md):
+negative top1 cosine, tuning300/check100/reserve100, без новых запросов.
+Сигнал gold-free, target EM=0 оценивается отдельно после freeze commit.
+AUROC Mu0,585 / Hot0,441; направление не меняется после check.
+Независимость исторического контроля не восстановлена. Публичны агрегаты/SHA,
+ID/signal/target private. E6 и экономия не измерялись. Refs #21.

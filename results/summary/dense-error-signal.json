@@ -1,0 +1,42 @@
+{
+  "version": "negative-top1-cosine-v1",
+  "freeze_commit": "41c2f1c6d44b98609be79f6c4986271f0e54d1e1",
+  "freeze_digest": "4512cd0e70c2a51a2c2bf0df6b10fd87e166233538fb5aa7ebd88abcef19c8df",
+  "datasets": [
+    {
+      "dataset": "musique",
+      "n": 100,
+      "errors": 59,
+      "correct": 41,
+      "auroc": 0.5849524596940885,
+      "auroc_status": "defined",
+      "signal_compute_seconds": 0.0002806,
+      "signal_mean_seconds": 2.806e-06
+    },
+    {
+      "dataset": "hotpotqa",
+      "n": 100,
+      "errors": 37,
+      "correct": 63,
+      "auroc": 0.44058344058344057,
+      "auroc_status": "defined",
+      "signal_compute_seconds": 0.0002927,
+      "signal_mean_seconds": 2.927e-06
+    }
+  ],
+  "private_rows": 200,
+  "private_csv_sha256": "29f0a04d5b9e1c4263c7c9d514ee8d414bb112421d3b6fc8b446978b1895b761",
+  "additional_usage": {
+    "LLM_tokens": 0,
+    "embedding_tokens": 0,
+    "POST": 0
+  },
+  "network": "socket connect/connect_ex forbidden; saved retrieval reused",
+  "timing_scope": "pure signal calculation only; excludes loading, SHA audits and label scoring; measured local wall time, not original inference latency",
+  "limitations": [
+    "Historical control/reserve scores were disclosed in PR40 and processed by E3/oracle. Freeze precedes this signal-check evaluation only; no pristine or independent test claim.",
+    "No signal reselection or direction flip after check; no cascade/E6 run; no economic benefit established",
+    "EM=0 is the evaluator target, not semantic truth; no per-question labels/scores are public"
+  ],
+  "analytical_digest": "332fd3d7c38f0c6f5888bad3d8536ac9237e8265265fef581f7a9c2f15407880"
+}
