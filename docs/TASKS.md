@@ -2,30 +2,21 @@
 
 **E1 status:** 6/6 indexes completed under the structural protocol; physical known tokens=32601955; cost_complete=False; unknown reserve61588 preserved. Final audit/verify completed; monitoring paused.
 
-## Результат issue19 — offline E4; следующие задачи отдельно
+## Issue21 — один сигнал ошибки Dense
 
-- PR40 слит (05f6a5a), issue18 закрыта. Ограничение раскрытия контроля в истории
-  сохраняется; публичны лишь tuning300 scores. Контроль не использовать для выбора
-  сигнала. Private ledger №20 остаётся private.
-- E4: scripts/e4_cost.py, docs/E4_COST.md, ADR0029;3метода/2датасета,
-  N=100/1000/10000/100000, LLM/BGE отдельно. I — standalone E1 attribution,
-  q — logical usage/500 с filter/failed cases. Physical ledgers отдельно.
-- При unknown полные значения null; известные минимумы не полный расход.
-  N*≤0/равные q/EM=0 обработаны; C/EM использует fractional EM. Нижние границы
-  графа выше точной Dense LLM-прямой, что исключает окупаемость в этой единице.
-- 23 целевых теста, offline JSON/CSV/Markdown/SVG, input/code SHA.
-  Raw/plans/execution SHA неизменны. PR41 открыт для полного технического ревью.
-  Текущие O1/N1/R1/H1 [полностью согласованы Alex](https://github.com/SPStan/rag-graphrag-research/pull/41#pullrequestreview-5878467239).
-  GitHub approval опубликован; пользователь разрешил merge после актуального CI.
-  Формулировки сохранены; повторный research_submit не нужен.
-  Следующая задача20 — только по отдельному поручению, без доступа к контрольным
-  меткам для выбора сигнала; в текущем блоке она не запускается.
-  Новых моделей/индексации/tracking нет,20/21 не запускать.
-- По первичному ревью бота отдельно проверены C(N) и C(N)/EM через I/EM и q/EM.
-  Добавлен контрпример: raw-доминирование может смениться после учёта EM.
-  На реальных данных LLM-вывод подтверждён отдельно для обоих показателей;
-  embedding-результат на точный ответ при unknown не объявляется установленным.
+- По поручению пользователя выполняется только offline E5: negative top1 cosine,
+  больше — вероятнее Dense EM=0. Единственный сигнал выбран по доступности
+  сохранённых scores на tuning300; check labels до freeze не используются.
+- Разбиение300/100/100 seed42 фиксировано, порог/каскад не подбираются.
+  [Протокол](DENSE_ERROR_SIGNAL.md), ADR0031 и public freeze — источники решения.
+- Code/decision коммитятся до текущей отложенной оценки. Gold не входит в функцию
+  сигнала; таблица ID/signal/target остаётся private в .cache, публичны агрегаты.
+- Прежнее раскрытие контроля PR40/E3/oracle сохраняется: тест не pristine.
+  Новых моделей/embeddings/индексации/tracking нет; E6 не запускается.
+- PR42/issue20 отдельно ожидает полного ревью/научного согласования; его код и
+  научные формулировки не меняются в issue21. PR41 слит (e334df1).
 
+## История E1–E4
 
 - Замечания к PR39 исправлены: чтение/проверки/увеличение recovery ledger
   защищены одним exclusive lock; регрессии исключают потерю допуска и превышение2/2.
