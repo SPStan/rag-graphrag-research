@@ -141,3 +141,14 @@ Control/reserve scores были раскрыты в4793612: pristine-стату�
 Reserve не actual, EM не F1; standalone leaf attribution не добавляется повторно
 к physical bill. Стоимость и качество рассматриваются отдельно.
 Это offline-проекция по S500, а не новые прогоны. Refs #19.
+
+
+## Oracle — issue20
+
+[Методика и выводы](ORACLE.md), [таблица](../results/summary/oracle.md):
+Dense/HippoRAG2, 500 frozen пар каждого датасета; oracle EM/F1 отдельно, четыре
+EM-группы. Сохранённые ошибки входят в знаменатель. Строгий E3 пересчёт и
+private ledger сверяются; публичны лишь агрегаты/SHA, без контрольных per-case
+оценок. Oracle — идеальный предел выбора, не router или доказательство экономии.
+Development S500 и прежнее раскрытие контроля сохраняются; issue21 не выполняется.
+Refs #20.
