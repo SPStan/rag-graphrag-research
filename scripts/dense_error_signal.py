@@ -369,6 +369,14 @@ def main(argv=None):
                 "evaluation_arguments_required",
             )
             private = args.private_output.resolve()
+            public = args.output.resolve()
+            public_temporary = args.output.with_suffix(
+                args.output.suffix + ".part"
+            ).resolve()
+            require(
+                private not in (public, public_temporary),
+                "public_private_output_collision",
+            )
             require(
                 private.is_relative_to((args.artifact_root / ".cache").resolve())
                 and not private.exists(),

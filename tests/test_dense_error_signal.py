@@ -1,5 +1,6 @@
 """Inference-only feature, frozen decision, no leakage and paired offline CLI."""
 
+import hashlib
 import json
 from pathlib import Path
 import socket
@@ -64,6 +65,56 @@ def test_auroc_ties_direction_single_class(scores, targets, expected):
 def test_bad_scores_targets(scores, targets):
     with pytest.raises(ValueError):
         signal.auroc(scores, targets)
+
+
+@pytest.mark.parametrize(
+    "alias", ["identical", "parent_traversal", "relative", "json_temporary"]
+)
+def test_cli_rejects_output_alias_before_calculation_or_writes(
+    tmp_path, monkeypatch, capsys, alias
+):
+    artifacts = tmp_path / "artifacts"
+    cache = artifacts / ".cache"
+    cache.mkdir(parents=True)
+    private = cache / "shared.csv"
+    public = private
+    if alias == "parent_traversal":
+        (cache / "nested").mkdir()
+        public = cache / "nested" / ".." / "shared.csv"
+    elif alias == "relative":
+        monkeypatch.chdir(tmp_path)
+        public = Path("artifacts/.cache/shared.csv")
+    elif alias == "json_temporary":
+        public = cache / "result.json"
+        private = cache / "result.json.part"
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("Output collision must fail before computation or writing")
+
+    monkeypatch.setattr(signal, "verify_freeze", forbidden)
+    monkeypatch.setattr(signal, "evaluate", forbidden)
+    monkeypatch.setattr(signal.dense, "write_json_atomic", forbidden)
+    with pytest.raises(ValueError, match="public_private_output_collision"):
+        signal.main(
+            [
+                "evaluate",
+                "--artifact-root",
+                str(artifacts),
+                "--decision",
+                str(tmp_path / "decision.json"),
+                "--freeze-commit",
+                "a" * 40,
+                "--data-root",
+                str(tmp_path / "data"),
+                "--private-output",
+                str(private),
+                "--output",
+                str(public),
+            ]
+        )
+    assert not private.exists() and not public.exists()
+    assert not list(cache.rglob("*.part"))
+    assert capsys.readouterr().out == ""
 
 
 def test_saved_feature_projection_does_not_access_answer_or_metrics(
@@ -270,6 +321,10 @@ def test_real_cli_freeze_before_labels_private_output_and_reproducibility(
         private = artifacts / f".cache/private-{i}.csv"
         signal.main(args + ["--private-output", str(private), "--output", str(output)])
         reports.append(read_json(output))
+        assert (
+            reports[-1]["private_csv_sha256"]
+            == hashlib.sha256(private.read_bytes()).hexdigest()
+        )
         assert (
             "private-300" not in output.read_text()
             and "question_id" not in output.read_text()
