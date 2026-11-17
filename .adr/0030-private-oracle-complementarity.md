@@ -1,6 +1,7 @@
 # ADR-0030: oracle по проверенным private E3 оценкам
 
-Статус: реализован offline; научные формулировки нового PR ожидают согласования.
+Статус: реализован offline; текущие O1/N1/R1/H1 [полностью согласованы Alex](https://github.com/SPStan/rag-graphrag-research/pull/42#pullrequestreview-5938132658).
+Пользователь разрешил merge PR42 после технических проверок.
 
 ## Контекст
 
