@@ -188,7 +188,7 @@ Fingerprints полной private-пересборки до ограничени
 Полные 3 000 per-case scores хранятся только в private-файле:
 `C:/Users/Elisei/.codex/worktrees/e2-shared-evaluation/Rag, GraphRAG/.cache/e3-oracle-inputs-private.json`.
 Файл игнорируется Git. Он содержит оценки, статусы и входные SHA, без gold,
-текстов ответов и контекстов; oracle-анализ №20 не запускался.
+текстов ответов и контекстов. Offline oracle №20 использует его после сверки с исходными ответами; [результат и ограничения](ORACLE.md).
 Исходные полные evaluation/manifest/usage остаются по указанным выше private-путям.
 
 Публичный `e3.json.question_scores` ограничен tuning300 каждого датасета:
