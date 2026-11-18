@@ -370,11 +370,9 @@ def main(argv=None):
             )
             private = args.private_output.resolve()
             public = args.output.resolve()
-            public_temporary = args.output.with_suffix(
-                args.output.suffix + ".part"
-            ).resolve()
+            public_temporary = args.output.with_suffix(args.output.suffix + ".part")
             require(
-                private not in (public, public_temporary),
+                private not in (public, public_temporary.resolve()),
                 "public_private_output_collision",
             )
             require(
@@ -393,6 +391,13 @@ def main(argv=None):
             private.parent.mkdir(parents=True, exist_ok=True)
             with private.open("xb") as stream:
                 stream.write(private_bytes)
+            # Once the CSV exists, use the volume's file identity rules.
+            for candidate in (args.output, public_temporary):
+                try:
+                    collision = private.samefile(candidate)
+                except FileNotFoundError:
+                    continue
+                require(not collision, "public_private_output_collision")
             args.output.parent.mkdir(parents=True, exist_ok=True)
             dense.write_json_atomic(args.output, result)
     print("Signal stage complete; HTTP=0; no per-case values printed")

@@ -2,7 +2,7 @@
 
 import hashlib
 import json
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import socket
 
 import pytest
@@ -114,6 +114,76 @@ def test_cli_rejects_output_alias_before_calculation_or_writes(
         )
     assert not private.exists() and not public.exists()
     assert not list(cache.rglob("*.part"))
+    assert capsys.readouterr().out == ""
+
+
+@pytest.mark.parametrize("destination", ["json", "part"])
+@pytest.mark.parametrize("alias", ["case", "hardlink"])
+def test_cli_preserves_csv_when_file_identity_collides(
+    tmp_path, monkeypatch, capsys, destination, alias
+):
+    artifacts = tmp_path / "artifacts"
+    cache = artifacts / ".cache"
+    cache.mkdir(parents=True)
+    public = cache / "result.json"
+    candidate = public if destination == "json" else public.with_suffix(".json.part")
+    private = cache / "private.csv"
+    if alias == "case":
+        probe = cache / "CaseProbe"
+        probe.touch()
+        if not probe.with_name("caseprobe").exists():
+            pytest.skip("Requires a case-insensitive filesystem")
+        private = candidate.with_name(candidate.name.upper())
+        if private.resolve() == candidate.resolve():
+            # Windows Path equality may catch this early. Emulate macOS's
+            # lexical comparison while retaining the real volume for samefile.
+            resolve = type(candidate).resolve
+
+            def lexical_resolve(path, *args, **kwargs):
+                resolved = resolve(path, *args, **kwargs)
+                if str(path) == str(candidate):
+                    return PurePosixPath(resolved.as_posix())
+                return resolved
+
+            monkeypatch.setattr(type(candidate), "resolve", lexical_resolve)
+
+    csv_bytes = b"question_id,signal,error\nsynthetic,0.1,1\n"
+
+    if alias == "hardlink":
+        open_path = type(private).open
+
+        def link_after_creation(path, *args, **kwargs):
+            stream = open_path(path, *args, **kwargs)
+            if path == private and args == ("xb",):
+                candidate.hardlink_to(private)
+            return stream
+
+        monkeypatch.setattr(type(private), "open", link_after_creation)
+
+    monkeypatch.setattr(signal, "verify_freeze", lambda *args: {})
+    monkeypatch.setattr(signal, "evaluate", lambda *args: ({"public": True}, csv_bytes))
+    with pytest.raises(ValueError, match="public_private_output_collision"):
+        signal.main(
+            [
+                "evaluate",
+                "--artifact-root",
+                str(artifacts),
+                "--decision",
+                str(tmp_path / "decision.json"),
+                "--freeze-commit",
+                "a" * 40,
+                "--data-root",
+                str(tmp_path / "data"),
+                "--private-output",
+                str(private),
+                "--output",
+                str(public),
+            ]
+        )
+    assert private.samefile(candidate)
+    assert private.read_bytes() == csv_bytes
+    if destination == "part":
+        assert not public.exists()
     assert capsys.readouterr().out == ""
 
 
