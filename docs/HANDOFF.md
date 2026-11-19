@@ -2,31 +2,38 @@
 
 **E1 status:** 6/6 indexes completed under the structural protocol; physical known tokens=32601955; cost_complete=False; unknown reserve61588 preserved. Final audit/verify completed; monitoring paused.
 
-## Issue20 — oracle Dense / HippoRAG2
+## Issue21 — один сигнал ошибки Dense
 
-- Пользователь поручил issue20; PR41 слит (e334df1), issue19 закрыта.
-- Offline oracle использует сохранённые E3 ответы и private ledger, frozen500 ID
-  на датасет; выбранный в pilot200 метод HippoRAG2 не пересматривается.
-- F1 Dense / Hippo / oracle: Mu 44,93 / 53,55 / 58,16%; Hot 72,03 / 77,70 / 79,76%.
-  Резерв к Hippo +4,61 / +2,06 п.п.; это идеальный предел, не работающий router.
-- Только Dense верен по EM: 19 / 12 вопросов; все четыре группы и EM-oracle
-  в [отчёте](../results/summary/oracle.md), формулы/команда — [ORACLE](ORACLE.md).
-- По 500 пар, без удаления failed: Mu Dense500/Hippo500 completed;
-  Hot Dense500/Hippo498+2failed. E3 loader сверяет protocol/IDs/response/usage,
-  оценки пересчитаны общим evaluator и сопоставлены с private ledger.
-- Публичны только агрегаты и SHA. Private ledger/raw/plans/execution SHA неизменны.
-  Контрольные ID/scores не публикуются; issue21/signal-check не анализируется.
-  Историческое раскрытие контроля, development S500, mixed Hippo/errors и
-  неполнота E1/E2 cost остаются ограничениями. Новых POST/токенов — 0.
-- 52 целевых теста passed; две реальные offline-пересборки JSON/Markdown
-  побайтно совпали, 0HTTP. Обязательный hook/CI — на итоговом HEAD PR.
-  PR42 прошёл полное техническое ревью без обязательных замечаний.
-  Текущие O1/N1/R1/H1 [полностью согласованы Alex](https://github.com/SPStan/rag-graphrag-research/pull/42#pullrequestreview-5938132658).
-  Пользователь разрешил merge PR42 после проверок актуального HEAD; Closes20.
-  PR43/issue21 остаётся отдельно открытым: ROC-AUC0,585 / 0,441,
-  научное решение и принятие ограничения контроля не переносятся из PR42.
+- По поручению пользователя выполняется только offline E5: negative top1 cosine,
+  больше — вероятнее Dense EM=0. Единственный сигнал выбран по доступности
+  сохранённых scores на tuning300; формула не выбиралась по текущим check labels.
+- Разбиение300/100/100 seed42 фиксировано, порог/каскад не подбираются.
+  [Протокол](DENSE_ERROR_SIGNAL.md), ADR0031 и public freeze — источники решения.
+- Code/decision заморожены в41c2f1c до текущей отложенной оценки. Gold не входит в функцию
+  сигнала; таблица ID/signal/target остаётся private в .cache, публичны агрегаты.
+- Прежнее раскрытие контроля PR40/E3/oracle сохраняется: тест не pristine.
+  Новых моделей/embeddings/индексации/tracking нет; E6 не запускается.
+- Проверка завершена: ROC-AUC Mu0,585 / Hot0,441, N100/датасет.
+  H1 для обоих не подтвердилась; знак не менялся, E6 не запускался.
+  [Таблица](../results/summary/dense-error-signal.md); ID/signal/target private,
+  0 новых model/embedding POST. Аналитический digest и CSV SHA двух повторов равны.
+  Контроль исторически загрязнён; ограничение раскрыто в совместном ревью, Refs21.
+- По ревью PR43 run_dense.py привязан к Git blob исходного freeze41c2f1c,
+  включая старый формат без этого поля. Drift отвергается до JSON reader.
+  Исторические freeze/результат/CSV неизменны; self-pin evaluator не ослаблен.
+  Текущие O1/N1/R1/H1 [полностью согласованы Alex](https://github.com/SPStan/rag-graphrag-research/pull/43#pullrequestreview-5940345133);
+  независимый pristine holdout не заявляется.
+- P2 совместного ревью относится к PR43, не к слитому PR42: совпадение
+  public/private путей и .part отклоняется до расчёта/записи.
+  После сохранения CSV проверяется идентичность файлов через samefile(),
+  включая алиасы регистра на томе без учёта регистра. При конфликте байты CSV
+  сохраняются. Регрессии охватывают итоговый JSON и его временный файл.
+- Итог issue20 — PR42; oracle-результат и полное научное согласование
+  доступны в [ORACLE](ORACLE.md). Это согласование не распространяется на issue21.
+  История PR42 включена в базу PR43 без переписывания коммитов.
+  PR41 слит (e334df1).
 
-## Сохранённые E1–E4 результаты и история
+## История E1–E4
 
 - Замечания к PR39 исправлены: чтение/проверки/увеличение recovery ledger
   защищены одним exclusive lock; регрессии исключают потерю допуска и превышение2/2.

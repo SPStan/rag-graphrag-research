@@ -152,3 +152,13 @@ private ledger сверяются; публичны лишь агрегаты/SH
 оценок. Oracle — идеальный предел выбора, не router или доказательство экономии.
 Development S500 и прежнее раскрытие контроля сохраняются; issue21 не выполняется.
 Refs #20.
+
+
+## E5: один фиксированный сигнал — issue21
+
+[Протокол](DENSE_ERROR_SIGNAL.md) и [результат](../results/summary/dense-error-signal.md):
+negative top1 cosine, tuning300/check100/reserve100, без новых запросов.
+Сигнал gold-free, target EM=0 оценивается отдельно после freeze commit.
+ROC-AUC Mu0,585 / Hot0,441; направление не меняется после check.
+Независимость исторического контроля не восстановлена. Публичны агрегаты/SHA,
+ID/signal/target private. E6 и экономия не измерялись. Refs #21.
