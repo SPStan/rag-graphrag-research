@@ -4,8 +4,8 @@
 
 [Итог E1–E5 и демонстрация](MILESTONE_REPORT.md). Критерий устного показа
 закрывается после демонстрации студентом и записи вопросов, ответов и замечаний
-куратора. Issue21 закрыта после слияния PR43 (`5e7007b`).
-Предложение для E6 вынесено в отчёт на обсуждение с куратором.
+по итогам. Issue21 закрыта после слияния PR43 (`5e7007b`).
+Научные формулировки PR44 и дальнейший план E6 согласует Alex.
 
 **E1 status:** 6/6 indexes completed under the structural protocol; physical known tokens=32601955; cost_complete=False; unknown reserve61588 preserved. Final audit/verify completed; monitoring paused.
 
