@@ -1,5 +1,12 @@
 # Передача контекста Sol / Luna
 
+## Текущий блок — issue22
+
+[Отчёт вехи E1–E5](MILESTONE_REPORT.md) связывает результаты с сохранёнными
+прогонами и даёт маршрут локального воспроизведения. PR43 слит (`5e7007b`).
+После подготовки материалов остаётся показ студентом и запись замечаний
+куратора. Решение о дальнейшем E6 принимается отдельно.
+
 **E1 status:** 6/6 indexes completed under the structural protocol; physical known tokens=32601955; cost_complete=False; unknown reserve61588 preserved. Final audit/verify completed; monitoring paused.
 
 ## Issue21 — один сигнал ошибки Dense
