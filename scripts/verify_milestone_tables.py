@@ -1,6 +1,7 @@
 """Compare offline replays with the published E1–E5 tables."""
 
 import argparse
+import csv
 from pathlib import Path
 
 from scripts import run_dense as dense
@@ -11,6 +12,11 @@ ROOT = Path(__file__).resolve().parents[1]
 def require_equal(actual, expected, label):
     if actual != expected:
         raise ValueError(f"Rebuilt table differs: {label}")
+
+
+def read_csv(path):
+    with path.open(encoding="utf-8", newline="") as stream:
+        return list(csv.reader(stream, strict=True))
 
 
 def main():
@@ -43,7 +49,6 @@ def main():
 
     for folder, name in (
         (replay / "e1", "e1-indexing.md"),
-        (replay, "e4-cost.csv"),
         (replay, "oracle.md"),
     ):
         require_equal(
@@ -51,6 +56,12 @@ def main():
             (published / name).read_bytes(),
             name,
         )
+
+    require_equal(
+        read_csv(replay / "e4-cost.csv"),
+        read_csv(published / "e4-cost.csv"),
+        "e4-cost.csv",
+    )
 
     # E3's loader recomputes E2 rows and checks their usage against journals.
     # Tie those exact E2 inputs to the public files in this checkout.
