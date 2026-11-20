@@ -3712,7 +3712,8 @@ def current_unknown_reservation(directory):
     return total
 
 
-def export(plan, plan_path):
+def export(plan, plan_path, *, report_dir=None):
+    report_dir = ROOT / "results/summary" if report_dir is None else Path(report_dir)
     rows = []
     for row in plan["rows"]:
         manifest = ROOT / row["output"] / "manifest.json"
@@ -4005,7 +4006,7 @@ def export(plan, plan_path):
     report["original_combined_token_limit"] = plan.get(
         "original_combined_token_limit", plan["combined_token_limit"]
     )
-    dense.write_json_atomic(ROOT / "results/summary/e1-indexing.json", report)
+    dense.write_json_atomic(report_dir / "e1-indexing.json", report)
     lines = [
         "# E1: индексация",
         "",
@@ -4019,7 +4020,7 @@ def export(plan, plan_path):
         lines.append(
             f"| {row['method']} | {row['dataset']} | {row['status']} | {known.get('llm_input_tokens', '—')}/{known.get('llm_output_tokens', '—')} | {known.get('embedding_input_tokens', '—')} (+cache {row.get('reused_leaf_build_cost', {}).get('embedding_input_tokens', 0)}) | {usage.get('attempts', '—')} | {row.get('cumulative_seconds', row.get('seconds', '—'))} | {completeness} | {row['run_id']} / `{row['output']}` |"
         )
-    (ROOT / "results/summary/e1-indexing.md").write_text(
+    (report_dir / "e1-indexing.md").write_text(
         "\n".join(lines) + "\n", encoding="utf-8"
     )
     return report
