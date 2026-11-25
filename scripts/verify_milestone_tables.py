@@ -52,8 +52,8 @@ def main():
         (replay, "oracle.md"),
     ):
         require_equal(
-            (folder / name).read_bytes(),
-            (published / name).read_bytes(),
+            (folder / name).read_text(encoding="utf-8"),
+            (published / name).read_text(encoding="utf-8"),
             name,
         )
 
