@@ -2,7 +2,7 @@
 
 import argparse
 import csv
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 from scripts import run_dense as dense
 
@@ -65,13 +65,14 @@ def main():
 
     # E3's loader recomputes E2 rows and checks their usage against journals.
     # Tie those exact E2 inputs to the public files in this checkout.
+    # Recorded paths may use either Windows backslashes or POSIX slashes.
     e3 = dense.read_json(replay / "e3.json")
     for dataset in ("musique", "hotpotqa"):
         name = f"e2-{dataset}-s500.json"
         checksums = [
             sha
             for path, sha in e3["inputs"][dataset]["files"].items()
-            if Path(path).name == name
+            if PureWindowsPath(path).name == name
         ]
         require_equal(checksums, [dense.sha256_file(published / name)], name)
     print("E1–E5 tables and oracle agree with the published results.")
