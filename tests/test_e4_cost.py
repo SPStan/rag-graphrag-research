@@ -6,7 +6,7 @@ from pathlib import Path, PureWindowsPath
 
 import pytest
 
-from scripts import e4_cost as e4, run_dense as dense
+from scripts import e4_cost as e4, run_dense as dense, verify_milestone_tables
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -260,3 +260,24 @@ def test_real_LLM_dominance_is_verified_separately_per_exact_answer():
         mu_hip_embedding["per_exact_answer"]["full_cost_result"]["status"]
         == "unidentified_incomplete_cost"
     )
+
+
+def test_milestone_csv_comparison_uses_header_and_cells(tmp_path):
+    published = tmp_path / "published.csv"
+    rebuilt = tmp_path / "rebuilt.csv"
+    published.write_bytes(b"method,tokens\nDense,100\n")
+    rebuilt.write_bytes(b"method,tokens\r\nDense,100\r\n")
+    verify_milestone_tables.require_equal(
+        verify_milestone_tables.read_csv(rebuilt),
+        verify_milestone_tables.read_csv(published),
+        "e4-cost.csv",
+    )
+
+    for changed in (b"method,tokens\r\nDense,101\r\n", b"method,cost\r\nDense,100\r\n"):
+        rebuilt.write_bytes(changed)
+        with pytest.raises(ValueError, match="e4-cost.csv"):
+            verify_milestone_tables.require_equal(
+                verify_milestone_tables.read_csv(rebuilt),
+                verify_milestone_tables.read_csv(published),
+                "e4-cost.csv",
+            )
